@@ -21,6 +21,6 @@ setup(
     author_email=EMAIL,
     author=AUTHOR,
     license='MIT',
-    packages=['TESSELLATE'],
+    packages=['tessellate'],
 )
 
