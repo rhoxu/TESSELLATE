@@ -264,7 +264,7 @@ class Tessellate():
             done = False
             while not done:
                 if ':' in bt2:
-                    self.batch_time1 = bt2
+                    self.batch_time2 = bt2
                     done = True
                 else:
                     bt2 = input("      Invalid format! Batch Time 2 (Reduce) ['h:mm:ss'] = ")
