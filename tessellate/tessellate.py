@@ -193,7 +193,7 @@ class Tessellate():
             done = False
             while not done:
                 try:
-                    cpu1 = int(cube_cpu)
+                    cube_cpu = int(cube_cpu)
                     if 0 < cube_cpu < 33:
                         self.cube_cpu = cube_cpu
                         done = True
@@ -318,7 +318,7 @@ class Tessellate():
             done = False
             while not done:
                 try:
-                    cpu1 = int(cut_cpu)
+                    cut_cpu = int(cut_cpu)
                     if 0 < cut_cpu < 33:
                         self.cut_cpu = cut_cpu
                         done = True
@@ -444,7 +444,7 @@ class Tessellate():
             done = False
             while not done:
                 try:
-                    cpu1 = int(reduce_cpu)
+                    reduce_cpu = int(reduce_cpu)
                     if 0 < reduce_cpu < 33:
                         self.reduce_cpu = reduce_cpu
                         done = True
