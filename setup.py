@@ -21,6 +21,6 @@ setup(
     author_email=EMAIL,
     author=AUTHOR,
     license='MIT',
-    packages=['tessellate','git+https://github.com/rhoxu/TESSreduce.git'],
+    packages=['tessellate','-e git+https://github.com/rhoxu/TESSreduce.git'],
 )
 
