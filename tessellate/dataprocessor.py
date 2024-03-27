@@ -447,7 +447,6 @@ class DataProcessor():
             else:
                 ts = t()
                 if self.verbose > 0:
-                    print('\n')
                     print(f'--Reduction Cam {cam} Chip {ccd} Cut {cut} (of {n**2})--')
                 
                 try: 
@@ -460,6 +459,7 @@ class DataProcessor():
                     
                     if self.verbose > 0:
                         print(f'--Reduction Complete (Time: {((t()-ts)/60):.2f} mins)--')
+                        print('\n')
                     #tw = t()   # write timeStart
                     
                     # -- Saves information out as Numpy Arrays -- #

@@ -9,10 +9,11 @@ class Tessellate():
     def __init__(self,sector,data_path,cam=None,ccd=None,n=None,
                  verbose=2,download_number=None,cut=None,
                  job_output_path=None,working_path=None,
-                 cube_time=None,cut_time=None,reduce_time=None,
-                 cube_cpu=None,cut_cpu=None,reduce_cpu=None,
-                 cube_mem=None,cut_mem=None,reduce_mem=None,
-                 download=False,make_cube=False,make_cuts=False,reduce=False):
+                 cube_time=None,cube_cpu=None,cube_mem=None,
+                 cut_time=None,cut_cpu=None,cut_mem=None,
+                 reduce_time=None,reduce_cpu=None,reduce_mem=None,
+                 search_time=None,search_cpu=None,search_mem=None,
+                 download=False,make_cube=False,make_cuts=False,reduce=False,search=False):
         
         if (job_output_path is None) | (working_path is None):
             m = 'Ensure you specify paths for job output and working path!'
@@ -58,6 +59,9 @@ class Tessellate():
         if reduce:
             message = self._reduce_properties(message,make_cuts)
 
+        if search:
+            message = self._search_properties(message,make_cuts)
+
         message = self._reset_logs(message)
 
         if download:
@@ -70,7 +74,10 @@ class Tessellate():
             self.make_cuts()
 
         if reduce:
-            self.reduce()        
+            self.reduce()    
+
+        if search:
+            self.transient_search()        
 
 
     def _run_properties(self):
@@ -216,8 +223,8 @@ class Tessellate():
             raise ValueError(e)
         
         if self.cube_mem is None:
-            cube_mem = input("   - Cube Mem/CPU [10G suggested] = ")
-            message += f"   - Cube Mem/CPU [10G suggested] = {cube_mem}\n"
+            cube_mem = input("   - Cube Mem/CPU [240G suggested] = ")
+            message += f"   - Cube Mem/CPU [240G suggested] = {cube_mem}\n"
             done = False
             while not done:
                 try: 
@@ -226,15 +233,15 @@ class Tessellate():
                         self.cube_mem = cube_mem
                         done=True
                     else:
-                        cube_mem = input("      Invalid format! Cube Mem/CPU [10G suggested] = ")
-                        message += f"      Invalid choice! Cube Mem/CPU [10G suggested] = {cube_mem}\n"
+                        cube_mem = input("      Invalid format! Cube Mem/CPU [240G suggested] = ")
+                        message += f"      Invalid choice! Cube Mem/CPU [240G suggested] = {cube_mem}\n"
                 except:
                     if cube_mem[-1].lower() == 'g':
                         self.cube_mem = cube_mem[:-1]
                         done = True
                     else:
-                        cube_mem = input("      Invalid format! Cube Mem/CPU [10G suggested] = ")
-                        message += f"      Invalid choice! Cube Mem/CPU [10G suggested] = {cube_mem}\n"
+                        cube_mem = input("      Invalid format! Cube Mem/CPU [240G suggested] = ")
+                        message += f"      Invalid choice! Cube Mem/CPU [240G suggested] = {cube_mem}\n"
 
         elif 0 < self.cube_mem < 500:
             print(f'   - Cube Mem/CPU = {self.cube_mem}G')
@@ -341,8 +348,8 @@ class Tessellate():
             raise ValueError(e)
         
         if self.cut_mem is None:
-            cut_mem = input("   - Cut Mem/CPU [10G suggested] = ")
-            message += f"   - Cut Mem/CPU [10G suggested] = {cut_mem}\n"
+            cut_mem = input("   - Cut Mem/CPU [150G suggested] = ")
+            message += f"   - Cut Mem/CPU [150G suggested] = {cut_mem}\n"
             done = False
             while not done:
                 try: 
@@ -351,15 +358,15 @@ class Tessellate():
                         self.cut_mem = cut_mem
                         done=True
                     else:
-                        cut_mem = input("      Invalid format! Cut Mem/CPU [10G suggested] = ")
-                        message += f"      Invalid choice! Cut Mem/CPU [10G suggested] = {cut_mem}\n"
+                        cut_mem = input("      Invalid format! Cut Mem/CPU [150G suggested] = ")
+                        message += f"      Invalid choice! Cut Mem/CPU [150G suggested] = {cut_mem}\n"
                 except:
                     if cut_mem[-1].lower() == 'g':
                         self.cut_mem = cut_mem[:-1]
                         done = True
                     else:
-                        cut_mem = input("      Invalid format! Cut Mem/CPU [10G suggested] = ")
-                        message += f"      Invalid choice! Cut Mem/CPU [10G suggested] = {cut_mem}\n"
+                        cut_mem = input("      Invalid format! Cut Mem/CPU [150G suggested] = ")
+                        message += f"      Invalid choice! Cut Mem/CPU [150G suggested] = {cut_mem}\n"
 
         elif 0 < self.cut_mem < 500:
             print(f'   - Cut Mem/CPU = {self.cut_mem}G')
@@ -467,8 +474,8 @@ class Tessellate():
             raise ValueError(e)
         
         if self.reduce_mem is None:
-            reduce_mem = input("   - Reduce Mem/CPU [10G suggested] = ")
-            message += f"   - Reduce Mem/CPU [10G suggested] = {reduce_mem}\n"
+            reduce_mem = input("   - Reduce Mem/CPU [8G suggested] = ")
+            message += f"   - Reduce Mem/CPU [8G suggested] = {reduce_mem}\n"
             done = False
             while not done:
                 try: 
@@ -477,21 +484,147 @@ class Tessellate():
                         self.reduce_mem = reduce_mem
                         done=True
                     else:
-                        reduce_mem = input("      Invalid format! Reduce Mem/CPU [10G suggested] = ")
-                        message += f"      Invalid choice! Reduce Mem/CPU [10G suggested] = {reduce_mem}\n"
+                        reduce_mem = input("      Invalid format! Reduce Mem/CPU [8G suggested] = ")
+                        message += f"      Invalid choice! Reduce Mem/CPU [8G suggested] = {reduce_mem}\n"
                 except:
                     if reduce_mem[-1].lower() == 'g':
                         self.reduce_mem = reduce_mem[:-1]
                         done = True
                     else:
-                        reduce_mem = input("      Invalid format! Reduce Mem/CPU [10G suggested] = ")
-                        message += f"      Invalid choice! Reduce Mem/CPU [10G suggested] = {reduce_mem}\n"
+                        reduce_mem = input("      Invalid format! Reduce Mem/CPU [8G suggested] = ")
+                        message += f"      Invalid choice! Reduce Mem/CPU [8G suggested] = {reduce_mem}\n"
 
         elif 0 < self.reduce_mem < 500:
             print(f'   - Reduce Mem/CPU = {self.reduce_mem}G')
             message += f"   - Reduce Mem/CPU = {self.reduce_mem}G\n"
         else:
             e = f"Invalid Reduce Mem/CPU Input of {self.reduce_mem}\n"
+            raise ValueError(e)
+
+        print('\n')
+        message += '\n'
+
+        return message
+    
+    def _search_properties(self,message,cutting):
+
+        if not cutting:
+            if self.n is None:
+                n = input('   - n (Number of Cuts = n^2) = ')
+                message += f'   - n (Number of Cuts = n^2) = {n}\n'
+                done = False
+                while not done:
+                    try:
+                        n = int(n)
+                        if n > 0:
+                            self.n = n
+                            done = True
+                        else:
+                            n = input('      Invalid choice! n (Number of Cuts = n^2) =  ')
+                            message += f'      Invalid choice! n (Number of Cuts = n^2) = {n}\n'
+                    except:
+                        n = input('      Invalid choice! n (Number of Cuts = n^2) =  ')
+                        message += f'      Invalid choice! n (Number of Cuts = n^2) = {n}\n'
+            elif self.n > 0:
+                print(f'   - n (Number of Cuts = n^2) = {self.n}')
+                message += f'  - n (Number of Cuts = n^2) = {self.n}\n'
+            else:
+                e = f"Invalid 'n' value Input of {self.n}\n"
+                raise ValueError(e)
+            
+            if self.cut is None:
+                cut = input(f'   - Cut [1-{self.n**2},all] = ')
+                message += f'   - Cut [1-{self.n**2},all] = {cut}\n'
+                done = False
+                while not done:
+                    if cut == 'all':
+                        self.cut = 'all'
+                        done = True
+                    elif cut in np.array(range(1,self.n**2+1)).astype(str):
+                        self.cut = int(cut)
+                        done = True
+                    else:
+                        cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
+                        message += f'      Invalid choice! Cut [1-{self.n**2},all] = {cut}\n'
+            elif self.cut == 'all':
+                print(f'   - Cut = all')
+                message += f'   - Cut = all\n'
+                self.cut = 'all'
+            elif self.cut in range(1,self.n**2+1):
+                print(f'   - Cut = {self.cut}')
+                self.cut = self.cut
+                message += f'   - Cut = {self.cut}\n'
+            else:
+                e = f"Invalid Cut Input of {self.cut} with 'n' of {self.n}\n"
+                raise ValueError(e)
+            
+            print('\n')
+            message += '\n'
+
+        if self.search_time is None:
+            search_time = input("   - Search Batch Time ['h:mm:ss'] = ")
+            message += f"   - Search Batch Time ['h:mm:ss'] = {search_time}\n"
+            done = False
+            while not done:
+                if ':' in search_time:
+                    self.search_time = search_time
+                    done = True
+                else:
+                    search_time = input("      Invalid format! Search Batch Time ['h:mm:ss'] = ")
+                    message += f"      Invalid choice! Search Batch Time ['h:mm:ss'] = {search_time}\n"
+        else:
+            print(f'   - Search Batch Time = {self.search_time}')
+            message += f"   - Search Batch Time = {self.search_time}')\n"
+
+        if self.search_cpu is None:
+            search_cpu = input("   - Search Num CPUs [1-32] = ")
+            message += f"   - Search Num CPUs [1-32] = {search_cpu}\n"
+            done = False
+            while not done:
+                try:
+                    search_cpu = int(search_cpu)
+                    if 0 < search_cpu < 33:
+                        self.search_cpu = search_cpu
+                        done = True
+                    else:
+                        search_cpu = input("      Invalid format! Search Num CPUs [1-32] = ")
+                        message += f"      Invalid choice! Search Num CPUs [1-32] = {search_cpu}\n"
+                except:
+                    search_cpu = input("      Invalid format! Search Num CPUs [1-32] = ")
+                    message += f"      Invalid choice! Search Num CPUs [1-32] = {search_cpu}\n"
+        elif 0 < self.search_cpu < 33:
+            print(f'   - Search Num CPUs = {self.search_cpu}')
+            message += f"   - Search Num CPUs = {self.search_cpu}\n"
+        else:
+            e = f"Invalid Search CPUs Input of {self.search_cpu}\n"
+            raise ValueError(e)
+        
+        if self.search_mem is None:
+            search_mem = input("   - Search Mem/CPU [1G suggested] = ")
+            message += f"   - Search Mem/CPU [1G suggested] = {search_mem}\n"
+            done = False
+            while not done:
+                try: 
+                    search_mem = int(search_mem)
+                    if 0<search_mem < 500:
+                        self.search_mem = search_mem
+                        done=True
+                    else:
+                        search_mem = input("      Invalid format! Search Mem/CPU [1G suggested] = ")
+                        message += f"      Invalid choice! Search Mem/CPU [1G suggested] = {search_mem}\n"
+                except:
+                    if search_mem[-1].lower() == 'g':
+                        self.search_mem = search_mem[:-1]
+                        done = True
+                    else:
+                        search_mem = input("      Invalid format! Search Mem/CPU [1G suggested] = ")
+                        message += f"      Invalid choice! Search Mem/CPU [1G suggested] = {search_mem}\n"
+
+        elif 0 < self.search_mem < 500:
+            print(f'   - Search Mem/CPU = {self.search_mem}G')
+            message += f"   - Search Mem/CPU = {self.search_mem}G\n"
+        else:
+            e = f"Invalid Search Mem/CPU Input of {self.search_mem}\n"
             raise ValueError(e)
 
         print('\n')
@@ -597,7 +730,7 @@ python {self.working_path}/cubing_script.py"
             while not found:
                 if os.path.exists(f'{save_path}/{cutName}'):
                     try:
-                        if not os.path.exists(f'{save_path}/local_gaia_cat'):
+                        if not os.path.exists(f'{save_path}/local_gaia_cat.csv'):
                             print(f'Generating Catalogue {i}')
 
                             tr.external_save_cat(radec=cutCentreCoords[i-1],size=2*rad,cutCornerPx=cutCorners[i-1],
@@ -722,6 +855,72 @@ python {self.working_path}/reduction_script.py"
                 print('Submitting Reduction Batch File')
                 os.system(f'sbatch {self.working_path}/reduction_script.sh')
 
+                print('\n')
 
 
+    def transient_search(self):
 
+
+        if self.cut == 'all':
+            cuts = np.linspace(1,self.n**2,self.n**2).astype(int)
+        elif type(self.cut) == int:
+            cuts = [self.cut]
+
+        for cam in self.cam:
+            for ccd in self.ccd:    
+                for cut in cuts:
+
+                    # -- Delete old scripts -- #
+                    if os.path.exists(f'{self.working_path}/detection_script.sh'):
+                        os.system(f'rm {self.working_path}/detection_script.sh')
+                        os.system(f'rm {self.working_path}/detection_script.py')
+
+                    # -- Create python file for reducing a cut-- # 
+                    print('Creating Transient Search Python File')
+                    python_text = f"\
+from tessellate import DataProcessor, source_detect\n\
+\n\
+sector = {self.sector}\n\
+cam = {cam}\n\
+ccd = {ccd}\n\
+data_path = f'{self.data_path}'\n\
+cut = {self.cut}\n\
+n = {self.n}\n\
+\n\
+processor = DataProcessor(sector=sector,path=data_path,verbose=2)\n\
+cutCorners, cutCentrePx, cutCentreCoords, cutSize = processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)\n\
+flux = np.load(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_ReducedFlux.npy')\n\
+mask = np.load(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Mask.npy')\n\
+column = cutCentrePx[cut-1][0]\n\
+row = cutCentrePx[cut-1][1]\n\
+results = source_detect(flux,cam=cam,ccd=ccd,sector=self.sector,column=column,row=row,mask=mask,inputNums=None)\n\
+results.to_csv(f'{self.data_path}/Sector{self.sector}/Cam{cam}Ccd{ccd}/Cut{cut}of{self.n**2}/detected_sources.csv')"
+                    
+                    python_file = open(f"{self.working_path}/detection_script.py", "w")
+                    python_file.write(python_text)
+                    python_file.close()
+
+                    # -- Create bash file to submit job -- #
+                    print('Creating Transient Search Batch File')
+                    batch_text = f"\
+#!/bin/bash\n\
+#\n\
+#SBATCH --job-name=TESS_Sector{self.sector}_Cam{cam}_Ccd{ccd}_Search\n\
+#SBATCH --output={self.job_output_path}/search_job_output_%A.txt\n\
+#SBATCH --error={self.job_output_path}/search_errors_%A.txt\n\
+#\n\
+#SBATCH --ntasks=1\n\
+#SBATCH --time={self.search_time}\n\
+#SBATCH --cpus-per-task={self.search_cpu}\n\
+#SBATCH --mem-per-cpu={self.search_mem}G\n\
+\n\
+python {self.working_path}/detection_script.py"
+
+                    batch_file = open(f'{self.working_path}/detection_script.sh', "w")
+                    batch_file.write(batch_text)
+                    batch_file.close()
+                            
+                    print('Submitting Transient Search Batch File')
+                    os.system(f'sbatch {self.working_path}/detection_script.sh')
+
+                    print('\n')
