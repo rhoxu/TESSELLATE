@@ -4,11 +4,20 @@ from .detector import *
 class Tessellate():
 
     def __init__(self,sector,data_path,cam=None,ccd=None,n=None,
-                 batch_time1=None,batch_time2=None,cpu1=None,cpu2=None,
-                 mem1=None,mem2=None,verbose=2,download_number=None,cut=None,
+                 verbose=2,download_number=None,cut=None,
                  job_output_path=None,working_path=None,
-                 download=True,make_cube_cuts=True,reduce=True):
+                 cube_time=None,cut_time=None,reduce_time=None,
+                 cube_cpu=None,cut_cpu=None,reduce_cpu=None,
+                 cube_mem=None,cut_mem=None,reduce_mem=None,
+                 download=True,make_cube=True,make_cuts=True,reduce=True):
         
+        if (job_output_path is None) | (working_path is None):
+            m = 'Ensure you specify paths for job output and working path!'
+            raise ValueError(m)
+        else:
+            self.job_output_path = job_output_path
+            self.working_path = working_path
+
         self.sector = sector
         self.data_path = data_path
 
@@ -19,28 +28,44 @@ class Tessellate():
         self.download_number = download_number
         self.n = n
         self.cut = cut
-        
-        self.batch_time1 = batch_time1
-        self.cpu1 = cpu1
-        self.mem1 = mem1
 
-        self.batch_time2 = batch_time2
-        self.cpu2 = cpu2
-        self.mem2 = mem2
+        self.cube_time = cube_time
+        self.cube_cpu = cube_cpu
+        self.cube_mem = cube_mem
 
-        if (job_output_path is None) | (working_path is None):
-            m = 'Ensure you specify paths for job output and working path!'
-            raise ValueError(m)
-        else:
-            self.job_output_path = job_output_path
-            self.working_path = working_path
+        self.cut_time = cut_time
+        self.cut_cpu = cut_cpu
+        self.cut_mem = cut_mem
+
+        self.reduce_time = reduce_time
+        self.reduce_cpu = reduce_cpu
+        self.reduce_mem = reduce_mem
 
         message = self._run_properties()
 
         if download:
+            message = self._download_properties(message)
+
+        if make_cube:
+            message = self._cube_properties(message)
+
+        if make_cuts:
+            message = self._cut_properties(message)
+
+        if reduce:
+            message = self._reduce_properties(message,make_cuts)
+
+        if download:
             self.download(message)
-        if make_cube_cuts:
-            self.make_cube_cuts()
+
+        if make_cube:
+            self.make_cube()
+        
+        if make_cuts:
+            self.make_cuts()
+
+        if reduce:
+            self.reduce()        
 
 
     def _run_properties(self):
@@ -105,7 +130,11 @@ class Tessellate():
         
         print('\n')
         message += '\n'
-        
+
+        return message
+    
+    def _download_properties(self,message):
+
         if self.download_number is None:
             dNum = input('   - Download Number = ')
             message += f'   - Download Number = {dNum}\n'
@@ -136,6 +165,86 @@ class Tessellate():
             e = f'Invalid Download Number Input of {self.download_number}\n'
             raise ValueError(e)
         
+        print('\n')
+        message += '/n'
+
+        return message
+    
+    def _cube_properties(self,message):
+
+        if self.cube_time is None:
+            cube_time = input("   - Cube Batch Time ['h:mm:ss'] = ")
+            message += f"   - Cube Batch Time ['h:mm:ss'] = {cube_time}\n"
+            done = False
+            while not done:
+                if ':' in cube_time:
+                    self.cube_time = cube_time
+                    done = True
+                else:
+                    cube_time = input("      Invalid format! Cube Batch Time ['h:mm:ss'] = ")
+                    message += f"      Invalid choice! Cube Batch Time ['h:mm:ss'] = {cube_time}\n"
+        else:
+            print(f'   - Cube Batch Time = {self.cube_time}')
+            message += f"   - Cube Batch Time = {self.cube_time}')\n"
+
+        if self.cube_cpu is None:
+            cube_cpu = input("   - Cube Num CPUs [1-32] = ")
+            message += f"   - Cube Num CPUs [1-32] = {cube_cpu}\n"
+            done = False
+            while not done:
+                try:
+                    cpu1 = int(cube_cpu)
+                    if 0 < cube_cpu < 33:
+                        self.cube_cpu = cube_cpu
+                        done = True
+                    else:
+                        cube_cpu = input("      Invalid format! Cube Num CPUs [1-32] = ")
+                        message += f"      Invalid choice! Cube Num CPUs [1-32] = {cube_cpu}\n"
+                except:
+                    cube_cpu = input("      Invalid format! Cube Num CPUs [1-32] = ")
+                    message += f"      Invalid choice! Cube Num CPUs [1-32] = {cube_cpu}\n"
+        elif 0 < self.cube_cpu < 33:
+            print(f'   - Cube Num CPUs = {self.cube_cpu}')
+            message += f"   - Cube Num CPUs = {self.cube_cpu}\n"
+        else:
+            e = f"Invalid Cube CPUs Input of {self.cube_cpu}\n"
+            raise ValueError(e)
+        
+        if self.cube_mem is None:
+            cube_mem = input("   - Cube Mem/CPU [10G suggested] = ")
+            message += f"   - Cube Mem/CPU [10G suggested] = {cube_mem}\n"
+            done = False
+            while not done:
+                try: 
+                    cube_mem = int(cube_mem)
+                    if 0<cube_mem < 500:
+                        self.cube_mem = cube_mem
+                        done=True
+                    else:
+                        cube_mem = input("      Invalid format! Cube Mem/CPU [10G suggested] = ")
+                        message += f"      Invalid choice! Cube Mem/CPU [10G suggested] = {cube_mem}\n"
+                except:
+                    if cube_mem[-1].lower() == 'g':
+                        self.cube_mem = cube_mem[:-1]
+                        done = True
+                    else:
+                        cube_mem = input("      Invalid format! Cube Mem/CPU [10G suggested] = ")
+                        message += f"      Invalid choice! Cube Mem/CPU [10G suggested] = {cube_mem}\n"
+
+        elif 0 < self.cube_mem < 500:
+            print(f'   - Cube Mem/CPU = {self.cube_mem}G')
+            message += f"   - Cube Mem/CPU = {self.cube_mem}G\n"
+        else:
+            e = f"Invalid Cube Mem/CPU Input of {self.cube_mem}\n"
+            raise ValueError(e)
+
+        print('\n')
+        message += '\n'
+
+        return message
+
+    def _cut_properties(self,message):
+
         if self.n is None:
             n = input('   - n (Number of Cuts = n^2) = ')
             message += f'   - n (Number of Cuts = n^2) = {n}\n'
@@ -188,142 +297,198 @@ class Tessellate():
         print('\n')
         message += '\n'
 
-
-        if self.batch_time1 is None:
-            bt1 = input("   - Batch Time 1 (Cube/Cut) ['h:mm:ss'] = ")
-            message += f"   - Batch Time 1 (Cube/Cut) ['h:mm:ss'] = {bt1}\n"
+        if self.cut_time is None:
+            cut_time = input("   - Cut Batch Time ['h:mm:ss'] = ")
+            message += f"   - Cut Batch Time ['h:mm:ss'] = {cut_time}\n"
             done = False
             while not done:
-                if ':' in bt1:
-                    self.batch_time1 = bt1
+                if ':' in cut_time:
+                    self.cut_time = cut_time
                     done = True
                 else:
-                    bt1 = input("      Invalid format! Batch Time 1 (Cube/Cut) ['h:mm:ss'] = ")
-                    message += f"      Invalid choice! Batch Time 1 (Cube/Cut) ['h:mm:ss'] = {bt1}\n"
+                    cut_time = input("      Invalid format! Cut Batch Time ['h:mm:ss'] = ")
+                    message += f"      Invalid choice! Cut Batch Time ['h:mm:ss'] = {cut_time}\n"
         else:
-            print(f'   - Batch Time 1 (Cube/Cut) = {self.batch_time1}')
-            message += f"   - Batch Time 1 (Cube/Cut) = {self.batch_time1}')\n"
+            print(f'   - Cut Batch Time = {self.cut_time}')
+            message += f"   - Cut Batch Time = {self.cut_time}')\n"
 
-        if self.cpu1 is None:
-            cpu1 = input("   - Num CPUs1 [1-32] = ")
-            message += f"   - Num CPUs1 [1-32] = {cpu1}\n"
+        if self.cut_cpu is None:
+            cut_cpu = input("   - Cut Num CPUs [1-32] = ")
+            message += f"   - Cut Num CPUs [1-32] = {cut_cpu}\n"
             done = False
             while not done:
                 try:
-                    cpu1 = int(cpu1)
-                    if 0 < cpu1 < 33:
-                        self.cpu1 = cpu1
+                    cpu1 = int(cut_cpu)
+                    if 0 < cut_cpu < 33:
+                        self.cut_cpu = cut_cpu
                         done = True
                     else:
-                        cpu1 = input("      Invalid format! Num CPUs1 [1-32] = ")
-                        message += f"      Invalid choice! Num CPUs1 [1-32] = {cpu1}\n"
+                        cut_cpu = input("      Invalid format! Cut Num CPUs [1-32] = ")
+                        message += f"      Invalid choice! Cut Num CPUs [1-32] = {cut_cpu}\n"
                 except:
-                    cpu1 = input("      Invalid format! Num CPUs1 [1-32] = ")
-                    message += f"      Invalid choice! Num CPUs1 [1-32] = {cpu1}\n"
-        elif 0 < self.cpu1 < 33:
-            print(f'   - Num CPUs1 = {self.cpu1}')
-            message += f"   - Num CPUs1 = {self.cpu1}\n"
+                    cut_cpu = input("      Invalid format! Cut Num CPUs [1-32] = ")
+                    message += f"      Invalid choice! Cut Num CPUs [1-32] = {cut_cpu}\n"
+        elif 0 < self.cut_cpu < 33:
+            print(f'   - Cut Num CPUs = {self.cut_cpu}')
+            message += f"   - Cut Num CPUs = {self.cut_cpu}\n"
         else:
-            e = f"Invalid CPUs1 Input of {self.cpu1}\n"
+            e = f"Invalid Cut CPUs Input of {self.cut_cpu}\n"
             raise ValueError(e)
         
-        if self.mem1 is None:
-            mem1 = input("   - Mem1/CPU [10G suggested] = ")
-            message += f"   - Mem1/CPU [10G suggested] = {mem1}\n"
+        if self.cut_mem is None:
+            cut_mem = input("   - Cut Mem/CPU [10G suggested] = ")
+            message += f"   - Cut Mem/CPU [10G suggested] = {cut_mem}\n"
             done = False
             while not done:
                 try: 
-                    mem1 = int(mem1)
-                    if 0<mem1 < 500:
-                        self.mem1 = mem1
+                    cut_mem = int(cut_mem)
+                    if 0<cut_mem < 500:
+                        self.cut_mem = cut_mem
                         done=True
                     else:
-                        mem1 = input("      Invalid format! Mem1/CPU [10G suggested] = ")
-                        message += f"      Invalid choice! Mem1/CPU [10G suggested] = {mem1}\n"
+                        cut_mem = input("      Invalid format! Cut Mem/CPU [10G suggested] = ")
+                        message += f"      Invalid choice! Cut Mem/CPU [10G suggested] = {cut_mem}\n"
                 except:
-                    if mem1[-1].lower() == 'g':
-                        self.mem1 = mem1[:-1]
+                    if cut_mem[-1].lower() == 'g':
+                        self.cut_mem = cut_mem[:-1]
                         done = True
                     else:
-                        mem1 = input("      Invalid format! Mem1/CPU [10G suggested] = ")
-                        message += f"      Invalid choice! Mem1/CPU [10G suggested] = {mem1}\n"
+                        cut_mem = input("      Invalid format! Cut Mem/CPU [10G suggested] = ")
+                        message += f"      Invalid choice! Cut Mem/CPU [10G suggested] = {cut_mem}\n"
 
-        elif 0 < self.mem1 < 500:
-            print(f'   - Mem1/CPU = {self.mem1}G')
-            message += f"   - Mem1/CPU = {self.mem1}G\n"
+        elif 0 < self.cut_mem < 500:
+            print(f'   - Cut Mem/CPU = {self.cut_mem}G')
+            message += f"   - Cut Mem/CPU = {self.cut_mem}G\n"
         else:
-            e = f"Invalid Mem1/CPU Input of {self.mem1}\n"
+            e = f"Invalid Cut Mem/CPU Input of {self.cut_mem}\n"
             raise ValueError(e)
 
         print('\n')
         message += '\n'
 
-        if self.batch_time2 is None:
-            bt2 = input("   - Batch Time 2 (Reduce) ['h:mm:ss'] = ")
-            message += f"   - Batch Time 2 (Reduce) ['h:mm:ss'] = {bt2}\n"
+        return message
+
+    def _reduce_properties(self,message,cutting):
+
+        if not cutting:
+            if self.n is None:
+                n = input('   - n (Number of Cuts = n^2) = ')
+                message += f'   - n (Number of Cuts = n^2) = {n}\n'
+                done = False
+                while not done:
+                    try:
+                        n = int(n)
+                        if n > 0:
+                            self.n = n
+                            done = True
+                        else:
+                            n = input('      Invalid choice! n (Number of Cuts = n^2) =  ')
+                            message += f'      Invalid choice! n (Number of Cuts = n^2) = {n}\n'
+                    except:
+                        n = input('      Invalid choice! n (Number of Cuts = n^2) =  ')
+                        message += f'      Invalid choice! n (Number of Cuts = n^2) = {n}\n'
+            elif self.n > 0:
+                print(f'   - n (Number of Cuts = n^2) = {self.n}')
+                message += f'  - n (Number of Cuts = n^2) = {self.n}\n'
+            else:
+                e = f"Invalid 'n' value Input of {self.n}\n"
+                raise ValueError(e)
+            
+            if self.cut is None:
+                cut = input(f'   - Cut [1-{self.n**2},all] = ')
+                message += f'   - Cut [1-{self.n**2},all] = {cut}\n'
+                done = False
+                while not done:
+                    if cut == 'all':
+                        self.cut = 'all'
+                        done = True
+                    elif cut in np.array(range(1,self.n**2+1)).astype(str):
+                        self.cut = int(cut)
+                        done = True
+                    else:
+                        cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
+                        message += f'      Invalid choice! Cut [1-{self.n**2},all] = {cut}\n'
+            elif self.cut == 'all':
+                print(f'   - Cut = all')
+                message += f'   - Cut = all\n'
+                self.cut = 'all'
+            elif self.cut in range(1,self.n**2+1):
+                print(f'   - Cut = {self.cut}')
+                self.cut = self.cut
+                message += f'   - Cut = {self.cut}\n'
+            else:
+                e = f"Invalid Cut Input of {self.cut} with 'n' of {self.n}\n"
+                raise ValueError(e)
+            
+            print('\n')
+            message += '\n'
+
+        if self.reduce_time is None:
+            reduce_time = input("   - Reduce Batch Time ['h:mm:ss'] = ")
+            message += f"   - Reduce Batch Time ['h:mm:ss'] = {reduce_time}\n"
             done = False
             while not done:
-                if ':' in bt2:
-                    self.batch_time2 = bt2
+                if ':' in reduce_time:
+                    self.reduce_time = reduce_time
                     done = True
                 else:
-                    bt2 = input("      Invalid format! Batch Time 2 (Reduce) ['h:mm:ss'] = ")
-                    message += f"      Invalid choice! Batch Time 2 (Reduce) ['h:mm:ss'] = {bt2}\n"
+                    reduce_time = input("      Invalid format! Reduce Batch Time ['h:mm:ss'] = ")
+                    message += f"      Invalid choice! Reduce Batch Time ['h:mm:ss'] = {reduce_time}\n"
         else:
-            print(f'   - Batch Time 2 (Reduce) = {self.batch_time2}')
-            message += f"   - Batch Time 2 (Reduce) = {self.batch_time2}')\n"
+            print(f'   - Reduce Batch Time = {self.reduce_time}')
+            message += f"   - Reduce Batch Time = {self.reduce_time}')\n"
 
-        if self.cpu2 is None:
-            cpu2 = input("   - Num CPUs2 [1-32] = ")
-            message += f"   - Num CPUs2 [1-32] = {cpu2}\n"
+        if self.reduce_cpu is None:
+            reduce_cpu = input("   - Reduce Num CPUs [1-32] = ")
+            message += f"   - Reduce Num CPUs [1-32] = {reduce_cpu}\n"
             done = False
             while not done:
                 try:
-                    cpu2 = int(cpu2)
-                    if 0 < cpu2 < 33:
-                        self.cpu2 = cpu2
+                    cpu1 = int(reduce_cpu)
+                    if 0 < reduce_cpu < 33:
+                        self.reduce_cpu = reduce_cpu
                         done = True
                     else:
-                        cpu2 = input("      Invalid format! Num CPUs2 [1-32] = ")
-                        message += f"      Invalid choice! Num CPUs2 [1-32] = {cpu2}\n"
+                        reduce_cpu = input("      Invalid format! Reduce Num CPUs [1-32] = ")
+                        message += f"      Invalid choice! Reduce Num CPUs [1-32] = {reduce_cpu}\n"
                 except:
-                    cpu2 = input("      Invalid format! Num CPUs2 [1-32] = ")
-                    message += f"      Invalid choice! Num CPUs2 [1-32] = {cpu2}\n"
-        elif 0 < self.cpu2 < 33:
-            print(f'   - Num CPUs2 = {self.cpu2}')
-            message += f"   - Num CPUs2 = {self.cpu2}\n"
+                    reduce_cpu = input("      Invalid format! Reduce Num CPUs [1-32] = ")
+                    message += f"      Invalid choice! Reduce Num CPUs [1-32] = {reduce_cpu}\n"
+        elif 0 < self.reduce_cpu < 33:
+            print(f'   - Reduce Num CPUs = {self.reduce_cpu}')
+            message += f"   - Reduce Num CPUs = {self.reduce_cpu}\n"
         else:
-            e = f"Invalid CPUs2 Input of {self.cpu2}\n"
+            e = f"Invalid Reduce CPUs Input of {self.reduce_cpu}\n"
             raise ValueError(e)
         
-        if self.mem2 is None:
-            mem2 = input("   - Mem2/CPU [10G suggested] = ")
-            message += f"   - Mem2/CPU [10G suggested] = {mem2}\n"
+        if self.reduce_mem is None:
+            reduce_mem = input("   - Reduce Mem/CPU [10G suggested] = ")
+            message += f"   - Reduce Mem/CPU [10G suggested] = {reduce_mem}\n"
             done = False
             while not done:
                 try: 
-                    mem2 = int(mem2)
-                    if 0<mem2 < 500:
-                        self.mem2 = mem2
+                    reduce_mem = int(reduce_mem)
+                    if 0<reduce_mem < 500:
+                        self.reduce_mem = reduce_mem
                         done=True
                     else:
-                        mem2 = input("      Invalid format! Mem2/CPU [10G suggested] = ")
-                        message += f"      Invalid choice! Mem2/CPU [10G suggested] = {mem2}\n"
+                        reduce_mem = input("      Invalid format! Reduce Mem/CPU [10G suggested] = ")
+                        message += f"      Invalid choice! Reduce Mem/CPU [10G suggested] = {reduce_mem}\n"
                 except:
-                    if mem2[-1].lower() == 'g':
-                        self.mem2 = mem2[:-1]
+                    if reduce_mem[-1].lower() == 'g':
+                        self.reduce_mem = reduce_mem[:-1]
                         done = True
                     else:
-                        mem2 = input("      Invalid format! Mem2/CPU [10G suggested] = ")
-                        message += f"      Invalid choice! Mem2/CPU [10G suggested] = {mem2}\n"
+                        reduce_mem = input("      Invalid format! Reduce Mem/CPU [10G suggested] = ")
+                        message += f"      Invalid choice! Reduce Mem/CPU [10G suggested] = {reduce_mem}\n"
 
-        elif 0 < self.mem2 < 500:
-            print(f'   - Mem2/CPU = {self.mem2}G')
-            message += f"   - Mem2/CPU = {self.mem2}G\n"
+        elif 0 < self.reduce_mem < 500:
+            print(f'   - Reduce Mem/CPU = {self.reduce_mem}G')
+            message += f"   - Reduce Mem/CPU = {self.reduce_mem}G\n"
         else:
-            e = f"Invalid Mem2/CPU Input of {self.mem2}\n"
+            e = f"Invalid Reduce Mem/CPU Input of {self.reduce_mem}\n"
             raise ValueError(e)
-        
+
         print('\n')
         message += '\n'
 
@@ -341,12 +506,12 @@ class Tessellate():
                 print(f'Download Complete ({((t()-tDownload)/60):.2f} mins).')
                 print('\n')
 
-    def make_cube_cuts(self):
+    def make_cube(self):
 
         for cam in self.cam:
             for ccd in self.ccd: 
                 # -- Create python file for cubing, cutting, reducing a cut-- # 
-                print(f'Creating Cubing/Cutting Python File for Cam{cam}Ccd{ccd}')
+                print(f'Creating Cubing Python File for Cam{cam}Ccd{ccd}')
                 python_text = f"\
 from tessellate import DataProcessor\n\
 \n\
@@ -359,10 +524,9 @@ cut = {self.cut}\n\
 n = {self.n}\n\
 \n\
 processor = DataProcessor(sector=sector,path=data_path,verbose=2)\n\
-processor.make_cube(cam=cam,ccd=ccd)\n\
-processor.make_cuts(cam=cam,ccd=ccd,n=n,cut=cut)"
-
-        python_file = open(f"{self.working_path}/task_script1.py", "w")
+processor.make_cube(cam=cam,ccd=ccd)"
+                
+        python_file = open(f"{self.working_path}/cubing_script.py", "w")
         python_file.write(python_text)
         python_file.close()
 
@@ -372,22 +536,70 @@ processor.make_cuts(cam=cam,ccd=ccd,n=n,cut=cut)"
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=tessreduce_attempt\n\
-#SBATCH --output={self.job_output_path}/job_output_%A.txt\n\
-#SBATCH --error={self.job_output_path}/errors_%A.txt\n\
+#SBATCH --output={self.job_output_path}/cubing_job_output_%A.txt\n\
+#SBATCH --error={self.job_output_path}/cubing_errors_%A.txt\n\
 #\n\
 #SBATCH --ntasks=1\n\
 #SBATCH --time={self.batch_time1}\n\
 #SBATCH --cpus-per-task={self.cpu1}\n\
 #SBATCH --mem-per-cpu={self.mem1}G\n\
 \n\
-python {self.working_path}/task_script1.py"
+python {self.working_path}/cubing_script.py"
 
-        batch_file = open(f'{self.working_path}/task_script1.sh', "w")
+        batch_file = open(f'{self.working_path}/cubing_script.sh', "w")
         batch_file.write(batch_text)
         batch_file.close()
 
-        print('Submitting Cubing/Cutting Batch File')
-        os.system(f'sbatch {self.working_path}/task_script1.sh')
+        print('Submitting Cubing Batch File')
+        os.system(f'sbatch {self.working_path}/cubing_script.sh')
+        print('\n')
+
+    def make_cuts(self):
+
+        for cam in self.cam:
+            for ccd in self.ccd: 
+                # -- Create python file for cubing, cutting, reducing a cut-- # 
+                print(f'Creating Cutting Python File for Cam{cam}Ccd{ccd}')
+                python_text = f"\
+from tessellate import DataProcessor\n\
+\n\
+sector = {self.sector}\n\
+cam = {cam}\n\
+ccd = {ccd}\n\
+data_path = f'{self.data_path}'\n\
+download_number = {self.download_number}\n\
+cut = {self.cut}\n\
+n = {self.n}\n\
+\n\
+processor = DataProcessor(sector=sector,path=data_path,verbose=2)\n\
+processor.make_cuts(cam=cam,ccd=ccd,n=n,cut=cut)"
+
+        python_file = open(f"{self.working_path}/cutting_script.py", "w")
+        python_file.write(python_text)
+        python_file.close()
+
+        # -- Create bash file to submit job -- #
+        print('Creating Cubing/Cutting Batch File')
+        batch_text = f"\
+#!/bin/bash\n\
+#\n\
+#SBATCH --job-name=tessreduce_attempt\n\
+#SBATCH --output={self.job_output_path}/cutting_job_output_%A.txt\n\
+#SBATCH --error={self.job_output_path}/cutting_errors_%A.txt\n\
+#\n\
+#SBATCH --ntasks=1\n\
+#SBATCH --time={self.batch_time1}\n\
+#SBATCH --cpus-per-task={self.cpu1}\n\
+#SBATCH --mem-per-cpu={self.mem1}G\n\
+\n\
+python {self.working_path}/cutting_script.py"
+
+        batch_file = open(f'{self.working_path}/cutting_script.sh', "w")
+        batch_file.write(batch_text)
+        batch_file.close()
+
+        print('Submitting Cutting Batch File')
+        os.system(f'sbatch {self.working_path}/cutting_script.sh')
         print('\n')
 
 
