@@ -681,11 +681,9 @@ python {self.working_path}/cutting_script.py"
                     os.system(f'rm {self.working_path}/reduction_script.py')
 
                 # -- Create python file for reducing a cut-- # 
-                print('\n')
                 print('Creating Reduction Python File')
                 python_text = f"\
-from DataGrab import DataGrab\n\
-from time import time as t\n\
+from tessellate import DataProcessor\n\
 \n\
 sector = {self.sector}\n\
 cam = {cam}\n\
