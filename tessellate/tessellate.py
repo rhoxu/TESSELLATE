@@ -96,7 +96,7 @@ class Tessellate():
             message += '   - CCD = all\n'
             self.ccd = [1,2,3,4]
         elif self.ccd in [1,2,3,4]:
-            print(f'   - CCD = {self.cam}')
+            print(f'   - CCD = {self.ccd}')
             self.ccd = [self.ccd]
             message += f'   - CCD = {self.ccd}\n'
         else:
