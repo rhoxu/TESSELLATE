@@ -12,7 +12,7 @@ class Tessellate():
                  cube_time=None,cut_time=None,reduce_time=None,
                  cube_cpu=None,cut_cpu=None,reduce_cpu=None,
                  cube_mem=None,cut_mem=None,reduce_mem=None,
-                 download=True,make_cube=True,make_cuts=True,reduce=True):
+                 download=False,make_cube=False,make_cuts=False,reduce=False):
         
         if (job_output_path is None) | (working_path is None):
             m = 'Ensure you specify paths for job output and working path!'
@@ -586,7 +586,6 @@ python {self.working_path}/cubing_script.py"
             cuts = [self.cut]
 
         # -- Generate Star Catalogue -- #
-        print('\n')
         for i in cuts:
             message = f'Waiting for Cut {i}'
             found = False
@@ -613,6 +612,8 @@ python {self.working_path}/cubing_script.py"
                     print(message, end='\r')
                     sleep(120)
                     message += '.'
+
+            print('\n')
 
     def make_cuts(self):
 
