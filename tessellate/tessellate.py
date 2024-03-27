@@ -58,7 +58,7 @@ class Tessellate():
         if reduce:
             message = self._reduce_properties(message,make_cuts)
 
-        self._reset_logs()
+        message = self._reset_logs(message)
 
         if download:
             self.download(message)
@@ -501,12 +501,16 @@ class Tessellate():
     
     def _reset_logs(self,message):
 
+        message += 'Delete Past Job Logs? [y/n] :\n'
         if input('Delete Past Job Logs? [y/n] :\n').lower() == 'y':
             os.system(f'rm {self.job_output_path}/*')
             message = message + 'y \n'
         else:
             message + 'n \n'
         print('\n')
+        message += '\n'
+
+        return message
         
     def download(self,message):
 
