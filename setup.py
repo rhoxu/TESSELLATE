@@ -21,6 +21,6 @@ setup(
     author_email=EMAIL,
     author=AUTHOR,
     license='MIT',
-    packages=['tessellate'],
+    packages=['tessellate','TESSreduce-master/tessreduce'],
 )
 
