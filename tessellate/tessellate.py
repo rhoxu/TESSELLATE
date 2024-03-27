@@ -1,6 +1,9 @@
 from .dataprocessor import _Print_buff, DataProcessor
 from .detector import *
 
+from glob import glob
+from time import sleep
+
 class Tessellate():
 
     def __init__(self,sector,data_path,cam=None,ccd=None,n=None,
@@ -54,6 +57,8 @@ class Tessellate():
 
         if reduce:
             message = self._reduce_properties(message,make_cuts)
+
+        self._reset_logs()
 
         if download:
             self.download(message)
@@ -493,6 +498,15 @@ class Tessellate():
         message += '\n'
 
         return message
+    
+    def _reset_logs(self,message):
+
+        if input('Delete Past Job Logs? [y/n] :\n').lower() == 'y':
+            os.system(f'rm {self.job_output_path}/*')
+            message = message + 'y \n'
+        else:
+            message + 'n \n'
+        print('\n')
         
     def download(self,message):
 
@@ -510,6 +524,12 @@ class Tessellate():
 
         for cam in self.cam:
             for ccd in self.ccd: 
+
+                # -- Delete old scripts -- #
+                if os.path.exists(f'{self.working_path}/cubing_script.sh'):
+                    os.system(f'rm {self.working_path}/cubing_script.sh')
+                    os.system(f'rm {self.working_path}/cubing_script.py')
+
                 # -- Create python file for cubing, cutting, reducing a cut-- # 
                 print(f'Creating Cubing Python File for Cam{cam}Ccd{ccd}')
                 python_text = f"\
@@ -519,45 +539,87 @@ sector = {self.sector}\n\
 cam = {cam}\n\
 ccd = {ccd}\n\
 data_path = f'{self.data_path}'\n\
-download_number = {self.download_number}\n\
-cut = {self.cut}\n\
-n = {self.n}\n\
 \n\
 processor = DataProcessor(sector=sector,path=data_path,verbose=2)\n\
 processor.make_cube(cam=cam,ccd=ccd)"
                 
-        python_file = open(f"{self.working_path}/cubing_script.py", "w")
-        python_file.write(python_text)
-        python_file.close()
+                python_file = open(f"{self.working_path}/cubing_script.py", "w")
+                python_file.write(python_text)
+                python_file.close()
 
-        # -- Create bash file to submit job -- #
-        print('Creating Cubing/Cutting Batch File')
-        batch_text = f"\
+                # -- Create bash file to submit job -- #
+                print('Creating Cubing/Cutting Batch File')
+                batch_text = f"\
 #!/bin/bash\n\
 #\n\
-#SBATCH --job-name=tessreduce_attempt\n\
+#SBATCH --job-name=TESS_Sector{self.sector}_Cam{cam}_Ccd{ccd}_Cubing\n\
 #SBATCH --output={self.job_output_path}/cubing_job_output_%A.txt\n\
 #SBATCH --error={self.job_output_path}/cubing_errors_%A.txt\n\
 #\n\
 #SBATCH --ntasks=1\n\
-#SBATCH --time={self.batch_time1}\n\
-#SBATCH --cpus-per-task={self.cpu1}\n\
-#SBATCH --mem-per-cpu={self.mem1}G\n\
+#SBATCH --time={self.cube_time}\n\
+#SBATCH --cpus-per-task={self.cube_cpu}\n\
+#SBATCH --mem-per-cpu={self.cube_mem}G\n\
 \n\
 python {self.working_path}/cubing_script.py"
 
-        batch_file = open(f'{self.working_path}/cubing_script.sh', "w")
-        batch_file.write(batch_text)
-        batch_file.close()
+                batch_file = open(f'{self.working_path}/cubing_script.sh', "w")
+                batch_file.write(batch_text)
+                batch_file.close()
 
-        print('Submitting Cubing Batch File')
-        os.system(f'sbatch {self.working_path}/cubing_script.sh')
+                print('Submitting Cubing Batch File')
+                os.system(f'sbatch {self.working_path}/cubing_script.sh')
+                print('\n')
+
+    def _get_catalogues(self,cam,ccd):
+                
+        data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
+        cutCorners,cutCentrePx,cutCentreCoords,rad = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
+
+        if self.cut == 'all':
+                cuts = range(1,self.n**2+1)
+        else:
+            cuts = [self.cut]
+
+        # -- Generate Star Catalogue -- #
         print('\n')
+        for i in cuts:
+            message = f'Waiting for Cut {i}'
+            found = False
+            save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{i}of{self.n**2}'
+            cutName = f'sector{self.sector}_cam{cam}_ccd{ccd}_cut{i}_of{self.n**2}.fits'
+
+            image_path = glob(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/*ffic.fits')[0]
+
+            while not found:
+                if os.path.exists(f'{save_path}/{cutName}'):
+                    try:
+                        if not os.path.exists(f'{save_path}/local_gaia_cat'):
+                            print(f'Generating Catalogue {i}')
+
+                            tr.external_save_cat(radec=cutCentreCoords[i-1],size=2*rad,cutCornerPx=cutCorners[i-1],
+                                                    image_path=image_path,save_path=save_path,maglim=19)
+                            
+                        found = True
+                    except:
+                        print(message, end='\r')
+                        sleep(120)
+                        message += '.'
+                else:
+                    print(message, end='\r')
+                    sleep(120)
+                    message += '.'
 
     def make_cuts(self):
 
         for cam in self.cam:
             for ccd in self.ccd: 
+
+                # -- Delete old scripts -- #
+                if os.path.exists(f'{self.working_path}/cutting_script.sh'):
+                    os.system(f'rm {self.working_path}/cutting_script.sh')
+                    os.system(f'rm {self.working_path}/cutting_script.py')
+
                 # -- Create python file for cubing, cutting, reducing a cut-- # 
                 print(f'Creating Cutting Python File for Cam{cam}Ccd{ccd}')
                 python_text = f"\
@@ -567,40 +629,96 @@ sector = {self.sector}\n\
 cam = {cam}\n\
 ccd = {ccd}\n\
 data_path = f'{self.data_path}'\n\
-download_number = {self.download_number}\n\
 cut = {self.cut}\n\
 n = {self.n}\n\
 \n\
 processor = DataProcessor(sector=sector,path=data_path,verbose=2)\n\
 processor.make_cuts(cam=cam,ccd=ccd,n=n,cut=cut)"
 
-        python_file = open(f"{self.working_path}/cutting_script.py", "w")
-        python_file.write(python_text)
-        python_file.close()
+                python_file = open(f"{self.working_path}/cutting_script.py", "w")
+                python_file.write(python_text)
+                python_file.close()
 
-        # -- Create bash file to submit job -- #
-        print('Creating Cubing/Cutting Batch File')
-        batch_text = f"\
+                # -- Create bash file to submit job -- #
+                print('Creating Cutting Batch File')
+                batch_text = f"\
 #!/bin/bash\n\
 #\n\
-#SBATCH --job-name=tessreduce_attempt\n\
+#SBATCH --job-name=TESS_Sector{self.sector}_Cam{cam}_Ccd{ccd}_Cutting\n\
 #SBATCH --output={self.job_output_path}/cutting_job_output_%A.txt\n\
 #SBATCH --error={self.job_output_path}/cutting_errors_%A.txt\n\
 #\n\
 #SBATCH --ntasks=1\n\
-#SBATCH --time={self.batch_time1}\n\
-#SBATCH --cpus-per-task={self.cpu1}\n\
-#SBATCH --mem-per-cpu={self.mem1}G\n\
+#SBATCH --time={self.cut_time}\n\
+#SBATCH --cpus-per-task={self.cut_cpu}\n\
+#SBATCH --mem-per-cpu={self.cut_mem}G\n\
 \n\
 python {self.working_path}/cutting_script.py"
 
-        batch_file = open(f'{self.working_path}/cutting_script.sh', "w")
-        batch_file.write(batch_text)
-        batch_file.close()
+                batch_file = open(f'{self.working_path}/cutting_script.sh', "w")
+                batch_file.write(batch_text)
+                batch_file.close()
 
-        print('Submitting Cutting Batch File')
-        os.system(f'sbatch {self.working_path}/cutting_script.sh')
-        print('\n')
+                print('Submitting Cutting Batch File')
+                os.system(f'sbatch {self.working_path}/cutting_script.sh')
+                print('\n')
+
+                self._get_catalogues(cam=cam,ccd=ccd)
+
+    def reduce(self):
+
+        for cam in self.cam:
+            for ccd in self.ccd: 
+
+                # -- Delete old scripts -- #
+                if os.path.exists(f'{self.working_path}/reduction_script.sh'):
+                    os.system(f'rm {self.working_path}/reduction_script.sh')
+                    os.system(f'rm {self.working_path}/reduction_script.py')
+
+                # -- Create python file for reducing a cut-- # 
+                print('\n')
+                print('Creating Reduction Python File')
+                python_text = f"\
+from DataGrab import DataGrab\n\
+from time import time as t\n\
+\n\
+sector = {self.sector}\n\
+cam = {cam}\n\
+ccd = {ccd}\n\
+data_path = f'{self.data_path}'\n\
+cut = {self.cut}\n\
+n = {self.n}\n\
+\n\
+processor = DataProcessor(sector=sector,path=data_path,verbose=2)\n\
+processor.reduce(cam=cam,ccd=ccd,n=n,cut=cut)"
+                
+                python_file = open(f"{self.working_path}/reduction_script.py", "w")
+                python_file.write(python_text)
+                python_file.close()
+
+                # -- Create bash file to submit job -- #
+                print('Creating Reduction Batch File')
+                batch_text = f"\
+#!/bin/bash\n\
+#\n\
+#SBATCH --job-name=TESS_Sector{self.sector}_Cam{cam}_Ccd{ccd}_Reduction\n\
+#SBATCH --output={self.job_output_path}/reduction_job_output_%A.txt\n\
+#SBATCH --error={self.job_output_path}/reduction_errors_%A.txt\n\
+#\n\
+#SBATCH --ntasks=1\n\
+#SBATCH --time={self.reduce_time}\n\
+#SBATCH --cpus-per-task={self.reduce_cpu}\n\
+#SBATCH --mem-per-cpu={self.reduce_mem}G\n\
+\n\
+python {self.working_path}/reduction_script.py"
+
+                batch_file = open(f'{self.working_path}/reduction_script.sh', "w")
+                batch_file.write(batch_text)
+                batch_file.close()
+                        
+                print('Submitting Reduction Batch File')
+                os.system(f'sbatch {self.working_path}/reduction_script.sh')
+
 
 
 
