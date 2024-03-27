@@ -6,12 +6,10 @@ URL = 'https://github.com/rhoxu/TESSELLATE'
 EMAIL = 'roxburghhugh@gmail.com'
 AUTHOR ='Hugh Roxburgh'
 VERSION = '1.0.0'
-REQUIRED = ['tessreduce',
+REQUIRED = ['tessreduce @ git+https://github.com/rhoxu/TESSreduce.git',
             'astrocut',
-            'photutils>=1.4',
-            'astropy',
-            'joblib',
-            'multiprocess']
+            'photutils>=1.4'
+            ]
 
 setup(
     name=NAME,
@@ -22,8 +20,6 @@ setup(
     author=AUTHOR,
     license='MIT',
     packages=['tessellate'],
-    dependency_links=[
-        'git+https://github.com/rhoxu/TESSreduce.git#egg=TESSreduce'
-    ]
+    requires=REQUIRED
 )
 
