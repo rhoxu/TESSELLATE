@@ -662,7 +662,7 @@ class Tessellate():
                     data_processor.download(cam=cam,ccd=ccd,number=self.download_number)
                     os.system('clear')
                     print(message)
-                    print(f'Download Complete ({((t()-tDownload)/60):.2f} mins).')
+                    print(f'Sector {self.sector} Cam {cam} Ccd {ccd} Download Complete ({((t()-tDownload)/60):.2f} mins).')
                     print('\n')
 
     def make_cube(self):

@@ -164,28 +164,11 @@ class DataProcessor():
         
         """
 
-        combinations = []
-        if cam is not None:
-            if ccd is not None:
-                combinations.append((cam,ccd))
-            else:
-                combinations.extend([(cam,ccd) for ccd in range(1,5)])
-        else:
-            for cam in range(1,5):
-                combinations.extend([(cam,ccd) for ccd in range(1,5)])
         
-        if time is not None:  # sets number of days before and after given time to download inside
-            lower = 1
-            upper = 1
-        else:
-            lower = None
-            upper = None
         
-        for cam,ccd in combinations:
-            if self.verbose > 0:
-                print('\n')
-                print(_Print_buff(50,f'Downloading Sector {self.sector} Cam {cam} CCD {ccd}'))
-            Download_cam_ccd_FFIs(self.path,self.sector,cam,ccd,time,lower,upper,number=number) 
+        if self.verbose > 0:
+            print(_Print_buff(50,f'Downloading Sector {self.sector} Cam {cam} CCD {ccd}'))
+        Download_cam_ccd_FFIs(self.path,self.sector,cam,ccd,time,None,None,number=number) 
     
     def find_cuts(self,cam,ccd,n,plot=True,proj=True,coord=None):
         """
