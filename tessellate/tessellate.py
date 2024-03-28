@@ -7,7 +7,7 @@ from time import sleep
 class Tessellate():
 
     def __init__(self,sector,data_path,cam=None,ccd=None,n=None,
-                 verbose=2,download_number=None,cut=None,
+                 verbose=2,download_number=None,cuts=None,
                  job_output_path=None,working_path=None,
                  cube_time=None,cube_cpu=None,cube_mem=None,
                  cut_time=None,cut_cpu=None,cut_mem=None,
@@ -31,7 +31,7 @@ class Tessellate():
 
         self.download_number = download_number
         self.n = n
-        self.cut = cut
+        self.cuts = cuts
 
         self.cube_time = cube_time
         self.cube_cpu = cube_cpu
@@ -284,30 +284,30 @@ class Tessellate():
             e = f"Invalid 'n' value Input of {self.n}\n"
             raise ValueError(e)
         
-        if self.cut is None:
+        if self.cuts is None:
             cut = input(f'   - Cut [1-{self.n**2},all] = ')
             message += f'   - Cut [1-{self.n**2},all] = {cut}\n'
             done = False
             while not done:
                 if cut == 'all':
-                    self.cut = range(1,self.n**2+1)
+                    self.cuts = range(1,self.n**2+1)
                     done = True
                 elif cut in np.array(range(1,self.n**2+1)).astype(str):
-                    self.cut = [int(cut)]
+                    self.cuts = [int(cut)]
                     done = True
                 else:
                     cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
                     message += f'      Invalid choice! Cut [1-{self.n**2},all] = {cut}\n'
-        elif self.cut == 'all':
+        elif self.cuts == 'all':
             print(f'   - Cut = all')
             message += f'   - Cut = all\n'
-            self.cut = range(1,self.n**2+1)
-        elif self.cut in range(1,self.n**2+1):
-            print(f'   - Cut = {self.cut}')
-            message += f'   - Cut = {self.cut}\n'
-            self.cut = [self.cut]  
+            self.cuts = range(1,self.n**2+1)
+        elif self.cuts in range(1,self.n**2+1):
+            print(f'   - Cut = {self.cuts}')
+            message += f'   - Cut = {self.cuts}\n'
+            self.cuts = [self.cut]  
         else:
-            e = f"Invalid Cut Input of {self.cut} with 'n' of {self.n}\n"
+            e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
             raise ValueError(e)
         
         print('\n')
@@ -410,30 +410,30 @@ class Tessellate():
                 e = f"Invalid 'n' value Input of {self.n}\n"
                 raise ValueError(e)
             
-            if self.cut is None:
+            if self.cuts is None:
                 cut = input(f'   - Cut [1-{self.n**2},all] = ')
                 message += f'   - Cut [1-{self.n**2},all] = {cut}\n'
                 done = False
                 while not done:
                     if cut == 'all':
-                        self.cut = range(1,self.n**2+1)
+                        self.cuts = range(1,self.n**2+1)
                         done = True
                     elif cut in np.array(range(1,self.n**2+1)).astype(str):
-                        self.cut = [int(cut)]
+                        self.cuts = [int(cut)]
                         done = True
                     else:
                         cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
                         message += f'      Invalid choice! Cut [1-{self.n**2},all] = {cut}\n'
-            elif self.cut == 'all':
+            elif self.cuts == 'all':
                 print(f'   - Cut = all')
                 message += f'   - Cut = all\n'
-                self.cut = range(1,self.n**2+1)
-            elif self.cut in range(1,self.n**2+1):
-                print(f'   - Cut = {self.cut}')
-                message += f'   - Cut = {self.cut}\n'
-                self.cut = [self.cut]  
+                self.cuts = range(1,self.n**2+1)
+            elif self.cuts in range(1,self.n**2+1):
+                print(f'   - Cut = {self.cuts}')
+                message += f'   - Cut = {self.cuts}\n'
+                self.cuts = [self.cut]  
             else:
-                e = f"Invalid Cut Input of {self.cut} with 'n' of {self.n}\n"
+                e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
                 raise ValueError(e)
             
             print('\n')
@@ -536,30 +536,30 @@ class Tessellate():
                 e = f"Invalid 'n' value Input of {self.n}\n"
                 raise ValueError(e)
             
-            if self.cut is None:
+            if self.cuts is None:
                 cut = input(f'   - Cut [1-{self.n**2},all] = ')
                 message += f'   - Cut [1-{self.n**2},all] = {cut}\n'
                 done = False
                 while not done:
                     if cut == 'all':
-                        self.cut = range(1,self.n**2+1)
+                        self.cuts = range(1,self.n**2+1)
                         done = True
                     elif cut in np.array(range(1,self.n**2+1)).astype(str):
-                        self.cut = [int(cut)]
+                        self.cuts = [int(cut)]
                         done = True
                     else:
                         cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
                         message += f'      Invalid choice! Cut [1-{self.n**2},all] = {cut}\n'
-            elif self.cut == 'all':
+            elif self.cuts == 'all':
                 print(f'   - Cut = all')
                 message += f'   - Cut = all\n'
-                self.cut = range(1,self.n**2+1)
-            elif self.cut in range(1,self.n**2+1):
-                print(f'   - Cut = {self.cut}')
-                message += f'   - Cut = {self.cut}\n'
-                self.cut = [self.cut]  
+                self.cuts = range(1,self.n**2+1)
+            elif self.cuts in range(1,self.n**2+1):
+                print(f'   - Cut = {self.cuts}')
+                message += f'   - Cut = {self.cuts}\n'
+                self.cuts = [self.cut]  
             else:
-                e = f"Invalid Cut Input of {self.cut} with 'n' of {self.n}\n"
+                e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
                 raise ValueError(e)
             
             print('\n')
@@ -797,8 +797,8 @@ python {self.working_path}/cubing_script.py"
 from tessellate import DataProcessor\n\
 \n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
-processor.make_cuts(cam={cam},ccd={ccd},n={self.n},cut={self.cut})\n\
-with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}/cut.txt', 'w') as file:\n\
+processor.make_cuts(cam={cam},ccd={ccd},n={self.n},cut={cut})\n\
+with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/cut.txt', 'w') as file:\n\
     file.write('Cut!')"
 
                     with open(f"{self.working_path}/cutting_script.py", "w") as python_file:
@@ -852,8 +852,8 @@ python {self.working_path}/cutting_script.py"
 from tessellate import DataProcessor\n\
 \n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
-processor.reduce(cam={cam},ccd={ccd},n={self.n},cut={self.cut})\n\
-with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}/reduced.txt', 'w') as file:\n\
+processor.reduce(cam={cam},ccd={ccd},n={self.n},cut={cut})\n\
+with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reduced.txt', 'w') as file:\n\
     file.write('Reduced!')"
                 
                     with open(f"{self.working_path}/reduction_script.py", "w") as python_file:
