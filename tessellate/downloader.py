@@ -36,10 +36,11 @@ def _find_lines(fileline,cam,ccd,time,lower,upper):
     else:
         return None
     
-def _download_line(fileline):
+def _download_line(fileline,path,cam,ccd):
     """
     Download fileline, used for parallel.
     """
+    os.chdir(f'{path}/Cam{cam}/Ccd{ccd}/')
     print(os.getcwd())
     os.system(fileline)
 
@@ -79,10 +80,10 @@ def Download_cam_ccd_FFIs(path,sector,cam,ccd,time,lower,upper,number):
     # -- If all are to be downloaded, download in parallel -- #
     if number == 'all':
         inds = np.linspace(0,len(goodlines)-1,len(goodlines)).astype(int)
-        Parallel(n_jobs=multiprocessing.cpu_count())(delayed(_download_line)(goodlines[ind]) for ind in tqdm(inds, position=0, leave=True))
+        Parallel(n_jobs=multiprocessing.cpu_count())(delayed(_download_line)(goodlines[ind],path,cam,ccd) for ind in tqdm(inds, position=0, leave=True))
     elif number > 10:
         inds = np.linspace(0,number-1,number).astype(int)
-        Parallel(n_jobs=multiprocessing.cpu_count())(delayed(_download_line)(goodlines[ind]) for ind in tqdm(inds, position=0, leave=True))
+        Parallel(n_jobs=multiprocessing.cpu_count())(delayed(_download_line)(goodlines[ind],path,cam,ccd) for ind in tqdm(inds, position=0, leave=True))
     else:
         for i in range(number):     # download {number} files from the goodlines
             _download_line(goodlines[i])
