@@ -182,7 +182,7 @@ class Tessellate():
             raise ValueError(e)
         
         print('\n')
-        message += '/n'
+        message += '\n'
 
         return message
     
@@ -676,7 +676,7 @@ class Tessellate():
                 python_text = f"\
 from tessellate import DataProcessor\n\
 \n\
-processor = DataProcessor(sector={self.sector},path={self.data_path},verbose=2)\n\
+processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
 processor.make_cube(cam={cam},ccd={ccd})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', 'w') as file:\n\
     file.write('Cubed!')"
@@ -796,7 +796,7 @@ python {self.working_path}/cubing_script.py"
                     python_text = f"\
 from tessellate import DataProcessor\n\
 \n\
-processor = DataProcessor(sector={self.sector},path={self.data_path},verbose=2)\n\
+processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
 processor.make_cuts(cam={cam},ccd={ccd},n={self.n},cut={self.cut})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}/cut.txt', 'w') as file:\n\
     file.write('Cut!')"
@@ -851,7 +851,7 @@ python {self.working_path}/cutting_script.py"
                     python_text = f"\
 from tessellate import DataProcessor\n\
 \n\
-processor = DataProcessor(sector={self.sector},path={self.data_path},verbose=2)\n\
+processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
 processor.reduce(cam={cam},ccd={ccd},n={self.n},cut={self.cut})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}/reduced.txt', 'w') as file:\n\
     file.write('Reduced!')"
@@ -896,7 +896,7 @@ python {self.working_path}/reduction_script.py"
         python_text = f"\
 from tessellate import DataProcessor, source_detect\n\
 \n\
-processor = DataProcessor(sector={self.sector},path={self.data_path},verbose=2)\n\
+processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
 cutCorners, cutCentrePx, cutCentreCoords, cutSize = processor.find_cuts(cam={cam},ccd={ccd},n={self.n},plot=False)\n\
 flux = np.load(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_ReducedFlux.npy')\n\
 mask = np.load(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Mask.npy')\n\
