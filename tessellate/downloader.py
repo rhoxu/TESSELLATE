@@ -67,6 +67,9 @@ def Download_cam_ccd_FFIs(path,sector,cam,ccd,time,lower,upper,number):
 
     os.chdir(newpath)    
     print(os.getcwd())
+    print(os.getcwd())
+    print(os.getcwd())
+    print(os.getcwd())
     
     # -- Collates all lines for FFIs of interest -- #
     goodlines = Parallel(n_jobs=multiprocessing.cpu_count())(delayed(_find_lines)(file,cam,ccd,time,lower,upper) for file in filelines)
