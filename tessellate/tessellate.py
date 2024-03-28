@@ -45,6 +45,10 @@ class Tessellate():
         self.reduce_cpu = reduce_cpu
         self.reduce_mem = reduce_mem
 
+        self.search_time = search_time
+        self.search_cpu = search_cpu
+        self.search_mem = search_mem
+
         message = self._run_properties()
 
         if download:
