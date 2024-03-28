@@ -16,7 +16,7 @@ class Tessellate():
                  download=False,make_cube=False,make_cuts=False,reduce=False,search=False):
         
         if (job_output_path is None) | (working_path is None):
-            m = 'Ensure you specify paths for job output and working path!'
+            m = 'Ensure you specify paths for job output and working path!\n'
             raise ValueError(m)
         else:
             self.job_output_path = job_output_path
@@ -75,13 +75,13 @@ class Tessellate():
             self.make_cube()
         
         if make_cuts:
-            self.make_cuts()
+            self.make_cuts(cubing=make_cube)
 
         if reduce:
             self.reduce()    
 
         if search:
-            self.transient_search()        
+            self.transient_search(reducing=reduce)        
 
 
     def _run_properties(self):
@@ -290,10 +290,10 @@ class Tessellate():
             done = False
             while not done:
                 if cut == 'all':
-                    self.cut = 'all'
+                    self.cut = range(1,self.n**2+1)
                     done = True
                 elif cut in np.array(range(1,self.n**2+1)).astype(str):
-                    self.cut = int(cut)
+                    self.cut = [int(cut)]
                     done = True
                 else:
                     cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
@@ -301,11 +301,11 @@ class Tessellate():
         elif self.cut == 'all':
             print(f'   - Cut = all')
             message += f'   - Cut = all\n'
-            self.cut = 'all'
+            self.cut = range(1,self.n**2+1)
         elif self.cut in range(1,self.n**2+1):
             print(f'   - Cut = {self.cut}')
-            self.cut = self.cut
             message += f'   - Cut = {self.cut}\n'
+            self.cut = [self.cut]  
         else:
             e = f"Invalid Cut Input of {self.cut} with 'n' of {self.n}\n"
             raise ValueError(e)
@@ -416,10 +416,10 @@ class Tessellate():
                 done = False
                 while not done:
                     if cut == 'all':
-                        self.cut = 'all'
+                        self.cut = range(1,self.n**2+1)
                         done = True
                     elif cut in np.array(range(1,self.n**2+1)).astype(str):
-                        self.cut = int(cut)
+                        self.cut = [int(cut)]
                         done = True
                     else:
                         cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
@@ -427,11 +427,11 @@ class Tessellate():
             elif self.cut == 'all':
                 print(f'   - Cut = all')
                 message += f'   - Cut = all\n'
-                self.cut = 'all'
+                self.cut = range(1,self.n**2+1)
             elif self.cut in range(1,self.n**2+1):
                 print(f'   - Cut = {self.cut}')
-                self.cut = self.cut
                 message += f'   - Cut = {self.cut}\n'
+                self.cut = [self.cut]  
             else:
                 e = f"Invalid Cut Input of {self.cut} with 'n' of {self.n}\n"
                 raise ValueError(e)
@@ -542,10 +542,10 @@ class Tessellate():
                 done = False
                 while not done:
                     if cut == 'all':
-                        self.cut = 'all'
+                        self.cut = range(1,self.n**2+1)
                         done = True
                     elif cut in np.array(range(1,self.n**2+1)).astype(str):
-                        self.cut = int(cut)
+                        self.cut = [int(cut)]
                         done = True
                     else:
                         cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
@@ -553,11 +553,11 @@ class Tessellate():
             elif self.cut == 'all':
                 print(f'   - Cut = all')
                 message += f'   - Cut = all\n'
-                self.cut = 'all'
+                self.cut = range(1,self.n**2+1)
             elif self.cut in range(1,self.n**2+1):
                 print(f'   - Cut = {self.cut}')
-                self.cut = self.cut
                 message += f'   - Cut = {self.cut}\n'
+                self.cut = [self.cut]  
             else:
                 e = f"Invalid Cut Input of {self.cut} with 'n' of {self.n}\n"
                 raise ValueError(e)
@@ -676,24 +676,20 @@ class Tessellate():
                 python_text = f"\
 from tessellate import DataProcessor\n\
 \n\
-sector = {self.sector}\n\
-cam = {cam}\n\
-ccd = {ccd}\n\
-data_path = f'{self.data_path}'\n\
-\n\
-processor = DataProcessor(sector=sector,path=data_path,verbose=2)\n\
-processor.make_cube(cam=cam,ccd=ccd)"
+processor = DataProcessor(sector={self.sector},path={self.data_path},verbose=2)\n\
+processor.make_cube(cam={cam},ccd={ccd})\n\
+with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', 'w') as file:\n\
+    file.write('Cubed!')"
                 
-                python_file = open(f"{self.working_path}/cubing_script.py", "w")
-                python_file.write(python_text)
-                python_file.close()
+                with open(f"{self.working_path}/cubing_script.py", "w") as python_file:
+                    python_file.write(python_text)
 
                 # -- Create bash file to submit job -- #
                 print('Creating Cubing/Cutting Batch File')
                 batch_text = f"\
 #!/bin/bash\n\
 #\n\
-#SBATCH --job-name=TESS_Sector{self.sector}_Cam{cam}_Ccd{ccd}_Cubing\n\
+#SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cubing\n\
 #SBATCH --output={self.job_output_path}/cubing_job_output_%A.txt\n\
 #SBATCH --error={self.job_output_path}/cubing_errors_%A.txt\n\
 #\n\
@@ -704,89 +700,116 @@ processor.make_cube(cam=cam,ccd=ccd)"
 \n\
 python {self.working_path}/cubing_script.py"
 
-                batch_file = open(f'{self.working_path}/cubing_script.sh', "w")
-                batch_file.write(batch_text)
-                batch_file.close()
+                with open(f"{self.working_path}/cubing_script.sh", "w") as batch_file:
+                    batch_file.write(batch_text)
 
                 print('Submitting Cubing Batch File')
                 os.system(f'sbatch {self.working_path}/cubing_script.sh')
                 print('\n')
 
     def _get_catalogues(self,cam,ccd):
-                
+
         data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
-        cutCorners,cutCentrePx,cutCentreCoords,rad = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
+        cutCorners,_,cutCentreCoords,rad = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
 
-        if self.cut == 'all':
-                cuts = range(1,self.n**2+1)
-        else:
-            cuts = [self.cut]
+        image_path = glob(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/*ffic.fits')[0]
 
-        # -- Generate Star Catalogue -- #
-        for i in cuts:
-            message = f'Waiting for Cut {i}'
-            found = False
-            save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{i}of{self.n**2}'
-            cutName = f'sector{self.sector}_cam{cam}_ccd{ccd}_cut{i}_of{self.n**2}.fits'
+        completed = []
+        message = 'Waiting for Cuts'
+        while len(completed) < len(self.cuts):
+            print(message, end='\r')
+            sleep(120)
+            message += '.'
+            for cut in self.cuts:
+                if cut not in completed:
+                    save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+                    if os.path.exists(f'{save_path}/cut.txt'):
+                        print(f'Generating Catalogue {cut}')
+                        tr.external_save_cat(radec=cutCentreCoords[cut-1],size=2*rad,cutCornerPx=cutCorners[cut-1],
+                                                image_path=image_path,save_path=save_path,maglim=19)
+                        completed.append(cut)
+    
+    # def _get_catalogues(self,cam,ccd,cut):
+                
+    #     data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
+    #     cutCorners,cutCentrePx,cutCentreCoords,rad = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
+        
 
-            image_path = glob(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/*ffic.fits')[0]
+    #     # -- Generate Star Catalogue -- #
+    #     message = f'Waiting for Cut {cut}'
+    #     found = False
+    #     save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+    #     cutName = f'sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}.fits'
 
-            while not found:
-                if os.path.exists(f'{save_path}/{cutName}'):
-                    try:
-                        if not os.path.exists(f'{save_path}/local_gaia_cat.csv'):
-                            print(f'Generating Catalogue {i}')
+    #     image_path = glob(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/*ffic.fits')[0]
 
-                            tr.external_save_cat(radec=cutCentreCoords[i-1],size=2*rad,cutCornerPx=cutCorners[i-1],
-                                                    image_path=image_path,save_path=save_path,maglim=19)
-                            
-                        found = True
-                    except:
-                        print(message, end='\r')
-                        sleep(120)
-                        message += '.'
-                else:
-                    print(message, end='\r')
-                    sleep(120)
-                    message += '.'
+    #     while not found:
+    #         if os.path.exists(f'{save_path}/{cutName}'):
+    #             try:
+    #                 if not os.path.exists(f'{save_path}/local_gaia_cat.csv'):
+    #                     print(f'Generating Catalogue {cut}')
 
-            print('\n')
+    #                     tr.external_save_cat(radec=cutCentreCoords[cut-1],size=2*rad,cutCornerPx=cutCorners[cut-1],
+    #                                             image_path=image_path,save_path=save_path,maglim=19)
+                        
+    #                 found = True
+    #             except:
+    #                 print(message, end='\r')
+    #                 sleep(120)
+    #                 message += '.'
+    #         else:
+    #             print(message, end='\r')
+    #             sleep(120)
+    #             message += '.'
 
-    def make_cuts(self):
+    def make_cuts(self,cubing):
 
         for cam in self.cam:
             for ccd in self.ccd: 
+                   
+                cube_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt'
+                if not os.path.exists(cube_check):
+                    if not cubing:
+                        e = 'No Cube File Detected to Cut!\n'
+                        raise ValueError(e)
+                    else:
+                        go = False
+                        message = 'Waiting for Cube'
+                        while not go:
+                            print(message, end='\r')
+                            sleep(120)
+                            if os.path.exists(cube_check):
+                                go = True
+                                print('\n')
+                            else:
+                                message += '.'
+            
+                for cut in self.cuts:
 
-                # -- Delete old scripts -- #
-                if os.path.exists(f'{self.working_path}/cutting_script.sh'):
-                    os.system(f'rm {self.working_path}/cutting_script.sh')
-                    os.system(f'rm {self.working_path}/cutting_script.py')
+                    # -- Delete old scripts -- #
+                    if os.path.exists(f'{self.working_path}/cutting_script.sh'):
+                        os.system(f'rm {self.working_path}/cutting_script.sh')
+                        os.system(f'rm {self.working_path}/cutting_script.py')
 
-                # -- Create python file for cubing, cutting, reducing a cut-- # 
-                print(f'Creating Cutting Python File for Cam{cam}Ccd{ccd}')
-                python_text = f"\
+                    # -- Create python file for cubing, cutting, reducing a cut-- # 
+                    print(f'Creating Cutting Python File for Cam{cam} Ccd{ccd} Cut{cut}')
+                    python_text = f"\
 from tessellate import DataProcessor\n\
 \n\
-sector = {self.sector}\n\
-cam = {cam}\n\
-ccd = {ccd}\n\
-data_path = f'{self.data_path}'\n\
-cut = {self.cut}\n\
-n = {self.n}\n\
-\n\
-processor = DataProcessor(sector=sector,path=data_path,verbose=2)\n\
-processor.make_cuts(cam=cam,ccd=ccd,n=n,cut=cut)"
+processor = DataProcessor(sector={self.sector},path={self.data_path},verbose=2)\n\
+processor.make_cuts(cam={cam},ccd={ccd},n={self.n},cut={self.cut})\n\
+with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}/cut.txt', 'w') as file:\n\
+    file.write('Cut!')"
 
-                python_file = open(f"{self.working_path}/cutting_script.py", "w")
-                python_file.write(python_text)
-                python_file.close()
+                    with open(f"{self.working_path}/cutting_script.py", "w") as python_file:
+                        python_file.write(python_text)
 
-                # -- Create bash file to submit job -- #
-                print('Creating Cutting Batch File')
-                batch_text = f"\
+                    # -- Create bash file to submit job -- #
+                    print('Creating Cutting Batch File')
+                    batch_text = f"\
 #!/bin/bash\n\
 #\n\
-#SBATCH --job-name=TESS_Sector{self.sector}_Cam{cam}_Ccd{ccd}_Cutting\n\
+#SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Cutting\n\
 #SBATCH --output={self.job_output_path}/cutting_job_output_%A.txt\n\
 #SBATCH --error={self.job_output_path}/cutting_errors_%A.txt\n\
 #\n\
@@ -797,51 +820,51 @@ processor.make_cuts(cam=cam,ccd=ccd,n=n,cut=cut)"
 \n\
 python {self.working_path}/cutting_script.py"
 
-                batch_file = open(f'{self.working_path}/cutting_script.sh', "w")
-                batch_file.write(batch_text)
-                batch_file.close()
+                    with open(f"{self.working_path}/cutting_script.sh", "w") as batch_file:
+                        batch_file.write(batch_text)
 
-                print('Submitting Cutting Batch File')
-                os.system(f'sbatch {self.working_path}/cutting_script.sh')
-                print('\n')
+                    print('Submitting Cutting Batch File')
+                    os.system(f'sbatch {self.working_path}/cutting_script.sh')
+                    print('\n')
 
                 self._get_catalogues(cam=cam,ccd=ccd)
+
+                print('\n')
 
     def reduce(self):
 
         for cam in self.cam:
             for ccd in self.ccd: 
+                for cut in self.cuts:
+                    cut_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
+                    if not os.path.exists(cut_check):
+                        e = f'No Source Catalogue Detected for Reduction of Cut {cut}!\n'
+                        raise ValueError(e)
+                        
+                    # -- Delete old scripts -- #
+                    if os.path.exists(f'{self.working_path}/reduction_script.sh'):
+                        os.system(f'rm {self.working_path}/reduction_script.sh')
+                        os.system(f'rm {self.working_path}/reduction_script.py')
 
-                # -- Delete old scripts -- #
-                if os.path.exists(f'{self.working_path}/reduction_script.sh'):
-                    os.system(f'rm {self.working_path}/reduction_script.sh')
-                    os.system(f'rm {self.working_path}/reduction_script.py')
-
-                # -- Create python file for reducing a cut-- # 
-                print('Creating Reduction Python File')
-                python_text = f"\
+                    # -- Create python file for reducing a cut-- # 
+                    print(f'Creating Reduction Python File for Cam{cam} Ccd{ccd} Cut{cut}')
+                    python_text = f"\
 from tessellate import DataProcessor\n\
 \n\
-sector = {self.sector}\n\
-cam = {cam}\n\
-ccd = {ccd}\n\
-data_path = f'{self.data_path}'\n\
-cut = {self.cut}\n\
-n = {self.n}\n\
-\n\
-processor = DataProcessor(sector=sector,path=data_path,verbose=2)\n\
-processor.reduce(cam=cam,ccd=ccd,n=n,cut=cut)"
+processor = DataProcessor(sector={self.sector},path={self.data_path},verbose=2)\n\
+processor.reduce(cam={cam},ccd={ccd},n={self.n},cut={self.cut})\n\
+with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}/reduced.txt', 'w') as file:\n\
+    file.write('Reduced!')"
                 
-                python_file = open(f"{self.working_path}/reduction_script.py", "w")
-                python_file.write(python_text)
-                python_file.close()
+                    with open(f"{self.working_path}/reduction_script.py", "w") as python_file:
+                        python_file.write(python_text)
 
-                # -- Create bash file to submit job -- #
-                print('Creating Reduction Batch File')
-                batch_text = f"\
+                    # -- Create bash file to submit job -- #
+                    print('Creating Reduction Batch File')
+                    batch_text = f"\
 #!/bin/bash\n\
 #\n\
-#SBATCH --job-name=TESS_Sector{self.sector}_Cam{cam}_Ccd{ccd}_Reduction\n\
+#SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Reduction\n\
 #SBATCH --output={self.job_output_path}/reduction_job_output_%A.txt\n\
 #SBATCH --error={self.job_output_path}/reduction_errors_%A.txt\n\
 #\n\
@@ -852,64 +875,45 @@ processor.reduce(cam=cam,ccd=ccd,n=n,cut=cut)"
 \n\
 python {self.working_path}/reduction_script.py"
 
-                batch_file = open(f'{self.working_path}/reduction_script.sh', "w")
-                batch_file.write(batch_text)
-                batch_file.close()
-                        
-                print('Submitting Reduction Batch File')
-                os.system(f'sbatch {self.working_path}/reduction_script.sh')
+                    with open(f"{self.working_path}/reduction_script.sh", "w") as batch_file:
+                        batch_file.write(batch_text)
+                            
+                    print('Submitting Reduction Batch File')
+                    os.system(f'sbatch {self.working_path}/reduction_script.sh')
 
-                print('\n')
+                    print('\n')
 
+    
+    def _cut_transient_search(self,cam,ccd,cut):
 
-    def transient_search(self):
+        # -- Delete old scripts -- #
+        if os.path.exists(f'{self.working_path}/detection_script.sh'):
+            os.system(f'rm {self.working_path}/detection_script.sh')
+            os.system(f'rm {self.working_path}/detection_script.py')
 
-
-        if self.cut == 'all':
-            cuts = np.linspace(1,self.n**2,self.n**2).astype(int)
-        elif type(self.cut) == int:
-            cuts = [self.cut]
-
-        for cam in self.cam:
-            for ccd in self.ccd:    
-                for cut in cuts:
-
-                    # -- Delete old scripts -- #
-                    if os.path.exists(f'{self.working_path}/detection_script.sh'):
-                        os.system(f'rm {self.working_path}/detection_script.sh')
-                        os.system(f'rm {self.working_path}/detection_script.py')
-
-                    # -- Create python file for reducing a cut-- # 
-                    print('Creating Transient Search Python File')
-                    python_text = f"\
+        # -- Create python file for reducing a cut-- # 
+        print(f'Creating Transient Search File for Cam{cam} Ccd{ccd} Cut{cut}')
+        python_text = f"\
 from tessellate import DataProcessor, source_detect\n\
 \n\
-sector = {self.sector}\n\
-cam = {cam}\n\
-ccd = {ccd}\n\
-data_path = f'{self.data_path}'\n\
-cut = {self.cut}\n\
-n = {self.n}\n\
-\n\
-processor = DataProcessor(sector=sector,path=data_path,verbose=2)\n\
-cutCorners, cutCentrePx, cutCentreCoords, cutSize = processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)\n\
+processor = DataProcessor(sector={self.sector},path={self.data_path},verbose=2)\n\
+cutCorners, cutCentrePx, cutCentreCoords, cutSize = processor.find_cuts(cam={cam},ccd={ccd},n={self.n},plot=False)\n\
 flux = np.load(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_ReducedFlux.npy')\n\
 mask = np.load(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Mask.npy')\n\
-column = cutCentrePx[cut-1][0]\n\
-row = cutCentrePx[cut-1][1]\n\
-results = source_detect(flux,cam=cam,ccd=ccd,sector=self.sector,column=column,row=row,mask=mask,inputNums=None)\n\
+column = cutCentrePx[{cut}-1][0]\n\
+row = cutCentrePx[{cut}-1][1]\n\
+results = source_detect(flux,cam={cam},ccd={ccd},sector={self.sector},column=column,row=row,mask=mask,inputNums=None)\n\
 results.to_csv(f'{self.data_path}/Sector{self.sector}/Cam{cam}Ccd{ccd}/Cut{cut}of{self.n**2}/detected_sources.csv')"
                     
-                    python_file = open(f"{self.working_path}/detection_script.py", "w")
-                    python_file.write(python_text)
-                    python_file.close()
+        with open(f"{self.working_path}/detection_script.py", "w") as python_file:
+            python_file.write(python_text)
 
-                    # -- Create bash file to submit job -- #
-                    print('Creating Transient Search Batch File')
-                    batch_text = f"\
+        # -- Create bash file to submit job -- #
+        print('Creating Transient Search Batch File')
+        batch_text = f"\
 #!/bin/bash\n\
 #\n\
-#SBATCH --job-name=TESS_Sector{self.sector}_Cam{cam}_Ccd{ccd}_Search\n\
+#SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Search\n\
 #SBATCH --output={self.job_output_path}/search_job_output_%A.txt\n\
 #SBATCH --error={self.job_output_path}/search_errors_%A.txt\n\
 #\n\
@@ -920,11 +924,38 @@ results.to_csv(f'{self.data_path}/Sector{self.sector}/Cam{cam}Ccd{ccd}/Cut{cut}o
 \n\
 python {self.working_path}/detection_script.py"
 
-                    batch_file = open(f'{self.working_path}/detection_script.sh', "w")
-                    batch_file.write(batch_text)
-                    batch_file.close()
-                            
-                    print('Submitting Transient Search Batch File')
-                    os.system(f'sbatch {self.working_path}/detection_script.sh')
+        with open(f"{self.working_path}/detection_script.sh", "w") as batch_file:
+            batch_file.write(batch_text)
+                
+        print('Submitting Transient Search Batch File')
+        os.system(f'sbatch {self.working_path}/detection_script.sh')
 
-                    print('\n')
+        print('\n')
+
+    def transient_search(self,reducing):
+
+        for cam in self.cam:
+            for ccd in self.ccd:
+                if not reducing:
+                    for cut in self.cuts:
+                        save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+                        if not os.path.exists(f'{save_path}/reduced.txt'):
+                            e = f'No Reduced File Detected for Search of Cut {cut}!\n'
+                            raise ValueError(e)
+                        else:
+                            self._cut_transient_search(cam,ccd,cut)
+                else:
+                    completed = []
+                    message = 'Waiting for Reductions'
+                    while len(completed) < len(self.cuts):
+                        print(message, end='\r')
+                        sleep(120)
+                        for cut in self.cuts:
+                            if cut not in completed:
+                                save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+                                if os.path.exists(f'{save_path}/reduced.txt'):
+                                    self._cut_transient_search(cam,ccd,cut)
+                                    completed.append(cut)
+
+
+
