@@ -40,7 +40,7 @@ def _download_line(fileline):
     """
     Download fileline, used for parallel.
     """
-
+    print(os.getcwd())
     os.system(fileline)
 
 def Download_cam_ccd_FFIs(path,sector,cam,ccd,time,lower,upper,number):
@@ -75,8 +75,6 @@ def Download_cam_ccd_FFIs(path,sector,cam,ccd,time,lower,upper,number):
     goodlines = Parallel(n_jobs=multiprocessing.cpu_count())(delayed(_find_lines)(file,cam,ccd,time,lower,upper) for file in filelines)
     goodlines = np.array(goodlines)
     goodlines = goodlines[goodlines!=None]
-
-    print(goodlines)
     
     # -- If all are to be downloaded, download in parallel -- #
     if number == 'all':
