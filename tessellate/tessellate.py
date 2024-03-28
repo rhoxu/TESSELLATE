@@ -653,13 +653,17 @@ class Tessellate():
 
         for cam in self.cam:
             for ccd in self.ccd:
-                tDownload = t()
-                data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
-                data_processor.download(cam=cam,ccd=ccd,number=self.download_number)
-                os.system('clear')
-                print(message)
-                print(f'Download Complete ({((t()-tDownload)/60):.2f} mins).')
-                print('\n')
+                if len(glob(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/*ffic.fits')) > 1000:
+                    print(f'Sector {self.sector} Cam {cam} CCD {ccd} data already downloaded!')
+                    print('\n')
+                else:
+                    tDownload = t()
+                    data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
+                    data_processor.download(cam=cam,ccd=ccd,number=self.download_number)
+                    os.system('clear')
+                    print(message)
+                    print(f'Download Complete ({((t()-tDownload)/60):.2f} mins).')
+                    print('\n')
 
     def make_cube(self):
 
