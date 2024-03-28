@@ -664,6 +664,8 @@ class Tessellate():
                     print(message)
                     print(f'Sector {self.sector} Cam {cam} Ccd {ccd} Download Complete ({((t()-tDownload)/60):.2f} mins).')
                     print('\n')
+                    message += f'Sector {self.sector} Cam {cam} Ccd {ccd} Download Complete ({((t()-tDownload)/60):.2f} mins).\n'
+                    message += '\n'
 
     def make_cube(self):
 

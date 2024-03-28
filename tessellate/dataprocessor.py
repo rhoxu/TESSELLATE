@@ -142,7 +142,7 @@ class DataProcessor():
             _Save_space(f'{self.path}/Sector{self.sector}')
             self.path = f'{self.path}/Sector{self.sector}'
 
-    def download(self,cam=None,ccd=None,number='all',time=None):
+    def download(self,cam,ccd,number='all',time=None):
         """
         Function for downloading FFIs from MAST archive.
 
