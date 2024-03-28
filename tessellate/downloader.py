@@ -41,7 +41,6 @@ def _download_line(fileline,path,cam,ccd):
     Download fileline, used for parallel.
     """
     os.chdir(f'{path}/Cam{cam}/Ccd{ccd}/')
-    print(os.getcwd())
     os.system(fileline)
 
 def Download_cam_ccd_FFIs(path,sector,cam,ccd,time,lower,upper,number):
