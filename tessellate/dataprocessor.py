@@ -345,6 +345,8 @@ class DataProcessor():
         # -- Generate Cube Path -- #
         cube_name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits'
         cube_path = f'{file_path}/{cube_name}'
+
+        print(f'Cut = {cut}')
         
         name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}.fits'
         if os.path.exists(f'{file_path}/Cut{cut}of{n**2}/{name}'):
