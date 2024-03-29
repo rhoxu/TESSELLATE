@@ -995,7 +995,7 @@ mask = np.load(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}
 column = cutCentrePx[{cut}-1][0]\n\
 row = cutCentrePx[{cut}-1][1]\n\
 results = source_detect(flux,cam={cam},ccd={ccd},sector={self.sector},column=column,row=row,mask=mask,inputNums=None)\n\
-results.to_csv(f'{self.data_path}/Sector{self.sector}/Cam{cam}Ccd{ccd}/Cut{cut}of{self.n**2}/detected_sources.csv')"
+results.to_csv(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/detected_sources.csv')"
                     
         with open(f"{self.working_path}/detection_script.py", "w") as python_file:
             python_file.write(python_text)
