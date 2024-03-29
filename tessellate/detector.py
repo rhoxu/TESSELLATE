@@ -215,9 +215,9 @@ def source_detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,
         inputNum = 0
 
     if sector < 4:
-        prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz100/hroxburg/customTR/PRF_directory/Sectors1_2_3')
+        prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz100/_local_TESS_PRFs/Sectors1_2_3')
     else:
-        prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz100/hroxburg/customTR/PRF_directory/Sectors4+')
+        prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz100/_local_TESS_PRFs/Sectors4+')
         
     result = None
 
