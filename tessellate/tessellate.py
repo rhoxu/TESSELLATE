@@ -297,7 +297,7 @@ class Tessellate():
             e = f"Invalid Cube Mem/CPU Input of {self.cube_mem}\n"
             raise ValueError(e)
         
-        if self.download_number < 0.75*suggestions[0]:
+        if self.download_number < int(0.75*suggestions[0]):
             cube_cpu = input(f"   - Cube Num CPUs [1-32] = ")
             message += f"   - Cube Num CPUs [1-32] = {cube_cpu}\n"
             done = False
@@ -424,7 +424,7 @@ class Tessellate():
             e = f"Invalid Cut Mem/CPU Input of {self.cut_mem}\n"
             raise ValueError(e)
         
-        if self.download_number < 0.75*suggestions[0]:
+        if self.download_number < int(0.75*suggestions[0]):
             cut_cpu = input(f"   - Cut Num CPUs [1-32] = ")
             message += f"   - Cut Num CPUs [1-32] = {cut_cpu}\n"
             done = False
@@ -547,7 +547,7 @@ class Tessellate():
             e = f"Invalid Reduce CPUs Input of {self.reduce_cpu}\n"
             raise ValueError(e)
 
-        if self.download_number < 0.75*suggestions[0]:
+        if self.download_number < int(0.75*suggestions[0]):
             reduce_mem = input(f"   - Reduce Mem/CPU = ")
             message += f"   - Reduce Mem/CPU = {reduce_mem}\n"
             done = False
