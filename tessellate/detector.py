@@ -58,7 +58,6 @@ def _correlation_check(res,data,prf,corlim=0.8,psfdifflim=0.5):
                             xcentroids += [x]
                             ycentroids += [y]
                     else:
-                        print(np.nansum(localpsf))
                         cors += [0]
                         diff += [2]
                         xcentroids += [x]
