@@ -871,15 +871,16 @@ python {self.working_path}/cubing_script.py"
                         print(f'Cam {cam} CCD {ccd} cut {cut} already made!')
                         print('\n')
                     else:
-                        # -- Delete old scripts -- #
-                        if os.path.exists(f'{self.working_path}/cutting_script.sh'):
-                            os.system(f'rm {self.working_path}/cutting_script.sh')
-                            os.system(f'rm {self.working_path}/cutting_script.py')
+                        if cut == 5:
+                            # -- Delete old scripts -- #
+                            if os.path.exists(f'{self.working_path}/cutting_script.sh'):
+                                os.system(f'rm {self.working_path}/cutting_script.sh')
+                                os.system(f'rm {self.working_path}/cutting_script.py')
 
-                        print(f'Cut = {cut}')
-                        # -- Create python file for cubing, cutting, reducing a cut-- # 
-                        print(f'Creating Cutting Python File for Cam{cam} Ccd{ccd} Cut{cut}')
-                        python_text = f"\
+                            print(f'Cut = {cut}')
+                            # -- Create python file for cubing, cutting, reducing a cut-- # 
+                            print(f'Creating Cutting Python File for Cam{cam} Ccd{ccd} Cut{cut}')
+                            python_text = f"\
 print('Cut = '+ str({cut}))\n\
 from tessellate import DataProcessor\n\
 \n\
@@ -889,12 +890,12 @@ processor.make_cuts(cam={cam},ccd={ccd},n={self.n},cut={cut})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/cut.txt', 'w') as file:\n\
     file.write('Cut!')"
 
-                        with open(f"{self.working_path}/cutting_script.py", "w") as python_file:
-                            python_file.write(python_text)
+                            with open(f"{self.working_path}/cutting_script.py", "w") as python_file:
+                                python_file.write(python_text)
 
-                        # -- Create bash file to submit job -- #
-                        print('Creating Cutting Batch File')
-                        batch_text = f"\
+                            # -- Create bash file to submit job -- #
+                            print('Creating Cutting Batch File')
+                            batch_text = f"\
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Cutting\n\
@@ -908,12 +909,12 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{se
 \n\
 python {self.working_path}/cutting_script.py"
 
-                        with open(f"{self.working_path}/cutting_script.sh", "w") as batch_file:
-                            batch_file.write(batch_text)
+                            with open(f"{self.working_path}/cutting_script.sh", "w") as batch_file:
+                                batch_file.write(batch_text)
 
-                        print('Submitting Cutting Batch File')
-                        os.system(f'sbatch {self.working_path}/cutting_script.sh')
-                        print('\n')
+                            print('Submitting Cutting Batch File')
+                            os.system(f'sbatch {self.working_path}/cutting_script.sh')
+                            print('\n')
 
                 self._get_catalogues(cam=cam,ccd=ccd)
 
