@@ -672,14 +672,20 @@ class Tessellate():
         for cam in self.cam:
             for ccd in self.ccd: 
 
-                # -- Delete old scripts -- #
-                if os.path.exists(f'{self.working_path}/cubing_script.sh'):
-                    os.system(f'rm {self.working_path}/cubing_script.sh')
-                    os.system(f'rm {self.working_path}/cubing_script.py')
+                # -- Generate Cube Path -- #
+                cube_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt'
+                if os.path.exists(cube_check):
+                    print(f'Cam {cam} CCD {ccd} cube already exists!')
+                    print('\n')
+                else:
+                    # -- Delete old scripts -- #
+                    if os.path.exists(f'{self.working_path}/cubing_script.sh'):
+                        os.system(f'rm {self.working_path}/cubing_script.sh')
+                        os.system(f'rm {self.working_path}/cubing_script.py')
 
-                # -- Create python file for cubing, cutting, reducing a cut-- # 
-                print(f'Creating Cubing Python File for Cam{cam}Ccd{ccd}')
-                python_text = f"\
+                    # -- Create python file for cubing, cutting, reducing a cut-- # 
+                    print(f'Creating Cubing Python File for Cam{cam}Ccd{ccd}')
+                    python_text = f"\
 from tessellate import DataProcessor\n\
 \n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
@@ -687,12 +693,12 @@ processor.make_cube(cam={cam},ccd={ccd})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', 'w') as file:\n\
     file.write('Cubed!')"
                 
-                with open(f"{self.working_path}/cubing_script.py", "w") as python_file:
-                    python_file.write(python_text)
+                    with open(f"{self.working_path}/cubing_script.py", "w") as python_file:
+                        python_file.write(python_text)
 
-                # -- Create bash file to submit job -- #
-                print('Creating Cubing/Cutting Batch File')
-                batch_text = f"\
+                    # -- Create bash file to submit job -- #
+                    print('Creating Cubing/Cutting Batch File')
+                    batch_text = f"\
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cubing\n\
@@ -706,12 +712,12 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', '
 \n\
 python {self.working_path}/cubing_script.py"
 
-                with open(f"{self.working_path}/cubing_script.sh", "w") as batch_file:
-                    batch_file.write(batch_text)
+                    with open(f"{self.working_path}/cubing_script.sh", "w") as batch_file:
+                        batch_file.write(batch_text)
 
-                print('Submitting Cubing Batch File')
-                os.system(f'sbatch {self.working_path}/cubing_script.sh')
-                print('\n')
+                    print('Submitting Cubing Batch File')
+                    os.system(f'sbatch {self.working_path}/cubing_script.sh')
+                    print('\n')
 
     def _get_catalogues(self,cam,ccd):
 
@@ -791,15 +797,19 @@ python {self.working_path}/cubing_script.py"
                                 message += '.'
             
                 for cut in self.cuts:
+                    cut_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reducec.txt'
+                    if os.path.exists(cut_check):
+                        print(f'Cam {cam} CCD {ccd} cut {cut} already made!')
+                        print('\n')
+                    else:
+                        # -- Delete old scripts -- #
+                        if os.path.exists(f'{self.working_path}/cutting_script.sh'):
+                            os.system(f'rm {self.working_path}/cutting_script.sh')
+                            os.system(f'rm {self.working_path}/cutting_script.py')
 
-                    # -- Delete old scripts -- #
-                    if os.path.exists(f'{self.working_path}/cutting_script.sh'):
-                        os.system(f'rm {self.working_path}/cutting_script.sh')
-                        os.system(f'rm {self.working_path}/cutting_script.py')
-
-                    # -- Create python file for cubing, cutting, reducing a cut-- # 
-                    print(f'Creating Cutting Python File for Cam{cam} Ccd{ccd} Cut{cut}')
-                    python_text = f"\
+                        # -- Create python file for cubing, cutting, reducing a cut-- # 
+                        print(f'Creating Cutting Python File for Cam{cam} Ccd{ccd} Cut{cut}')
+                        python_text = f"\
 from tessellate import DataProcessor\n\
 \n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
@@ -807,12 +817,12 @@ processor.make_cuts(cam={cam},ccd={ccd},n={self.n},cut={cut})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/cut.txt', 'w') as file:\n\
     file.write('Cut!')"
 
-                    with open(f"{self.working_path}/cutting_script.py", "w") as python_file:
-                        python_file.write(python_text)
+                        with open(f"{self.working_path}/cutting_script.py", "w") as python_file:
+                            python_file.write(python_text)
 
-                    # -- Create bash file to submit job -- #
-                    print('Creating Cutting Batch File')
-                    batch_text = f"\
+                        # -- Create bash file to submit job -- #
+                        print('Creating Cutting Batch File')
+                        batch_text = f"\
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Cutting\n\
@@ -826,12 +836,12 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{se
 \n\
 python {self.working_path}/cutting_script.py"
 
-                    with open(f"{self.working_path}/cutting_script.sh", "w") as batch_file:
-                        batch_file.write(batch_text)
+                        with open(f"{self.working_path}/cutting_script.sh", "w") as batch_file:
+                            batch_file.write(batch_text)
 
-                    print('Submitting Cutting Batch File')
-                    os.system(f'sbatch {self.working_path}/cutting_script.sh')
-                    print('\n')
+                        print('Submitting Cutting Batch File')
+                        os.system(f'sbatch {self.working_path}/cutting_script.sh')
+                        print('\n')
 
                 self._get_catalogues(cam=cam,ccd=ccd)
 
@@ -846,6 +856,12 @@ python {self.working_path}/cutting_script.py"
                     if not os.path.exists(cut_check):
                         e = f'No Source Catalogue Detected for Reduction of Cut {cut}!\n'
                         raise ValueError(e)
+                    
+
+                    reduced_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reduced.txt'
+                    if os.path.exists(reduced_check):
+                        print(f'Cam {cam} Chip {ccd} cut {cut} already reduced!')
+                        print('\n')
                         
                     # -- Delete old scripts -- #
                     if os.path.exists(f'{self.working_path}/reduction_script.sh'):
@@ -944,8 +960,8 @@ python {self.working_path}/detection_script.py"
             for ccd in self.ccd:
                 if not reducing:
                     for cut in self.cuts:
-                        save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                        if not os.path.exists(f'{save_path}/reduced.txt'):
+                        reduced_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reduced.txt'
+                        if not os.path.exists(reduced_check):
                             e = f'No Reduced File Detected for Search of Cut {cut}!\n'
                             raise ValueError(e)
                         else:
