@@ -57,16 +57,16 @@ class Tessellate():
             message = self._download_properties(message)
 
         if make_cube:
-            message = self._cube_properties(message,suggestions)
+            message = self._cube_properties(message,suggestions[0])
 
         if make_cuts:
-            message = self._cut_properties(message,suggestions)
+            message = self._cut_properties(message,suggestions[1])
 
         if reduce:
-            message = self._reduce_properties(message,make_cuts,suggestions)
+            message = self._reduce_properties(message,make_cuts,suggestions[2])
 
         if search:
-            message = self._search_properties(message,make_cuts,suggestions)
+            message = self._search_properties(message,make_cuts,suggestions[3])
 
         message = self._reset_logs(message)
 
@@ -125,7 +125,7 @@ class Tessellate():
             search_cpu_sug = '32'
             search_mem_sug = '1G'
 
-        elif self.sector in secondary_mission:
+        elif self.sector in tertiary_mission:
             cube_time_sug = '4:00:00'
             cube_cpu_sug = '4'
             cube_mem_sug = '60G'
