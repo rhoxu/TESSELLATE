@@ -568,7 +568,7 @@ class Tessellate():
                         reduce_mem = input(f"      Invalid format! Reduce Mem/CPU = ")
                         message += f"      Invalid choice! Reduce Mem/CPU = {reduce_mem}\n"
         else:
-            self.reduce_mem = np.ceil(suggestions[2]/self.reduce_cpu)
+            self.reduce_mem = np.ceil(suggestions[2]/self.reduce_cpu).astype(int)
             print(f'   - Reduce Mem/CPU Needed = {self.reduce_mem}')
             message += f'   - Reduce Mem/CPU Needed = {self.reduce_mem}\n'    
 
