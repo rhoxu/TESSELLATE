@@ -1,4 +1,4 @@
-from .dataprocessor import _Print_buff, DataProcessor
+from .dataprocessor import _Print_buff, _Save_space, DataProcessor
 from .detector import *
 
 from glob import glob
@@ -297,7 +297,7 @@ class Tessellate():
             e = f"Invalid Cube Mem/CPU Input of {self.cube_mem}\n"
             raise ValueError(e)
                 
-        if self.download_number != 'all':
+        if type(self.download_number) == int:
             cube_cpu = input(f"   - Cube Num CPUs [1-32] = ")
             message += f"   - Cube Num CPUs [1-32] = {cube_cpu}\n"
             done = False
@@ -358,7 +358,7 @@ class Tessellate():
             done = False
             while not done:
                 if cut == 'all':
-                    self.cuts = np.linspace(1,self.n**2,self.n**2).astype(int)
+                    self.cuts = range(1,self.n**2+1)
                     done = True
                 elif cut in np.array(range(1,self.n**2+1)).astype(str):
                     self.cuts = [int(cut)]
@@ -369,7 +369,7 @@ class Tessellate():
         elif self.cuts == 'all':
             print(f'   - Cut = all')
             message += f'   - Cut = all\n'
-            self.cuts = np.linspace(1,self.n**2,self.n**2).astype(int)
+            self.cuts = range(1,self.n**2+1)
         elif self.cuts in range(1,self.n**2+1):
             print(f'   - Cut = {self.cuts}')
             message += f'   - Cut = {self.cuts}\n'
@@ -424,7 +424,7 @@ class Tessellate():
             e = f"Invalid Cut Mem/CPU Input of {self.cut_mem}\n"
             raise ValueError(e)
         
-        if self.download_number != 'all':
+        if type(self.download_number) == int:
             cut_cpu = input(f"   - Cut Num CPUs [1-32] = ")
             message += f"   - Cut Num CPUs [1-32] = {cut_cpu}\n"
             done = False
@@ -486,7 +486,7 @@ class Tessellate():
                 done = False
                 while not done:
                     if cut == 'all':
-                        self.cuts = np.linspace(1,self.n**2,self.n**2).astype(int)
+                        self.cuts = range(1,self.n**2+1)
                         done = True
                     elif cut in np.array(range(1,self.n**2+1)).astype(str):
                         self.cuts = [int(cut)]
@@ -497,7 +497,7 @@ class Tessellate():
             elif self.cuts == 'all':
                 print(f'   - Cut = all')
                 message += f'   - Cut = all\n'
-                self.cuts = np.linspace(1,self.n**2,self.n**2).astype(int)
+                self.cuts = range(1,self.n**2+1)
             elif self.cuts in range(1,self.n**2+1):
                 print(f'   - Cut = {self.cuts}')
                 message += f'   - Cut = {self.cuts}\n'
@@ -547,7 +547,7 @@ class Tessellate():
             e = f"Invalid Reduce CPUs Input of {self.reduce_cpu}\n"
             raise ValueError(e)
 
-        if self.download_number !=  'all':
+        if type(self.download_number) == int:
             reduce_mem = input(f"   - Reduce Mem/CPU = ")
             message += f"   - Reduce Mem/CPU = {reduce_mem}\n"
             done = False
@@ -609,7 +609,7 @@ class Tessellate():
                 done = False
                 while not done:
                     if cut == 'all':
-                        self.cuts = np.linspace(1,self.n**2,self.n**2).astype(int)
+                        self.cuts = range(1,self.n**2+1)
                         done = True
                     elif cut in np.array(range(1,self.n**2+1)).astype(str):
                         self.cuts = [int(cut)]
@@ -620,7 +620,7 @@ class Tessellate():
             elif self.cuts == 'all':
                 print(f'   - Cut = all')
                 message += f'   - Cut = all\n'
-                self.cuts = np.linspace(1,self.n**2,self.n**2).astype(int)
+                self.cuts = range(1,self.n**2+1)
             elif self.cuts in range(1,self.n**2+1):
                 print(f'   - Cut = {self.cuts}')
                 message += f'   - Cut = {self.cuts}\n'
@@ -845,6 +845,8 @@ python {self.working_path}/cubing_script.py"
 
     def make_cuts(self,cubing):
 
+        _Save_space(f'{self.working_path}/cutting_scripts')
+
         for cam in self.cam:
             for ccd in self.ccd: 
                    
@@ -873,9 +875,9 @@ python {self.working_path}/cubing_script.py"
                     else:
                     
                         # -- Delete old scripts -- #
-                        if os.path.exists(f'{self.working_path}/cutting_script.sh'):
-                            os.system(f'rm {self.working_path}/cutting_script.sh')
-                            os.system(f'rm {self.working_path}/cutting_script.py')
+                        if os.path.exists(f'{self.working_path}/cutting_scripts/cut{cut}_script.sh'):
+                            os.system(f'rm {self.working_path}/cutting_scripts/cut{cut}_script.sh')
+                            os.system(f'rm {self.working_path}/cutting_scripts/cut{cut}_script.py')
 
                         # -- Create python file for cubing, cutting, reducing a cut-- # 
                         print(f'Creating Cutting Python File for Cam{cam} Ccd{ccd} Cut{cut}')
@@ -887,7 +889,7 @@ processor.make_cuts(cam={cam},ccd={ccd},n={self.n},cut={cut})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/cut.txt', 'w') as file:\n\
     file.write('Cut!')"
 
-                        with open(f"{self.working_path}/cutting_script.py", "w") as python_file:
+                        with open(f"{self.working_path}/cutting_scripts/cut{cut}_script.py", "w") as python_file:
                             python_file.write(python_text)
 
                         # -- Create bash file to submit job -- #
@@ -904,13 +906,13 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{se
 #SBATCH --cpus-per-task={self.cut_cpu}\n\
 #SBATCH --mem-per-cpu={self.cut_mem}G\n\
 \n\
-python {self.working_path}/cutting_script.py"
+python {self.working_path}/cutting_scripts/cut{cut}_script.py.py"
 
-                        with open(f"{self.working_path}/cutting_script.sh", "w") as batch_file:
+                        with open(f"{self.working_path}/cutting_scripts/cut{cut}_script.sh", "w") as batch_file:
                             batch_file.write(batch_text)
 
                         print('Submitting Cutting Batch File')
-                        os.system(f'sbatch {self.working_path}/cutting_script.sh')
+                        os.system(f'sbatch {self.working_path}/cutting_scripts/cut{cut}_script.sh')
                         print('\n')
 
                 self._get_catalogues(cam=cam,ccd=ccd)
@@ -918,6 +920,8 @@ python {self.working_path}/cutting_script.py"
                 print('\n')
 
     def reduce(self):
+
+        _Save_space(f'{self.working_path}/reduction_scripts')
 
         for cam in self.cam:
             for ccd in self.ccd: 
@@ -934,9 +938,9 @@ python {self.working_path}/cutting_script.py"
                         print('\n')
                         
                     # -- Delete old scripts -- #
-                    if os.path.exists(f'{self.working_path}/reduction_script.sh'):
-                        os.system(f'rm {self.working_path}/reduction_script.sh')
-                        os.system(f'rm {self.working_path}/reduction_script.py')
+                    if os.path.exists(f'{self.working_path}/reduction_scripts/cut{cut}_script.sh'):
+                        os.system(f'rm {self.working_path}/reduction_scripts/cut{cut}_script.sh')
+                        os.system(f'rm {self.working_path}/reduction_scripts/cut{cut}_script.py')
 
                     # -- Create python file for reducing a cut-- # 
                     print(f'Creating Reduction Python File for Cam{cam} Ccd{ccd} Cut{cut}')
@@ -948,7 +952,7 @@ processor.reduce(cam={cam},ccd={ccd},n={self.n},cut={cut})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reduced.txt', 'w') as file:\n\
     file.write('Reduced!')"
                 
-                    with open(f"{self.working_path}/reduction_script.py", "w") as python_file:
+                    with open(f"{self.working_path}/reduction_scripts/cut{cut}_script.py", "w") as python_file:
                         python_file.write(python_text)
 
                     # -- Create bash file to submit job -- #
@@ -965,13 +969,13 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{se
 #SBATCH --cpus-per-task={self.reduce_cpu}\n\
 #SBATCH --mem-per-cpu={self.reduce_mem}G\n\
 \n\
-python {self.working_path}/reduction_script.py"
+python {self.working_path}/reduction_scripts/cut{cut}_script.py"
 
-                    with open(f"{self.working_path}/reduction_script.sh", "w") as batch_file:
+                    with open(f"{self.working_path}/reduction_scripts/cut{cut}_script.sh", "w") as batch_file:
                         batch_file.write(batch_text)
                             
                     print('Submitting Reduction Batch File')
-                    os.system(f'sbatch {self.working_path}/reduction_script.sh')
+                    os.system(f'sbatch {self.working_path}/reduction_scripts/cut{cut}_script.sh')
 
                     print('\n')
 
@@ -979,9 +983,9 @@ python {self.working_path}/reduction_script.py"
     def _cut_transient_search(self,cam,ccd,cut):
 
         # -- Delete old scripts -- #
-        if os.path.exists(f'{self.working_path}/detection_script.sh'):
-            os.system(f'rm {self.working_path}/detection_script.sh')
-            os.system(f'rm {self.working_path}/detection_script.py')
+        if os.path.exists(f'{self.working_path}/detection_scripts/cut{cut}_script.sh'):
+            os.system(f'rm {self.working_path}/detection_scripts/cut{cut}_script.sh')
+            os.system(f'rm {self.working_path}/detection_scripts/cut{cut}_script.py')
 
         # -- Create python file for reducing a cut-- # 
         print(f'Creating Transient Search File for Cam{cam} Ccd{ccd} Cut{cut}')
@@ -998,7 +1002,7 @@ row = cutCentrePx[{cut}-1][1]\n\
 results = source_detect(flux,cam={cam},ccd={ccd},sector={self.sector},column=column,row=row,mask=mask,inputNums=None)\n\
 results.to_csv(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/detected_sources.csv')"
                     
-        with open(f"{self.working_path}/detection_script.py", "w") as python_file:
+        with open(f"{self.working_path}/detection_scripts/cut{cut}_script.py", "w") as python_file:
             python_file.write(python_text)
 
         # -- Create bash file to submit job -- #
@@ -1015,17 +1019,19 @@ results.to_csv(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}
 #SBATCH --cpus-per-task={self.search_cpu}\n\
 #SBATCH --mem-per-cpu={self.search_mem}G\n\
 \n\
-python {self.working_path}/detection_script.py"
+python {self.working_path}/detection_scripts/cut{cut}_script.py"
 
-        with open(f"{self.working_path}/detection_script.sh", "w") as batch_file:
+        with open(f"{self.working_path}/detection_scripts/cut{cut}_script.sh", "w") as batch_file:
             batch_file.write(batch_text)
                 
         print('Submitting Transient Search Batch File')
-        os.system(f'sbatch {self.working_path}/detection_script.sh')
+        os.system(f'sbatch {self.working_path}/detection_scripts/cut{cut}_script.sh')
 
         print('\n')
 
     def transient_search(self,reducing):
+
+        _Save_space(f'{self.working_path}/detection_scripts')
 
         for cam in self.cam:
             for ccd in self.ccd:
