@@ -94,15 +94,15 @@ class Tessellate():
         if self.sector in primary_mission:
             cube_time_sug = '1:00:00'
             cube_cpu_sug = '3'
-            cube_mem_sug = '20G'
+            cube_mem_sug = f'{int(60/int(cube_cpu_sug))}G'
 
             cut_time_sug = '10:00'
             cut_cpu_sug = '3'
-            cut_mem_sug = '20G'
+            cut_mem_sug = f'{int(60/int(cube_cpu_sug))}G'
 
             reduce_time_sug = '1:00:00'
             reduce_cpu_sug = '32'
-            reduce_mem_sug = '4G'
+            reduce_mem_sug = f'{int(128/int(cube_cpu_sug))}G'
 
             search_time_sug = '10:00'
             search_cpu_sug = '32'
@@ -111,15 +111,15 @@ class Tessellate():
         elif self.sector in secondary_mission:
             cube_time_sug = '3:00:00'
             cube_cpu_sug = '4'
-            cube_mem_sug = '60G'
+            cube_mem_sug = f'{int(240/int(cube_cpu_sug))}G'
 
             cut_time_sug = '10:00'
             cut_cpu_sug = '4'
-            cut_mem_sug = '60G'
+            cut_mem_sug = f'{int(240/int(cube_cpu_sug))}G'
 
             reduce_time_sug = '1:00:00'
             reduce_cpu_sug = '32'
-            reduce_mem_sug = '7G'
+            reduce_mem_sug = f'{int(210/int(cube_cpu_sug))}G'
 
             search_time_sug = '10:00'
             search_cpu_sug = '32'
@@ -128,15 +128,15 @@ class Tessellate():
         elif self.sector in tertiary_mission:
             cube_time_sug = '4:00:00'
             cube_cpu_sug = '4'
-            cube_mem_sug = '60G'
+            cube_mem_sug = f'{int(240/int(cube_cpu_sug))}G'
 
             cut_time_sug = '30:00'
             cut_cpu_sug = '4'
-            cut_mem_sug = '60G'
+            cut_mem_sug = f'{int(240/int(cube_cpu_sug))}G'
 
             reduce_time_sug = '1:30:00'
             reduce_cpu_sug = '32'
-            reduce_mem_sug = '10G'
+            reduce_mem_sug = f'{int(320/int(cube_cpu_sug))}G'
 
             search_time_sug = '10:00'
             search_cpu_sug = '32'
