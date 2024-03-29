@@ -880,7 +880,7 @@ python {self.working_path}/cubing_script.py"
                         # -- Create python file for cubing, cutting, reducing a cut-- # 
                         print(f'Creating Cutting Python File for Cam{cam} Ccd{ccd} Cut{cut}')
                         python_text = f"\
-print('Cut = '+= str({cut}))
+print('Cut = '+= str({cut}))\n\
 from tessellate import DataProcessor\n\
 \n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
