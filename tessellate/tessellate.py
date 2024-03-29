@@ -880,10 +880,11 @@ python {self.working_path}/cubing_script.py"
                         # -- Create python file for cubing, cutting, reducing a cut-- # 
                         print(f'Creating Cutting Python File for Cam{cam} Ccd{ccd} Cut{cut}')
                         python_text = f"\
+print('Cut = '+= str({cut}))
 from tessellate import DataProcessor\n\
 \n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
-print(f'Cut = {cut}')\n\
+print('Cut = {cut}')\n\
 processor.make_cuts(cam={cam},ccd={ccd},n={self.n},cut={cut})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/cut.txt', 'w') as file:\n\
     file.write('Cut!')"
