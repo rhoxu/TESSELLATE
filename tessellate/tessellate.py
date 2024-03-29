@@ -98,11 +98,11 @@ class Tessellate():
 
             cut_time_sug = '10:00'
             cut_cpu_sug = '3'
-            cut_mem_sug = f'{int(60/int(cube_cpu_sug))}G'
+            cut_mem_sug = f'{int(60/int(cut_cpu_sug))}G'
 
             reduce_time_sug = '1:00:00'
             reduce_cpu_sug = '32'
-            reduce_mem_sug = f'{int(128/int(cube_cpu_sug))}G'
+            reduce_mem_sug = f'{int(128/int(reduce_cpu_sug))}G'
 
             search_time_sug = '10:00'
             search_cpu_sug = '32'
@@ -115,11 +115,11 @@ class Tessellate():
 
             cut_time_sug = '10:00'
             cut_cpu_sug = '4'
-            cut_mem_sug = f'{int(240/int(cube_cpu_sug))}G'
+            cut_mem_sug = f'{int(240/int(cut_cpu_sug))}G'
 
             reduce_time_sug = '1:00:00'
             reduce_cpu_sug = '32'
-            reduce_mem_sug = f'{int(210/int(cube_cpu_sug))}G'
+            reduce_mem_sug = f'{int(210/int(reduce_cpu_sug))}G'
 
             search_time_sug = '10:00'
             search_cpu_sug = '32'
@@ -132,11 +132,11 @@ class Tessellate():
 
             cut_time_sug = '30:00'
             cut_cpu_sug = '4'
-            cut_mem_sug = f'{int(240/int(cube_cpu_sug))}G'
+            cut_mem_sug = f'{int(240/int(cut_cpu_sug))}G'
 
             reduce_time_sug = '1:30:00'
             reduce_cpu_sug = '32'
-            reduce_mem_sug = f'{int(320/int(cube_cpu_sug))}G'
+            reduce_mem_sug = f'{int(320/int(reduce_cpu_sug))}G'
 
             search_time_sug = '10:00'
             search_cpu_sug = '32'
