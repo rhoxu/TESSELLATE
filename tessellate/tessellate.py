@@ -358,7 +358,7 @@ class Tessellate():
             done = False
             while not done:
                 if cut == 'all':
-                    self.cuts = range(1,self.n**2+1)
+                    self.cuts = np.linspace(1,self.n**2,self.n**2).astype(int)
                     done = True
                 elif cut in np.array(range(1,self.n**2+1)).astype(str):
                     self.cuts = [int(cut)]
@@ -369,7 +369,7 @@ class Tessellate():
         elif self.cuts == 'all':
             print(f'   - Cut = all')
             message += f'   - Cut = all\n'
-            self.cuts = range(1,self.n**2+1)
+            self.cuts = np.linspace(1,self.n**2,self.n**2).astype(int)
         elif self.cuts in range(1,self.n**2+1):
             print(f'   - Cut = {self.cuts}')
             message += f'   - Cut = {self.cuts}\n'
@@ -486,7 +486,7 @@ class Tessellate():
                 done = False
                 while not done:
                     if cut == 'all':
-                        self.cuts = range(1,self.n**2+1)
+                        self.cuts = np.linspace(1,self.n**2,self.n**2).astype(int)
                         done = True
                     elif cut in np.array(range(1,self.n**2+1)).astype(str):
                         self.cuts = [int(cut)]
@@ -497,7 +497,7 @@ class Tessellate():
             elif self.cuts == 'all':
                 print(f'   - Cut = all')
                 message += f'   - Cut = all\n'
-                self.cuts = range(1,self.n**2+1)
+                self.cuts = np.linspace(1,self.n**2,self.n**2).astype(int)
             elif self.cuts in range(1,self.n**2+1):
                 print(f'   - Cut = {self.cuts}')
                 message += f'   - Cut = {self.cuts}\n'
@@ -609,7 +609,7 @@ class Tessellate():
                 done = False
                 while not done:
                     if cut == 'all':
-                        self.cuts = range(1,self.n**2+1)
+                        self.cuts = np.linspace(1,self.n**2,self.n**2).astype(int)
                         done = True
                     elif cut in np.array(range(1,self.n**2+1)).astype(str):
                         self.cuts = [int(cut)]
@@ -620,7 +620,7 @@ class Tessellate():
             elif self.cuts == 'all':
                 print(f'   - Cut = all')
                 message += f'   - Cut = all\n'
-                self.cuts = range(1,self.n**2+1)
+                self.cuts = np.linspace(1,self.n**2,self.n**2).astype(int)
             elif self.cuts in range(1,self.n**2+1):
                 print(f'   - Cut = {self.cuts}')
                 message += f'   - Cut = {self.cuts}\n'
@@ -871,31 +871,28 @@ python {self.working_path}/cubing_script.py"
                         print(f'Cam {cam} CCD {ccd} cut {cut} already made!')
                         print('\n')
                     else:
-                        if cut == 5:
-                            # -- Delete old scripts -- #
-                            if os.path.exists(f'{self.working_path}/cutting_script.sh'):
-                                os.system(f'rm {self.working_path}/cutting_script.sh')
-                                os.system(f'rm {self.working_path}/cutting_script.py')
+                    
+                        # -- Delete old scripts -- #
+                        if os.path.exists(f'{self.working_path}/cutting_script.sh'):
+                            os.system(f'rm {self.working_path}/cutting_script.sh')
+                            os.system(f'rm {self.working_path}/cutting_script.py')
 
-                            print(f'Cut = {cut}')
-                            # -- Create python file for cubing, cutting, reducing a cut-- # 
-                            print(f'Creating Cutting Python File for Cam{cam} Ccd{ccd} Cut{cut}')
-                            python_text = f"\
-print('Cut = '+ str({cut}))\n\
+                        # -- Create python file for cubing, cutting, reducing a cut-- # 
+                        print(f'Creating Cutting Python File for Cam{cam} Ccd{ccd} Cut{cut}')
+                        python_text = f"\
 from tessellate import DataProcessor\n\
 \n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
-print('Cut = {cut}')\n\
 processor.make_cuts(cam={cam},ccd={ccd},n={self.n},cut={cut})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/cut.txt', 'w') as file:\n\
     file.write('Cut!')"
 
-                            with open(f"{self.working_path}/cutting_script.py", "w") as python_file:
-                                python_file.write(python_text)
+                        with open(f"{self.working_path}/cutting_script.py", "w") as python_file:
+                            python_file.write(python_text)
 
-                            # -- Create bash file to submit job -- #
-                            print('Creating Cutting Batch File')
-                            batch_text = f"\
+                        # -- Create bash file to submit job -- #
+                        print('Creating Cutting Batch File')
+                        batch_text = f"\
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Cutting\n\
@@ -909,12 +906,12 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{se
 \n\
 python {self.working_path}/cutting_script.py"
 
-                            with open(f"{self.working_path}/cutting_script.sh", "w") as batch_file:
-                                batch_file.write(batch_text)
+                        with open(f"{self.working_path}/cutting_script.sh", "w") as batch_file:
+                            batch_file.write(batch_text)
 
-                            print('Submitting Cutting Batch File')
-                            os.system(f'sbatch {self.working_path}/cutting_script.sh')
-                            print('\n')
+                        print('Submitting Cutting Batch File')
+                        os.system(f'sbatch {self.working_path}/cutting_script.sh')
+                        print('\n')
 
                 self._get_catalogues(cam=cam,ccd=ccd)
 
