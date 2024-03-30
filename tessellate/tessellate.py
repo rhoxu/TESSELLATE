@@ -898,6 +898,8 @@ python {self.working_path}/cubing_script.py"
                         message = 'Waiting for Cube'
                         while not go:
                             if t()-tStart > seconds + 3600:
+                                print('Restarting Cubing')
+                                print('\n')
                                 self.make_cube()
                                 tStart = t()
                             else:
@@ -960,6 +962,8 @@ python {self.working_path}/cutting_scripts/cut{cut}_script.py"
                 done = self._get_catalogues(cam=cam,ccd=ccd,max_time=cut_time_sug)
                 print('\n')
                 if not done:
+                    print('Restarting Cutting')
+                    print('\n')
                     self.make_cuts(cubing=cubing,cube_time_sug=cube_time_sug,cut_time_sug=cut_time_sug)
 
 
