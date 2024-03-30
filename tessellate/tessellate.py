@@ -90,8 +90,7 @@ class Tessellate():
         tertiary_mission = range(56,100)
 
         if self.sector in primary_mission:
-            max_download = 1200
-            cube_time_sug = '1:00:00'
+            cube_time_sug = '45:00'
             cube_mem_sug = '20G'
             cube_mem_req = 60
 
@@ -103,12 +102,11 @@ class Tessellate():
             reduce_cpu_sug = '32'
             reduce_mem_req = 60
 
-            search_time_sug = '10:00'
+            search_time_sug = '5:00'
             search_cpu_sug = '32'
             search_mem_sug = '1G'
 
         elif self.sector in secondary_mission:
-            max_download = 3600
             cube_time_sug = '2:00:00'
             cube_mem_sug = '20G'
             cube_mem_req = 140
@@ -117,7 +115,7 @@ class Tessellate():
             cut_mem_sug = '20G'
             cut_mem_req = 140
 
-            reduce_time_sug = '1:00:00'
+            reduce_time_sug = '2:00:00'
             reduce_cpu_sug = '32'
             reduce_mem_req = 140
 
@@ -126,7 +124,6 @@ class Tessellate():
             search_mem_sug = '1G'
 
         elif self.sector in tertiary_mission:
-            max_download = 12000
             cube_time_sug = '3:00:00'
             cube_mem_sug = '20G'
             cube_mem_req = 200
