@@ -75,7 +75,7 @@ class Tessellate():
             self.make_cube()
         
         if make_cuts:
-            self.make_cuts(cubing=make_cube,sugestions=suggestions[1])
+            self.make_cuts(cubing=make_cube,cube_time_sug=suggestions[0][0],cut_time_sug=suggestions[1][0])
 
         if reduce:
             self.reduce()    
@@ -107,7 +107,7 @@ class Tessellate():
             search_mem_sug = '1G'
 
         elif self.sector in secondary_mission:
-            cube_time_sug = '1:00:00'
+            cube_time_sug = '1:15:00'
             cube_mem_sug = '20G'
             cube_mem_req = 140
 
@@ -128,7 +128,7 @@ class Tessellate():
             cube_mem_sug = '20G'
             cube_mem_req = 200
 
-            cut_time_sug = '30:00'
+            cut_time_sug = '1:00:00'
             cut_mem_sug = '20G'
             cut_mem_req = 200
 
