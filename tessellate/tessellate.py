@@ -1010,7 +1010,7 @@ python {self.working_path}/reduction_scripts/cut{cut}_script.py"
         # -- Create python file for reducing a cut-- # 
         print(f'Creating Transient Search File for Cam{cam} Ccd{ccd} Cut{cut}')
         python_text = f"\
-from tessellate import DataProcessor, source_detect\n\
+from tessellate import DataProcessor, source_detect, wcs_time_info\n\
 import numpy as np\n\
 \n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
