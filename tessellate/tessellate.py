@@ -6,7 +6,7 @@ from time import sleep
 
 class Tessellate():
 
-    def __init__(self,sector,data_path,cam=None,ccd=None,n=None,
+    def __init__(self,data_path,sector=None,cam=None,ccd=None,n=None,
                  verbose=2,download_number=None,cuts=None,
                  job_output_path=None,working_path=None,
                  cube_time=None,cube_mem=None,cut_time=None,cut_mem=None,
@@ -152,8 +152,31 @@ class Tessellate():
         message = ''
 
         print('\n')
-        print(_Print_buff(50,f'Initialising Sector {self.sector} Tessellation'))
-        message += _Print_buff(50,f'Initialising Sector {self.sector} Tessellation')+'\n'
+        print(_Print_buff(50,f'Initialising Tessellation Run'))
+        message += _Print_buff(50,f'Initialising Tessellation')+'\n'
+
+        if self.sector is None:
+            sector = input('   - Sector = ')
+            message += f'   - Sector = {sector}\n'
+            done = False
+            while not done:
+                try:
+                    sector = int(sector)
+                    if 0 < sector < 100:
+                        self.sector = sector
+                        done = True
+                    else:
+                        sector = input('      Invalid choice! Sector = ')
+                        message += f'      Invalid choice! Sector = {sector}\n'
+                except:
+                    sector = input('      Invalid choice! Sector = ')
+                    message += f'      Invalid choice! Sector = {sector}\n'
+        elif 0 < self.sector < 100:
+            print(f'   - Sector = {self.sector}')
+            message += f'   - Sector = {self.sector}\n'
+        else:
+            e = f'Invalid Sector Input of {self.sector}\n'
+            raise ValueError(e)
 
         if self.cam is None:
             cam = input('   - Cam [1,2,3,4,all] = ')
