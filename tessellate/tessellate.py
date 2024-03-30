@@ -1022,7 +1022,7 @@ cut_path = np.load(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{
 column = cutCentrePx[{cut}-1][0]\n\
 row = cutCentrePx[{cut}-1][1]\n\
 results = source_detect(flux,cam={cam},ccd={ccd},sector={self.sector},column=column,row=row,mask=mask,inputNums=None)\n\
-results = wcs_time_info(results,times,cut_path)
+results = wcs_time_info(results,times,cut_path)\n\
 results.to_csv(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/detected_sources.csv')"
                     
         with open(f"{self.working_path}/detection_scripts/cut{cut}_script.py", "w") as python_file:
