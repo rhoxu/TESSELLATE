@@ -415,7 +415,7 @@ class DataProcessor():
                 tessreduce = 0
 
                 # -- reduce -- #
-                tessreduce = tr.tessreduce(tpf=cutPath,sector=self.sector,reduce=True,corr_correction=False,
+                tessreduce = tr.tessreduce(tpf=cutPath,sector=self.sector,reduce=True,corr_correction=True,
                                             calibrate=False,catalogue_path=cutFolder)
                 
                 if self.verbose > 0:
