@@ -75,7 +75,7 @@ class Tessellate():
             self.make_cube()
         
         if make_cuts:
-            self.make_cuts(cubing=make_cube)
+            self.make_cuts(cubing=make_cube,sugestions=suggestions[1])
 
         if reduce:
             self.reduce()    
@@ -806,29 +806,42 @@ python {self.working_path}/cubing_script.py"
                     os.system(f'sbatch {self.working_path}/cubing_script.sh')
                     print('\n')
 
-    def _get_catalogues(self,cam,ccd):
+    def _get_catalogues(self,cam,ccd,max_time):
 
         data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
         cutCorners,_,cutCentreCoords,rad = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
 
         image_path = glob(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/*ffic.fits')[0]
 
+        l = max_time.split(':')
+        seconds = 1 * int(l[-1]) + 60 * int(l[-2])
+        if len(l) == 3:
+            seconds += 3600 * int(l[-3])
+
         completed = []
         message = 'Waiting for Cuts'
+        timeStart = t()
+        done = True
         while len(completed) < len(self.cuts):
-            print(message, end='\r')
-            sleep(120)
-            message += '.'
-            for cut in self.cuts:
-                if cut not in completed:
-                    save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                    if os.path.exists(f'{save_path}/local_gaia_cat.csv'):
-                        completed.append(cut)
-                    elif os.path.exists(f'{save_path}/cut.txt'):
-                        print(f'Generating Catalogue {cut}')
-                        tr.external_save_cat(radec=cutCentreCoords[cut-1],size=2*rad,cutCornerPx=cutCorners[cut-1],
-                                                image_path=image_path,save_path=save_path,maglim=19)
-                        completed.append(cut)
+            if (t()-timeStart) > seconds + 600:
+                done = False
+                break
+            else:
+                print(message, end='\r')
+                sleep(120)
+                message += '.'
+                for cut in self.cuts:
+                    if cut not in completed:
+                        save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+                        if os.path.exists(f'{save_path}/local_gaia_cat.csv'):
+                            completed.append(cut)
+                        elif os.path.exists(f'{save_path}/cut.txt'):
+                            print(f'Generating Catalogue {cut}')
+                            tr.external_save_cat(radec=cutCentreCoords[cut-1],size=2*rad,cutCornerPx=cutCorners[cut-1],
+                                                    image_path=image_path,save_path=save_path,maglim=19)
+                            completed.append(cut)
+        
+        return done
     
     # def _get_catalogues(self,cam,ccd,cut):
                 
@@ -863,7 +876,7 @@ python {self.working_path}/cubing_script.py"
     #             sleep(120)
     #             message += '.'
 
-    def make_cuts(self,cubing):
+    def make_cuts(self,cubing,cube_time_sug,cut_time_sug):
 
         _Save_space(f'{self.working_path}/cutting_scripts')
 
@@ -876,16 +889,25 @@ python {self.working_path}/cubing_script.py"
                         e = 'No Cube File Detected to Cut!\n'
                         raise ValueError(e)
                     else:
+                        tStart = t()
+                        l = cube_time_sug.split(':')
+                        seconds = 1 * int(l[-1]) + 60 * int(l[-2])
+                        if len(l) == 3:
+                            seconds += 3600 * int(l[-3])
                         go = False
                         message = 'Waiting for Cube'
                         while not go:
-                            print(message, end='\r')
-                            sleep(120)
-                            if os.path.exists(cube_check):
-                                go = True
-                                print('\n')
+                            if t()-tStart > seconds + 3600:
+                                self.make_cube()
+                                tStart = t()
                             else:
-                                message += '.'
+                                print(message, end='\r')
+                                sleep(120)
+                                if os.path.exists(cube_check):
+                                    go = True
+                                    print('\n')
+                                else:
+                                    message += '.'
             
                 for cut in self.cuts:
                     cut_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/cut.txt'
@@ -935,9 +957,11 @@ python {self.working_path}/cutting_scripts/cut{cut}_script.py"
                         os.system(f'sbatch {self.working_path}/cutting_scripts/cut{cut}_script.sh')
                         print('\n')
 
-                self._get_catalogues(cam=cam,ccd=ccd)
-
+                done = self._get_catalogues(cam=cam,ccd=ccd,max_time=cut_time_sug)
                 print('\n')
+                if not done:
+                    self.make_cuts(cubing=cubing,cube_time_sug=cube_time_sug,cut_time_sug=cut_time_sug)
+
 
     def reduce(self):
 
