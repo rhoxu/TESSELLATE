@@ -107,13 +107,13 @@ class Tessellate():
             search_mem_sug = '1G'
 
         elif self.sector in secondary_mission:
-            cube_time_sug = '2:00:00'
+            cube_time_sug = '1:00:00'
             cube_mem_sug = '20G'
             cube_mem_req = 140
 
-            cut_time_sug = '20:00'
+            cut_time_sug = '30:00'
             cut_mem_sug = '20G'
-            cut_mem_req = 140
+            cut_mem_req = 40
 
             reduce_time_sug = '2:00:00'
             reduce_cpu_sug = '32'
