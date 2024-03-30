@@ -906,7 +906,7 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{se
 #SBATCH --cpus-per-task={self.cut_cpu}\n\
 #SBATCH --mem-per-cpu={self.cut_mem}G\n\
 \n\
-python {self.working_path}/cutting_scripts/cut{cut}_script.py.py"
+python {self.working_path}/cutting_scripts/cut{cut}_script.py"
 
                         with open(f"{self.working_path}/cutting_scripts/cut{cut}_script.sh", "w") as batch_file:
                             batch_file.write(batch_text)
