@@ -1,4 +1,5 @@
 import tessreduce as tr
+import lightkurve as lk
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -303,6 +304,16 @@ def count_detections(result,lower=None,upper=None):
 def _get_source(result,id):
 
     return result[result['objid']==id]
+
+def wcs_time_info(result,times,cut_path):
+
+    tpf = lk.TessTargetPixelFile(cut_path)
+    coords = tpf.wcs.all_pix2world(result['xcentroid'],result['ycentroid'],0)
+    result['ra'] = coords[0]
+    result['dec'] = coords[1]
+    result['mjd'] = times[result['frame']]
+
+    return result
 
 def plot_source(flux,result,id):
 
