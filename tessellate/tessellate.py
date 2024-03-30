@@ -47,9 +47,9 @@ class Tessellate():
         self.search_mem = None
         self.search_cpu = None
 
-        suggestions = self._sector_suggestions()
-
         message = self._run_properties()
+
+        suggestions = self._sector_suggestions()
 
         if download:
             message = self._download_properties(message)
