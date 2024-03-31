@@ -1166,7 +1166,7 @@ python {self.working_path}/reduction_scripts/cut{cut}_script.py"
 from tessellate import Detector\n\
 import numpy as np\n\
 \n\
-detector = Detector(sector={self.sector},path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
+detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
 detector.source_detect(cut={cut})"
                     
         with open(f"{self.working_path}/detection_scripts/cut{cut}_script.py", "w") as python_file:
