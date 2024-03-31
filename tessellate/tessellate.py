@@ -914,8 +914,8 @@ from tessellate import DataProcessor\n\
 \n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
 processor.make_cube(cam={cam},ccd={ccd})\n\
-with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', 'w') as file:\n\ 
-    file.write('Cubed!')"   # For next step confirmation
+with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', 'w') as file:\n\
+    file.write('Cubed!')"   
                 
                     with open(f"{self.working_path}/cubing_script.py", "w") as python_file:
                         python_file.write(python_text)
