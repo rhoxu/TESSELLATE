@@ -202,7 +202,7 @@ def _count_detections(result):
 
     return result
 
-def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdifflim=0.5):
+def source_detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdifflim=0.5):
     """
     Main Function.
     """
@@ -264,170 +264,108 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdiff
 
 # -- Secondary Functions (Just for functionality in testing) -- #
 
-class Detector():
+def plot_results(flux,mask,result):
 
-    def __init__(self,sector,cam,ccd,data_path,n):
+    fig,ax = plt.subplots(figsize=(12,6),ncols=2)
 
-        self.sector = sector
-        self.cam = cam
-        self.ccd = ccd
-        self.data_path = data_path
-        self.n = n
+    ax[0].scatter(result['xcentroid'],result['ycentroid'],c=result['frame'],s=5)
+    ax[0].imshow(flux[0],cmap='gray',origin='lower',vmin=-10,vmax=10)
+    ax[0].set_xlabel(f'Frame 0')
 
-        self.flux = None
-        self.times = None
-        self.mask = None
-        self.results = None
-        self.cut = None
+    newmask = deepcopy(mask)
 
-        self.path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}'
+    c1 = newmask.shape[0]//2
+    c2 = newmask.shape[1]//2
 
-    def _wcs_time_info(self,result,cut):
-        
-        cut_path = f'{self.path}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}.fits'
-        times = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.cut}_cut{cut}_of{self.n**2}_Times.npy')
+    newmask[c1-2:c1+3,c2-2:c2+3] -= 1
 
-        tpf = lk.TessTargetPixelFile(cut_path)
-        coords = tpf.wcs.all_pix2world(result['xcentroid'],result['ycentroid'],0)
-        result['ra'] = coords[0]
-        result['dec'] = coords[1]
-        result['mjd'] = times[result['frame']]
+    ax[1].imshow(newmask,origin='lower')
 
-        return result
+    ax[1].scatter(result['xcentroid'],result['ycentroid'],c=result['source_mask'],s=5,cmap='Reds')
+    ax[1].set_xlabel('Source Mask')
+
+def count_detections(result,lower=None,upper=None):
+
+    array = result['objid'].values
+    id,count = np.unique(array, return_counts=True)
+    dictionary = dict(zip(id, count))
+
+    if upper is not None:
+        if lower is not None:
+            dictionary = dict((k, v) for k, v in dictionary.items() if lower < v < upper)
+        else:
+            dictionary = dict((k, v) for k, v in dictionary.items() if v < upper)
+    elif lower is not None:
+        dictionary = dict((k, v) for k, v in dictionary.items() if lower < v)
+
+    return dictionary
+
+def _get_source(result,id):
+
+    return result[result['objid']==id]
+
+def wcs_time_info(result,times,cut_path):
+
+    tpf = lk.TessTargetPixelFile(cut_path)
+    coords = tpf.wcs.all_pix2world(result['xcentroid'],result['ycentroid'],0)
+    result['ra'] = coords[0]
+    result['dec'] = coords[1]
+    result['mjd'] = times[result['frame']]
+
+    return result
+
+def plot_source(flux,result,id):
+
+    source = _get_source(result,id)
+
+    x = source.iloc[0]['xint'].astype(int)
+    y = source.iloc[0]['yint'].astype(int)
+
+    frames = source['frame'].values
+    brightestframe = np.where(flux==np.nanmax(flux[frames,y-1:y+2,x-1:x+2]))[0][0]
+
+    fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3]],figsize=(10,7))
+
+    frameStart = min(source['frame'].values)
+    frameEnd = max(source['frame'].values)
+
+    f = np.sum(flux[:,y-2:y+3,x-2:x+3],axis=(2,1))
+    ax[0].plot(f)
+    ax[1].plot(f[frameStart-10:frameEnd+20])
+
+    ax[0].axvline(frameStart,color='r',linestyle='--',alpha=0.2)
+    ax[0].axvline(frameEnd,color='r',linestyle='--',alpha=0.2) 
     
-    def _gather_data(self,cut):
+    ax[2].plot(source['xcentroid'],source['ycentroid'],'C1.')
+    ax[2].imshow(flux[brightestframe],cmap='gray',origin='lower',vmin=-10,vmax=10)
+    ax[2].set_xlabel(f'Frame {brightestframe}')
+    
+    vmax = np.max(flux[brightestframe,y-2:y+3,x-2:x+3])/2
+    im = ax[3].imshow(flux[brightestframe,y-2:y+3,x-2:x+3],cmap='grey',vmin=-10,vmax=vmax)
+    plt.colorbar(im)
+    ax[3].set_xlabel(f'Object {id}')
 
-        self.flux = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.cut}_cut{cut}_of{self.n**2}_ReducedFlux.npy')
-        self.mask = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.cut}_cut{cut}_of{self.n**2}_Mask.npy')
-        self.times = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.cut}_cut{cut}_of{self.n**2}_Times.npy')
+    return source
 
-    def _gather_results(self,cut):
+def locate_transient(results,xcentroid,ycentroid,threshold=3):
 
-        self.result = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv')
+    return results[(results['ycentroid'].values < ycentroid+threshold) & (results['ycentroid'].values > ycentroid-threshold) & (results['xcentroid'].values < xcentroid+threshold) & (results['xcentroid'].values > xcentroid-threshold)]
 
-    def source_detect(self,cut):
+def full_ccd(data_path,sector,cam,ccd,n):
 
-        if cut != self.cut:
-            self._gather_data(cut)
-            self.cut = cut
+    p = DataProcessor(sector=sector,path=data_path)
+    lb,_,_,_ = p.find_cuts(cam=cam,ccd=ccd,n=n,plot=False)
 
-        processor = DataProcessor(sector=self.sector,path='/fred/oz100/TESSdata',verbose=2)
-        _, cutCentrePx, _, _ = processor.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
-
-        column = cutCentrePx[1-1][0]
-        row = cutCentrePx[1-1][1]
-
-        results = detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,row=row,mask=self.mask,inputNums=None)
-        results = self._wcs_time_info(results,cut)
-        results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv')
-
-    def plot_results(self,cut):
-
-        if cut != self.cut:
-            self._gather_data(cut)
-            self._gather_results(cut)
-            self.cut = cut
-
-        fig,ax = plt.subplots(figsize=(12,6),ncols=2)
-        ax[0].scatter(self.result['xcentroid'],self.result['ycentroid'],c=self.result['frame'],s=5)
-        ax[0].imshow(self.flux[0],cmap='gray',origin='lower',vmin=-10,vmax=10)
-        ax[0].set_xlabel(f'Frame 0')
-
-        newmask = deepcopy(self.mask)
-
-        c1 = newmask.shape[0]//2
-        c2 = newmask.shape[1]//2
-
-        newmask[c1-2:c1+3,c2-2:c2+3] -= 1
-
-        ax[1].imshow(newmask,origin='lower')
-
-        ax[1].scatter(self.result['xcentroid'],self.result['ycentroid'],c=self.result['source_mask'],s=5,cmap='Reds')
-        ax[1].set_xlabel('Source Mask')
-
-    def count_detections(self,cut,lower=None,upper=None):
-
-        if cut != self.cut:
-            self._gather_data(cut)
-            self._gather_results(cut)
-            self.cut = cut
-
-        array = self.result['objid'].values
-        id,count = np.unique(array, return_counts=True)
-        dictionary = dict(zip(id, count))
-
-        if upper is not None:
-            if lower is not None:
-                dictionary = dict((k, v) for k, v in dictionary.items() if lower < v < upper)
-            else:
-                dictionary = dict((k, v) for k, v in dictionary.items() if v < upper)
-        elif lower is not None:
-            dictionary = dict((k, v) for k, v in dictionary.items() if lower < v)
-
-        return dictionary
-
-    def plot_source(self,cut,id):
-
-        if cut != self.cut:
-            self._gather_data(cut)
-            self._gather_results(cut)
-            self.cut = cut
-
-        source = self.result[self.result['objid']==id]
-
-        x = source.iloc[0]['xint'].astype(int)
-        y = source.iloc[0]['yint'].astype(int)
-
-        frames = source['frame'].values
-        brightestframe = np.where(self.flux==np.nanmax(self.flux[frames,y-1:y+2,x-1:x+2]))[0][0]
-
-        fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3]],figsize=(10,7))
-
-        frameStart = min(source['frame'].values)
-        frameEnd = max(source['frame'].values)
-
-        f = np.sum(self.flux[:,y-2:y+3,x-2:x+3],axis=(2,1))
-        ax[0].plot(f)
-        ax[1].plot(f[frameStart-10:frameEnd+20])
-
-        ax[0].axvline(frameStart,color='r',linestyle='--',alpha=0.2)
-        ax[0].axvline(frameEnd,color='r',linestyle='--',alpha=0.2) 
-        
-        ax[2].plot(source['xcentroid'],source['ycentroid'],'C1.')
-        ax[2].imshow(self.flux[brightestframe],cmap='gray',origin='lower',vmin=-10,vmax=10)
-        ax[2].set_xlabel(f'Frame {brightestframe}')
-        
-        vmax = np.max(self.flux[brightestframe,y-2:y+3,x-2:x+3])/2
-        im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='grey',vmin=-10,vmax=vmax)
-        plt.colorbar(im)
-        ax[3].set_xlabel(f'Object {id}')
-
-        return source
-
-    def locate_transient(self,cut,xcentroid,ycentroid,threshold=3):
-
-        if cut != self.cut:
-            self._gather_data(cut)
-            self._gather_results(cut)
-            self.cut = cut
-
-        return self.result[(self.result['ycentroid'].values < ycentroid+threshold) & (self.result['ycentroid'].values > ycentroid-threshold) & (self.result['xcentroid'].values < xcentroid+threshold) & (self.result['xcentroid'].values > xcentroid-threshold)]
-
-    def full_ccd(self):
-
-        p = DataProcessor(sector=self.sector,path=self.data_path)
-        lb,_,_,_ = p.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
-
-        plt.figure(figsize=(10,10))
-        plt.xlim(44,2076)
-        plt.ylim(0,2048)
-        for cut in range(1,17):
-            try:
-                path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Cut{cut}of{self.n**2}'
-                r = pd.read_csv(f'{path}/detected_sources.csv')
-                r['xcentroid'] += lb[cut-1][0]
-                r['ycentroid'] += lb[cut-1][1]
-                plt.scatter(r['xcentroid'],r['ycentroid'],c=r['frame'],s=5)
-            except:
-                pass
+    plt.figure(figsize=(10,10))
+    plt.xlim(44,2076)
+    plt.ylim(0,2048)
+    for cut in range(1,17):
+        try:
+            path = f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}'
+            r = pd.read_csv(f'{path}/detected_sources.csv')
+            r['xcentroid'] += lb[cut-1][0]
+            r['ycentroid'] += lb[cut-1][1]
+            plt.scatter(r['xcentroid'],r['ycentroid'],c=r['frame'],s=5)
+        except:
+            pass
 

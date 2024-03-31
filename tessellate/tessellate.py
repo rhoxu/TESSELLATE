@@ -1,5 +1,5 @@
 from .dataprocessor import _Print_buff, _Save_space, DataProcessor
-from .detector import *
+from .detector import Detector
 
 from glob import glob
 from time import sleep
