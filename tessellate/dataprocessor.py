@@ -347,28 +347,28 @@ class DataProcessor():
         cube_path = f'{file_path}/{cube_name}'
         
         name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}.fits'
-        if os.path.exists(f'{file_path}/Cut{cut}of{n**2}/{name}'):
-            print(f'Cam {cam} CCD {ccd} cut {cut} already made!')
-        else:
-            if self.verbose > 0:
-                print(f'Cutting Cam {cam} CCD {ccd} cut {cut} (of {n**2})')
-            
-            my_cutter = CutoutFactory() # astrocut class
-            coords = cutCentreCoords[cut-1]
+        # if os.path.exists(f'{file_path}/Cut{cut}of{n**2}/{name}'):
+        #     print(f'Cam {cam} CCD {ccd} cut {cut} already made!')
+        # else:
+        if self.verbose > 0:
+            print(f'Cutting Cam {cam} CCD {ccd} cut {cut} (of {n**2})')
+        
+        my_cutter = CutoutFactory() # astrocut class
+        coords = cutCentreCoords[cut-1]
 
-            _Save_space(f'{file_path}/Cut{cut}of{n**2}')
-                            
-            # -- Cut -- #
-            self.cut_file = my_cutter.cube_cut(cube_path, 
-                                                f"{coords[0]} {coords[1]}", 
-                                                (cutSize*2,cutSize*2), 
-                                                output_path = f'{file_path}/Cut{cut}of{n**2}',
-                                                target_pixel_file = name,
-                                                verbose=(self.verbose>1)) 
+        _Save_space(f'{file_path}/Cut{cut}of{n**2}')
+                        
+        # -- Cut -- #
+        self.cut_file = my_cutter.cube_cut(cube_path, 
+                                            f"{coords[0]} {coords[1]}", 
+                                            (cutSize*2,cutSize*2), 
+                                            output_path = f'{file_path}/Cut{cut}of{n**2}',
+                                            target_pixel_file = name,
+                                            verbose=(self.verbose>1)) 
 
-            if self.verbose > 0:
-                print(f'Cam {cam} CCD {ccd} cut {cut} complete.')
-                print('\n')
+        if self.verbose > 0:
+            print(f'Cam {cam} CCD {ccd} cut {cut} complete.')
+            print('\n')
 
     def reduce(self,cam,ccd,n,cut):
         """

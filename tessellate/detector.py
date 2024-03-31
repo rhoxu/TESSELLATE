@@ -269,7 +269,7 @@ def plot_results(flux,mask,result):
 
     fig,ax = plt.subplots(figsize=(12,6),ncols=2)
 
-    ax[0].plot(result['xcentroid'],result['ycentroid'],'C1.')
+    ax[0].scatter(r['xcentroid'],r['ycentroid'],c=r['frame'],s=5)
     ax[0].imshow(flux[0],cmap='gray',origin='lower',vmin=-10,vmax=10)
     ax[0].set_xlabel(f'Frame 0')
 
