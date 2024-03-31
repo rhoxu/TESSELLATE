@@ -354,7 +354,7 @@ def locate_transient(results,xcentroid,ycentroid,threshold=3):
 def full_ccd(data_path,sector,cam,ccd,n):
 
     p = DataProcessor(sector=sector,path=data_path)
-    lb,_,_,_ = p.find_cuts(cam=cam,ccd=ccd,n=n)
+    lb,_,_,_ = p.find_cuts(cam=cam,ccd=ccd,n=n,plot=False)
 
     plt.figure(figsize=(10,10))
     plt.xlim(44,2076)
