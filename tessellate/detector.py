@@ -426,9 +426,10 @@ class Detector():
         ax.set_ylim(0,2048)
 
         # -- Adds cuts -- #
-        colours = iter(plt.cm.rainbow(np.linspace(0, 1, self.n**2)))
+        #colours = iter(plt.cm.rainbow(np.linspace(0, 1, self.n**2)))
         for corner in cutCorners:
-            c = next(colours)
+            #c = next(colours)
+            c='black'
             rectangle = patches.Rectangle(corner,2*cutSize,2*cutSize,edgecolor=c,
                                             facecolor='none',alpha=1)
             ax.add_patch(rectangle)
