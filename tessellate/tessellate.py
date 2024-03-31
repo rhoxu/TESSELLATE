@@ -5,6 +5,9 @@ from glob import glob
 from time import sleep
 
 class Tessellate():
+    """
+    Parent Class for Tessellation runs.
+    """
 
     def __init__(self,data_path,sector=None,cam=None,ccd=None,n=None,
                  verbose=2,download_number=None,cuts=None,
@@ -12,6 +15,86 @@ class Tessellate():
                  cube_time=None,cube_mem=None,cut_time=None,cut_mem=None,
                  reduce_time=None,reduce_cpu=None,search_time=None,
                  download=False,make_cube=False,make_cuts=False,reduce=False,search=False):
+        
+        """
+        Initialise.
+        
+        ------
+        Inputs
+        ------
+        data_path : str 
+            /path/to/data/location (use '/fred/oz100/TESSdata')
+        job_output_path : str
+            /path/to/job_log/output/location
+        working_path : str
+            /path/to/working_directory
+        
+        The Remaining INPUTS/OPTIONS/PROPERTIES can == 'None', will require input upon initialisation.
+
+        sector : int
+            TESS sector to operate upon
+        cam : int, 'all'
+            desired cam(s)
+        ccd : int, 'all'
+            desired ccd(s)
+
+        ------
+        Options
+        ------
+
+        n : int
+            n^2 number of cuts will be made
+        verbose : int
+            0 = nothing, 1 = some output, 2 = full output
+        download_number : 'all', int
+            number of FFIs to download and operate on
+        cuts : 'all', int
+            specific cuts to operate upon per cam/ccd
+
+        download : bool
+            if True, download FFIs
+        make_cube : bool
+            if True, make cube
+        make_cuts : bool
+            if True, make cuts
+        reduce : bool
+            if True, reduce cuts
+        search : bool
+            if True, run search pipeline
+        
+        ------
+        Run Properties
+        ------
+
+        cube_time : str
+            time allowed for cube generation, form = 'hh:mm:ss'
+        cube_cpu : int
+            number of cpu to request for cube generation
+        cube_mem : int
+            memory/cpu for cube generation (in GB)
+
+        cut_time : str
+            time allowed for cut generation, form = 'hh:mm:ss'
+        cut_cpu : int
+            number of cpu to request for cut generation
+        cut_mem : int
+            memory/cpu for cut generation (in GB)
+
+        reduce_time : str
+            time allowed for cut reduction, form = 'hh:mm:ss'
+        reduce_cpu : int
+            number of cpu to request for cut reduction
+        reduce_mem : int
+            memory/cpu for cut reduction (in GB)
+
+        search_time : str
+            time allowed for transient event search, form = 'hh:mm:ss'
+        search_cpu : int
+            number of cpu to request for transient event search
+        search_mem : int
+            memory/cpu for transient event search (in GB)
+
+        """
         
         if (job_output_path is None) | (working_path is None):
             m = 'Ensure you specify paths for job output and working path!\n'
@@ -47,9 +130,11 @@ class Tessellate():
         self.search_mem = None
         self.search_cpu = None
 
-        message = self._run_properties()
 
-        suggestions = self._sector_suggestions()
+        # -- Confirm Run Properties -- #
+        message = self._run_properties() 
+
+        suggestions = self._sector_suggestions()  # Get time/cpu/memory suggestions depending on sector
 
         if download:
             message = self._download_properties(message)
@@ -66,8 +151,11 @@ class Tessellate():
         if search:
             message = self._search_properties(message,make_cuts,suggestions[3])
 
+
+        # -- Reset Job Logs -- #
         message = self._reset_logs(message)
 
+        # -- Run Processes -- #
         if download:
             self.download(message)
 
@@ -84,10 +172,13 @@ class Tessellate():
             self.transient_search(reducing=reduce)   
 
     def _sector_suggestions(self):
+        """
+        Generate suggestions for slurm job runtime, cpu allocation, memory based on sector (tested but temperamental)
+        """
 
-        primary_mission = range(1,28)
-        secondary_mission = range(28,56)
-        tertiary_mission = range(56,100)
+        primary_mission = range(1,28)       # ~1200 FFIs , 30 min cadence
+        secondary_mission = range(28,56)    # ~3600 FFIs , 10 min cadence
+        tertiary_mission = range(56,100)    # ~12000 FFIs , 200 sec cadence
 
         if self.sector in primary_mission:
             cube_time_sug = '45:00'
@@ -148,6 +239,9 @@ class Tessellate():
         return suggestions
 
     def _run_properties(self):
+        """
+        Confirm sector, cam, ccd properties.
+        """
 
         message = ''
 
@@ -178,6 +272,7 @@ class Tessellate():
             e = f'Invalid Sector Input of {self.sector}\n'
             raise ValueError(e)
 
+
         if self.cam is None:
             cam = input('   - Cam [1,2,3,4,all] = ')
             message += f'   - Cam [1,2,3,4,all] = {cam}\n'
@@ -204,6 +299,7 @@ class Tessellate():
             e = f'Invalid Camera Input of {self.cam}\n'
             raise ValueError(e)
         
+
         if self.ccd is None:
             ccd = input('   - CCD [1,2,3,4,all] = ')
             message += f'   - CCD [1,2,3,4,all] = {ccd}\n'
@@ -236,6 +332,9 @@ class Tessellate():
         return message
     
     def _download_properties(self,message):
+        """
+        Confirm download process properties.
+        """
 
         if self.download_number is None:
             dNum = input('   - Download Number = ')
@@ -273,6 +372,9 @@ class Tessellate():
         return message
     
     def _cube_properties(self,message,suggestions):
+        """
+        Confirm cube generation process properties.
+        """
 
         if self.cube_time is None:
             cube_time = input(f"   - Cube Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
@@ -288,6 +390,7 @@ class Tessellate():
         else:
             print(f'   - Cube Batch Time = {self.cube_time}')
             message += f"   - Cube Batch Time = {self.cube_time}')\n"
+
         
         if self.cube_mem is None:
             cube_mem = input(f"   - Cube Mem/CPU ({suggestions[1]} suggested) = ")
@@ -316,6 +419,7 @@ class Tessellate():
         else:
             e = f"Invalid Cube Mem/CPU Input of {self.cube_mem}\n"
             raise ValueError(e)
+        
                 
         if type(self.download_number) == int:
             cube_cpu = input(f"   - Cube Num CPUs [1-32] = ")
@@ -348,6 +452,9 @@ class Tessellate():
         return message
 
     def _cut_properties(self,message,suggestions):
+        """
+        Confirm cut generation process properties.
+        """
 
         if self.n is None:
             n = input('   - n (Number of Cuts = n^2) = ')
@@ -371,6 +478,7 @@ class Tessellate():
         else:
             e = f"Invalid 'n' value Input of {self.n}\n"
             raise ValueError(e)
+        
         
         if self.cuts is None:
             cut = input(f'   - Cut [1-{self.n**2},all] = ')
@@ -398,8 +506,10 @@ class Tessellate():
             e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
             raise ValueError(e)
         
+        
         print('\n')
         message += '\n'
+
 
         if self.cut_time is None:
             cut_time = input(f"   - Cut Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
@@ -415,6 +525,7 @@ class Tessellate():
         else:
             print(f'   - Cut Batch Time = {self.cut_time}')
             message += f"   - Cut Batch Time = {self.cut_time}')\n"
+
         
         if self.cut_mem is None:
             cut_mem = input(f"   - Cut Mem/CPU ({suggestions[1]} suggested) = ")
@@ -443,6 +554,7 @@ class Tessellate():
         else:
             e = f"Invalid Cut Mem/CPU Input of {self.cut_mem}\n"
             raise ValueError(e)
+        
         
         if type(self.download_number) == int:
             cut_cpu = input(f"   - Cut Num CPUs [1-32] = ")
@@ -475,6 +587,9 @@ class Tessellate():
         return message
 
     def _reduce_properties(self,message,cutting,suggestions):
+        """
+        Confirm reduction process properties.
+        """
 
         if not cutting:
             if self.n is None:
@@ -499,6 +614,7 @@ class Tessellate():
             else:
                 e = f"Invalid 'n' value Input of {self.n}\n"
                 raise ValueError(e)
+            
             
             if self.cuts is None:
                 cut = input(f'   - Cut [1-{self.n**2},all] = ')
@@ -526,8 +642,10 @@ class Tessellate():
                 e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
                 raise ValueError(e)
             
+            
             print('\n')
             message += '\n'
+
 
         if self.reduce_time is None:
             reduce_time = input(f"   - Reduce Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
@@ -543,6 +661,7 @@ class Tessellate():
         else:
             print(f'   - Reduce Batch Time = {self.reduce_time}')
             message += f"   - Reduce Batch Time = {self.reduce_time}')\n"
+
         
         if self.reduce_cpu is None:
             reduce_cpu = input(f"   - Reduce Num CPUs [1-32] ({suggestions[1]} suggested) = ")
@@ -566,6 +685,7 @@ class Tessellate():
         else:
             e = f"Invalid Reduce CPUs Input of {self.reduce_cpu}\n"
             raise ValueError(e)
+        
 
         if type(self.download_number) == int:
             reduce_mem = input(f"   - Reduce Mem/CPU = ")
@@ -598,6 +718,9 @@ class Tessellate():
         return message
     
     def _search_properties(self,message,cutting,suggestions):
+        """
+        Confirm transient search process properties.
+        """
 
         if not cutting:
             if self.n is None:
@@ -622,6 +745,7 @@ class Tessellate():
             else:
                 e = f"Invalid 'n' value Input of {self.n}\n"
                 raise ValueError(e)
+            
             
             if self.cuts is None:
                 cut = input(f'   - Cut [1-{self.n**2},all] = ')
@@ -649,8 +773,10 @@ class Tessellate():
                 e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
                 raise ValueError(e)
             
+            
             print('\n')
             message += '\n'
+
 
         if self.search_time is None:
             search_time = input(f"   - Search Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
@@ -666,6 +792,7 @@ class Tessellate():
         else:
             print(f'   - Search Batch Time = {self.search_time}')
             message += f"   - Search Batch Time = {self.search_time}')\n"
+
 
         if self.search_cpu is None:
             search_cpu = input(f"   - Search Num CPUs [1-32] ({suggestions[1]} suggested) = ")
@@ -689,6 +816,7 @@ class Tessellate():
         else:
             e = f"Invalid Search CPUs Input of {self.search_cpu}\n"
             raise ValueError(e)
+        
         
         if type(self.download_number) == int:
             search_mem = input(f"   - Search Mem/CPU = ")
@@ -715,40 +843,15 @@ class Tessellate():
             print(f'   - Search Mem/CPU Needed = {self.search_mem}')
             message += f'   - Search Mem/CPU Needed = {self.search_mem}\n'  
 
-        # if self.search_mem is None:
-        #     search_mem = input(f"   - Search Mem/CPU ({suggestions[2]} suggested) = ")
-        #     message += f"   - Search Mem/CPU ({suggestions[2]} suggested) = {search_mem}\n"
-        #     done = False
-        #     while not done:
-        #         try: 
-        #             search_mem = int(search_mem)
-        #             if 0<search_mem < 500:
-        #                 self.search_mem = search_mem
-        #                 done=True
-        #             else:
-        #                 search_mem = input(f"      Invalid format! Search Mem/CPU ({suggestions[2]} suggested) = ")
-        #                 message += f"      Invalid choice! Search Mem/CPU ({suggestions[2]} suggested) = {search_mem}\n"
-        #         except:
-        #             if search_mem[-1].lower() == 'g':
-        #                 self.search_mem = search_mem[:-1]
-        #                 done = True
-        #             else:
-        #                 search_mem = input(f"      Invalid format! Search Mem/CPU ({suggestions[2]} suggested) = ")
-        #                 message += f"      Invalid choice! Search Mem/CPU ({suggestions[2]} suggested) = {search_mem}\n"
-
-        # elif 0 < self.search_mem < 500:
-        #     print(f'   - Search Mem/CPU = {self.search_mem}G')
-        #     message += f"   - Search Mem/CPU = {self.search_mem}G\n"
-        # else:
-        #     e = f"Invalid Search Mem/CPU Input of {self.search_mem}\n"
-        #     raise ValueError(e)
-
         print('\n')
         message += '\n'
 
         return message
     
     def _reset_logs(self,message):
+        """
+        Reset slurm job logs in provided output path.
+        """
 
         message += 'Delete Past Job Logs? [y/n] :\n'
         if input('Delete Past Job Logs? [y/n] :\n').lower() == 'y':
@@ -762,6 +865,10 @@ class Tessellate():
         return message
         
     def download(self,message):
+        """
+        Download FFIs! 
+        (message only is for clarity, tqdm makes weird progress bars so message prints confirmations once job is done.)
+        """
 
         for cam in self.cam:
             for ccd in self.ccd:
@@ -780,6 +887,11 @@ class Tessellate():
                     message += '\n'
 
     def make_cube(self):
+        """
+        Make Cube! 
+
+        Process : Generates a python script for generating cube, then generates and submits a slurm script to call the python script.
+        """
 
         for cam in self.cam:
             for ccd in self.ccd: 
@@ -795,15 +907,15 @@ class Tessellate():
                         os.system(f'rm {self.working_path}/cubing_script.sh')
                         os.system(f'rm {self.working_path}/cubing_script.py')
 
-                    # -- Create python file for cubing, cutting, reducing a cut-- # 
+                    # -- Create python file for cubing-- # 
                     print(f'Creating Cubing Python File for Cam{cam}Ccd{ccd}')
                     python_text = f"\
 from tessellate import DataProcessor\n\
 \n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
 processor.make_cube(cam={cam},ccd={ccd})\n\
-with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', 'w') as file:\n\
-    file.write('Cubed!')"
+with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', 'w') as file:\n\ 
+    file.write('Cubed!')"   # For next step confirmation
                 
                     with open(f"{self.working_path}/cubing_script.py", "w") as python_file:
                         python_file.write(python_text)
@@ -827,11 +939,15 @@ python {self.working_path}/cubing_script.py"
                     with open(f"{self.working_path}/cubing_script.sh", "w") as batch_file:
                         batch_file.write(batch_text)
 
+                    # -- Submit job -- #
                     print('Submitting Cubing Batch File')
                     os.system(f'sbatch {self.working_path}/cubing_script.sh')
                     print('\n')
 
     def _get_catalogues(self,cam,ccd,max_time):
+        """
+        Access internet, find Gaia sources and save for reduction.
+        """
 
         data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
         cutCorners,_,cutCentreCoords,rad = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
@@ -843,6 +959,7 @@ python {self.working_path}/cubing_script.py"
         if len(l) == 3:
             seconds += 3600 * int(l[-3])
 
+        # -- Waits for cuts to be completed. If max time exceeded , return not done so cut process is restarted -- #
         completed = []
         message = 'Waiting for Cuts'
         timeStart = t()
@@ -867,41 +984,14 @@ python {self.working_path}/cubing_script.py"
                             completed.append(cut)
         
         return done
-    
-    # def _get_catalogues(self,cam,ccd,cut):
-                
-    #     data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
-    #     cutCorners,cutCentrePx,cutCentreCoords,rad = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
-        
-
-    #     # -- Generate Star Catalogue -- #
-    #     message = f'Waiting for Cut {cut}'
-    #     found = False
-    #     save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-    #     cutName = f'sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}.fits'
-
-    #     image_path = glob(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/*ffic.fits')[0]
-
-    #     while not found:
-    #         if os.path.exists(f'{save_path}/{cutName}'):
-    #             try:
-    #                 if not os.path.exists(f'{save_path}/local_gaia_cat.csv'):
-    #                     print(f'Generating Catalogue {cut}')
-
-    #                     tr.external_save_cat(radec=cutCentreCoords[cut-1],size=2*rad,cutCornerPx=cutCorners[cut-1],
-    #                                             image_path=image_path,save_path=save_path,maglim=19)
-                        
-    #                 found = True
-    #             except:
-    #                 print(message, end='\r')
-    #                 sleep(120)
-    #                 message += '.'
-    #         else:
-    #             print(message, end='\r')
-    #             sleep(120)
-    #             message += '.'
 
     def make_cuts(self,cubing,cube_time_sug,cut_time_sug):
+        """
+        Make cuts! 
+
+            Cube_time_sug : dictates how long the cube process should run for, cubing is restarted if need be.
+            Cut_time_sug : dictates how long the cut process should run for, cutting is restarted if need be.
+        """
 
         _Save_space(f'{self.working_path}/cutting_scripts')
 
@@ -993,6 +1083,9 @@ python {self.working_path}/cutting_scripts/cut{cut}_script.py"
 
 
     def reduce(self):
+        """
+        Reduce! 
+        """
 
         _Save_space(f'{self.working_path}/reduction_scripts')
 
@@ -1106,6 +1199,9 @@ python {self.working_path}/detection_scripts/cut{cut}_script.py"
         print('\n')
 
     def transient_search(self,reducing):
+        """
+        Transient Search!
+        """
 
         _Save_space(f'{self.working_path}/detection_scripts')
 

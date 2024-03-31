@@ -1,4 +1,3 @@
-import tessreduce as tr
 import lightkurve as lk
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,9 +13,9 @@ import warnings
 warnings.filterwarnings("ignore")
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
 from tqdm import tqdm
-import sep
 from time import time as t
-import os
+
+from .dataprocessor import DataProcessor
 
 # -- Primary Detection Functions -- #
 
@@ -269,7 +268,7 @@ def plot_results(flux,mask,result):
 
     fig,ax = plt.subplots(figsize=(12,6),ncols=2)
 
-    ax[0].scatter(r['xcentroid'],r['ycentroid'],c=r['frame'],s=5)
+    ax[0].scatter(result['xcentroid'],result['ycentroid'],c=result['frame'],s=5)
     ax[0].imshow(flux[0],cmap='gray',origin='lower',vmin=-10,vmax=10)
     ax[0].set_xlabel(f'Frame 0')
 
@@ -282,7 +281,7 @@ def plot_results(flux,mask,result):
 
     ax[1].imshow(newmask,origin='lower')
 
-    ax[1].scatter(result['xcentroid'],result['ycentroid'],c=result['source_mask'],s=5,cmap='Spectral')
+    ax[1].scatter(result['xcentroid'],result['ycentroid'],c=result['source_mask'],s=5,cmap='Reds')
     ax[1].set_xlabel('Source Mask')
 
 def count_detections(result,lower=None,upper=None):
@@ -351,3 +350,22 @@ def plot_source(flux,result,id):
 def locate_transient(results,xcentroid,ycentroid,threshold=3):
 
     return results[(results['ycentroid'].values < ycentroid+threshold) & (results['ycentroid'].values > ycentroid-threshold) & (results['xcentroid'].values < xcentroid+threshold) & (results['xcentroid'].values > xcentroid-threshold)]
+
+def full_ccd(data_path,sector,cam,ccd,n):
+
+    p = DataProcessor(sector=sector,path=data_path)
+    lb,_,_,_ = p.find_cuts(cam=cam,ccd=ccd,n=n)
+
+    plt.figure(figsize=(10,10))
+    plt.xlim(44,2076)
+    plt.ylim(0,2048)
+    for cut in range(1,17):
+        try:
+            path = f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}'
+            r = pd.read_csv(f'{path}/detected_sources.csv')
+            r['xcentroid'] += lb[cut-1][0]
+            r['ycentroid'] += lb[cut-1][1]
+            plt.scatter(r['xcentroid'],r['ycentroid'],c=r['frame'],s=5)
+        except:
+            pass
+
