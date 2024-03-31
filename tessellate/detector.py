@@ -1,5 +1,6 @@
 import lightkurve as lk
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import numpy as np
 import pandas as pd
 from PRF import TESS_PRF
@@ -418,16 +419,27 @@ class Detector():
         p = DataProcessor(sector=self.sector,path=self.data_path)
         lb,_,_,_ = p.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
 
-        plt.figure(figsize=(10,10))
-        plt.xlim(44,2076)
-        plt.ylim(0,2048)
+        cutCorners, cutCentrePx, cutCentreCoords, cutSize = p.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
+
+        fig,ax = plt.subplots(figsize=(10,10))
+        ax.set_xlim(44,2076)
+        ax.set_ylim(0,2048)
+
+        # -- Adds cuts -- #
+        colours = iter(plt.cm.rainbow(np.linspace(0, 1, self.n**2)))
+        for corner in cutCorners:
+            c = next(colours)
+            rectangle = patches.Rectangle(corner,2*cutSize,2*cutSize,edgecolor=c,
+                                            facecolor='none',alpha=1)
+            ax.add_patch(rectangle)
+
         for cut in range(1,17):
             try:
                 path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Cut{cut}of{self.n**2}'
                 r = pd.read_csv(f'{path}/detected_sources.csv')
                 r['xcentroid'] += lb[cut-1][0]
                 r['ycentroid'] += lb[cut-1][1]
-                plt.scatter(r['xcentroid'],r['ycentroid'],c=r['frame'],s=5)
+                ax.scatter(r['xcentroid'],r['ycentroid'],c=r['frame'],s=5)
             except:
                 pass
 
