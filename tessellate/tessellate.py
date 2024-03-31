@@ -104,7 +104,7 @@ class Tessellate():
 
             search_time_sug = '5:00'
             search_cpu_sug = '32'
-            search_mem_sug = '1G'
+            search_mem_req = 32
 
         elif self.sector in secondary_mission:
             cube_time_sug = '1:15:00'
@@ -121,12 +121,12 @@ class Tessellate():
 
             search_time_sug = '10:00'
             search_cpu_sug = '32'
-            search_mem_sug = '1G'
+            search_mem_req = 60
 
         elif self.sector in tertiary_mission:
             cube_time_sug = '3:00:00'
             cube_mem_sug = '20G'
-            cube_mem_req = 300
+            cube_mem_req = 400
 
             cut_time_sug = '1:00:00'
             cut_mem_sug = '20G'
@@ -138,12 +138,12 @@ class Tessellate():
 
             search_time_sug = '10:00'
             search_cpu_sug = '32'
-            search_mem_sug = '1G'
+            search_mem_req = 100
 
         suggestions = [[cube_time_sug,cube_mem_sug,cube_mem_req],
                        [cut_time_sug,cut_mem_sug,cut_mem_req],
                        [reduce_time_sug,reduce_cpu_sug,reduce_mem_req],
-                       [search_time_sug,search_cpu_sug,search_mem_sug]]
+                       [search_time_sug,search_cpu_sug,search_mem_req]]
         
         return suggestions
 
@@ -690,33 +690,58 @@ class Tessellate():
             e = f"Invalid Search CPUs Input of {self.search_cpu}\n"
             raise ValueError(e)
         
-        if self.search_mem is None:
-            search_mem = input(f"   - Search Mem/CPU ({suggestions[2]} suggested) = ")
-            message += f"   - Search Mem/CPU ({suggestions[2]} suggested) = {search_mem}\n"
+        if type(self.download_number) == int:
+            search_mem = input(f"   - Search Mem/CPU = ")
+            message += f"   - Search Mem/CPU = {search_mem}\n"
             done = False
             while not done:
-                try: 
+                try:
                     search_mem = int(search_mem)
                     if 0<search_mem < 500:
                         self.search_mem = search_mem
                         done=True
                     else:
-                        search_mem = input(f"      Invalid format! Search Mem/CPU ({suggestions[2]} suggested) = ")
-                        message += f"      Invalid choice! Search Mem/CPU ({suggestions[2]} suggested) = {search_mem}\n"
+                        search_mem = input(f"      Invalid format! Search Mem/CPU = ")
+                        message += f"      Invalid choice! Search Mem/CPU = {search_mem}\n"
                 except:
                     if search_mem[-1].lower() == 'g':
                         self.search_mem = search_mem[:-1]
                         done = True
                     else:
-                        search_mem = input(f"      Invalid format! Search Mem/CPU ({suggestions[2]} suggested) = ")
-                        message += f"      Invalid choice! Search Mem/CPU ({suggestions[2]} suggested) = {search_mem}\n"
-
-        elif 0 < self.search_mem < 500:
-            print(f'   - Search Mem/CPU = {self.search_mem}G')
-            message += f"   - Search Mem/CPU = {self.search_mem}G\n"
+                        search_mem = input(f"      Invalid format! Search Mem/CPU = ")
+                        message += f"      Invalid choice! Search Mem/CPU = {search_mem}\n"
         else:
-            e = f"Invalid Search Mem/CPU Input of {self.search_mem}\n"
-            raise ValueError(e)
+            self.search_mem = np.ceil(suggestions[2]/self.search_cpu).astype(int)
+            print(f'   - Search Mem/CPU Needed = {self.search_mem}')
+            message += f'   - Search Mem/CPU Needed = {self.search_mem}\n'  
+
+        # if self.search_mem is None:
+        #     search_mem = input(f"   - Search Mem/CPU ({suggestions[2]} suggested) = ")
+        #     message += f"   - Search Mem/CPU ({suggestions[2]} suggested) = {search_mem}\n"
+        #     done = False
+        #     while not done:
+        #         try: 
+        #             search_mem = int(search_mem)
+        #             if 0<search_mem < 500:
+        #                 self.search_mem = search_mem
+        #                 done=True
+        #             else:
+        #                 search_mem = input(f"      Invalid format! Search Mem/CPU ({suggestions[2]} suggested) = ")
+        #                 message += f"      Invalid choice! Search Mem/CPU ({suggestions[2]} suggested) = {search_mem}\n"
+        #         except:
+        #             if search_mem[-1].lower() == 'g':
+        #                 self.search_mem = search_mem[:-1]
+        #                 done = True
+        #             else:
+        #                 search_mem = input(f"      Invalid format! Search Mem/CPU ({suggestions[2]} suggested) = ")
+        #                 message += f"      Invalid choice! Search Mem/CPU ({suggestions[2]} suggested) = {search_mem}\n"
+
+        # elif 0 < self.search_mem < 500:
+        #     print(f'   - Search Mem/CPU = {self.search_mem}G')
+        #     message += f"   - Search Mem/CPU = {self.search_mem}G\n"
+        # else:
+        #     e = f"Invalid Search Mem/CPU Input of {self.search_mem}\n"
+        #     raise ValueError(e)
 
         print('\n')
         message += '\n'

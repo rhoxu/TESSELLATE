@@ -282,7 +282,7 @@ def plot_results(flux,mask,result):
 
     ax[1].imshow(newmask,origin='lower')
 
-    ax[1].scatter(result['xcentroid'],result['ycentroid'],c=result['source_mask'],s=5,cmap='Reds')
+    ax[1].scatter(result['xcentroid'],result['ycentroid'],c=result['source_mask'],s=5,cmap='Spectral')
     ax[1].set_xlabel('Source Mask')
 
 def count_detections(result,lower=None,upper=None):

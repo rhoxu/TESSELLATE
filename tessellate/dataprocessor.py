@@ -275,9 +275,9 @@ class DataProcessor():
         cube_name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits'
         cube_path = f'{file_path}/{cube_name}'
 
-        if os.path.exists(cube_path):
-            print(f'Cam {cam} CCD {ccd} cube already exists!')
-            return
+        # if os.path.exists(cube_path):
+        #     print(f'Cam {cam} CCD {ccd} cube already exists!')
+        #     return
 
         input_files = glob(f'{file_path}/*ffic.fits')  # list of fits files in path
         if len(input_files) < 1:
