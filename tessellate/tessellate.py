@@ -195,7 +195,7 @@ class Tessellate():
 
             cut_time_sug = '10:00'
             cut_mem_sug = '20G'
-            cut_mem_req = 60
+            cut_mem_req = 20
 
             reduce_time_sug = '1:00:00'
             reduce_cpu_sug = '32'
@@ -227,9 +227,9 @@ class Tessellate():
             cube_mem_sug = '20G'
             cube_mem_req = 400
 
-            cut_time_sug = '1:00:00'
+            cut_time_sug = '2:00:00'
             cut_mem_sug = '20G'
-            cut_mem_req = 200
+            cut_mem_req = 100
 
             reduce_time_sug = '2:00:00'
             reduce_cpu_sug = '32'
@@ -986,10 +986,13 @@ python {self.working_path}/cubing_script.py"
                         if os.path.exists(f'{save_path}/local_gaia_cat.csv'):
                             completed.append(cut)
                         elif os.path.exists(f'{save_path}/cut.txt'):
-                            print(f'Generating Catalogue {cut}')
-                            tr.external_save_cat(radec=cutCentreCoords[cut-1],size=2*rad,cutCornerPx=cutCorners[cut-1],
-                                                    image_path=image_path,save_path=save_path,maglim=19)
-                            completed.append(cut)
+                            try:
+                                print(f'Generating Catalogue {cut}')
+                                tr.external_save_cat(radec=cutCentreCoords[cut-1],size=2*rad,cutCornerPx=cutCorners[cut-1],
+                                                        image_path=image_path,save_path=save_path,maglim=19)
+                                completed.append(cut)
+                            except:
+                                pass
         
         return done
 
