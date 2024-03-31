@@ -285,7 +285,7 @@ class Detector():
 
     def _wcs_time_info(self,result,cut):
         
-        cut_path = f'{self.path}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}.fits'
+        cut_path = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}.fits'
         times = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.cut}_cut{cut}_of{self.n**2}_Times.npy')
 
         tpf = lk.TessTargetPixelFile(cut_path)
