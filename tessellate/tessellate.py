@@ -819,6 +819,13 @@ class Tessellate():
         """
 
         print(f'Cutting = {cutting}')
+        print(type(cutting))
+
+        if cutting == False:
+            print('bruh')
+
+        if cutting == True:
+            print('bruh2')
 
         if not cutting:
             if self.n is None:
