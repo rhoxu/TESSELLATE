@@ -22,7 +22,7 @@ class Tessellate():
                  job_output_path=None,working_path=None,
                  cube_time=None,cube_mem=None,cut_time=None,cut_mem=None,
                  reduce_time=None,reduce_cpu=None,search_time=None,
-                 download=False,make_cube=False,make_cuts=False,reduce=False,search=False):
+                 download=None,make_cube=None,make_cuts=None,reduce=None,search=None):
         
         """
         Initialise.
@@ -138,11 +138,12 @@ class Tessellate():
         self.search_mem = None
         self.search_cpu = None
 
-
         # -- Confirm Run Properties -- #
         message = self._run_properties() 
 
         suggestions = self._sector_suggestions()  # Get time/cpu/memory suggestions depending on sector
+
+        message, download, make_cube, make_cuts, reduce, search = self._which_processes(message,download, make_cube, make_cuts, reduce, search)
 
         if download:
             message = self._download_properties(message)
@@ -342,6 +343,88 @@ class Tessellate():
         message += '\n'
 
         return message
+    
+    def _which_processes(self,message,download,make_cube,make_cuts,reduce,search):
+
+        if download is None:
+            d = input('   - Download FFIs? [y/n] = ')
+            message += f'   - Download FFIs? [y/n] = {d}\n'
+            done = False
+            while not done:
+                if d.lower == 'y':
+                    download = True
+                    done=True
+                elif d.lower == 'n':
+                    download = False
+                    done=True
+                else:
+                    d = input('      Invalid choice! Download FFIs? [y/n] = ')
+                    message += f'      Invalid choice! Download FFIs? [y/n] = {d}\n'
+
+        if make_cube is None:
+            d = input('   - Make Cube(s)? [y/n] = ')
+            message += f'   - Make Cube(s)? [y/n] = {d}\n'
+            done = False
+            while not done:
+                if d.lower == 'y':
+                    make_cube = True
+                    done=True
+                elif d.lower == 'n':
+                    make_cube = False
+                    done=True
+                else:
+                    d = input('      Invalid choice! Make Cube(s)? [y/n] = ')
+                    message += f'      Invalid choice! Make Cube(s)? [y/n] = {d}\n'
+
+        if make_cuts is None:
+            d = input('   - Make Cut(s)? [y/n] = ')
+            message += f'   - Make Cut(s)? [y/n] = {d}\n'
+            done = False
+            while not done:
+                if d.lower == 'y':
+                    make_cuts = True
+                    done=True
+                elif d.lower == 'n':
+                    make_cuts = False
+                    done=True
+                else:
+                    d = input('      Invalid choice! Make Cut(s)? [y/n] = ')
+                    message += f'      Invalid choice! Make Cut(s)? [y/n] = {d}\n'
+
+        if reduce is None:
+            d = input('   - Reduce Cut(s)? [y/n] = ')
+            message += f'   - Reduce Cut(s)? [y/n] = {d}\n'
+            done = False
+            while not done:
+                if d.lower == 'y':
+                    reduce = True
+                    done=True
+                elif d.lower == 'n':
+                    reduce = False
+                    done=True
+                else:
+                    d = input('      Invalid choice! Reduce Cut(s)? [y/n] = ')
+                    message += f'      Invalid choice! Reduce Cut(s)? [y/n] = {d}\n'
+
+        if search is None:
+            d = input('   - Run Transient Search on Cut(s)? [y/n] = ')
+            message += f'   - Run Transient Search on Cut(s)? [y/n] = {d}\n'
+            done = False
+            while not done:
+                if d.lower == 'y':
+                    search = True
+                    done=True
+                elif d.lower == 'n':
+                    search = False
+                    done=True
+                else:
+                    d = input('      Invalid choice! Run Transient Search on Cut(s)? [y/n] = ')
+                    message += f'      Invalid choice! Run Transient Search on Cut(s)? [y/n] = {d}\n'
+
+        print('\n')
+        message += '\n'
+
+        return message, download, make_cube, make_cuts, reduce, search
     
     def _download_properties(self,message):
         """
