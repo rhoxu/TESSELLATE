@@ -1002,6 +1002,8 @@ class Tessellate():
 
         for cam in self.cam:
             for ccd in self.ccd: 
+                _Print_buff(30,f'Making Cube for Cam{cam} Ccd{ccd}')
+                print('\n')
 
                 # -- Generate Cube Path -- #
                 cube_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt'
@@ -1111,7 +1113,8 @@ python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
 
         for cam in self.cam:
             for ccd in self.ccd: 
-                   
+                _Print_buff(30,f'Making Cut(s) for Cam{cam} Ccd{ccd}')
+                print('\n')
                 cube_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt'
                 if not os.path.exists(cube_check):
                     if not cubing:
@@ -1208,6 +1211,8 @@ python {self.working_path}/cutting_scripts/cut{cut}_script.py"
 
         for cam in self.cam:
             for ccd in self.ccd: 
+                _Print_buff(30,f'Reducing Cut(s) for Cam{cam} Ccd{ccd}')
+                print('\n')
                 for cut in self.cuts:
                     cut_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
                     if not os.path.exists(cut_check):
@@ -1313,12 +1318,12 @@ python {self.working_path}/detection_scripts/cut{cut}_script.py"
         Transient Search!
         """
 
-        _Print_buff(20,'Starting Transient Search')
-
         _Save_space(f'{self.working_path}/detection_scripts')
 
         for cam in self.cam:
             for ccd in self.ccd:
+                _Print_buff(30,f'Transient Search for Cam{cam} Ccd{ccd}')
+                print('\n')
                 if not reducing:
                     for cut in self.cuts:
                         reduced_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reduced.txt'
