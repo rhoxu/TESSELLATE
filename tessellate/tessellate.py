@@ -169,23 +169,21 @@ class Tessellate():
         # -- Reset Job Logs -- #
         message = self._reset_logs(message,make_cube,make_cuts,reduce,search)
 
-        # # -- Run Processes -- #
-        # if download:
-        #     self.download(message)
+        # -- Run Processes -- #
+        if download:
+            self.download(message)
 
-        # if make_cube:
-        #     self.make_cube()
+        if make_cube:
+            self.make_cube()
         
-        # if make_cuts:
-        #     self.make_cuts(cubing=make_cube)
+        if make_cuts:
+            self.make_cuts(cubing=make_cube)
 
-        # if reduce:
-        #     self.reduce()    
+        if reduce:
+            self.reduce()    
 
-        # if search:
-        #     self.transient_search(reducing=reduce)   
-
-        return message
+        if search:
+            self.transient_search(reducing=reduce)   
 
     def _sector_suggestions(self):
         """
