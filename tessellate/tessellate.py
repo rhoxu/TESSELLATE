@@ -999,6 +999,9 @@ class Tessellate():
         Process : Generates a python script for generating cube, then generates and submits a slurm script to call the python script.
         """
 
+        _Save_space(f'{self.working_path}/cubing_scripts')
+
+
         for cam in self.cam:
             for ccd in self.ccd: 
 
@@ -1009,9 +1012,9 @@ class Tessellate():
                     print('\n')
                 else:
                     # -- Delete old scripts -- #
-                    if os.path.exists(f'{self.working_path}/cubing_script.sh'):
-                        os.system(f'rm {self.working_path}/cubing_script.sh')
-                        os.system(f'rm {self.working_path}/cubing_script.py')
+                    if os.path.exists(f'{self.working_path}/cubing_scripts/C{cam}C{ccd}_script.sh'):
+                        os.system(f'rm {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.sh')
+                        os.system(f'rm {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py')
 
                     # -- Create python file for cubing-- # 
                     print(f'Creating Cubing Python File for Cam{cam}Ccd{ccd}')
@@ -1023,11 +1026,11 @@ processor.make_cube(cam={cam},ccd={ccd})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', 'w') as file:\n\
     file.write('Cubed!')"   
                 
-                    with open(f"{self.working_path}/cubing_script.py", "w") as python_file:
+                    with open(f"{self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py", "w") as python_file:
                         python_file.write(python_text)
 
                     # -- Create bash file to submit job -- #
-                    print('Creating Cubing/Cutting Batch File')
+                    print('Creating Cubing Batch File')
                     batch_text = f"\
 #!/bin/bash\n\
 #\n\
@@ -1040,14 +1043,14 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', '
 #SBATCH --cpus-per-task={self.cube_cpu}\n\
 #SBATCH --mem-per-cpu={self.cube_mem}G\n\
 \n\
-python {self.working_path}/cubing_script.py"
+python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
 
-                    with open(f"{self.working_path}/cubing_script.sh", "w") as batch_file:
+                    with open(f"{self.working_path}/cubing_scripts/C{cam}C{ccd}_script.sh", "w") as batch_file:
                         batch_file.write(batch_text)
 
                     # -- Submit job -- #
                     print('Submitting Cubing Batch File')
-                    os.system(f'sbatch {self.working_path}/cubing_script.sh')
+                    os.system(f'sbatch {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.sh')
                     print('\n')
 
     def _get_catalogues(self,cam,ccd):

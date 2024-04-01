@@ -278,7 +278,7 @@ class Detector():
         self.flux = None
         self.times = None
         self.mask = None
-        self.results = None
+        self.result = None
         self.cut = None
 
         self.path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}'
@@ -346,14 +346,19 @@ class Detector():
         ax[1].scatter(self.result['xcentroid'],self.result['ycentroid'],c=self.result['source_mask'],s=5,cmap='Reds')
         ax[1].set_xlabel('Source Mask')
 
-    def count_detections(self,cut,lower=None,upper=None):
+    def count_detections(self,cut,starkiller=False,lower=None,upper=None):
 
         if cut != self.cut:
             self._gather_data(cut)
             self._gather_results(cut)
             self.cut = cut
 
-        array = self.result['objid'].values
+        if starkiller:
+            r = self.result[self.result['source_mask']==0]
+        else:
+            r = self.result
+
+        array = r['objid'].values
         id,count = np.unique(array, return_counts=True)
         dictionary = dict(zip(id, count))
 
