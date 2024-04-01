@@ -161,6 +161,7 @@ class Tessellate():
             _Save_space(f'{job_output_path}/tessellate_reduction_logs')
 
         if search:
+            print(make_cuts)
             message = self._search_properties(message,make_cuts,suggestions[3])
             _Save_space(f'{job_output_path}/tessellate_search_logs')
 
