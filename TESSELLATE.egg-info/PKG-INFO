@@ -1,0 +1,12 @@
+Metadata-Version: 2.1
+Name: TESSELLATE
+Version: 1.0.0
+Summary: All Sky Transient Search through TESS data
+Home-page: https://github.com/rhoxu/TESSELLATE
+Author: Hugh Roxburgh
+Author-email: roxburghhugh@gmail.com
+License: MIT
+License-File: LICENSE
+Requires-Dist: tessreduce@ git+https://github.com/rhoxu/TESSreduce.git
+Requires-Dist: astrocut
+Requires-Dist: photutils>=1.4

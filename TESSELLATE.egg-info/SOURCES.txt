@@ -1,0 +1,14 @@
+LICENSE
+README.md
+setup.py
+TESSELLATE.egg-info/PKG-INFO
+TESSELLATE.egg-info/SOURCES.txt
+TESSELLATE.egg-info/dependency_links.txt
+TESSELLATE.egg-info/requires.txt
+TESSELLATE.egg-info/top_level.txt
+tessellate/__init__.py
+tessellate/dataprocessor.py
+tessellate/detector.py
+tessellate/downloader.py
+tessellate/old_detector.py
+tessellate/tessellate.py
