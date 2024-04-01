@@ -818,6 +818,8 @@ class Tessellate():
         Confirm transient search process properties.
         """
 
+        print(f'Cutting = {cutting}')
+
         if not cutting:
             if self.n is None:
                 n = input('   - n (Number of Cuts = n^2) = ')
