@@ -1320,18 +1320,34 @@ python {self.working_path}/detection_scripts/cut{cut}_script.py"
                 else:
                     completed = []
                     message = 'Waiting for Reductions'
+
+                    tStart = t()
+                    l = self.reduce_time.split(':')
+                    seconds = 1 * int(l[-1]) + 60 * int(l[-2])
+                    if len(l) == 3:
+                        seconds += 3600 * int(l[-3])
+                    else:
+                        l.insert(0,0)
+                        
                     while len(completed) < len(self.cuts):
-                        print(message, end='\r')
-                        sleep(120)
-                        for cut in self.cuts:
-                            if cut not in completed:
-                                save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                                if os.path.exists(f'{save_path}/detected_sources.csv'):
-                                    completed.append(cut)
-                                    print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
-                                elif os.path.exists(f'{save_path}/reduced.txt'):
-                                    self._cut_transient_search(cam,ccd,cut)
-                                    completed.append(cut)
+                        if t()-tStart > seconds + 600:
+                            print('Restarting Reducing')
+                            print('\n')
+                            self.reduce_time = f'{l[0]+1}:{l[1]}:{l[2]}'
+                            self.reduce()
+                            tStart = t()
+                        else:
+                            print(message, end='\r')
+                            sleep(120)
+                            for cut in self.cuts:
+                                if cut not in completed:
+                                    save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+                                    if os.path.exists(f'{save_path}/detected_sources.csv'):
+                                        completed.append(cut)
+                                        print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
+                                    elif os.path.exists(f'{save_path}/reduced.txt'):
+                                        self._cut_transient_search(cam,ccd,cut)
+                                        completed.append(cut)
 
 
 
