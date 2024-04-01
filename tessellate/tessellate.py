@@ -1089,13 +1089,10 @@ python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
                         if os.path.exists(f'{save_path}/local_gaia_cat.csv'):
                             completed.append(cut)
                         elif os.path.exists(f'{save_path}/cut.txt'):
-                            #try:
                             print(f'Generating Catalogue {cut}')
                             tr.external_save_cat(radec=cutCentreCoords[cut-1],size=2*rad,cutCornerPx=cutCorners[cut-1],
-                                                    image_path=image_path,save_path=save_path,maglim=19)
+                                                image_path=image_path,save_path=save_path,maglim=19)
                             completed.append(cut)
-                            # except:
-                            #     pass
 
                 i += 1
 
