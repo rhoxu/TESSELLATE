@@ -1071,11 +1071,14 @@ python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
         message = 'Waiting for Cuts'
         timeStart = t()
         done = True
+        i = 0
         while len(completed) < len(self.cuts):
             if (t()-timeStart) > seconds + 600:
                 done = False
                 break
             else:
+                if i > 0:
+                    sleep(120)
                 print(message, end='\r')
                 message += '.'
                 for cut in self.cuts:
@@ -1091,9 +1094,9 @@ python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
                                 completed.append(cut)
                             except:
                                 pass
-                sleep(120)
 
-        
+                i += 1
+
         return done
 
     def make_cuts(self,cubing):
@@ -1122,6 +1125,7 @@ python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
                             seconds += 3600 * int(l[-3])
                         go = False
                         message = 'Waiting for Cube'
+                        i = 0
                         while not go:
                             if t()-tStart > seconds + 3600:
                                 print('Restarting Cubing')
@@ -1129,14 +1133,15 @@ python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
                                 self.make_cube()
                                 tStart = t()
                             else:
+                                if i > 0:
+                                    sleep(120)
                                 print(message, end='\r')
                                 if os.path.exists(cube_check):
                                     go = True
                                     print('\n')
                                 else:
                                     message += '.'
-                                    sleep(120)
-                                
+                                    i += 1
             
                 for cut in self.cuts:
                     cut_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/cut.txt'
@@ -1333,7 +1338,7 @@ python {self.working_path}/detection_scripts/cut{cut}_script.py"
                         seconds += 3600 * int(l[-3])
                     else:
                         l.insert(0,0)
-                        
+                    i = 0
                     while len(completed) < len(self.cuts):
                         if t()-tStart > seconds + 600:
                             print('Restarting Reducing')
@@ -1342,6 +1347,8 @@ python {self.working_path}/detection_scripts/cut{cut}_script.py"
                             self.reduce()
                             tStart = t()
                         else:
+                            if i > 0:
+                                sleep(120)
                             print(message, end='\r')
                             for cut in self.cuts:
                                 if cut not in completed:
@@ -1352,6 +1359,5 @@ python {self.working_path}/detection_scripts/cut{cut}_script.py"
                                     elif os.path.exists(f'{save_path}/reduced.txt'):
                                         self._cut_transient_search(cam,ccd,cut)
                                         completed.append(cut)
-                            sleep(120)
-
+                            i+=1
 
