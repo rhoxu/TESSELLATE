@@ -261,7 +261,7 @@ class Tessellate():
 
         print('\n')
         print(_Print_buff(50,f'Initialising Tessellation Run'))
-        message += _Print_buff(50,f'Initialising Tessellation')+'\n'
+        message += _Print_buff(50,f'Initialising Tessellation Run')+'\n'
 
         if self.sector is None:
             sector = input('   - Sector = ')
