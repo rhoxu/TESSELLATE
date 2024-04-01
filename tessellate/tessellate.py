@@ -351,10 +351,10 @@ class Tessellate():
             message += f'   - Download FFIs? [y/n] = {d}\n'
             done = False
             while not done:
-                if d.lower == 'y':
+                if d.lower() == 'y':
                     download = True
                     done=True
-                elif d.lower == 'n':
+                elif d.lower() == 'n':
                     download = False
                     done=True
                 else:
@@ -366,10 +366,10 @@ class Tessellate():
             message += f'   - Make Cube(s)? [y/n] = {d}\n'
             done = False
             while not done:
-                if d.lower == 'y':
+                if d.lower() == 'y':
                     make_cube = True
                     done=True
-                elif d.lower == 'n':
+                elif d.lower() == 'n':
                     make_cube = False
                     done=True
                 else:
@@ -381,10 +381,10 @@ class Tessellate():
             message += f'   - Make Cut(s)? [y/n] = {d}\n'
             done = False
             while not done:
-                if d.lower == 'y':
+                if d.lower() == 'y':
                     make_cuts = True
                     done=True
-                elif d.lower == 'n':
+                elif d.lower() == 'n':
                     make_cuts = False
                     done=True
                 else:
@@ -396,10 +396,10 @@ class Tessellate():
             message += f'   - Reduce Cut(s)? [y/n] = {d}\n'
             done = False
             while not done:
-                if d.lower == 'y':
+                if d.lower() == 'y':
                     reduce = True
                     done=True
-                elif d.lower == 'n':
+                elif d.lower() == 'n':
                     reduce = False
                     done=True
                 else:
@@ -411,10 +411,10 @@ class Tessellate():
             message += f'   - Run Transient Search on Cut(s)? [y/n] = {d}\n'
             done = False
             while not done:
-                if d.lower == 'y':
+                if d.lower() == 'y':
                     search = True
                     done=True
-                elif d.lower == 'n':
+                elif d.lower() == 'n':
                     search = False
                     done=True
                 else:
