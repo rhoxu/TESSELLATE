@@ -1298,63 +1298,12 @@ python {self.working_path}/detection_scripts/cut{cut}_script.py"
 
         print('\n')
 
-    
-#     def _cut_transient_search(self,cam,ccd,cut):
-
-#         # -- Delete old scripts -- #
-#         if os.path.exists(f'{self.working_path}/detection_scripts/cut{cut}_script.sh'):
-#             os.system(f'rm {self.working_path}/detection_scripts/cut{cut}_script.sh')
-#             os.system(f'rm {self.working_path}/detection_scripts/cut{cut}_script.py')
-
-#         # -- Create python file for reducing a cut-- # 
-#         print(f'Creating Transient Search File for Cam{cam} Ccd{ccd} Cut{cut}')
-#         python_text = f"\
-# from tessellate import DataProcessor, source_detect, wcs_time_info\n\
-# import numpy as np\n\
-# \n\
-# processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
-# cutCorners, cutCentrePx, cutCentreCoords, cutSize = processor.find_cuts(cam={cam},ccd={ccd},n={self.n},plot=False)\n\
-# flux = np.load(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_ReducedFlux.npy')\n\
-# mask = np.load(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Mask.npy')\n\
-# times = np.load(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Times.npy')\n\
-# cut_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}.fits'\n\
-# column = cutCentrePx[{cut}-1][0]\n\
-# row = cutCentrePx[{cut}-1][1]\n\
-# results = source_detect(flux,cam={cam},ccd={ccd},sector={self.sector},column=column,row=row,mask=mask,inputNums=None)\n\
-# results = wcs_time_info(results,times,cut_path)\n\
-# results.to_csv(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/detected_sources.csv')"
-                    
-#         with open(f"{self.working_path}/detection_scripts/cut{cut}_script.py", "w") as python_file:
-#             python_file.write(python_text)
-
-#         # -- Create bash file to submit job -- #
-#         print('Creating Transient Search Batch File')
-#         batch_text = f"\
-# #!/bin/bash\n\
-# #\n\
-# #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Search\n\
-# #SBATCH --output={self.job_output_path}/search_job_output_%A.txt\n\
-# #SBATCH --error={self.job_output_path}/search_errors_%A.txt\n\
-# #\n\
-# #SBATCH --ntasks=1\n\
-# #SBATCH --time={self.search_time}\n\
-# #SBATCH --cpus-per-task={self.search_cpu}\n\
-# #SBATCH --mem-per-cpu={self.search_mem}G\n\
-# \n\
-# python {self.working_path}/detection_scripts/cut{cut}_script.py"
-
-#         with open(f"{self.working_path}/detection_scripts/cut{cut}_script.sh", "w") as batch_file:
-#             batch_file.write(batch_text)
-                
-#         print('Submitting Transient Search Batch File')
-#         os.system(f'sbatch {self.working_path}/detection_scripts/cut{cut}_script.sh')
-
-#         print('\n')
-
     def transient_search(self,reducing):
         """
         Transient Search!
         """
+
+        _Print_buff(20,'Starting Transient Search')
 
         _Save_space(f'{self.working_path}/detection_scripts')
 
