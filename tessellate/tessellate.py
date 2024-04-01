@@ -161,8 +161,8 @@ class Tessellate():
             _Save_space(f'{job_output_path}/tessellate_reduction_logs')
 
         if search:
-            print(make_cuts)
-            message = self._search_properties(message,make_cuts,suggestions[3])
+            cutting_reducing = make_cuts | reduce
+            message = self._search_properties(message,cutting_reducing,suggestions[3])
             _Save_space(f'{job_output_path}/tessellate_search_logs')
 
 
@@ -813,21 +813,12 @@ class Tessellate():
 
         return message
     
-    def _search_properties(self,message,cutting,suggestions):
+    def _search_properties(self,message,cutting_reducing,suggestions):
         """
         Confirm transient search process properties.
         """
 
-        print(f'Cutting = {cutting}')
-        print(type(cutting))
-
-        if cutting == False:
-            print('bruh')
-
-        if cutting == True:
-            print('bruh2')
-
-        if not cutting:
+        if not cutting_reducing:
             if self.n is None:
                 n = input('   - n (Number of Cuts = n^2) = ')
                 message += f'   - n (Number of Cuts = n^2) = {n}\n'
