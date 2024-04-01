@@ -1326,7 +1326,10 @@ python {self.working_path}/detection_scripts/cut{cut}_script.py"
                         for cut in self.cuts:
                             if cut not in completed:
                                 save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                                if os.path.exists(f'{save_path}/reduced.txt'):
+                                if os.path.exists(f'{save_path}/detected_sources.csv'):
+                                    completed.append(cut)
+                                    print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
+                                elif os.path.exists(f'{save_path}/reduced.txt'):
                                     self._cut_transient_search(cam,ccd,cut)
                                     completed.append(cut)
 
