@@ -1209,15 +1209,18 @@ python {self.working_path}/cutting_scripts/cut{cut}_script.py"
                     if os.path.exists(reduced_check):
                         print(f'Cam {cam} Chip {ccd} cut {cut} already reduced!')
                         print('\n')
-                        
-                    # -- Delete old scripts -- #
-                    if os.path.exists(f'{self.working_path}/reduction_scripts/cut{cut}_script.sh'):
-                        os.system(f'rm {self.working_path}/reduction_scripts/cut{cut}_script.sh')
-                        os.system(f'rm {self.working_path}/reduction_scripts/cut{cut}_script.py')
+                    
+                    else:
 
-                    # -- Create python file for reducing a cut-- # 
-                    print(f'Creating Reduction Python File for Cam{cam} Ccd{ccd} Cut{cut}')
-                    python_text = f"\
+                            
+                        # -- Delete old scripts -- #
+                        if os.path.exists(f'{self.working_path}/reduction_scripts/cut{cut}_script.sh'):
+                            os.system(f'rm {self.working_path}/reduction_scripts/cut{cut}_script.sh')
+                            os.system(f'rm {self.working_path}/reduction_scripts/cut{cut}_script.py')
+
+                        # -- Create python file for reducing a cut-- # 
+                        print(f'Creating Reduction Python File for Cam{cam} Ccd{ccd} Cut{cut}')
+                        python_text = f"\
 from tessellate import DataProcessor\n\
 \n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
@@ -1225,12 +1228,12 @@ processor.reduce(cam={cam},ccd={ccd},n={self.n},cut={cut})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reduced.txt', 'w') as file:\n\
     file.write('Reduced!')"
                 
-                    with open(f"{self.working_path}/reduction_scripts/cut{cut}_script.py", "w") as python_file:
-                        python_file.write(python_text)
+                        with open(f"{self.working_path}/reduction_scripts/cut{cut}_script.py", "w") as python_file:
+                            python_file.write(python_text)
 
-                    # -- Create bash file to submit job -- #
-                    print('Creating Reduction Batch File')
-                    batch_text = f"\
+                        # -- Create bash file to submit job -- #
+                        print('Creating Reduction Batch File')
+                        batch_text = f"\
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Reduction\n\
@@ -1244,13 +1247,13 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{se
 \n\
 python {self.working_path}/reduction_scripts/cut{cut}_script.py"
 
-                    with open(f"{self.working_path}/reduction_scripts/cut{cut}_script.sh", "w") as batch_file:
-                        batch_file.write(batch_text)
-                            
-                    print('Submitting Reduction Batch File')
-                    os.system(f'sbatch {self.working_path}/reduction_scripts/cut{cut}_script.sh')
+                        with open(f"{self.working_path}/reduction_scripts/cut{cut}_script.sh", "w") as batch_file:
+                            batch_file.write(batch_text)
+                                
+                        print('Submitting Reduction Batch File')
+                        os.system(f'sbatch {self.working_path}/reduction_scripts/cut{cut}_script.sh')
 
-                    print('\n')
+                        print('\n')
 
     def _cut_transient_search(self,cam,ccd,cut):
 
