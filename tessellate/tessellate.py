@@ -177,7 +177,7 @@ class Tessellate():
             self.make_cube()
         
         if make_cuts:
-            self.make_cuts(cubing=make_cube,cube_time_sug=suggestions[0][0],cut_time_sug=suggestions[1][0])
+            self.make_cuts(cubing=make_cube)
 
         if reduce:
             self.reduce()    
