@@ -1077,7 +1077,6 @@ python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
                 break
             else:
                 print(message, end='\r')
-                sleep(120)
                 message += '.'
                 for cut in self.cuts:
                     if cut not in completed:
@@ -1092,6 +1091,8 @@ python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
                                 completed.append(cut)
                             except:
                                 pass
+                sleep(120)
+
         
         return done
 
@@ -1129,12 +1130,13 @@ python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
                                 tStart = t()
                             else:
                                 print(message, end='\r')
-                                sleep(120)
                                 if os.path.exists(cube_check):
                                     go = True
                                     print('\n')
                                 else:
                                     message += '.'
+                                    sleep(120)
+                                
             
                 for cut in self.cuts:
                     cut_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/cut.txt'
@@ -1341,7 +1343,6 @@ python {self.working_path}/detection_scripts/cut{cut}_script.py"
                             tStart = t()
                         else:
                             print(message, end='\r')
-                            sleep(120)
                             for cut in self.cuts:
                                 if cut not in completed:
                                     save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
@@ -1351,6 +1352,6 @@ python {self.working_path}/detection_scripts/cut{cut}_script.py"
                                     elif os.path.exists(f'{save_path}/reduced.txt'):
                                         self._cut_transient_search(cam,ccd,cut)
                                         completed.append(cut)
-
+                            sleep(120)
 
 
