@@ -1078,8 +1078,8 @@ python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
                 break
             else:
                 if i > 0:
+                    print(message, end='\r')
                     sleep(120)
-                print(message, end='\r')
                 message += '.'
                 for cut in self.cuts:
                     if cut not in completed:
@@ -1087,13 +1087,13 @@ python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
                         if os.path.exists(f'{save_path}/local_gaia_cat.csv'):
                             completed.append(cut)
                         elif os.path.exists(f'{save_path}/cut.txt'):
-                            try:
-                                print(f'Generating Catalogue {cut}')
-                                tr.external_save_cat(radec=cutCentreCoords[cut-1],size=2*rad,cutCornerPx=cutCorners[cut-1],
-                                                        image_path=image_path,save_path=save_path,maglim=19)
-                                completed.append(cut)
-                            except:
-                                pass
+                            #try:
+                            print(f'Generating Catalogue {cut}')
+                            tr.external_save_cat(radec=cutCentreCoords[cut-1],size=2*rad,cutCornerPx=cutCorners[cut-1],
+                                                    image_path=image_path,save_path=save_path,maglim=19)
+                            completed.append(cut)
+                            # except:
+                            #     pass
 
                 i += 1
 
@@ -1134,8 +1134,8 @@ python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
                                 tStart = t()
                             else:
                                 if i > 0:
+                                    print(message, end='\r')
                                     sleep(120)
-                                print(message, end='\r')
                                 if os.path.exists(cube_check):
                                     go = True
                                     print('\n')
@@ -1348,8 +1348,8 @@ python {self.working_path}/detection_scripts/cut{cut}_script.py"
                             tStart = t()
                         else:
                             if i > 0:
+                                print(message, end='\r')
                                 sleep(120)
-                            print(message, end='\r')
                             for cut in self.cuts:
                                 if cut not in completed:
                                     save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
