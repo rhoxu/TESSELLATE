@@ -149,19 +149,23 @@ class Tessellate():
 
         if make_cube:
             message = self._cube_properties(message,suggestions[0])
+            _Save_space(f'{job_output_path}/tessellate_cubing_logs')
 
         if make_cuts:
             message = self._cut_properties(message,suggestions[1])
+            _Save_space(f'{job_output_path}/tessellate_cutting_logs')
 
         if reduce:
             message = self._reduce_properties(message,make_cuts,suggestions[2])
+            _Save_space(f'{job_output_path}/tessellate_reduction_logs')
 
         if search:
             message = self._search_properties(message,make_cuts,suggestions[3])
+            _Save_space(f'{job_output_path}/tessellate_search_logs')
 
 
         # -- Reset Job Logs -- #
-        message = self._reset_logs(message)
+        message = self._reset_logs(message,make_cube,make_cuts,reduce,search)
 
         # -- Run Processes -- #
         if download:
@@ -227,11 +231,11 @@ class Tessellate():
             cube_mem_sug = '20G'
             cube_mem_req = 400
 
-            cut_time_sug = '2:00:00'
+            cut_time_sug = '3:00:00'
             cut_mem_sug = '20G'
             cut_mem_req = 100
 
-            reduce_time_sug = '2:00:00'
+            reduce_time_sug = '3:00:00'
             reduce_cpu_sug = '32'
             reduce_mem_req = 200
 
@@ -856,14 +860,22 @@ class Tessellate():
 
         return message
     
-    def _reset_logs(self,message):
+    def _reset_logs(self,message,make_cube,make_cuts,reduce,search):
         """
         Reset slurm job logs in provided output path.
         """
 
         message += 'Delete Past Job Logs? [y/n] :\n'
         if input('Delete Past Job Logs? [y/n] :\n').lower() == 'y':
-            os.system(f'rm {self.job_output_path}/*')
+            if make_cube:
+                os.system(f'rm {self.job_output_path}/tessellate_cubing_logs/*')
+            if make_cuts:
+                os.system(f'rm {self.job_output_path}/tessellate_cutting_logs/*')
+            if reduce:
+                os.system(f'rm {self.job_output_path}/tessellate_reduction_logs/*')
+            if search:
+                os.system(f'rm {self.job_output_path}/tessellate_search_logs/*')
+
             message = message + 'y \n'
         else:
             message + 'n \n'
@@ -934,8 +946,8 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', '
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cubing\n\
-#SBATCH --output={self.job_output_path}/cubing_job_output_%A.txt\n\
-#SBATCH --error={self.job_output_path}/cubing_errors_%A.txt\n\
+#SBATCH --output={self.job_output_path}/tessellate_cubing_logs/cubing_job_output_%A.txt\n\
+#SBATCH --error={self.job_output_path}/tessellate_cubing_logs/cubing_errors_%A.txt\n\
 #\n\
 #SBATCH --ntasks=1\n\
 #SBATCH --time={self.cube_time}\n\
@@ -952,7 +964,7 @@ python {self.working_path}/cubing_script.py"
                     os.system(f'sbatch {self.working_path}/cubing_script.sh')
                     print('\n')
 
-    def _get_catalogues(self,cam,ccd,max_time):
+    def _get_catalogues(self,cam,ccd):
         """
         Access internet, find Gaia sources and save for reduction.
         """
@@ -962,7 +974,7 @@ python {self.working_path}/cubing_script.py"
 
         image_path = glob(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/*ffic.fits')[0]
 
-        l = max_time.split(':')
+        l = self.cut_time.split(':')
         seconds = 1 * int(l[-1]) + 60 * int(l[-2])
         if len(l) == 3:
             seconds += 3600 * int(l[-3])
@@ -996,7 +1008,7 @@ python {self.working_path}/cubing_script.py"
         
         return done
 
-    def make_cuts(self,cubing,cube_time_sug,cut_time_sug):
+    def make_cuts(self,cubing):
         """
         Make cuts! 
 
@@ -1016,7 +1028,7 @@ python {self.working_path}/cubing_script.py"
                         raise ValueError(e)
                     else:
                         tStart = t()
-                        l = cube_time_sug.split(':')
+                        l = self.cube_time.split(':')
                         seconds = 1 * int(l[-1]) + 60 * int(l[-2])
                         if len(l) == 3:
                             seconds += 3600 * int(l[-3])
@@ -1068,8 +1080,8 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{se
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Cutting\n\
-#SBATCH --output={self.job_output_path}/cutting_job_output_%A.txt\n\
-#SBATCH --error={self.job_output_path}/cutting_errors_%A.txt\n\
+#SBATCH --output={self.job_output_path}/tessellate_cutting_logs/cutting_job_output_%A.txt\n\
+#SBATCH --error={self.job_output_path}/tessellate_cutting_logs/cutting_errors_%A.txt\n\
 #\n\
 #SBATCH --ntasks=1\n\
 #SBATCH --time={self.cut_time}\n\
@@ -1085,12 +1097,12 @@ python {self.working_path}/cutting_scripts/cut{cut}_script.py"
                         os.system(f'sbatch {self.working_path}/cutting_scripts/cut{cut}_script.sh')
                         print('\n')
 
-                done = self._get_catalogues(cam=cam,ccd=ccd,max_time=cut_time_sug)
+                done = self._get_catalogues(cam=cam,ccd=ccd)
                 print('\n')
                 if not done:
                     print('Restarting Cutting')
                     print('\n')
-                    self.make_cuts(cubing=cubing,cube_time_sug=cube_time_sug,cut_time_sug=cut_time_sug)
+                    self.make_cuts(cubing=cubing)
 
 
     def reduce(self):
@@ -1138,8 +1150,8 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{se
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Reduction\n\
-#SBATCH --output={self.job_output_path}/reduction_job_output_%A.txt\n\
-#SBATCH --error={self.job_output_path}/reduction_errors_%A.txt\n\
+#SBATCH --output={self.job_output_path}/tessellate_reduction_logs/reduction_job_output_%A.txt\n\
+#SBATCH --error={self.job_output_path}/tessellate_reduction_logs/reduction_errors_%A.txt\n\
 #\n\
 #SBATCH --ntasks=1\n\
 #SBATCH --time={self.reduce_time}\n\
@@ -1181,8 +1193,8 @@ detector.source_detect(cut={cut})"
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Search\n\
-#SBATCH --output={self.job_output_path}/search_job_output_%A.txt\n\
-#SBATCH --error={self.job_output_path}/search_errors_%A.txt\n\
+#SBATCH --output={self.job_output_path}/tessellate_search_logs/search_job_output_%A.txt\n\
+#SBATCH --error={self.job_output_path}/tessellate_search_logs/search_errors_%A.txt\n\
 #\n\
 #SBATCH --ntasks=1\n\
 #SBATCH --time={self.search_time}\n\
