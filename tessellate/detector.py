@@ -132,11 +132,14 @@ def _star_finding_procedure(data,prf):
 
     tables = [res1, res2, res3, res4, res5]
     good_tables = [table.to_pandas() for table in tables if table is not None]
-    total = pd.concat(good_tables)
-    grouped = _spatial_group(total,distance=2)
-    res = grouped.groupby('objid').head(1)
-    res = res.reset_index(drop=True)
-    res = res.drop(['id','objid'],axis=1)
+    if len(good_tables)>0:
+        total = pd.concat(good_tables)
+        grouped = _spatial_group(total,distance=2)
+        res = grouped.groupby('objid').head(1)
+        res = res.reset_index(drop=True)
+        res = res.drop(['id','objid'],axis=1)
+    else:
+        res = None
 
     return res
 
@@ -238,8 +241,7 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdiff
         if frame is None:
             frame = result
         else:
-            if len(result) > 0:
-                frame = pd.concat([frame,result])
+            frame = pd.concat([frame,result])
 
     print(f'Concatenation: {(t()-t1):.1f} sec')
 
