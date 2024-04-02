@@ -1030,7 +1030,7 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', '
                         python_file.write(python_text)
 
                     # -- Create bash file to submit job -- #
-                    print('Creating Cubing Batch File')
+                    #print('Creating Cubing Batch File')
                     batch_text = f"\
 #!/bin/bash\n\
 #\n\
@@ -1049,7 +1049,7 @@ python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
                         batch_file.write(batch_text)
 
                     # -- Submit job -- #
-                    print('Submitting Cubing Batch File')
+                    #print('Submitting Cubing Batch File')
                     os.system(f'sbatch {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.sh')
                     print('\n')
 
@@ -1110,7 +1110,7 @@ python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
 
         for cam in self.cam:
             for ccd in self.ccd: 
-                _Print_buff(30,f'Making Cut(s) for Cam{cam} Ccd{ccd}')
+                _Print_buff(30,f'Making Cut(s) for Cam{cam} Ccd{ccd}') 
                 print('\n')
                 cube_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt'
                 if not os.path.exists(cube_check):
@@ -1169,7 +1169,7 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{se
                             python_file.write(python_text)
 
                         # -- Create bash file to submit job -- #
-                        print('Creating Cutting Batch File')
+                        #print('Creating Cutting Batch File')
                         batch_text = f"\
 #!/bin/bash\n\
 #\n\
@@ -1187,7 +1187,7 @@ python {self.working_path}/cutting_scripts/cut{cut}_script.py"
                         with open(f"{self.working_path}/cutting_scripts/cut{cut}_script.sh", "w") as batch_file:
                             batch_file.write(batch_text)
 
-                        print('Submitting Cutting Batch File')
+                        #print('Submitting Cutting Batch File')
                         os.system(f'sbatch {self.working_path}/cutting_scripts/cut{cut}_script.sh')
                         print('\n')
 
@@ -1244,7 +1244,7 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{se
                             python_file.write(python_text)
 
                         # -- Create bash file to submit job -- #
-                        print('Creating Reduction Batch File')
+                        #print('Creating Reduction Batch File')
                         batch_text = f"\
 #!/bin/bash\n\
 #\n\
@@ -1262,7 +1262,7 @@ python {self.working_path}/reduction_scripts/cut{cut}_script.py"
                         with open(f"{self.working_path}/reduction_scripts/cut{cut}_script.sh", "w") as batch_file:
                             batch_file.write(batch_text)
                                 
-                        print('Submitting Reduction Batch File')
+                        #print('Submitting Reduction Batch File')
                         os.system(f'sbatch {self.working_path}/reduction_scripts/cut{cut}_script.sh')
 
                         print('\n')
@@ -1287,7 +1287,7 @@ detector.source_detect(cut={cut})"
             python_file.write(python_text)
 
         # -- Create bash file to submit job -- #
-        print('Creating Transient Search Batch File')
+        #print('Creating Transient Search Batch File')
         batch_text = f"\
 #!/bin/bash\n\
 #\n\
@@ -1305,7 +1305,7 @@ python {self.working_path}/detection_scripts/cut{cut}_script.py"
         with open(f"{self.working_path}/detection_scripts/cut{cut}_script.sh", "w") as batch_file:
             batch_file.write(batch_text)
                 
-        print('Submitting Transient Search Batch File')
+        #print('Submitting Transient Search Batch File')
         os.system(f'sbatch {self.working_path}/detection_scripts/cut{cut}_script.sh')
 
         print('\n')
