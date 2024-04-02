@@ -22,7 +22,8 @@ class Tessellate():
                  job_output_path=None,working_path=None,
                  cube_time=None,cube_mem=None,cut_time=None,cut_mem=None,
                  reduce_time=None,reduce_cpu=None,search_time=None,
-                 download=None,make_cube=None,make_cuts=None,reduce=None,search=None):
+                 download=None,make_cube=None,make_cuts=None,reduce=None,search=None,
+                 delete=False):
         
         """
         Initialise.
@@ -69,6 +70,8 @@ class Tessellate():
             if True, reduce cuts
         search : bool
             if True, run search pipeline
+        delete : bool
+            if True, delete FFIs after process
         
         ------
         Run Properties
@@ -185,7 +188,10 @@ class Tessellate():
             self.reduce()    
 
         if search:
-            self.transient_search(reducing=reduce)   
+            self.transient_search(reducing=reduce) 
+
+        if delete:
+            self.delete_FFIs()  
 
     def _sector_suggestions(self):
         """
@@ -1372,3 +1378,8 @@ python {self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.py"
                                         completed.append(cut)
                             i+=1
 
+    def delete_FFIs(self):
+
+        for cam in self.cam:
+            for ccd in self.ccd:
+                os.system(f'rm -r {self.data_path}/Sector{self.sector}/Cam{cam}/Cam{ccd}/*ffic.fits')
