@@ -238,7 +238,8 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdiff
         if frame is None:
             frame = result
         else:
-            frame = pd.concat([frame,result])
+            if len(result) > 0:
+                frame = pd.concat([frame,result])
 
     print(f'Concatenation: {(t()-t1):.1f} sec')
 
