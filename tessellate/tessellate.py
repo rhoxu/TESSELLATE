@@ -1397,4 +1397,5 @@ python {self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.py"
 
         for cam in self.cam:
             for ccd in self.ccd:
-                os.system(f'rm {self.data_path}/Sector{self.sector}/Cam{cam}/Cam{ccd}/*ffic.fits')
+                string = 'rm -r ' + self.data_path + f'/Sector{self.sector}/Cam{cam}/Cam{ccd}/*ffic.fits'
+                os.system(string)
