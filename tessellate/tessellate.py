@@ -138,6 +138,8 @@ class Tessellate():
         self.search_mem = None
         self.search_cpu = None
 
+        self.skip = []
+
         # -- Confirm Run Properties -- #
         message = self._run_properties() 
 
@@ -1090,7 +1092,7 @@ python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
                             completed.append(cut)
                         elif os.path.exists(f'{save_path}/cut.txt'):
                             print(f'Generating Catalogue {cut}')
-                            tr.external_save_cat(radec=cutCentreCoords[cut-1],size=2*rad,cutCornerPx=cutCorners[cut-1],
+                            tr.external_save_cat(radec=cutCentreCoords[cut-1],size=1.1*rad,cutCornerPx=cutCorners[cut-1],
                                                 image_path=image_path,save_path=save_path,maglim=19)
                             completed.append(cut)
 
@@ -1208,7 +1210,7 @@ python {self.working_path}/cutting_scripts/cut{cut}_script.py"
 
         for cam in self.cam:
             for ccd in self.ccd: 
-                _Print_buff(30,f'Reducing Cut(s) for Cam{cam} Ccd{ccd}')
+                _Print_buff(40,f'Reducing Cut(s) for Cam{cam} Ccd{ccd}')
                 print('\n')
                 for cut in self.cuts:
                     cut_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
