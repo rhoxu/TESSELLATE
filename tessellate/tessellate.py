@@ -1353,12 +1353,15 @@ python {self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.py"
                 print('\n')
                 if not reducing:
                     for cut in self.cuts:
-                        reduced_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reduced.txt'
-                        if not os.path.exists(reduced_check):
+                        save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+                        if os.path.exists(f'{save_path}/detected_sources.csv'):
+                            print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
+                        elif os.path.exists(f'{save_path}/reduced.txt'):
+                            self._cut_transient_search(cam,ccd,cut)
+                        else:
                             e = f'No Reduced File Detected for Search of Cut {cut}!\n'
                             raise ValueError(e)
-                        else:
-                            self._cut_transient_search(cam,ccd,cut)
+                        
                 else:
                     completed = []
                     message = 'Waiting for Reductions'
@@ -1385,7 +1388,6 @@ python {self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.py"
                             for cut in self.cuts:
                                 if cut not in completed:
                                     save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                                    print(save_path)
                                     if os.path.exists(f'{save_path}/detected_sources.csv'):
                                         completed.append(cut)
                                         print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
