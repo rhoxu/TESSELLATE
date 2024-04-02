@@ -1004,7 +1004,7 @@ class Tessellate():
 
         for cam in self.cam:
             for ccd in self.ccd: 
-                _Print_buff(30,f'Making Cube for Cam{cam} Ccd{ccd}')
+                print(_Print_buff(30,f'Making Cube for Cam{cam} Ccd{ccd}'))
                 print('\n')
 
                 # -- Generate Cube Path -- #
@@ -1119,7 +1119,7 @@ python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
 
         for cam in self.cam:
             for ccd in self.ccd: 
-                _Print_buff(30,f'Making Cut(s) for Cam{cam} Ccd{ccd}') 
+                print(_Print_buff(30,f'Making Cut(s) for Cam{cam} Ccd{ccd}')) 
                 print('\n')
                 cube_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt'
                 if not os.path.exists(cube_check):
@@ -1217,7 +1217,7 @@ python {self.working_path}/cutting_scripts/cut{cut}_script.py"
 
         for cam in self.cam:
             for ccd in self.ccd: 
-                _Print_buff(40,f'Reducing Cut(s) for Cam{cam} Ccd{ccd}')
+                print(_Print_buff(40,f'Reducing Cut(s) for Cam{cam} Ccd{ccd}'))
                 print('\n')
                 for cut in self.cuts:
                     cut_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
@@ -1235,9 +1235,9 @@ python {self.working_path}/cutting_scripts/cut{cut}_script.py"
 
                             
                         # -- Delete old scripts -- #
-                        if os.path.exists(f'{self.working_path}/reduction_scripts/cut{cut}_script.sh'):
-                            os.system(f'rm {self.working_path}/reduction_scripts/cut{cut}_script.sh')
-                            os.system(f'rm {self.working_path}/reduction_scripts/cut{cut}_script.py')
+                        if os.path.exists(f'{self.working_path}/reduction_scripts/C{cam}C{ccd}cut{cut}_script.sh'):
+                            os.system(f'rm {self.working_path}/reduction_scripts/C{cam}C{ccd}cut{cut}_script.sh')
+                            os.system(f'rm {self.working_path}/reduction_scripts/C{cam}C{ccd}cut{cut}_script.py')
 
                         # -- Create python file for reducing a cut-- # 
                         print(f'Creating Reduction Python File for Cam{cam} Ccd{ccd} Cut{cut}')
@@ -1249,7 +1249,7 @@ processor.reduce(cam={cam},ccd={ccd},n={self.n},cut={cut})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reduced.txt', 'w') as file:\n\
     file.write('Reduced!')"
                 
-                        with open(f"{self.working_path}/reduction_scripts/cut{cut}_script.py", "w") as python_file:
+                        with open(f"{self.working_path}/reduction_scripts/C{cam}C{ccd}cut{cut}_script.py", "w") as python_file:
                             python_file.write(python_text)
 
                         # -- Create bash file to submit job -- #
@@ -1266,22 +1266,22 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{se
 #SBATCH --cpus-per-task={self.reduce_cpu}\n\
 #SBATCH --mem-per-cpu={self.reduce_mem}G\n\
 \n\
-python {self.working_path}/reduction_scripts/cut{cut}_script.py"
+python {self.working_path}/reduction_scripts/C{cam}C{ccd}cut{cut}_script.py"
 
-                        with open(f"{self.working_path}/reduction_scripts/cut{cut}_script.sh", "w") as batch_file:
+                        with open(f"{self.working_path}/reduction_scripts/C{cam}C{ccd}cut{cut}_script.sh", "w") as batch_file:
                             batch_file.write(batch_text)
                                 
                         #print('Submitting Reduction Batch File')
-                        os.system(f'sbatch {self.working_path}/reduction_scripts/cut{cut}_script.sh')
+                        os.system(f'sbatch {self.working_path}/reduction_scripts/C{cam}C{ccd}cut{cut}_script.sh')
 
                         print('\n')
 
     def _cut_transient_search(self,cam,ccd,cut):
 
         # -- Delete old scripts -- #
-        if os.path.exists(f'{self.working_path}/detection_scripts/cut{cut}_script.sh'):
-            os.system(f'rm {self.working_path}/detection_scripts/cut{cut}_script.sh')
-            os.system(f'rm {self.working_path}/detection_scripts/cut{cut}_script.py')
+        if os.path.exists(f'{self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.sh'):
+            os.system(f'rm {self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.sh')
+            os.system(f'rm {self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.py')
 
         # -- Create python file for reducing a cut-- # 
         print(f'Creating Transient Search File for Cam{cam} Ccd{ccd} Cut{cut}')
@@ -1292,7 +1292,7 @@ import numpy as np\n\
 detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
 detector.source_detect(cut={cut})"
                     
-        with open(f"{self.working_path}/detection_scripts/cut{cut}_script.py", "w") as python_file:
+        with open(f"{self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.py", "w") as python_file:
             python_file.write(python_text)
 
         # -- Create bash file to submit job -- #
@@ -1309,13 +1309,13 @@ detector.source_detect(cut={cut})"
 #SBATCH --cpus-per-task={self.search_cpu}\n\
 #SBATCH --mem-per-cpu={self.search_mem}G\n\
 \n\
-python {self.working_path}/detection_scripts/cut{cut}_script.py"
+python {self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.py"
 
-        with open(f"{self.working_path}/detection_scripts/cut{cut}_script.sh", "w") as batch_file:
+        with open(f"{self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.sh", "w") as batch_file:
             batch_file.write(batch_text)
                 
         #print('Submitting Transient Search Batch File')
-        os.system(f'sbatch {self.working_path}/detection_scripts/cut{cut}_script.sh')
+        os.system(f'sbatch {self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.sh')
 
         print('\n')
 
@@ -1328,7 +1328,7 @@ python {self.working_path}/detection_scripts/cut{cut}_script.py"
 
         for cam in self.cam:
             for ccd in self.ccd:
-                _Print_buff(30,f'Transient Search for Cam{cam} Ccd{ccd}')
+                print(_Print_buff(40,f'Transient Search for Cam{cam} Ccd{ccd}'))
                 print('\n')
                 if not reducing:
                     for cut in self.cuts:
