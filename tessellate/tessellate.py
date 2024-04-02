@@ -217,7 +217,7 @@ class Tessellate():
 
             search_time_sug = '5:00'
             search_cpu_sug = '32'
-            search_mem_req = 32
+            search_mem_req = 60
 
         elif self.sector in secondary_mission:
             cube_time_sug = '1:15:00'
@@ -1397,5 +1397,4 @@ python {self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.py"
 
         for cam in self.cam:
             for ccd in self.ccd:
-                string = 'rm -r ' + self.data_path + f'/Sector{self.sector}/Cam{cam}/Cam{ccd}/*ffic.fits'
-                os.system(string)
+                os.system(f'rm {self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/*ffic.fits')
