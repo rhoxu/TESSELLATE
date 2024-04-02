@@ -23,7 +23,7 @@ class Tessellate():
                  cube_time=None,cube_mem=None,cut_time=None,cut_mem=None,
                  reduce_time=None,reduce_cpu=None,search_time=None,
                  download=None,make_cube=None,make_cuts=None,reduce=None,search=None,
-                 delete=False):
+                 delete=None):
         
         """
         Initialise.
@@ -148,7 +148,7 @@ class Tessellate():
 
         suggestions = self._sector_suggestions()  # Get time/cpu/memory suggestions depending on sector
 
-        message, download, make_cube, make_cuts, reduce, search = self._which_processes(message,download, make_cube, make_cuts, reduce, search)
+        message, download, make_cube, make_cuts, reduce, search, delete = self._which_processes(message,download, make_cube, make_cuts, reduce, search, delete)
 
         if download:
             message = self._download_properties(message)
@@ -353,7 +353,7 @@ class Tessellate():
 
         return message
     
-    def _which_processes(self,message,download,make_cube,make_cuts,reduce,search):
+    def _which_processes(self,message,download,make_cube,make_cuts,reduce,search,delete):
 
         if download is None:
             d = input('   - Download FFIs? [y/n] = ')
@@ -430,10 +430,25 @@ class Tessellate():
                     d = input('      Invalid choice! Run Transient Search on Cut(s)? [y/n] = ')
                     message += f'      Invalid choice! Run Transient Search on Cut(s)? [y/n] = {d}\n'
 
+        if delete is None:
+            d = input('   - Delete all FFIs upon completion? [y/n] = ')
+            message += f'   - Delete all FFIs upon completion? [y/n] = {d}\n'
+            done = False
+            while not done:
+                if d.lower() == 'y':
+                    delete = True
+                    done=True
+                elif d.lower() == 'n':
+                    delete = False
+                    done=True
+                else:
+                    d = input('      Invalid choice! Delete all FFIs upon completion? [y/n] = ')
+                    message += f'      Invalid choice! Delete all FFIs upon completion? [y/n] = {d}\n'
+
         print('\n')
         message += '\n'
 
-        return message, download, make_cube, make_cuts, reduce, search
+        return message, download, make_cube, make_cuts, reduce, search, delete
     
     def _download_properties(self,message):
         """
