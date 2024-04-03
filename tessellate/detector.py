@@ -404,6 +404,7 @@ class Detector():
 
         f = np.nansum(self.flux[:,y-2:y+3,x-2:x+3],axis=(2,1))
         brightestframe = frameStart + np.where(f[frameStart:frameEnd] == np.nanmax(f[frameStart:frameEnd]))[0][0]
+        print(brightestframe)
         if type(brightestframe) is not int:
             brightestframe = brightestframe[0]
         print(brightestframe)
