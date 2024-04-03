@@ -422,7 +422,7 @@ class Detector():
 
         
         ax[2].plot(source['xcentroid'],source['ycentroid'],'C1.')
-        ax[2].imshow(self.flux[brightestframe],cmap='gray',origin='lower',vmin=-10,vmax=10)
+        ax[2].imshow(self.flux[brightestframe,y-15:y+16,x-15:x+16],cmap='gray',origin='lower',vmin=-10,vmax=10)
         ax[2].set_xlabel(f'Frame {brightestframe}')
         
         vmax = np.max(self.flux[brightestframe,y-2:y+3,x-2:x+3])/2
