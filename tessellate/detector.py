@@ -206,6 +206,26 @@ def _count_detections(result):
 
     return result
 
+def _main_correlation(flux,prf,corlim,psfdifflim,inputNum):
+
+    results = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(_frame_correlation)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
+
+    frame = None
+
+    for result in results:
+        if frame is None:
+            frame = result
+        else:
+            frame = pd.concat([frame,result])
+    
+    frame['xint'] = deepcopy(np.round(frame['xcentroid'].values)).astype(int)
+    frame['yint'] = deepcopy(np.round(frame['ycentroid'].values)).astype(int)
+    data = flux[0]
+    ind = (frame['xint'].values >3) & (frame['xint'].values < data.shape[1]-3) & (frame['yint'].values >3) & (frame['yint'].values < data.shape[0]-3)
+    frame = frame[ind]
+
+    return frame
+
 def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdifflim=0.5):
     """
     Main Function.
@@ -227,45 +247,28 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdiff
     length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
 
     t1 = t()
-
-    results = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(_frame_correlation)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
-    #results = Parallel(n_jobs=1)(delayed(_frame_correlation)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
-
+    frame = _main_correlation(flux,prf,corlim,psfdifflim,inputNum)
     print(f'Main Correlation: {(t()-t1):.1f} sec')
 
-    frame = None
-
-    t1 = t()
-
-    for result in results:
-        if frame is None:
-            frame = result
-        else:
-            frame = pd.concat([frame,result])
-
-    print(f'Concatenation: {(t()-t1):.1f} sec')
-
-    
-    frame['xint'] = deepcopy(np.round(frame['xcentroid'].values)).astype(int)
-    frame['yint'] = deepcopy(np.round(frame['ycentroid'].values)).astype(int)
-    data = flux[0]
-    ind = (frame['xint'].values >3) & (frame['xint'].values < data.shape[1]-3) & (frame['yint'].values >3) & (frame['yint'].values < data.shape[0]-3)
-    frame = frame[ind]
-
-    t1 = t()
     if len(frame) > 50_000:
         print(len(frame))
-        return 
+        print('Increasing Correlation Limit to 0.9')
+        frame = _main_correlation(flux,prf,0.9,psfdifflim,inputNum)
+        print(f'Main Correlation: {(t()-t1):.1f} sec')
+        print(len(frame))
+        if len(frame) > 50_000:
+            print('Reducing PSF Difference Limit to 0.4')
+            frame = _main_correlation(flux,prf,0.9,0.4,inputNum)
+            print(f'Main Correlation: {(t()-t1):.1f} sec')
+            print(len(frame))
+        
+    t1 = t()
     frame = _spatial_group(frame,distance=1.5)
     print(f'Spatial Group: {(t()-t1):.1f} sec')
 
-    t1 = t()
     frame = _source_mask(frame,mask)
-    print(f'Source Mask: {(t()-t1):.1f} sec')
 
-    t1 = t()
     frame = _count_detections(frame)
-    print(f'Detection Count: {(t()-t1):.1f} sec')
 
     return frame
 
