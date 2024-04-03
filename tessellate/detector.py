@@ -394,7 +394,7 @@ class Detector():
         y = source.iloc[0]['yint'].astype(int)
 
         frames = source['frame'].values
-        event_sum = np.nansum(self.flux[frames,y-1:y+2,x-1:x+2]axis=(1,2))
+        event_sum = np.nansum(self.flux[frames,y-1:y+2,x-1:x+2],axis=(1,2))
         brightestframe = np.where(event_sum == np.nanmax(event_sum))[0]
         print(brightestframe)
 
