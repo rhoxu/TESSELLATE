@@ -395,7 +395,7 @@ class Detector():
 
         frames = source['frame'].values
         event_sum = np.nansum(self.flux[frames,y-1:y+2,x-1:x+2],axis=(1,2))
-        brightestframe = np.where(event_sum == np.nanmax(event_sum))[0]
+        brightestframe = np.where(event_sum == np.nanmax(event_sum))[0][0]
         print(brightestframe)
 
         fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3]],figsize=(10,7))
