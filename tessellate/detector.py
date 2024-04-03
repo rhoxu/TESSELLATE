@@ -402,17 +402,15 @@ class Detector():
         frameStart = min(source['frame'].values)
         frameEnd = max(source['frame'].values)
 
-        f = np.nansum(self.flux[:,y-2:y+3,x-2:x+3],axis=(2,1))
+        f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
         if frameEnd - frameStart > 2:
             brightestframe = frameStart + np.where(f[frameStart:frameEnd] == np.nanmax(f[frameStart:frameEnd]))[0][0]
         else:
             brightestframe = frameStart
-        print(type(brightestframe))
         try:
             brightestframe = int(brightestframe)
         except:
             brightestframe = int(brightestframe[0])
-        print(brightestframe)
 
         ax[0].axvspan(frameStart,frameEnd,color='C1',alpha=0.2)
         ax[0].plot(f)
@@ -437,11 +435,17 @@ class Detector():
         xmin = x -15
         if xmin < 0:
             xmin = 0
-        ax[2].imshow(self.flux[brightestframe,ymin:y+16,xmin:x+16],cmap='gray',origin='lower',vmin=-10,vmax=10)
+        bright_frame = self.flux[brightestframe,y-1:y+2,x-1:x+2]
+        vmin = np.percentile(bright_frame,16)
+        if vmin > -5:
+            vmin =-5
+        vamx = np.percentile(bright_frame,95)
+
+        ax[2].imshow(self.flux[brightestframe,ymin:y+16,xmin:x+16],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
         ax[2].set_xlabel(f'Frame {brightestframe}')
         
-        vmax = np.max(self.flux[brightestframe,y-2:y+3,x-2:x+3])/2
-        im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',vmin=-10,vmax=vmax,origin='lower')
+        #vmax = np.max(self.flux[brightestframe,y-1:y+2,x-1:x+2])/2
+        im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',vmin=-10,vmin=vmin,vmax=vmax,origin='lower')
         plt.colorbar(im)
         ax[3].set_xlabel(f'Object {id}')
         plt.tight_layout()
