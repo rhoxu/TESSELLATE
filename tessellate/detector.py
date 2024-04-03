@@ -381,7 +381,7 @@ class Detector():
 
         return dictionary
 
-    def plot_source(self,cut,id):
+    def plot_source(self,cut,id,savename=None,save_path='.'):
 
         if cut != self.cut:
             self._gather_data(cut)
@@ -394,28 +394,61 @@ class Detector():
         y = source.iloc[0]['yint'].astype(int)
 
         frames = source['frame'].values
-        brightestframe = np.where(self.flux==np.nanmax(self.flux[frames,y-1:y+2,x-1:x+2]))[0][0]
+        
+        
 
         fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3]],figsize=(10,7))
 
         frameStart = min(source['frame'].values)
         frameEnd = max(source['frame'].values)
 
-        f = np.sum(self.flux[:,y-2:y+3,x-2:x+3],axis=(2,1))
-        ax[0].plot(f)
-        ax[1].plot(f[frameStart-10:frameEnd+20])
+        f = np.nansum(self.flux[:,y-2:y+3,x-2:x+3],axis=(2,1))
+        if frameEnd - frameStart > 2:
+            brightestframe = frameStart + np.where(f[frameStart:frameEnd] == np.nanmax(f[frameStart:frameEnd]))[0][0]
+        else:
+            brightestframe = frameStart
+        print(type(brightestframe))
+        try:
+            brightestframe = int(brightestframe)
+        except:
+            brightestframe = int(brightestframe[0])
+        print(brightestframe)
 
-        ax[0].axvline(frameStart,color='r',linestyle='--',alpha=0.2)
-        ax[0].axvline(frameEnd,color='r',linestyle='--',alpha=0.2) 
+        ax[0].axvspan(frameStart,frameEnd,color='C1',alpha=0.2)
+        ax[0].plot(f)
+        ax[0].set_ylabel('Counts')
+        ax[1].axvspan(frameEnd,frameStart,color='C1',alpha=0.2)
+        fstart = frameStart-10
+        if fstart < 0:
+            fstart = 0
+        zoom = f[fstart:frameEnd+20]
+        ax[1].plot(fstart+ np.arange(len(zoom)),zoom)
+        ax[1].set_ylabel('Counts')
+        ax[1].set_xlabel('Frame number')
+
+        #ax[0].axvline(frameStart,color='r',linestyle='--',alpha=0.2)
+        #ax[0].axvline(frameEnd,color='r',linestyle='--',alpha=0.2) 
+
         
         ax[2].plot(source['xcentroid'],source['ycentroid'],'C1.')
-        ax[2].imshow(self.flux[brightestframe],cmap='gray',origin='lower',vmin=-10,vmax=10)
+        ymin = y - 15
+        if ymin < 0:
+            ymin = 0 
+        xmin = x -15
+        if xmin < 0:
+            xmin = 0
+        ax[2].imshow(self.flux[brightestframe,ymin:y+16,xmin:x+16],cmap='gray',origin='lower',vmin=-10,vmax=10)
         ax[2].set_xlabel(f'Frame {brightestframe}')
         
         vmax = np.max(self.flux[brightestframe,y-2:y+3,x-2:x+3])/2
-        im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='grey',vmin=-10,vmax=vmax)
+        im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',vmin=-10,vmax=vmax,origin='lower')
         plt.colorbar(im)
         ax[3].set_xlabel(f'Object {id}')
+        plt.tight_layout()
+        if savename is not None:
+            if savename.lower() == 'auto':
+                savename = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_event{id}.png'
+            plt.savefig(save_path+'/'+savename, bbox_inches = "tight")
 
         return source
 
