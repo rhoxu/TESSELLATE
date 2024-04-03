@@ -253,6 +253,9 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdiff
     frame = frame[ind]
 
     t1 = t()
+    if len(frame) > 50_000:
+        print(len(frame))
+        return 
     frame = _spatial_group(frame,distance=1.5)
     print(f'Spatial Group: {(t()-t1):.1f} sec')
 
