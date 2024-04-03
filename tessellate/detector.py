@@ -381,7 +381,7 @@ class Detector():
 
         return dictionary
 
-    def plot_source(self,cut,id):
+    def plot_source(self,cut,id,savename=None,save_path='.'):
 
         if cut != self.cut:
             self._gather_data(cut)
@@ -394,7 +394,9 @@ class Detector():
         y = source.iloc[0]['yint'].astype(int)
 
         frames = source['frame'].values
-        brightestframe = np.where(self.flux==np.nanmax(self.flux[frames,y-1:y+2,x-1:x+2]))[0][0]
+        event_sum = np.nansum(self.flux[frames,y-1:y+2,x-1:x+2]axis=(1,2))
+        brightestframe = np.where(event_sum == np.nanmax(event_sum))[0]
+        print(brightestframe)
 
         fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3]],figsize=(10,7))
 
@@ -423,6 +425,11 @@ class Detector():
         im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',vmin=-10,vmax=vmax)
         plt.colorbar(im)
         ax[3].set_xlabel(f'Object {id}')
+        plt.tight_layout()
+        if savename is not None:
+            if savename.lower() == 'auto':
+                savename = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_event{id}.png'
+            plt.savefig(save_path+'/'+savename, bbox_inches = "tight")
 
         return source
 
