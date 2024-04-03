@@ -394,16 +394,20 @@ class Detector():
         y = source.iloc[0]['yint'].astype(int)
 
         frames = source['frame'].values
-        event_sum = np.nansum(self.flux[frames,y-1:y+2,x-1:x+2],axis=(1,2))
-        brightestframe = np.where(event_sum == np.nanmax(event_sum))[0][0]
-        print(brightestframe)
+        
+        
 
         fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3]],figsize=(10,7))
 
         frameStart = min(source['frame'].values)
         frameEnd = max(source['frame'].values)
 
-        f = np.sum(self.flux[:,y-2:y+3,x-2:x+3],axis=(2,1))
+        f = np.nansum(self.flux[:,y-2:y+3,x-2:x+3],axis=(2,1))
+        brightestframe = frameStart + np.where(f[frameStart,frameEnd] == np.nanmax(f[frameStart,frameEnd]))[0][0]
+        if type(brightestframe) is not int:
+            brightestframe = brightestframe[0]
+        print(brightestframe)
+        
         ax[0].axvspan(frameStart,frameEnd,color='C1',alpha=0.2)
         ax[0].plot(f)
         ax[0].set_ylabel('Counts')
