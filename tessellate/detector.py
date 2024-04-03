@@ -248,14 +248,16 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdiff
     frame = _main_correlation(flux,prf,corlim,psfdifflim,inputNum)
     print(f'Main Correlation: {(t()-t1):.1f} sec')
 
-    if len(frame) > 50_000:
+    if len(frame) > 25_000:
         print(len(frame))
         print('Increasing Correlation Limit to 0.9')
+        del(frame)
         frame = _main_correlation(flux,prf,0.9,psfdifflim,inputNum)
         print(f'Main Correlation: {(t()-t1):.1f} sec')
         print(len(frame))
-        if len(frame) > 50_000:
+        if len(frame) > 25_000:
             print('Reducing PSF Difference Limit to 0.4')
+            del(frame)
             frame = _main_correlation(flux,prf,0.9,0.4,inputNum)
             print(f'Main Correlation: {(t()-t1):.1f} sec')
             print(len(frame))
