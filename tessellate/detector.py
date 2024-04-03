@@ -418,8 +418,11 @@ class Detector():
         ax[0].plot(f)
         ax[0].set_ylabel('Counts')
         ax[1].axvspan(frameEnd,frameStart,color='C1',alpha=0.2)
-        zoom = f[frameStart-10:frameEnd+20]
-        ax[1].plot(frameStart-10 + np.arange(len(zoom)),zoom)
+        fstart = frameStart-10
+        if fstart < 0:
+            fstart = 0
+        zoom = f[fstart:frameEnd+20]
+        ax[1].plot(fstart+ np.arange(len(zoom)),zoom)
         ax[1].set_ylabel('Counts')
         ax[1].set_xlabel('Frame number')
 
@@ -428,7 +431,13 @@ class Detector():
 
         
         ax[2].plot(source['xcentroid'],source['ycentroid'],'C1.')
-        ax[2].imshow(self.flux[brightestframe,y-15:y+16,x-15:x+16],cmap='gray',origin='lower',vmin=-10,vmax=10)
+        ymin = y - 15
+        if ymin < 0:
+            ymin = 0 
+        xmin = x -15
+        if xmin < 0:
+            xmin = 0
+        ax[2].imshow(self.flux[brightestframe,ymin:y+16,xmin:x+16],cmap='gray',origin='lower',vmin=-10,vmax=10)
         ax[2].set_xlabel(f'Frame {brightestframe}')
         
         vmax = np.max(self.flux[brightestframe,y-2:y+3,x-2:x+3])/2
