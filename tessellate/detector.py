@@ -208,6 +208,8 @@ def _count_detections(result):
 
 def _main_correlation(flux,prf,corlim,psfdifflim,inputNum):
 
+    length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
+
     results = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(_frame_correlation)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
 
     frame = None
@@ -241,10 +243,6 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdiff
         prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz100/_local_TESS_PRFs/Sectors1_2_3')
     else:
         prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz100/_local_TESS_PRFs/Sectors4+')
-        
-    result = None
-
-    length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
 
     t1 = t()
     frame = _main_correlation(flux,prf,corlim,psfdifflim,inputNum)
