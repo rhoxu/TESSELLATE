@@ -402,11 +402,18 @@ class Detector():
         frameEnd = max(source['frame'].values)
 
         f = np.sum(self.flux[:,y-2:y+3,x-2:x+3],axis=(2,1))
+        ax[0].axvspan(frameStart,frameEnd,color='C1',alpha=0.2)
         ax[0].plot(f)
-        ax[1].plot(f[frameStart-10:frameEnd+20])
+        ax[0].set_ylabel('Counts')
+        ax[1].axvspan(frameEnd,frameStart,color='C1',alpha=0.2)
+        zoom = f[frameStart-10:frameEnd+20]
+        ax[1].plot(frameStart-10 + np.arange(len(zoom)),zoom)
+        ax[1].set_ylabel('Counts')
+        ax[1].set_xlabel('Frame number')
 
-        ax[0].axvline(frameStart,color='r',linestyle='--',alpha=0.2)
-        ax[0].axvline(frameEnd,color='r',linestyle='--',alpha=0.2) 
+        #ax[0].axvline(frameStart,color='r',linestyle='--',alpha=0.2)
+        #ax[0].axvline(frameEnd,color='r',linestyle='--',alpha=0.2) 
+
         
         ax[2].plot(source['xcentroid'],source['ycentroid'],'C1.')
         ax[2].imshow(self.flux[brightestframe],cmap='gray',origin='lower',vmin=-10,vmax=10)
