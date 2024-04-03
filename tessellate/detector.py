@@ -403,11 +403,11 @@ class Detector():
         frameEnd = max(source['frame'].values)
 
         f = np.nansum(self.flux[:,y-2:y+3,x-2:x+3],axis=(2,1))
-        brightestframe = frameStart + np.where(f[frameStart,frameEnd] == np.nanmax(f[frameStart,frameEnd]))[0][0]
+        brightestframe = frameStart + np.where(f[frameStart:frameEnd] == np.nanmax(f[frameStart:frameEnd]))[0][0]
         if type(brightestframe) is not int:
             brightestframe = brightestframe[0]
         print(brightestframe)
-        
+
         ax[0].axvspan(frameStart,frameEnd,color='C1',alpha=0.2)
         ax[0].plot(f)
         ax[0].set_ylabel('Counts')
