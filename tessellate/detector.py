@@ -432,7 +432,7 @@ class Detector():
         ax[2].set_xlabel(f'Frame {brightestframe}')
         
         vmax = np.max(self.flux[brightestframe,y-2:y+3,x-2:x+3])/2
-        im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',vmin=-10,vmax=vmax)
+        im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',vmin=-10,vmax=vmax,origin='lower')
         plt.colorbar(im)
         ax[3].set_xlabel(f'Object {id}')
         plt.tight_layout()
