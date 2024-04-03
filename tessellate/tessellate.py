@@ -1,4 +1,4 @@
-from .dataprocessor import _Print_buff, _Save_space, DataProcessor
+from .dataprocessor import _Extract_fits, _Print_buff, _Save_space, DataProcessor
 from .detector import Detector
 
 from time import time as t
