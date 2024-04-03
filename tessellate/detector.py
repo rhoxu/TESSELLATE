@@ -439,13 +439,13 @@ class Detector():
         vmin = np.percentile(bright_frame,16)
         if vmin > -5:
             vmin =-5
-        vamx = np.percentile(bright_frame,95)
+        vmax = np.percentile(bright_frame,95)
 
         ax[2].imshow(self.flux[brightestframe,ymin:y+16,xmin:x+16],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
         ax[2].set_xlabel(f'Frame {brightestframe}')
         
         #vmax = np.max(self.flux[brightestframe,y-1:y+2,x-1:x+2])/2
-        im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',vmin=vmin,vmax=vmax,origin='lower')
+        im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
         plt.colorbar(im)
         ax[3].set_xlabel(f'Object {id}')
         plt.tight_layout()
