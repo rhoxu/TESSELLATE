@@ -413,7 +413,8 @@ class Detector():
             brightestframe = int(brightestframe)
         except:
             brightestframe = int(brightestframe[0])
-
+        if brightestframe >= len(self.flux):
+            brightestframe -= 1
         time = self.time - self.time[0]
 
         ax[0].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.2)
