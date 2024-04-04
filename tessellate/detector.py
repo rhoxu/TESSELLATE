@@ -449,7 +449,7 @@ class Detector():
         vmax = np.percentile(bright_frame,95)
         cutout_image = self.flux[:,ymin:y+16,xmin:x+16]
         ax[2].imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
-        ax[2].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1.')
+        ax[2].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1.',alpha=0.2)
 
         ax[2].set_xlabel(f'Time {np.round(time[brightestframe],2)}')
         
