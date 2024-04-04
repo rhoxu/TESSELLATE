@@ -1380,7 +1380,7 @@ python {self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.py"
                         if t()-tStart > seconds + 600:
                             print('Restarting Reducing')
                             print('\n')
-                            self.reduce_time = f'{l[0]+1}:{l[1]}:{l[2]}'
+                            self.reduce_time = f'{int(l[0])+1}:{l[1]}:{l[2]}'
                             self.reduce()
                             tStart = t()
                         else:
