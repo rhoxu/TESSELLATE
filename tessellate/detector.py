@@ -399,7 +399,7 @@ class Detector():
         
         
 
-        fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3],[4,4,4,4,4]],figsize=(15,7))
+        fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3],[4,4,4,4,4]],figsize=(10,10))
 
         frameStart = min(source['frame'].values)
         frameEnd = max(source['frame'].values)
@@ -426,7 +426,7 @@ class Detector():
         zoom = f[fstart:frameEnd+20]
         ax[1].plot(time[fstart:frameEnd+20],zoom)
         ax[1].set_ylabel('Counts')
-        ax[1].set_xlabel('Frame number')
+        ax[1].set_xlabel('Time')
 
         #ax[0].axvline(frameStart,color='r',linestyle='--',alpha=0.2)
         #ax[0].axvline(frameEnd,color='r',linestyle='--',alpha=0.2) 
@@ -448,12 +448,13 @@ class Detector():
         ax[2].imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
         ax[2].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1.')
 
-        ax[2].set_xlabel(f'Time {time[brightestframe]}')
+        ax[2].set_xlabel(f'Time {np.round(time[brightestframe],2)}')
         
         #vmax = np.max(self.flux[brightestframe,y-1:y+2,x-1:x+2])/2
         #im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
         #plt.colorbar(im)
-        ax[3].imshow(cutout_image[brightestframe] - cutout_image[brightestframe - 2] + cutout_image[brightestframe + 2])
+        ax[3].imshow(cutout_image[brightestframe] - cutout_image[brightestframe - 2] + cutout_image[brightestframe + 2],
+                     cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
         ax[3].set_title('Compare frames')
 
         unit = u.electron/ u.s
