@@ -456,7 +456,13 @@ class Detector():
         #vmax = np.max(self.flux[brightestframe,y-1:y+2,x-1:x+2])/2
         #im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
         #plt.colorbar(im)
-        ax[3].imshow(cutout_image[brightestframe] - cutout_image[brightestframe - 2] + cutout_image[brightestframe + 2],
+        after = brightestframe + 2
+        if after >= len(self.flux):
+            after -= 1 
+        before = brightestframe - 2
+        if before < 0:
+            before = 0
+        ax[3].imshow(cutout_image[brightestframe] - cutout_image[before] + cutout_image[after],
                      cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
         ax[3].set_title('Compare frames')
 
