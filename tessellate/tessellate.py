@@ -234,7 +234,7 @@ class Tessellate():
 
             search_time_sug = '10:00'
             search_cpu_sug = '32'
-            search_mem_req = 60
+            search_mem_req = 160
 
         elif self.sector in tertiary_mission:
             cube_time_sug = '3:00:00'
@@ -1393,6 +1393,7 @@ python {self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.py"
                                     if os.path.exists(f'{save_path}/detected_sources.csv'):
                                         completed.append(cut)
                                         print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
+                                        print('\n')
                                     elif os.path.exists(f'{save_path}/reduced.txt'):
                                         self._cut_transient_search(cam,ccd,cut)
                                         completed.append(cut)
