@@ -472,7 +472,8 @@ class Detector():
         ax[4].plot(period.frequency,period.power)
         ax[4].axvline(period.frequency_at_max_power.value,color='C1',ls='--')
         #plt.axvline(1/14,color='C1',ls='--')
-        ax[4].set_title(f'Peak frequency {np.round(period.frequency_at_max_power.value,2)}'+r'$\;$days$^{-1}$')
+        ax[4].set_title(f'Peak frequency {np.round(period.frequency_at_max_power.value,2)}'+
+                        r'$\;$days$^{-1}$' +f'({np.round(1/period.frequency_at_max_power.value,2)} days)')
         ax[4].set_xlabel(r'Period (days$^{-1}$)')
         ax[4].set_ylabel('Power')
 
