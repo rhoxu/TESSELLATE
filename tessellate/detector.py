@@ -397,7 +397,7 @@ class Detector():
         
         
 
-        fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3]],figsize=(10,7))
+        fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3],[4,4,4,4,4]],figsize=(15,7))
 
         frameStart = min(source['frame'].values)
         frameEnd = max(source['frame'].values)
@@ -412,15 +412,17 @@ class Detector():
         except:
             brightestframe = int(brightestframe[0])
 
-        ax[0].axvspan(frameStart,frameEnd,color='C1',alpha=0.2)
-        ax[0].plot(f)
+        time = self.times - self.time[0]
+
+        ax[0].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.2)
+        ax[0].plot(time,f)
         ax[0].set_ylabel('Counts')
-        ax[1].axvspan(frameEnd,frameStart,color='C1',alpha=0.2)
+        ax[1].axvspan(time[frameEnd],time[frameStart],color='C1',alpha=0.2)
         fstart = frameStart-10
         if fstart < 0:
             fstart = 0
         zoom = f[fstart:frameEnd+20]
-        ax[1].plot(fstart+ np.arange(len(zoom)),zoom)
+        ax[1].plot(time[fstart:frameEnd+20],zoom)
         ax[1].set_ylabel('Counts')
         ax[1].set_xlabel('Frame number')
 
@@ -428,7 +430,7 @@ class Detector():
         #ax[0].axvline(frameEnd,color='r',linestyle='--',alpha=0.2) 
 
         
-        ax[2].plot(source['xcentroid'],source['ycentroid'],'C1.')
+        
         ymin = y - 15
         if ymin < 0:
             ymin = 0 
@@ -440,14 +442,28 @@ class Detector():
         if vmin > -5:
             vmin =-5
         vmax = np.percentile(bright_frame,95)
+        cutout_image = self.flux[:,ymin:y+16,xmin:x+16]
+        ax[2].imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
+        ax[2].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1.')
 
-        ax[2].imshow(self.flux[brightestframe,ymin:y+16,xmin:x+16],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
-        ax[2].set_xlabel(f'Frame {brightestframe}')
+        ax[2].set_xlabel(f'Time {time[brightestframe]}')
         
         #vmax = np.max(self.flux[brightestframe,y-1:y+2,x-1:x+2])/2
-        im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
-        plt.colorbar(im)
-        ax[3].set_xlabel(f'Object {id}')
+        #im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
+        #plt.colorbar(im)
+        ax[3].imshow(cutout_image[brightestframe] - cutout_image[brightestframe - 2] + cutout_image[brightestframe + 2])
+        ax[3].set_title('Compare frames')
+
+        unit = u.electron/ u.s
+        light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
+        period = light.to_periodogram()
+        ax[5].plot(period.frequency,period.power)
+        ax[5].axvline(period.frequency_at_max_power.value,color='C1',ls='--')
+        #plt.axvline(1/14,color='C1',ls='--')
+        ax[5].set_title(f'Peak frequency {np.round(period.frequency_at_max_power.value,2)}'+r'$\;$days$^{-1}$')
+        ax[5].set_xlabel(r'Period (days$^{-1}$)')
+        ax[5].set_ylabel('Power')
+        
         plt.tight_layout()
         if savename is not None:
             if savename.lower() == 'auto':
