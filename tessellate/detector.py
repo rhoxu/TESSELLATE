@@ -459,12 +459,12 @@ class Detector():
         unit = u.electron/ u.s
         light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
         period = light.to_periodogram()
-        ax[5].plot(period.frequency,period.power)
-        ax[5].axvline(period.frequency_at_max_power.value,color='C1',ls='--')
+        ax[4].plot(period.frequency,period.power)
+        ax[4].axvline(period.frequency_at_max_power.value,color='C1',ls='--')
         #plt.axvline(1/14,color='C1',ls='--')
-        ax[5].set_title(f'Peak frequency {np.round(period.frequency_at_max_power.value,2)}'+r'$\;$days$^{-1}$')
-        ax[5].set_xlabel(r'Period (days$^{-1}$)')
-        ax[5].set_ylabel('Power')
+        ax[4].set_title(f'Peak frequency {np.round(period.frequency_at_max_power.value,2)}'+r'$\;$days$^{-1}$')
+        ax[4].set_xlabel(r'Period (days$^{-1}$)')
+        ax[4].set_ylabel('Power')
 
         plt.tight_layout()
         if savename is not None:
