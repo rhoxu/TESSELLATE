@@ -285,7 +285,7 @@ class Detector():
         self.n = n
 
         self.flux = None
-        self.times = None
+        self.time = None
         self.mask = None
         self.result = None
         self.cut = None
@@ -309,7 +309,7 @@ class Detector():
 
         self.flux = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}_ReducedFlux.npy')
         self.mask = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}_Mask.npy')
-        self.times = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}_Times.npy')
+        self.time = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}_Times.npy')
 
     def _gather_results(self,cut):
 
@@ -412,7 +412,7 @@ class Detector():
         except:
             brightestframe = int(brightestframe[0])
 
-        time = self.times - self.time[0]
+        time = self.time - self.time[0]
 
         ax[0].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.2)
         ax[0].plot(time,f)
@@ -463,7 +463,7 @@ class Detector():
         ax[5].set_title(f'Peak frequency {np.round(period.frequency_at_max_power.value,2)}'+r'$\;$days$^{-1}$')
         ax[5].set_xlabel(r'Period (days$^{-1}$)')
         ax[5].set_ylabel('Power')
-        
+
         plt.tight_layout()
         if savename is not None:
             if savename.lower() == 'auto':
