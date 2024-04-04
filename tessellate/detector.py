@@ -16,6 +16,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 from tqdm import tqdm
 from time import time as t
 import astropy.units as u
+from astropy.time import Time
 
 from .dataprocessor import DataProcessor
 
