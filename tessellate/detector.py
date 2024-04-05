@@ -482,7 +482,7 @@ class Detector():
             if savename.lower() == 'auto':
                 savename = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_event{id}.png'
             plt.savefig(save_path+'/'+savename, bbox_inches = "tight")
-
+        self.lc = [time,f]
         return source
 
     def locate_transient(self,cut,xcentroid,ycentroid,threshold=3):
