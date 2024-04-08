@@ -18,6 +18,7 @@ from time import time as t
 import astropy.units as u
 from astropy.time import Time
 import os
+from scipy.signal import find_peaks
 
 from .dataprocessor import DataProcessor
 
