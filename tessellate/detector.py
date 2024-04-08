@@ -390,28 +390,27 @@ class Detector():
 
         self.result = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv')
         if self.match_variables:
-            try:
-                ids = np.unique(self.result['objid'].values)
-                ra = []; dec = []
-                Id = []
-                for id in ids:
-                    Id += [id]
-                    ra += [self.result.loc[self.result['objid'] == id, 'ra'].mean()]
-                    dec += [self.result.loc[self.result['objid'] == id, 'dec'].mean()]
-                pos = {'objid':Id,'ra':ra,'dec':dec}
-                pos = pd.DataFrame(pos)
-                center = [pos.loc[:,'ra'].mean(),pos.loc[:,'dec'].mean()]
-                rad = np.max(np.sqrt((pos['ra'].values-center[0])**2 +(pos['dec'].values-center[1])**2)) + 1/60
-                var_cat = find_variables(center,pos,rad,rad)
-                ind = np.where(var_cat['Prob'].values > 0)[0]
-                self.result['Prob'] = 0; self.result['Type'] = 'none'
+            self.result['Prob'] = 0; self.result['Type'] = 'none'
+            #try:
+            ids = np.unique(self.result['objid'].values)
+            ra = []; dec = []
+            Id = []
+            for id in ids:
+                Id += [id]
+                ra += [self.result.loc[self.result['objid'] == id, 'ra'].mean()]
+                dec += [self.result.loc[self.result['objid'] == id, 'dec'].mean()]
+            pos = {'objid':Id,'ra':ra,'dec':dec}
+            pos = pd.DataFrame(pos)
+            center = [pos.loc[:,'ra'].mean(),pos.loc[:,'dec'].mean()]
+            rad = np.max(np.sqrt((pos['ra'].values-center[0])**2 +(pos['dec'].values-center[1])**2)) + 1/60
+            var_cat = find_variables(center,pos,rad,rad)
+            ind = np.where(var_cat['Prob'].values > 0)[0]
+            for i in ind:
+                self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Type'] = var_cat['Type'].iloc[i]
+                self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Prob'] = var_cat['Prob'].iloc[i]
 
-                for i in ind:
-                    self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Type'] = var_cat['Type'].iloc[i]
-                    self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Prob'] = var_cat['Prob'].iloc[i]
-
-            except:
-                print('Could not query variable catalogs')
+            #except:
+                #print('Could not query variable catalogs')
 
     def source_detect(self,cut):
 
