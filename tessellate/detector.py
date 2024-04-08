@@ -552,15 +552,15 @@ class Detector():
 
         ax[0].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
         ax[0].plot(time,f)
-        ax[0].set_ylabel('Counts')
+        ax[0].set_ylabel('Brightness')
         ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
         fstart = frameStart-10
         if fstart < 0:
             fstart = 0
         zoom = f[fstart:frameEnd+20]
         ax[1].plot(time[fstart:frameEnd+20],zoom)
-        ax[1].set_ylabel('Counts')
-        ax[1].set_xlabel('Time days')
+        ax[1].set_ylabel('Brightness')
+        ax[1].set_xlabel('Time (days)')
 
         #ax[0].axvline(frameStart,color='r',linestyle='--',alpha=0.2)
         #ax[0].axvline(frameEnd,color='r',linestyle='--',alpha=0.2) 
