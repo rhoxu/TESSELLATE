@@ -583,14 +583,14 @@ class Detector():
         #im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
         #plt.colorbar(im)
         after = brightestframe + 5
-        if after >= len(self.flux):
-            after -= 1 
+        if after >= len(cutout_image):
+            after = len(cutout_image) -1 
         before = brightestframe - 5
         if before < 0:
             before = 0
         ax[3].imshow(cutout_image[brightestframe] - cutout_image[before] + cutout_image[after],
                      cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
-        ax[3].set_title('Compare frames')
+        ax[3].set_title('5 frames earlier')
 
         unit = u.electron / u.s
         light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
