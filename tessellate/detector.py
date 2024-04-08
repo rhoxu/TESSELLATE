@@ -21,6 +21,7 @@ import os
 from scipy.signal import find_peaks
 
 from .dataprocessor import DataProcessor
+from .catalog_queries import find_variables
 
 # -- Primary Detection Functions -- #
 
@@ -349,13 +350,14 @@ def periodogram(period,plot=True,axis=None):
 
 class Detector():
 
-    def __init__(self,sector,cam,ccd,data_path,n):
+    def __init__(self,sector,cam,ccd,data_path,n,match_variables=True):
 
         self.sector = sector
         self.cam = cam
         self.ccd = ccd
         self.data_path = data_path
         self.n = n
+        self.match_variables = match_variables
 
         self.flux = None
         self.time = None
@@ -387,6 +389,29 @@ class Detector():
     def _gather_results(self,cut):
 
         self.result = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv')
+        if self.match_variables:
+            try:
+                ids = np.unique(self.result['objid'].values)
+                ra = []; dec = []
+                Id = []
+                for id in ids:
+                    Id += [id]
+                    ra += [self.result.loc[self.result['objid'] == id, 'ra'].mean()]
+                    dec += [self.result.loc[self.result['objid'] == id, 'dec'].mean()]
+                pos = {'objid':Id,'ra':ra,'dec':dec}
+                pos = pd.DataFrame(pos)
+                center = [pos.loc[:,'ra'].mean(),pos.loc[:,'dec'].mean()]
+                rad = np.max(np.sqrt((pos['ra'].values-center[0])**2 +(pos['dec'].values-center[1])**2)) + 1/60
+                var_cat = find_variables(center,pos,rad,rad)
+                ind = np.where(var_cat['Prob'].values > 0)[0]
+                self.result['Prob'] = 0; self.result['Type'] = 'none'
+
+                for i in ind:
+                    self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Type'] = var_cat['Type'].iloc[i]
+                    self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Prob'] = var_cat['Prob'].iloc[i]
+
+            except:
+                print('Could not query variable catalogs')
 
     def source_detect(self,cut):
 
@@ -485,9 +510,7 @@ class Detector():
             extension = 'none'
         return extension
 
-    def plot_source(self,cut,id,savename=None,save_path='.',period_bin=True):
-        if period_bin:
-            self._check_dirs(save_path)
+    def plot_source(self,cut,id,savename=None,save_path='.',period_bin=True,type_bin=True):
 
         if cut != self.cut:
             self._gather_data(cut)
@@ -523,10 +546,10 @@ class Detector():
             frameEnd -= 1
         time = self.time - self.time[0]
 
-        ax[0].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.2)
+        ax[0].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
         ax[0].plot(time,f)
         ax[0].set_ylabel('Counts')
-        ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.2)
+        ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
         fstart = frameStart-10
         if fstart < 0:
             fstart = 0
@@ -553,7 +576,7 @@ class Detector():
         vmax = np.percentile(bright_frame,95)
         cutout_image = self.flux[:,ymin:y+16,xmin:x+16]
         ax[2].imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
-        ax[2].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1.',alpha=0.2)
+        ax[2].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1.',alpha=0.5)
 
         ax[2].set_xlabel(f'Time {np.round(time[brightestframe],2)}')
         
@@ -580,7 +603,11 @@ class Detector():
             if savename.lower() == 'auto':
                 savename = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_event{id}.png'
             if period_bin:
-                extension = self.period_bin(frequencies)
+                if type_bin:
+                    if source['Prob'] > 0:
+                        extension = source['Type']
+                    else:
+                        extension = self.period_bin(frequencies)
                 save_path += '/' + extension
                 self._check_dirs(save_path)
 
