@@ -618,8 +618,8 @@ class Detector():
                 self._check_dirs(save_path)
 
             plt.savefig(save_path+'/'+savename+'.png', bbox_inches = "tight")
-            np.save(save_path+'/'+savename+'_lc.npy',[time,f])
-            np.save(save_path+'/'+savename+'_cutout.npy',cutout_image)
+            #np.save(save_path+'/'+savename+'_lc.npy',[time,f])
+            #np.save(save_path+'/'+savename+'_cutout.npy',cutout_image)
         self.lc = [time,f]
         self.periodogram = period
         self.frequencies = frequencies
