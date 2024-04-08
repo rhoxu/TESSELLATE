@@ -604,7 +604,7 @@ class Detector():
             if period_bin:
                 if type_bin:
                     if source['Prob'].iloc[0] > 0:
-                        extension = source['Type']
+                        extension = source['Type'].iloc[0]
                     else:
                         extension = self.period_bin(frequencies)
                 save_path += '/' + extension
