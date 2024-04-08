@@ -594,10 +594,10 @@ class Detector():
         before = brightestframe - 5
         if before < 0:
             before = 0
-        ax[3].imshow(cutout_image[before],
+        ax[3].imshow(cutout_image[after],
                      cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
         ax[3].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1.',alpha=0.3)
-        ax[3].set_title('5 frames earlier')
+        ax[3].set_title('5 frames later')
 
         unit = u.electron / u.s
         light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
