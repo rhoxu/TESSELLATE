@@ -2,6 +2,7 @@ import pandas as pd
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 from astroquery.vizier import Vizier
+import numpy as np
  
  
 def cross_match(obs_cat, viz_cat,tol=30):
