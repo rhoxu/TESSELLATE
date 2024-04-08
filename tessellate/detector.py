@@ -412,6 +412,11 @@ class Detector():
             except:
                 print('Could not query variable catalogs')
 
+    def event_coords(self,objid):
+        self.obj_ra = self.result.loc[self.result['objid'] == id, 'ra'].mean()
+        self.obj_dec = self.result.loc[self.result['objid'] == id, 'dec'].mean()
+
+
     def source_detect(self,cut):
 
         if cut != self.cut:
@@ -575,21 +580,23 @@ class Detector():
         vmax = np.percentile(bright_frame,95)
         cutout_image = self.flux[:,ymin:y+16,xmin:x+16]
         ax[2].imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
-        ax[2].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1.',alpha=0.5)
+        ax[2].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1.',alpha=0.3)
 
-        ax[2].set_xlabel(f'Time {np.round(time[brightestframe],2)}')
+        #ax[2].set_xlabel(f'Time {np.round(time[brightestframe],2)}')
+        ax[2].set_title('Brightest frame')
         
         #vmax = np.max(self.flux[brightestframe,y-1:y+2,x-1:x+2])/2
         #im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
         #plt.colorbar(im)
         after = brightestframe + 5
         if after >= len(cutout_image):
-            after = len(cutout_image) -1 
+            after = len(cutout_image) - 1 
         before = brightestframe - 5
         if before < 0:
             before = 0
-        ax[3].imshow(cutout_image[brightestframe] - cutout_image[before] + cutout_image[after],
+        ax[3].imshow(cutout_image[before],
                      cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
+        ax[3].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1.',alpha=0.3)
         ax[3].set_title('5 frames earlier')
 
         unit = u.electron / u.s

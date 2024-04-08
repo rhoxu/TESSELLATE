@@ -65,6 +65,8 @@ def find_variables(coords,viz_cat,width,height):
             des_var = des_var.rename(columns={'RAJ2000': 'ra',
                                           'DEJ2000': 'dec'})
             des_var = pd.DataFrame(des_var, columns=['ra','dec'])
+            des_var['Type'] = 'DES_var'
+            des_var['Prob'] = 1
         else:
             des_var = None
  
