@@ -600,7 +600,7 @@ class Detector():
         plt.tight_layout()
         if savename is not None:
             if savename.lower() == 'auto':
-                savename = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_event{id}.png'
+                savename = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_event{id}'
             if period_bin:
                 if type_bin:
                     if source['Prob'].iloc[0] > 0:
@@ -610,7 +610,9 @@ class Detector():
                 save_path += '/' + extension
                 self._check_dirs(save_path)
 
-            plt.savefig(save_path+'/'+savename, bbox_inches = "tight")
+            plt.savefig(save_path+'/'+savename+'.png', bbox_inches = "tight")
+            np.save(savename+'_lc',[time,f])
+            np.save(savename+'_cutout',cutout_image)
         self.lc = [time,f]
         self.periodogram = period
         self.frequencies = frequencies
