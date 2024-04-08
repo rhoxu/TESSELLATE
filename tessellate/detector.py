@@ -315,28 +315,31 @@ def periodogram(period,plot=True,axis=None):
 
         plt.loglog(p.frequency,p.power,'-')
         #plt.scatter(peak_freq,peak_power,color='C1')
-        for i in range(max(signal_num)):
-            i += 1
-            color = f'C{i}'
-            sig_ind = signal_num == i
-            for ii in range(max(harmonic[sig_ind])):
-                ii += 1
-                hind = harmonic == ii
-                ind = sig_ind & hind
-                if ind[0]:
-                    ind
-                if ii == 1 :
-                    #plt.axvline(peak_freq[ind],label=f'{np.round(1/peak_freq[ind],2)[0]} days',ls='--',color=color)
-                    ax.plot(peak_freq[ind],peak_power[ind],'*',label=f'{np.round(1/peak_freq[ind],2)[0]} days',color=color,ms=10)
-                    #plt.text(peak_freq[ind[hind]],peak_power[ind[hind]],f'{np.round(1/peak_freq[i],2)} days',)
-                elif ii == 2:
-                    ax.plot(peak_freq[ind],peak_power[ind],'+',color=color,label='harmonics',ms=10)
-                    #plt.axvline(peak_freq[ind],label=f'harmonics',ls='-.',color=color)
-                else:
-                    ax.plot(peak_freq[ind],peak_power[ind],'+',color=color,ms=10)
-        ax.legend()
-        ax.set_title(f'Peak frequency {np.round(peak_freq[0],2)}'+
-                        r'$\;$days$^{-1}$' +f' ({np.round(1/peak_freq[0],2)} days)')
+        if len(signal_num) > 0:
+            for i in range(max(signal_num)):
+                i += 1
+                color = f'C{i}'
+                sig_ind = signal_num == i
+                for ii in range(max(harmonic[sig_ind])):
+                    ii += 1
+                    hind = harmonic == ii
+                    ind = sig_ind & hind
+                    if ind[0]:
+                        ind
+                    if ii == 1 :
+                        #plt.axvline(peak_freq[ind],label=f'{np.round(1/peak_freq[ind],2)[0]} days',ls='--',color=color)
+                        ax.plot(peak_freq[ind],peak_power[ind],'*',label=f'{np.round(1/peak_freq[ind],2)[0]} days',color=color,ms=10)
+                        #plt.text(peak_freq[ind[hind]],peak_power[ind[hind]],f'{np.round(1/peak_freq[i],2)} days',)
+                    elif ii == 2:
+                        ax.plot(peak_freq[ind],peak_power[ind],'+',color=color,label='harmonics',ms=10)
+                        #plt.axvline(peak_freq[ind],label=f'harmonics',ls='-.',color=color)
+                    else:
+                        ax.plot(peak_freq[ind],peak_power[ind],'+',color=color,ms=10)
+            ax.legend()
+            ax.set_title(f'Peak frequency {np.round(peak_freq[0],2)}'+
+                            r'$\;$days$^{-1}$' +f' ({np.round(1/peak_freq[0],2)} days)')
+        else:
+            ax.set_title(f'Peak frequency None')
         ax.set_xlabel(r'Period (days$^{-1}$)')
         ax.set_ylabel(r'Power $(e^-/\rms)$')
 
