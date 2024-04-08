@@ -560,7 +560,7 @@ class Detector():
         zoom = f[fstart:frameEnd+20]
         ax[1].plot(time[fstart:frameEnd+20],zoom)
         ax[1].set_ylabel('Counts')
-        ax[1].set_xlabel('Time')
+        ax[1].set_xlabel('Time days')
 
         #ax[0].axvline(frameStart,color='r',linestyle='--',alpha=0.2)
         #ax[0].axvline(frameEnd,color='r',linestyle='--',alpha=0.2) 
