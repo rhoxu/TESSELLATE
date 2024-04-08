@@ -603,7 +603,7 @@ class Detector():
                 savename = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_event{id}.png'
             if period_bin:
                 if type_bin:
-                    if source['Prob'] > 0:
+                    if source['Prob'].iloc[0] > 0:
                         extension = source['Type']
                     else:
                         extension = self.period_bin(frequencies)
