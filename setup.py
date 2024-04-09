@@ -6,9 +6,9 @@ URL = 'https://github.com/rhoxu/TESSELLATE'
 EMAIL = 'roxburghhugh@gmail.com'
 AUTHOR ='Hugh Roxburgh'
 VERSION = '1.0.0'
-REQUIRED = ['tessreduce @ git+https://github.com/rhoxu/TESSreduce.git',
-            'astrocut',
-            'photutils>=1.4'
+REQUIRED = ['astrocut',
+            'photutils>=1.4'#,
+            #'tessreduce @ git+https://github.com/rhoxu/TESSreduce.git',
             ]
 
 
