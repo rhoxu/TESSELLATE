@@ -20,13 +20,19 @@ def cross_match(obs_cat, viz_cat,tol=30,variable=True):
         obs_cat['GaiaID'].iloc[valid] = viz_cat['Source'].iloc[matched]
     return obs_cat
  
-def get_catalog(catalog, centre, width, height):
+def get_catalog(catalog, centre, width, height,gaia=False):
     coords = SkyCoord(ra=centre[0]*u.deg,
                       dec=centre[1]*u.deg)
     v = Vizier(row_limit=-1)
-    t_result = v.query_region(coords, width=width*u.deg,
-                              height=height*u.deg,
-                              catalog=catalog)
+    if gaia:
+        t_result = v.query_region(coords, width=width*u.deg,
+                                  height=height*u.deg,
+                                  catalog=catalog,
+                                  column_filters={'Gmag':'<19.5'})
+    else:
+        t_result = v.query_region(coords, width=width*u.deg,
+                                  height=height*u.deg,
+                                  catalog=catalog)
  
     if len(t_result) > 0:
         return t_result[catalog].to_pandas()
@@ -54,19 +60,19 @@ def find_variables(coords,viz_cat,width,height):
                 varisum['Type'].iloc[t] = key
                 varisum['Prob'].iloc[t] = varisum[key].values[t]
             varisum = varisum.rename(columns={'RA_ICRS': 'ra',
-                                          'DE_ICRS': 'dec'})
+                                              'DE_ICRS': 'dec'})
             varisum = pd.DataFrame(varisum, columns=['ra','dec','Type','Prob'])
  
         if asasn is not None:
             asasn = asasn.rename(columns={'RAJ2000': 'ra',
-                                      'DEJ2000': 'dec'})
+                                          'DEJ2000': 'dec'})
             asasn = pd.DataFrame(asasn, columns=['ra','dec','Type','Prob'])
         else:
             asasn = None
  
         if des_var is not None:
             des_var = des_var.rename(columns={'RAJ2000': 'ra',
-                                          'DEJ2000': 'dec'})
+                                              'DEJ2000': 'dec'})
             des_var = pd.DataFrame(des_var, columns=['ra','dec'])
             des_var['Type'] = 'DES_var'
             des_var['Prob'] = 1
@@ -79,8 +85,9 @@ def find_variables(coords,viz_cat,width,height):
     return obs
 
 def gaia_stars(coords,obs_cat,width,height):
-    gaia = get_catalog('I/355/gaiadr3',coords,width,height)
-    gaia 
+    gaia = get_catalog('I/355/gaiadr3',coords,width,height,gaia=True)
+    gaia = gaia.rename(columns={'RA_ICRS': 'ra',
+                                'DE_ICRS': 'dec'})
     obs = cross_match(obs_cat,gaia,tol=21,variable=False)
     return obs 
 
