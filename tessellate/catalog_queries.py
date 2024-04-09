@@ -88,6 +88,6 @@ def gaia_stars(coords,obs_cat,width,height):
     gaia = get_catalog('I/355/gaiadr3',coords,width,height,gaia=True)
     gaia = gaia.rename(columns={'RA_ICRS': 'ra',
                                 'DE_ICRS': 'dec'})
-    obs = cross_match(obs_cat,gaia,tol=21,variable=False)
+    obs = cross_match(obs_cat,gaia,tol=30,variable=False)
     return obs 
 

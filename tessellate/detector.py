@@ -409,6 +409,7 @@ class Detector():
             for i in ind:
                 self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Type'] = var_cat['Type'].iloc[i]
                 self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Prob'] = var_cat['Prob'].iloc[i]
+            
             stars = gaia_stars(center,pos,rad,rad)
             ind = np.where(stars['GaiaID'].values > 0)[0]
             for i in ind:
