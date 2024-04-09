@@ -28,7 +28,7 @@ def get_catalog(catalog, centre, width, height,gaia=False):
         t_result = v.query_region(coords, width=width*u.deg,
                                   height=height*u.deg,
                                   catalog=catalog,
-                                  column_filters={'Gmag':'<19.5'})
+                                  column_filters={'Gmag':'<21'})
     else:
         t_result = v.query_region(coords, width=width*u.deg,
                                   height=height*u.deg,
