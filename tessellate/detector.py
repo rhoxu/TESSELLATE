@@ -615,7 +615,7 @@ class Detector():
             if savename.lower() == 'auto':
                 savename = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_event{id}'
             if star_bin:
-                if source['GaiaID'] > 0:
+                if source['GaiaID'].iloc[0] > 0:
                     extension = 'star'
                 else:
                     extension = 'no_star'
