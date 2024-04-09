@@ -28,7 +28,7 @@ def get_catalog(catalog, centre, width, height,gaia=False):
         t_result = v.query_region(coords, width=width*u.deg,
                                   height=height*u.deg,
                                   catalog=catalog,
-                                  column_filters={'Gmag':'<21'})
+                                  column_filters={'Gmag':'<19.5'})
     else:
         t_result = v.query_region(coords, width=width*u.deg,
                                   height=height*u.deg,
@@ -84,10 +84,14 @@ def find_variables(coords,viz_cat,width,height):
     obs = cross_match(viz_cat, variables)
     return obs
 
-def gaia_stars(coords,obs_cat,width,height):
-    gaia = get_catalog('I/355/gaiadr3',coords,width,height,gaia=True)
+def gaia_stars(obs_cat,size=30,mag_limit=19.5):
+    coords = SkyCoord(ra=obs_cat.ra.values*u.deg,
+                      dec=obs_cat.dec.values*u.deg)
+    v = Vizier(row_limit=-1)
+    gaia = v.query_region(coords, catalog=["I/355/gaiadr3"],
+                                 radius=Angle(size, "arcsec"),column_filters={'Gmag':f'<{mag_limit}'})
     gaia = gaia.rename(columns={'RA_ICRS': 'ra',
                                 'DE_ICRS': 'dec'})
-    obs = cross_match(obs_cat,gaia,tol=30,variable=False)
+    obs = cross_match(obs_cat,gaia,tol=size,variable=False)
     return obs 
 

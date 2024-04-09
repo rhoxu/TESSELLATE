@@ -397,9 +397,10 @@ class Detector():
                 ra = []; dec = []
                 Id = []
                 for id in ids:
-                    Id += [id]
-                    ra += [self.result.loc[self.result['objid'] == id, 'ra'].mean()]
-                    dec += [self.result.loc[self.result['objid'] == id, 'dec'].mean()]
+                    if len(self.result.iloc[self.result['objid'].values == id]) >=2:
+                        Id += [id]
+                        ra += [self.result.loc[self.result['objid'] == id, 'ra'].mean()]
+                        dec += [self.result.loc[self.result['objid'] == id, 'dec'].mean()]
                 pos = {'objid':Id,'ra':ra,'dec':dec}
                 pos = pd.DataFrame(pos)
                 center = [pos.loc[:,'ra'].mean(),pos.loc[:,'dec'].mean()]
