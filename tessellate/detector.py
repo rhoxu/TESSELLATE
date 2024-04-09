@@ -392,31 +392,31 @@ class Detector():
         if self.match_variables:
             self.result['Prob'] = 0; self.result['Type'] = 'none'
             self.result['GaiaID'] = 0
-            #try:
-            ids = np.unique(self.result['objid'].values)
-            ra = []; dec = []
-            Id = []
-            for id in ids:
-                Id += [id]
-                ra += [self.result.loc[self.result['objid'] == id, 'ra'].mean()]
-                dec += [self.result.loc[self.result['objid'] == id, 'dec'].mean()]
-            pos = {'objid':Id,'ra':ra,'dec':dec}
-            pos = pd.DataFrame(pos)
-            center = [pos.loc[:,'ra'].mean(),pos.loc[:,'dec'].mean()]
-            rad = np.max(np.sqrt((pos['ra'].values-center[0])**2 +(pos['dec'].values-center[1])**2)) + 1/60
-            var_cat = find_variables(center,pos,rad,rad)
-            ind = np.where(var_cat['Prob'].values > 0)[0]
-            for i in ind:
-                self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Type'] = var_cat['Type'].iloc[i]
-                self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Prob'] = var_cat['Prob'].iloc[i]
-            
-            stars = gaia_stars(center,pos,rad,rad)
-            ind = np.where(stars['GaiaID'].values > 0)[0]
-            for i in ind:
-                self.result.loc[self.result['objid'] == stars['objid'].iloc[i], 'GaiaID'] = var_cat['GaiaID'].iloc[i]
+            try:
+                ids = np.unique(self.result['objid'].values)
+                ra = []; dec = []
+                Id = []
+                for id in ids:
+                    Id += [id]
+                    ra += [self.result.loc[self.result['objid'] == id, 'ra'].mean()]
+                    dec += [self.result.loc[self.result['objid'] == id, 'dec'].mean()]
+                pos = {'objid':Id,'ra':ra,'dec':dec}
+                pos = pd.DataFrame(pos)
+                center = [pos.loc[:,'ra'].mean(),pos.loc[:,'dec'].mean()]
+                rad = np.max(np.sqrt((pos['ra'].values-center[0])**2 +(pos['dec'].values-center[1])**2)) + 1/60
+                var_cat = find_variables(center,pos,rad,rad)
+                ind = np.where(var_cat['Prob'].values > 0)[0]
+                for i in ind:
+                    self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Type'] = var_cat['Type'].iloc[i]
+                    self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Prob'] = var_cat['Prob'].iloc[i]
+                
+                stars = gaia_stars(center,pos,rad,rad)
+                ind = np.where(stars['GaiaID'].values > 0)[0]
+                for i in ind:
+                    self.result.loc[self.result['objid'] == stars['objid'].iloc[i], 'GaiaID'] = var_cat['GaiaID'].iloc[i]
 
-            #except:
-             #   print('Could not query variable catalogs')
+            except:
+                print('Could not query variable catalogs')
 
 
     def event_coords(self,objid):
