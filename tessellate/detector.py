@@ -408,9 +408,14 @@ class Detector():
                 for i in ind:
                     self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Type'] = var_cat['Type'].iloc[i]
                     self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Prob'] = var_cat['Prob'].iloc[i]
+                stars = gaia_stars(center,pos,rad,rad)
+                ind = np.where(stars['GaiaID'].values > 0)[0]
+                for i in ind:
+                    self.result.loc[self.result['objid'] == stars['objid'].iloc[i], 'GaiaID'] = var_cat['GaiaID'].iloc[i]
 
             except:
                 print('Could not query variable catalogs')
+
 
     def event_coords(self,objid):
         self.obj_ra = self.result.loc[self.result['objid'] == id, 'ra'].mean()
@@ -514,7 +519,7 @@ class Detector():
             extension = 'none'
         return extension
 
-    def plot_source(self,cut,id,savename=None,save_path='.',period_bin=True,type_bin=True):
+    def plot_source(self,cut,id,savename=None,save_path='.',star_bin=True,period_bin=True,type_bin=True):
 
         if cut != self.cut:
             self._gather_data(cut)
@@ -608,6 +613,14 @@ class Detector():
         if savename is not None:
             if savename.lower() == 'auto':
                 savename = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_event{id}'
+            if star_bin:
+                if source['GaiaID'] > 0:
+                    extension = 'star'
+                else:
+                    extension = 'no_star'
+            save_path += '/' + extension
+            self._check_dirs(save_path)
+
             if period_bin:
                 if type_bin:
                     if source['Prob'].iloc[0] > 0:

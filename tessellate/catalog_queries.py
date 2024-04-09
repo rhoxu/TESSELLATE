@@ -5,16 +5,19 @@ from astroquery.vizier import Vizier
 import numpy as np
  
  
-def cross_match(obs_cat, viz_cat,tol=30):
+def cross_match(obs_cat, viz_cat,tol=30,variable=True):
     dist = np.sqrt((obs_cat.ra[:,np.newaxis] - viz_cat.ra[np.newaxis,:])**2 + (obs_cat.dec[:,np.newaxis] - viz_cat.dec[np.newaxis,:])**2)
     closest = np.argmin(dist,axis=1)
     valid = np.nanmin(dist,axis=1) < tol/60**2
     matched = closest[valid]
-
-    obs_cat['Type'] = 'none'
-    obs_cat['Prob'] = 0
-    obs_cat['Type'].iloc[valid] = viz_cat['Type'].iloc[matched]
-    obs_cat['Prob'].iloc[valid] = viz_cat['Prob'].iloc[matched]
+    if variable:
+        obs_cat['Type'] = 'none'
+        obs_cat['Prob'] = 0
+        obs_cat['Type'].iloc[valid] = viz_cat['Type'].iloc[matched]
+        obs_cat['Prob'].iloc[valid] = viz_cat['Prob'].iloc[matched]
+    else:
+        obs_cat['GaiaID'] = 0 
+        obs_cat['GaiaID'].iloc[valid] = viz_cat['Source'].iloc[matched]
     return obs_cat
  
 def get_catalog(catalog, centre, width, height):
@@ -74,3 +77,10 @@ def find_variables(coords,viz_cat,width,height):
     
     obs = cross_match(viz_cat, variables)
     return obs
+
+def gaia_stars(coords,obs_cat,width,height):
+    gaia = get_catalog('I/355/gaiadr3',coords,width,height)
+    gaia 
+    obs = cross_match(obs_cat,gaia,tol=21,variable=False)
+    return obs 
+
