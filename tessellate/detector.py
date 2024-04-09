@@ -21,7 +21,7 @@ import os
 from scipy.signal import find_peaks
 
 from .dataprocessor import DataProcessor
-from .catalog_queries import find_variables
+from .catalog_queries import find_variables, gaia_stars
 
 # -- Primary Detection Functions -- #
 
