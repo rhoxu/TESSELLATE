@@ -146,10 +146,13 @@ class Tessellate():
         # -- Confirm Run Properties -- #
         message = self._run_properties() 
 
-        suggestions = self._sector_suggestions()  # Get time/cpu/memory suggestions depending on sector
+        # -- Get time/cpu/memory suggestions depending on sector -- #
+        suggestions = self._sector_suggestions()  
 
+        # -- Ask for which tessellation steps to perform -- #
         message, download, make_cube, make_cuts, reduce, search, delete = self._which_processes(message,download, make_cube, make_cuts, reduce, search, delete)
 
+        # -- Ask for inputs -- #
         if download:
             message = self._download_properties(message)
 
