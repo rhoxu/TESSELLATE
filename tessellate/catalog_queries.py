@@ -1,11 +1,11 @@
 import pandas as pd
-from astropy.coordinates import SkyCoord
+from astropy.coordinates import SkyCoord, Angle
 import astropy.units as u
 from astroquery.vizier import Vizier
 import numpy as np
  
  
-def cross_match(obs_cat, viz_cat,tol=30,variable=True):
+def cross_match(obs_cat, viz_cat,tol=2*21,variable=True):
     dist = np.sqrt((obs_cat.ra[:,np.newaxis] - viz_cat.ra[np.newaxis,:])**2 + (obs_cat.dec[:,np.newaxis] - viz_cat.dec[np.newaxis,:])**2)
     closest = np.argmin(dist,axis=1)
     valid = np.nanmin(dist,axis=1) < tol/60**2
@@ -84,12 +84,13 @@ def find_variables(coords,viz_cat,width,height):
     obs = cross_match(viz_cat, variables)
     return obs
 
-def gaia_stars(obs_cat,size=30,mag_limit=19.5):
+def gaia_stars(obs_cat,size=2*21,mag_limit=19.5):
     coords = SkyCoord(ra=obs_cat.ra.values*u.deg,
                       dec=obs_cat.dec.values*u.deg)
     v = Vizier(row_limit=-1)
     gaia = v.query_region(coords, catalog=["I/355/gaiadr3"],
                                  radius=Angle(size, "arcsec"),column_filters={'Gmag':f'<{mag_limit}'})
+    gaia = gaia['I/355/gaiadr3'].to_pandas()
     gaia = gaia.rename(columns={'RA_ICRS': 'ra',
                                 'DE_ICRS': 'dec'})
     obs = cross_match(obs_cat,gaia,tol=size,variable=False)
