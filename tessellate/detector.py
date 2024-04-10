@@ -8,6 +8,8 @@ from copy import deepcopy
 from photutils.detection import StarFinder
 from astropy.stats import sigma_clipped_stats
 from scipy.ndimage import center_of_mass
+from sklearn.cluster import DBSCAN
+
 import multiprocessing
 from joblib import Parallel, delayed 
 import warnings
@@ -15,8 +17,14 @@ warnings.filterwarnings("ignore")
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
 from tqdm import tqdm
 from time import time as t
+import astropy.units as u
+from astropy.time import Time
+from astropy.wcs import WCS
+import os
+from scipy.signal import find_peaks
 
 from .dataprocessor import DataProcessor
+from .catalog_queries import find_variables, gaia_stars
 
 # -- Primary Detection Functions -- #
 
@@ -86,23 +94,17 @@ def _correlation_check(res,data,prf,corlim=0.8,psfdifflim=0.5):
 
     return ind,cors,diff
 
-def _spatial_group(result,distance=0.5):
+def _spatial_group(result,distance=0.5,njobs=-1):
     """
     Groups events based on proximity.
     """
 
-    d = np.sqrt((result.xcentroid.values[:,np.newaxis] - result.xcentroid.values[np.newaxis,:])**2+ 
-               (result.ycentroid.values[:,np.newaxis] - result.ycentroid.values[np.newaxis,:])**2)
-
-    indo = d < distance
-    positions = np.unique(indo,axis=1)
-    counter = 1
-
-    obj = np.zeros(result.shape[0])
-    for i in range(positions.shape[1]):
-        obj[positions[:,i]] = counter 
-        counter += 1
-    result['objid'] = obj
+    pos = np.array([result.xcentroid,result.ycentroid]).T
+    cluster = DBSCAN(eps=distance,min_samples=1,n_jobs=njobs).fit(pos)
+    labels = cluster.labels_
+    unique_labels = set(labels)
+    for label in unique_labels:
+        result.loc[label == labels,'objid'] = label + 1
     result['objid'] = result['objid'].astype(int)
     return result
 
@@ -274,18 +276,88 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdiff
 
 # -- Secondary Functions (Just for functionality in testing) -- #
 
+def periodogram(period,plot=True,axis=None):
+    p = deepcopy(period)
+
+    norm_p = p.power / np.nanmean(p.power)
+    norm_p[p.frequency.value < 0.05] = np.nan
+    a = find_peaks(norm_p,prominence=3,distance=20,wlen=300)
+    peak_power = p.power[a[0]].value
+    peak_freq = p.frequency[a[0]].value
+
+    ind = np.argsort(-a[1]['prominences'])
+    peak_power = peak_power[ind]
+    peak_freq = peak_freq[ind]
+
+    freq_err = np.nanmedian(np.diff(p.frequency.value)) * 3
+
+    signal_num = np.zeros_like(peak_freq,dtype=int)
+    harmonic = np.zeros_like(peak_freq,dtype=int)
+    counter = 1
+    while (signal_num == 0).any():
+        inds = np.where(signal_num ==0)[0]
+        remaining = peak_freq[inds]
+        r = (np.round(remaining / remaining[0],1)) - remaining // remaining[0]
+        harmonics = r <= freq_err
+        signal_num[inds[harmonics]] = counter
+        harmonic[inds[harmonics]] = (remaining[harmonics] // remaining[0])
+        counter += 1
+
+    frequencies = {'peak_freq':peak_freq,'peak_power':peak_power,'signal_num':signal_num,'harmonic':harmonic}
+
+    if plot:
+        if axis is None:
+            fig,ax = plt.subplots()
+        else:
+            ax = axis
+
+        plt.loglog(p.frequency,p.power,'-')
+        #plt.scatter(peak_freq,peak_power,color='C1')
+        if len(signal_num) > 0:
+            for i in range(max(signal_num)):
+                i += 1
+                color = f'C{i}'
+                sig_ind = signal_num == i
+                for ii in range(max(harmonic[sig_ind])):
+                    ii += 1
+                    hind = harmonic == ii
+                    ind = sig_ind & hind
+                    if ind[0]:
+                        ind
+                    if ii == 1 :
+                        #plt.axvline(peak_freq[ind],label=f'{np.round(1/peak_freq[ind],2)[0]} days',ls='--',color=color)
+                        ax.plot(peak_freq[ind],peak_power[ind],'*',label=f'{np.round(1/peak_freq[ind],2)[0]} days',color=color,ms=10)
+                        #plt.text(peak_freq[ind[hind]],peak_power[ind[hind]],f'{np.round(1/peak_freq[i],2)} days',)
+                    elif ii == 2:
+                        ax.plot(peak_freq[ind],peak_power[ind],'+',color=color,label='harmonics',ms=10)
+                        #plt.axvline(peak_freq[ind],label=f'harmonics',ls='-.',color=color)
+                    else:
+                        ax.plot(peak_freq[ind],peak_power[ind],'+',color=color,ms=10)
+            ax.legend()
+            ax.set_title(f'Peak frequency {np.round(peak_freq[0],2)}'+
+                            r'$\;$days$^{-1}$' +f' ({np.round(1/peak_freq[0],2)} days)')
+        else:
+            ax.set_title(f'Peak frequency None')
+        ax.set_xlabel(r'Frequency (days$^{-1}$)')
+        ax.set_ylabel(r'Power $(e^-/\rms)$')
+
+    return frequencies
+
+
+
 class Detector():
 
-    def __init__(self,sector,cam,ccd,data_path,n):
+    def __init__(self,sector,cam,ccd,data_path,n,match_variables=True):
 
         self.sector = sector
         self.cam = cam
         self.ccd = ccd
         self.data_path = data_path
         self.n = n
+        self.match_variables = match_variables
 
         self.flux = None
-        self.times = None
+        self.time = None
         self.mask = None
         self.result = None
         self.cut = None
@@ -298,6 +370,7 @@ class Detector():
         times = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}_Times.npy')
 
         tpf = lk.TessTargetPixelFile(cut_path)
+        self.wcs = tpf.wcs
         coords = tpf.wcs.all_pix2world(result['xcentroid'],result['ycentroid'],0)
         result['ra'] = coords[0]
         result['dec'] = coords[1]
@@ -306,14 +379,133 @@ class Detector():
         return result
     
     def _gather_data(self,cut):
+        base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'
+        self.flux = np.load(base + '_ReducedFlux.npy')
+        self.mask = np.load(base + '_Mask.npy')
+        self.time = np.load(base + '_Times.npy')
+        try:
+            self.wcs = WCS(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits')
+        except:
+            print('Could not find a wcs file')
+    
+    def isolate_events(self,objid,frame_buffer=20,duration=1):
+        obj = self.result.iloc[self.result['objid'].values == objid]
+        frames = obj.frame.values
+        if len(frames) > 1:
+            triggers = np.zeros_like(self.time)
+            triggers[frames] = 1
+            tarr = triggers>0
+            temp = np.insert(tarr,0,False)
+            temp = np.insert(temp,-1,False)
+            testf = np.diff(np.where(temp)[0])
+            testf = np.insert(testf,-1,0)
+            indf = np.where(temp)[0]
+            
+            min_length = frame_buffer
+            testind = (testf<=min_length) & (testf>1)
+            if sum(testind) > 0:
+                for j in range(len(indf[testind])):
+                    start = indf[testind][j]
+                    end = (indf[testind][j] + testf[testind][j])
+                    temp[start:end] = True
 
-        self.flux = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}_ReducedFlux.npy')
-        self.mask = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}_Mask.npy')
-        self.times = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}_Times.npy')
+            
+            temp[0] = False
+            temp[-1] = False
+            testf = np.diff(np.where(~temp)[0] -1 )
+            indf = np.where(~temp)[0] - 1
+            testf[testf == 1] = 0
+            testf = np.append(testf,0)
+
+            event_time = []
+            min_length = duration
+            if len(indf[testf>=min_length]) > 0:
+                for j in range(len(indf[testf>min_length])):
+                    start = indf[testf>min_length][j]
+                    if start <0:
+                            start = 0
+                    end = indf[testf>min_length][j] + testf[testf>min_length][j]
+                    if end >= len(self.time):
+                        end = len(self.time) -1 
+                    event_time += [[start,end]]
+            event_time = np.array(event_time)
+        else:
+            start = frames-1 
+            if start < 0:
+                start = 0
+            end = frames +1 
+            if end >= len(self.time):
+                end = len(self.time) - 1 
+            event_time = np.array([[start,end]])
+        events = []
+        counter = 1
+        for e in event_time:
+            ind = (obj['frame'].values >= e[0]) & (obj['frame'].values <= e[1])
+            event = obj.iloc[ind].mean().to_frame().T
+            event['eventID'] = counter
+            event['frame_start'] = e[0]
+            event['frame_end'] = e[1]
+            event['mjd_start'] = self.time[e[0]]
+            event['mjd_end'] = self.time[e[1]]
+            event['mjd_duration'] = self.time[e[1]] - self.time[e[0]]
+            event['Type'] = obj['Type'].iloc[0]
+            events += [event]
+            counter += 1
+        events = pd.concat(events,ignore_index=True)
+        try:
+            events = events.drop('Unnamed: 0',axis=1)
+        except:
+            pass
+        return events 
+
+    def _get_all_independent_events(self,frame_buffer=20):
+        ids = np.unique(self.result['objid'].values)
+        events = []
+        for id in ids:
+            e = self.isolate_events(id,frame_buffer=frame_buffer)
+            events += [e]
+        events = pd.concat(events,ignore_index=True)
+        self.events = events 
 
     def _gather_results(self,cut):
 
         self.result = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv')
+        if self.match_variables:
+            self.result['Prob'] = 0; self.result['Type'] = 'none'
+            self.result['GaiaID'] = 0
+            try:
+                ids = np.unique(self.result['objid'].values)
+                ra = []; dec = []
+                Id = []
+                for id in ids:
+                    if len(self.result.iloc[self.result['objid'].values == id]) >=2:
+                        Id += [id]
+                        ra += [self.result.loc[self.result['objid'] == id, 'ra'].mean()]
+                        dec += [self.result.loc[self.result['objid'] == id, 'dec'].mean()]
+                pos = {'objid':Id,'ra':ra,'dec':dec}
+                pos = pd.DataFrame(pos)
+                center = [pos.loc[:,'ra'].mean(),pos.loc[:,'dec'].mean()]
+                rad = np.max(np.sqrt((pos['ra'].values-center[0])**2 +(pos['dec'].values-center[1])**2)) + 1/60
+                var_cat = find_variables(center,pos,rad,rad)
+                ind = np.where(var_cat['Prob'].values > 0)[0]
+                for i in ind:
+                    self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Type'] = var_cat['Type'].iloc[i]
+                    self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Prob'] = var_cat['Prob'].iloc[i]
+                
+                stars = gaia_stars(pos)
+                ind = np.where(stars['GaiaID'].values > 0)[0]
+                for i in ind:
+                    self.result.loc[self.result['objid'] == stars['objid'].iloc[i], 'GaiaID'] = var_cat['GaiaID'].iloc[i]
+
+            except:
+                print('Could not query variable catalogs')
+        self._get_all_independent_events()
+
+
+    def event_coords(self,objid):
+        self.obj_ra = self.result.loc[self.result['objid'] == id, 'ra'].mean()
+        self.obj_dec = self.result.loc[self.result['objid'] == id, 'dec'].mean()
+
 
     def source_detect(self,cut):
 
@@ -329,7 +521,9 @@ class Detector():
 
         results = detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,row=row,mask=self.mask,inputNums=None)
         results = self._wcs_time_info(results,cut)
-        results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv')
+        wcs_save = self.wcs.to_fits()
+        wcs_save.writeto(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits',overwrite=True)
+        results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv',index=False)
 
     def plot_results(self,cut):
 
@@ -381,13 +575,50 @@ class Detector():
 
         return dictionary
 
-    def plot_source(self,cut,id,savename=None,save_path='.'):
+    def _check_dirs(self,save_path):
+        """
+        Check that all reduction directories are constructed.
+
+        Parameters:
+        -----------
+        dirlist : list
+            List of directories to check for, if they don't exist, they will be created.
+        """
+        #for d in dirlist:
+        if not os.path.isdir(save_path):
+            os.mkdir(save_path)
+
+    def period_bin(self,frequencies):
+        f = frequencies['peak_freq']
+        if len(f)>0:
+            p = 1/f[0]
+            if p <= 1/24:
+                extension = '1hr_below'
+            elif (p > 1/24) & (p <= 10/24):
+                extension = '1to10hr'
+            elif (p > 10/24) & (p <= 1):
+                extension = '10hrto1day'
+            elif (p > 1) & (p <= 10):
+                extension = '1to10day'
+            elif (p >10):
+                extension = '10day_greater'
+        else:
+            extension = 'none'
+        return extension
+
+    def plot_source(self,cut,id,event='all',savename=None,save_path='.',star_bin=True,period_bin=True,type_bin=True):
 
         if cut != self.cut:
             self._gather_data(cut)
             self._gather_results(cut)
             self.cut = cut
-
+        #if type(event) == str:
+        #    if event.lower() == 'seperate':
+        #        source =  self.events[self.result['objid']==id]
+        #    elif event.lower() == 'all':
+        #        source =  self.events[self.result['objid']==id]
+        #elif type(event) == int:
+        #    source = self.events.iloc[(self.events['objid'].values==id) & (self.events['eventID'].values == event)]
         source = self.result[self.result['objid']==id]
 
         x = source.iloc[0]['xint'].astype(int)
@@ -397,59 +628,107 @@ class Detector():
         
         
 
-        fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3]],figsize=(10,7))
+        fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3],[4,4,4,4,4]],figsize=(10,10))
 
         frameStart = min(source['frame'].values)
         frameEnd = max(source['frame'].values)
 
-        f = np.nansum(self.flux[:,y-2:y+3,x-2:x+3],axis=(2,1))
+        f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
         if frameEnd - frameStart > 2:
-            brightestframe = frameStart + np.where(f[frameStart:frameEnd] == np.nanmax(f[frameStart:frameEnd]))[0][0]
+            brightestframe = source['frame'].values[np.where(f[source['frame'].values] == np.nanmax(f[source['frame'].values]))[0][0]]
         else:
             brightestframe = frameStart
-        print(type(brightestframe))
         try:
             brightestframe = int(brightestframe)
         except:
             brightestframe = int(brightestframe[0])
-        print(brightestframe)
+        if brightestframe >= len(self.flux):
+            brightestframe -= 1
+        if frameEnd >= len(self.flux):
+            frameEnd -= 1
+        time = self.time - self.time[0]
 
-        ax[0].axvspan(frameStart,frameEnd,color='C1',alpha=0.2)
-        ax[0].plot(f)
-        ax[0].set_ylabel('Counts')
-        ax[1].axvspan(frameEnd,frameStart,color='C1',alpha=0.2)
+        ax[0].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
+        ax[0].plot(time,f)
+        ax[0].set_ylabel('Brightness')
+        ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
         fstart = frameStart-10
         if fstart < 0:
             fstart = 0
         zoom = f[fstart:frameEnd+20]
-        ax[1].plot(fstart+ np.arange(len(zoom)),zoom)
-        ax[1].set_ylabel('Counts')
-        ax[1].set_xlabel('Frame number')
+        ax[1].plot(time[fstart:frameEnd+20],zoom)
+        ax[1].set_ylabel('Brightness')
+        ax[1].set_xlabel('Time (days)')
 
         #ax[0].axvline(frameStart,color='r',linestyle='--',alpha=0.2)
         #ax[0].axvline(frameEnd,color='r',linestyle='--',alpha=0.2) 
 
         
-        ax[2].plot(source['xcentroid'],source['ycentroid'],'C1.')
+        
         ymin = y - 15
         if ymin < 0:
             ymin = 0 
         xmin = x -15
         if xmin < 0:
             xmin = 0
-        ax[2].imshow(self.flux[brightestframe,ymin:y+16,xmin:x+16],cmap='gray',origin='lower',vmin=-10,vmax=10)
-        ax[2].set_xlabel(f'Frame {brightestframe}')
+        bright_frame = self.flux[brightestframe,y-1:y+2,x-1:x+2]
+        vmin = np.percentile(bright_frame,16)
+        if vmin > -5:
+            vmin =-5
+        vmax = np.percentile(bright_frame,95)
+        cutout_image = self.flux[:,ymin:y+16,xmin:x+16]
+        ax[2].imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
+        ax[2].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1.',alpha=0.3)
+
+        #ax[2].set_xlabel(f'Time {np.round(time[brightestframe],2)}')
+        ax[2].set_title('Brightest frame')
         
-        vmax = np.max(self.flux[brightestframe,y-2:y+3,x-2:x+3])/2
-        im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',vmin=-10,vmax=vmax,origin='lower')
-        plt.colorbar(im)
-        ax[3].set_xlabel(f'Object {id}')
+        #vmax = np.max(self.flux[brightestframe,y-1:y+2,x-1:x+2])/2
+        #im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
+        #plt.colorbar(im)
+        after = brightestframe + 5
+        if after >= len(cutout_image):
+            after = len(cutout_image) - 1 
+        before = brightestframe - 5
+        if before < 0:
+            before = 0
+        ax[3].imshow(cutout_image[after],
+                     cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
+        ax[3].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1.',alpha=0.3)
+        ax[3].set_title('5 frames later')
+
+        unit = u.electron / u.s
+        light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
+        period = light.to_periodogram()
+        frequencies = periodogram(period,axis=ax[4])
+
         plt.tight_layout()
         if savename is not None:
             if savename.lower() == 'auto':
-                savename = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_event{id}.png'
-            plt.savefig(save_path+'/'+savename, bbox_inches = "tight")
+                savename = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_event{id}'
+            if star_bin:
+                if source['GaiaID'].iloc[0] > 0:
+                    extension = 'star'
+                else:
+                    extension = 'no_star'
+            save_path += '/' + extension
+            self._check_dirs(save_path)
 
+            if period_bin:
+                if type_bin:
+                    if source['Prob'].iloc[0] > 0:
+                        extension = source['Type'].iloc[0]
+                    else:
+                        extension = self.period_bin(frequencies)
+                save_path += '/' + extension
+                self._check_dirs(save_path)
+
+            plt.savefig(save_path+'/'+savename+'.png', bbox_inches = "tight")
+            #np.save(save_path+'/'+savename+'_lc.npy',[time,f])
+            #np.save(save_path+'/'+savename+'_cutout.npy',cutout_image)
+        self.lc = [time,f]
+        self.periodogram = period
+        self.frequencies = frequencies
         return source
 
     def locate_transient(self,cut,xcentroid,ycentroid,threshold=3):
