@@ -8,6 +8,8 @@ from copy import deepcopy
 from photutils.detection import StarFinder
 from astropy.stats import sigma_clipped_stats
 from scipy.ndimage import center_of_mass
+from sklearn.cluster import DBSCAN
+
 import multiprocessing
 from joblib import Parallel, delayed 
 import warnings
@@ -17,6 +19,7 @@ from tqdm import tqdm
 from time import time as t
 import astropy.units as u
 from astropy.time import Time
+from astropy.wcs import WCS
 import os
 from scipy.signal import find_peaks
 
@@ -91,23 +94,17 @@ def _correlation_check(res,data,prf,corlim=0.8,psfdifflim=0.5):
 
     return ind,cors,diff
 
-def _spatial_group(result,distance=0.5):
+def _spatial_group(result,distance=0.5,njobs=-1):
     """
     Groups events based on proximity.
     """
 
-    d = np.sqrt((result.xcentroid.values[:,np.newaxis] - result.xcentroid.values[np.newaxis,:])**2+ 
-               (result.ycentroid.values[:,np.newaxis] - result.ycentroid.values[np.newaxis,:])**2)
-
-    indo = d < distance
-    positions = np.unique(indo,axis=1)
-    counter = 1
-
-    obj = np.zeros(result.shape[0])
-    for i in range(positions.shape[1]):
-        obj[positions[:,i]] = counter 
-        counter += 1
-    result['objid'] = obj
+    pos = np.array([result.xcentroid,result.ycentroid]).T
+    cluster = DBSCAN(eps=distance,min_samples=1,n_jobs=njobs).fit(pos)
+    labels = cluster.labels_
+    unique_labels = set(labels)
+    for label in unique_labels:
+        result.loc[label == labels,'objid'] = label + 1
     result['objid'] = result['objid'].astype(int)
     return result
 
@@ -382,10 +379,93 @@ class Detector():
         return result
     
     def _gather_data(self,cut):
+        base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'
+        self.flux = np.load(base + '_ReducedFlux.npy')
+        self.mask = np.load(base + '_Mask.npy')
+        self.time = np.load(base + '_Times.npy')
+        try:
+            self.wcs = WCS(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits')
+        except:
+            print('Could not find a wcs file')
+    
+    def isolate_events(self,objid,frame_buffer=20,duration=1):
+        obj = self.result.iloc[self.result['objid'].values == objid]
+        frames = obj.frame.values
+        if len(frames) > 1:
+            triggers = np.zeros_like(self.time)
+            triggers[frames] = 1
+            tarr = triggers>0
+            temp = np.insert(tarr,0,False)
+            temp = np.insert(temp,-1,False)
+            testf = np.diff(np.where(temp)[0])
+            testf = np.insert(testf,-1,0)
+            indf = np.where(temp)[0]
+            
+            min_length = frame_buffer
+            testind = (testf<=min_length) & (testf>1)
+            if sum(testind) > 0:
+                for j in range(len(indf[testind])):
+                    start = indf[testind][j]
+                    end = (indf[testind][j] + testf[testind][j])
+                    temp[start:end] = True
 
-        self.flux = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}_ReducedFlux.npy')
-        self.mask = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}_Mask.npy')
-        self.time = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}_Times.npy')
+            
+            temp[0] = False
+            temp[-1] = False
+            testf = np.diff(np.where(~temp)[0] -1 )
+            indf = np.where(~temp)[0] - 1
+            testf[testf == 1] = 0
+            testf = np.append(testf,0)
+
+            event_time = []
+            min_length = duration
+            if len(indf[testf>=min_length]) > 0:
+                for j in range(len(indf[testf>min_length])):
+                    start = indf[testf>min_length][j]
+                    if start <0:
+                            start = 0
+                    end = indf[testf>min_length][j] + testf[testf>min_length][j]
+                    if end >= len(self.time):
+                        end = len(self.time) -1 
+                    event_time += [[start,end]]
+            event_time = np.array(event_time)
+        else:
+            start = frames-1 
+            if start < 0:
+                start = 0
+            end = frames +1 
+            if end >= len(self.time):
+                end = len(self.time) - 1 
+            event_time = np.array([[start,end]])
+        events = []
+        counter = 1
+        for e in event_time:
+            ind = (obj['frame'].values >= e[0]) & (obj['frame'].values <= e[1])
+            event = obj.iloc[ind].mean().to_frame().T
+            event['eventID'] = counter
+            event['frame_start'] = e[0]
+            event['frame_end'] = e[1]
+            event['mjd_start'] = self.time[e[0]]
+            event['mjd_end'] = self.time[e[1]]
+            event['mjd_duration'] = self.time[e[1]] - self.time[e[0]]
+            event['Type'] = obj['Type'].iloc[0]
+            events += [event]
+            counter += 1
+        events = pd.concat(events,ignore_index=True)
+        try:
+            events = events.drop('Unnamed: 0',axis=1)
+        except:
+            pass
+        return events 
+
+    def _get_all_independent_events(self,frame_buffer=20):
+        ids = np.unique(self.result['objid'].values)
+        events = []
+        for id in ids:
+            e = self.isolate_events(id,frame_buffer=frame_buffer)
+            events += [e]
+        events = pd.concat(events,ignore_index=True)
+        self.events = events 
 
     def _gather_results(self,cut):
 
@@ -412,13 +492,14 @@ class Detector():
                     self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Type'] = var_cat['Type'].iloc[i]
                     self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Prob'] = var_cat['Prob'].iloc[i]
                 
-                stars = gaia_stars(center,pos,rad,rad)
+                stars = gaia_stars(pos)
                 ind = np.where(stars['GaiaID'].values > 0)[0]
                 for i in ind:
                     self.result.loc[self.result['objid'] == stars['objid'].iloc[i], 'GaiaID'] = var_cat['GaiaID'].iloc[i]
 
             except:
                 print('Could not query variable catalogs')
+        self._get_all_independent_events()
 
 
     def event_coords(self,objid):
@@ -441,7 +522,8 @@ class Detector():
         results = detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,row=row,mask=self.mask,inputNums=None)
         results = self._wcs_time_info(results,cut)
         wcs_save = self.wcs.to_fits()
-        results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv')
+        wcs_save.writeto(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits',overwrite=True)
+        results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv',index=False)
 
     def plot_results(self,cut):
 
@@ -524,13 +606,19 @@ class Detector():
             extension = 'none'
         return extension
 
-    def plot_source(self,cut,id,savename=None,save_path='.',star_bin=True,period_bin=True,type_bin=True):
+    def plot_source(self,cut,id,event='all',savename=None,save_path='.',star_bin=True,period_bin=True,type_bin=True):
 
         if cut != self.cut:
             self._gather_data(cut)
             self._gather_results(cut)
             self.cut = cut
-
+        #if type(event) == str:
+        #    if event.lower() == 'seperate':
+        #        source =  self.events[self.result['objid']==id]
+        #    elif event.lower() == 'all':
+        #        source =  self.events[self.result['objid']==id]
+        #elif type(event) == int:
+        #    source = self.events.iloc[(self.events['objid'].values==id) & (self.events['eventID'].values == event)]
         source = self.result[self.result['objid']==id]
 
         x = source.iloc[0]['xint'].astype(int)
