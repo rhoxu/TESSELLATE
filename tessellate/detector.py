@@ -373,6 +373,7 @@ class Detector():
         times = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}_Times.npy')
 
         tpf = lk.TessTargetPixelFile(cut_path)
+        self.wcs = tpf.wcs
         coords = tpf.wcs.all_pix2world(result['xcentroid'],result['ycentroid'],0)
         result['ra'] = coords[0]
         result['dec'] = coords[1]
@@ -439,6 +440,7 @@ class Detector():
 
         results = detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,row=row,mask=self.mask,inputNums=None)
         results = self._wcs_time_info(results,cut)
+        wcs_save = self.wcs.to_fits()
         results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv')
 
     def plot_results(self,cut):
