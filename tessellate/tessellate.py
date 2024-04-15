@@ -220,7 +220,7 @@ class Tessellate():
 
             search_time_sug = '5:00'
             search_cpu_sug = '32'
-            search_mem_req = 160
+            search_mem_req = 32
 
         elif self.sector in secondary_mission:
             cube_time_sug = '1:15:00'
@@ -237,7 +237,7 @@ class Tessellate():
 
             search_time_sug = '10:00'
             search_cpu_sug = '32'
-            search_mem_req = 160
+            search_mem_req = 32
 
         elif self.sector in tertiary_mission:
             cube_time_sug = '3:00:00'
