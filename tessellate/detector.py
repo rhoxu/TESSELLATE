@@ -136,6 +136,7 @@ def _star_finding_procedure(data,prf):
     good_tables = [table.to_pandas() for table in tables if table is not None]
     if len(good_tables)>0:
         total = pd.concat(good_tables)
+        total = total[~pd.isna(total['xcentroid'])]
         grouped = _spatial_group(total,distance=2)
         res = grouped.groupby('objid').head(1)
         res = res.reset_index(drop=True)
@@ -513,11 +514,11 @@ class Detector():
             self._gather_data(cut)
             self.cut = cut
 
-        processor = DataProcessor(sector=self.sector,path='/fred/oz100/TESSdata',verbose=2)
+        processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=2)
         _, cutCentrePx, _, _ = processor.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
 
-        column = cutCentrePx[1-1][0]
-        row = cutCentrePx[1-1][1]
+        column = cutCentrePx[cut-1][0]
+        row = cutCentrePx[cut-1][1]
 
         results = detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,row=row,mask=self.mask,inputNums=None)
         results = self._wcs_time_info(results,cut)
