@@ -65,15 +65,22 @@ def _get_wcs(path):
     """
     Get WCS data from a file in the path
     """
-
     if glob(f'{path}/*ffic.fits'):
-        filepath = glob(f'{path}/*ffic.fits')[0]
+        done = False
+        i = 0
+        while not done:
+            filepath = glob(f'{path}/*ffic.fits')[i]
+            file = _Extract_fits(filepath)
+            wcsItem = wcs.WCS(file[1].header)
+            file.close()
+            if wcsItem.get_axis_types()[0]['coordinate_type'] == 'celestial':
+                done = True
+            else:
+                i += 1
     else:
         print('No Data!')
         return
-    file = _Extract_fits(filepath)
-    wcsItem = wcs.WCS(file[1].header)
-    file.close()
+
     return wcsItem
 
 def _cut_properties(wcsItem,n):
@@ -427,6 +434,7 @@ class DataProcessor():
                 np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Times.npy',tessreduce.lc[0])
                 np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_ReducedFlux.npy',tessreduce.flux)
                 np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Mask.npy',tessreduce.mask)
+                np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Shifts.npy',tessreduce.shift)
 
                 del (tessreduce)
 
