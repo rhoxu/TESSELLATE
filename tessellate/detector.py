@@ -108,28 +108,28 @@ def _spatial_group(result,distance=0.5,njobs=-1):
     result['objid'] = result['objid'].astype(int)
     return result
 
-def _star_finding_procedure(data,prf):
+def _star_finding_procedure(data,prf,sig_limit = 3):
 
     mean, med, std = sigma_clipped_stats(data, sigma=5.0)
 
     psfCentre = prf.locate(5,5,(11,11))
-    finder = StarFinder(med + 5*std,kernel=psfCentre)
+    finder = StarFinder(med + sig_limit*std,kernel=psfCentre)
     res1 = finder.find_stars(deepcopy(data))
 
     psfUR = prf.locate(5.25,5.25,(11,11))
-    finder = StarFinder(med + 5*std,kernel=psfUR)
+    finder = StarFinder(med + sig_limit*std,kernel=psfUR)
     res2 = None#finder.find_stars(deepcopy(data))
 
     psfUL = prf.locate(4.75,5.25,(11,11))
-    finder = StarFinder(med + 5*std,kernel=psfUL)
+    finder = StarFinder(med + sig_limit*std,kernel=psfUL)
     res3 = None#finder.find_stars(deepcopy(data))
 
     psfDR = prf.locate(5.25,4.75,(11,11))
-    finder = StarFinder(med + 5*std,kernel=psfDR)
+    finder = StarFinder(med + sig_limit*std,kernel=psfDR)
     res4 = None#finder.find_stars(deepcopy(data))
 
     psfDL = prf.locate(4.75,4.75,(11,11))
-    finder = StarFinder(med + 5*std,kernel=psfDL)
+    finder = StarFinder(med + sig_limit*std,kernel=psfDL)
     res5 = None#finder.find_stars(deepcopy(data))
 
     tables = [res1, res2, res3, res4, res5]
