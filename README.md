@@ -8,7 +8,7 @@ To install this package, just run `pip install git+https://github.com/rhoxu/TESS
 
 Have a look at the example notebook `example.ipynb`. This gives a step by step explanation for how to go about accessing data and creating new tessellation runs. Note that *__200 sec cadence sectors currently are not operational__*.
 
-Again, this code likely will be buggy, and also there are many cases where jobs simply fail on the supercomputer, and then work immediately afterwards for no apparent reason. I suggest *__running each CCD indiviudally__* rather than iterating over cameras and ccds, as this generally seems more successful and is easier to track. 
+Again, this code likely will be buggy, and also there are many cases where jobs simply fail on the supercomputer, and then work immediately afterwards for no apparent reason. 
 
-If you have any questions whatsoever, flick me (Hugh) an email at roxburghhugh@gmail.com
+If you have any questions whatsoever, flick us an email at hugh.roxburgh@postgrad.curtin.edu.au (Hugh) or ryan.ridden@canterbury.ac.nz (Ryan).
 
