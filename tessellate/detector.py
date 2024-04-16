@@ -269,9 +269,13 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdiff
     frame = _spatial_group(frame,distance=1.5)
     print(f'Spatial Group: {(t()-t1):.1f} sec')
 
+    t1 = t()
     frame = _source_mask(frame,mask)
+    print(f'Source Mask: {(t()-t1):.1f} sec')
 
+    t1 = t()
     frame = _count_detections(frame)
+    print(f'Count Detections: {(t()-t1):.1f} sec')
 
     return frame
 
