@@ -1,4 +1,4 @@
-from .dataprocessor import _Print_buff, _Save_space, DataProcessor
+from .dataprocessor import _Extract_fits, _Print_buff, _Save_space, DataProcessor
 from .detector import Detector
 
 from time import time as t
@@ -146,10 +146,13 @@ class Tessellate():
         # -- Confirm Run Properties -- #
         message = self._run_properties() 
 
-        suggestions = self._sector_suggestions()  # Get time/cpu/memory suggestions depending on sector
+        # -- Get time/cpu/memory suggestions depending on sector -- #
+        suggestions = self._sector_suggestions()  
 
+        # -- Ask for which tessellation steps to perform -- #
         message, download, make_cube, make_cuts, reduce, search, delete = self._which_processes(message,download, make_cube, make_cuts, reduce, search, delete)
 
+        # -- Ask for inputs -- #
         if download:
             message = self._download_properties(message)
 
@@ -234,7 +237,7 @@ class Tessellate():
 
             search_time_sug = '10:00'
             search_cpu_sug = '32'
-            search_mem_req = 60
+            search_mem_req = 160
 
         elif self.sector in tertiary_mission:
             cube_time_sug = '3:00:00'
@@ -1380,7 +1383,7 @@ python {self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.py"
                         if t()-tStart > seconds + 600:
                             print('Restarting Reducing')
                             print('\n')
-                            self.reduce_time = f'{l[0]+1}:{l[1]}:{l[2]}'
+                            self.reduce_time = f'{int(l[0])+1}:{l[1]}:{l[2]}'
                             self.reduce()
                             tStart = t()
                         else:
@@ -1393,6 +1396,7 @@ python {self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.py"
                                     if os.path.exists(f'{save_path}/detected_sources.csv'):
                                         completed.append(cut)
                                         print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
+                                        print('\n')
                                     elif os.path.exists(f'{save_path}/reduced.txt'):
                                         self._cut_transient_search(cam,ccd,cut)
                                         completed.append(cut)

@@ -136,6 +136,7 @@ def _star_finding_procedure(data,prf,sig_limit = 3):
     good_tables = [table.to_pandas() for table in tables if table is not None]
     if len(good_tables)>0:
         total = pd.concat(good_tables)
+        total = total[~pd.isna(total['xcentroid'])]
         grouped = _spatial_group(total,distance=2)
         res = grouped.groupby('objid').head(1)
         res = res.reset_index(drop=True)
@@ -314,7 +315,10 @@ def periodogram(period,plot=True,axis=None):
         plt.loglog(p.frequency,p.power,'-')
         #plt.scatter(peak_freq,peak_power,color='C1')
         if len(signal_num) > 0:
-            for i in range(max(signal_num)):
+            s = max(signal_num)
+            if s > 5:
+                s = 5
+            for i in range(s):
                 i += 1
                 color = f'C{i}'
                 sig_ind = signal_num == i
@@ -333,9 +337,10 @@ def periodogram(period,plot=True,axis=None):
                         #plt.axvline(peak_freq[ind],label=f'harmonics',ls='-.',color=color)
                     else:
                         ax.plot(peak_freq[ind],peak_power[ind],'+',color=color,ms=10)
-            ax.legend()
-            ax.set_title(f'Peak frequency {np.round(peak_freq[0],2)}'+
-                            r'$\;$days$^{-1}$' +f' ({np.round(1/peak_freq[0],2)} days)')
+            ax.legend(loc='upper left')
+            ax.set_title('Periodogram')
+            #ax.set_title(f'Peak frequency {np.round(peak_freq[0],2)}'+
+            #                r'$\;$days$^{-1}$' +f' ({np.round(1/peak_freq[0],2)} days)')
         else:
             ax.set_title(f'Peak frequency None')
         ax.set_xlabel(r'Frequency (days$^{-1}$)')
@@ -513,11 +518,11 @@ class Detector():
             self._gather_data(cut)
             self.cut = cut
 
-        processor = DataProcessor(sector=self.sector,path='/fred/oz100/TESSdata',verbose=2)
+        processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=2)
         _, cutCentrePx, _, _ = processor.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
 
-        column = cutCentrePx[1-1][0]
-        row = cutCentrePx[1-1][1]
+        column = cutCentrePx[cut-1][0]
+        row = cutCentrePx[cut-1][1]
 
         results = detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,row=row,mask=self.mask,inputNums=None)
         results = self._wcs_time_info(results,cut)
@@ -606,127 +611,163 @@ class Detector():
             extension = 'none'
         return extension
 
-    def plot_source(self,cut,id,event='all',savename=None,save_path='.',star_bin=True,period_bin=True,type_bin=True):
+    def plot_source(self,cut,id,event='seperate',savename=None,save_path='.',star_bin=True,period_bin=True,type_bin=True,objectid_bin=True):
 
         if cut != self.cut:
             self._gather_data(cut)
             self._gather_results(cut)
             self.cut = cut
-        #if type(event) == str:
-        #    if event.lower() == 'seperate':
-        #        source =  self.events[self.result['objid']==id]
-        #    elif event.lower() == 'all':
-        #        source =  self.events[self.result['objid']==id]
-        #elif type(event) == int:
-        #    source = self.events.iloc[(self.events['objid'].values==id) & (self.events['eventID'].values == event)]
-        source = self.result[self.result['objid']==id]
-
-        x = source.iloc[0]['xint'].astype(int)
-        y = source.iloc[0]['yint'].astype(int)
-
-        frames = source['frame'].values
-        
-        
-
-        fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3],[4,4,4,4,4]],figsize=(10,10))
-
-        frameStart = min(source['frame'].values)
-        frameEnd = max(source['frame'].values)
-
-        f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
-        if frameEnd - frameStart > 2:
-            brightestframe = source['frame'].values[np.where(f[source['frame'].values] == np.nanmax(f[source['frame'].values]))[0][0]]
+        sources =  self.events[self.events['objid']==id]
+        total_events = len(sources)
+        if type(event) == str:
+            if event.lower() == 'seperate':
+                pass
+            elif event.lower() == 'all':
+                e = deepcopy(sources.iloc[0])
+                e['frame_end'] = sources['frame_end'].iloc[-1]
+                e['mjd_end'] = sources['mjd_end'].iloc[-1]
+                e['mjd_duration'] = e['mjd_end'] - e['mjd_start']
+                e['frame'] = (e['frame_end'] + e['frame_start']) / 2 
+                e['mjd'] = (e['mjd_end'] + e['mjd_start']) / 2 
+                sources = e.to_frame().T
+        elif type(event) == int:
+            sources = deepcopy(sources.iloc[sources['eventID'].values == event])
+        elif type(event) == list:
+            sources = deepcopy(sources.iloc[sources['eventID'].isin(event).values])
         else:
-            brightestframe = frameStart
-        try:
-            brightestframe = int(brightestframe)
-        except:
-            brightestframe = int(brightestframe[0])
-        if brightestframe >= len(self.flux):
-            brightestframe -= 1
-        if frameEnd >= len(self.flux):
-            frameEnd -= 1
-        time = self.time - self.time[0]
+            m = "No valid option selected, input either 'all', 'seperate', an integer event id, or list of inegers."
+            raise ValueError(m)
+        #source = self.result[self.result['objid']==id]
+        for i in range(len(sources)):
+            #if type(sources) == list:
+            #    source = sources[0]
+            #else:
+            source = deepcopy(sources.iloc[i])
+            #x = source.iloc[0]['xint'].astype(int)
+            #y = source.iloc[0]['yint'].astype(int)
+            x = (source['xint']+0.5).astype(int)
+            y = (source['yint']+0.5).astype(int)
 
-        ax[0].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
-        ax[0].plot(time,f)
-        ax[0].set_ylabel('Brightness')
-        ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
-        fstart = frameStart-10
-        if fstart < 0:
-            fstart = 0
-        zoom = f[fstart:frameEnd+20]
-        ax[1].plot(time[fstart:frameEnd+20],zoom)
-        ax[1].set_ylabel('Brightness')
-        ax[1].set_xlabel('Time (days)')
+            #frames = source['frame'].values
 
-        #ax[0].axvline(frameStart,color='r',linestyle='--',alpha=0.2)
-        #ax[0].axvline(frameEnd,color='r',linestyle='--',alpha=0.2) 
+            fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3],[4,4,4,4,4]],figsize=(7,9),constrained_layout=True)
 
-        
-        
-        ymin = y - 15
-        if ymin < 0:
-            ymin = 0 
-        xmin = x -15
-        if xmin < 0:
-            xmin = 0
-        bright_frame = self.flux[brightestframe,y-1:y+2,x-1:x+2]
-        vmin = np.percentile(bright_frame,16)
-        if vmin > -5:
-            vmin =-5
-        vmax = np.percentile(bright_frame,95)
-        cutout_image = self.flux[:,ymin:y+16,xmin:x+16]
-        ax[2].imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
-        ax[2].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1.',alpha=0.3)
+            frameStart = source['frame_start'] #min(source['frame'].values)
+            frameEnd = source['frame_end'] #max(source['frame'].values)
 
-        #ax[2].set_xlabel(f'Time {np.round(time[brightestframe],2)}')
-        ax[2].set_title('Brightest frame')
-        
-        #vmax = np.max(self.flux[brightestframe,y-1:y+2,x-1:x+2])/2
-        #im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
-        #plt.colorbar(im)
-        after = brightestframe + 5
-        if after >= len(cutout_image):
-            after = len(cutout_image) - 1 
-        before = brightestframe - 5
-        if before < 0:
-            before = 0
-        ax[3].imshow(cutout_image[after],
-                     cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
-        ax[3].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1.',alpha=0.3)
-        ax[3].set_title('5 frames later')
+            f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
+            if frameEnd - frameStart >= 2:
+                #brightestframe = source['frame'].values[np.where(f[source['frame'].values] == np.nanmax(f[source['frame'].values]))[0][0]]
+                brightestframe = frameStart + np.where(f[frameStart:frameEnd] == np.nanmax(f[frameStart:frameEnd]))[0][0]
+            else:
+                brightestframe = frameStart
+            try:
+                brightestframe = int(brightestframe)
+            except:
+                brightestframe = int(brightestframe[0])
+            if brightestframe >= len(self.flux):
+                brightestframe -= 1
+            if frameEnd >= len(self.flux):
+                frameEnd -= 1
+            time = self.time - self.time[0]
+            if (frameEnd - frameStart) > 2:
+                ax[0].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
+            else:
+                ax[0].axvline(time[(frameEnd + frameStart)//2],color='C1')
+            ax[0].plot(time,f)
+            ax[0].set_ylabel('Brightness')
+            ax[0].set_title('Light curve')
+            
+            ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
+            fstart = frameStart-10
+            if fstart < 0:
+                fstart = 0
+            zoom = f[fstart:frameEnd+20]
+            ax[1].plot(time[fstart:frameEnd+20],zoom)
+            ax[1].set_ylabel('Brightness')
+            ax[1].set_xlabel('Time (days)')
+            
+            ymin = y - 15
+            if ymin < 0:
+                ymin = 0 
+            xmin = x -15
+            if xmin < 0:
+                xmin = 0
+            bright_frame = self.flux[brightestframe,y-1:y+2,x-1:x+2]
+            vmin = np.percentile(bright_frame,16)
+            if vmin > -5:
+                vmin =-5
+            vmax = np.percentile(bright_frame,95)
+            if vmax < 10:
+                vmax = 10
+            cutout_image = self.flux[:,ymin:y+16,xmin:x+16]
+            ax[2].imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
+            ax[2].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1*',alpha=0.8)
+            rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin),5,5, linewidth=2, edgecolor='r', facecolor='none')
+            ax[2].add_patch(rect)
 
-        unit = u.electron / u.s
-        light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
-        period = light.to_periodogram()
-        frequencies = periodogram(period,axis=ax[4])
+            #ax[2].set_xlabel(f'Time {np.round(time[brightestframe],2)}')
+            ax[2].set_title('Brightest frame')
+            
+            #vmax = np.max(self.flux[brightestframe,y-1:y+2,x-1:x+2])/2
+            #im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
+            #plt.colorbar(im)
+            after = brightestframe + 2
+            if after >= len(cutout_image):
+                after = len(cutout_image) - 1 
+            before = brightestframe - 5
+            if before < 0:
+                before = 0
+            ax[3].imshow(cutout_image[after],
+                        cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
+            ax[3].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1*',alpha=0.8)
+            rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin),5,5, linewidth=2, edgecolor='r', facecolor='none')
+            ax[3].add_patch(rect)
+            ax[3].set_title('2 frames later')
 
-        plt.tight_layout()
-        if savename is not None:
-            if savename.lower() == 'auto':
-                savename = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_event{id}'
-            if star_bin:
-                if source['GaiaID'].iloc[0] > 0:
-                    extension = 'star'
-                else:
-                    extension = 'no_star'
-            save_path += '/' + extension
-            self._check_dirs(save_path)
+            unit = u.electron / u.s
+            light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
+            period = light.to_periodogram()
+            frequencies = periodogram(period,axis=ax[4])
 
-            if period_bin:
-                if type_bin:
-                    if source['Prob'].iloc[0] > 0:
-                        extension = source['Type'].iloc[0]
+            plt.tight_layout()
+            plt.subplots_adjust(hspace=0.3)
+            #plt.subplots_adjust(wspace=0.1)
+            if savename is not None:
+                sp = deepcopy(save_path)
+                if savename.lower() == 'auto':
+                    savename = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_object{id}'
+                if star_bin:
+                    if source['GaiaID'] > 0:
+                        extension = 'star'
                     else:
-                        extension = self.period_bin(frequencies)
-                save_path += '/' + extension
-                self._check_dirs(save_path)
+                        extension = 'no_star'
+                sp += '/' + extension
+                self._check_dirs(sp)
 
-            plt.savefig(save_path+'/'+savename+'.png', bbox_inches = "tight")
-            #np.save(save_path+'/'+savename+'_lc.npy',[time,f])
-            #np.save(save_path+'/'+savename+'_cutout.npy',cutout_image)
+                if period_bin:
+                    if type_bin:
+                        if source['Prob'] > 0:
+                            extension = source['Type']
+                        else:
+                            extension = self.period_bin(frequencies)
+                    sp += '/' + extension
+                    self._check_dirs(sp)
+                if objectid_bin:
+                    extension = f'{self.sector}_{self.cam}_{self.ccd}_{self.cut}_{id}'
+                    sp += '/' + extension
+                    self._check_dirs(sp)
+                if event == 'all':
+                    plt.savefig(sp+'/'+savename+'_all_events.png', bbox_inches = "tight")
+                else:
+                    plt.savefig(sp+'/'+savename+f'_event{i+1}of{total_events}.png', 
+                                bbox_inches = "tight")
+                #np.save(save_path+'/'+savename+'_lc.npy',[time,f])
+                #np.save(save_path+'/'+savename+'_cutout.npy',cutout_image)
+                self.save_base = sp+'/'+savename
         self.lc = [time,f]
+        self.cutout = cutout_image
+        
         self.periodogram = period
         self.frequencies = frequencies
         return source
