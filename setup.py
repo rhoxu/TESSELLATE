@@ -7,8 +7,8 @@ EMAIL = 'roxburghhugh@gmail.com'
 AUTHOR ='Hugh Roxburgh'
 VERSION = '1.0.0'
 REQUIRED = ['astrocut',
-            'photutils>=1.4'#,
-            #'tessreduce @ git+https://github.com/rhoxu/TESSreduce.git',
+            'photutils>=1.4',
+            'tessreduce @ git+https://github.com/rhoxu/TESSreduce.git',
             ]
 
 
