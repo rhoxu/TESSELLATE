@@ -476,7 +476,7 @@ class Detector():
 
         self.result = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv')
         if self.match_variables:
-            self.result['Prob'] = 0; self.result['Type'] = 'none'
+            self.result['Prob'] = 0; self.result['Type'] = 0
             self.result['GaiaID'] = 0
             try:
                 ids = np.unique(self.result['objid'].values)
