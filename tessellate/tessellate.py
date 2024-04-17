@@ -1,5 +1,6 @@
 from .dataprocessor import _Extract_fits, _Print_buff, _Save_space, DataProcessor
 from .detector import Detector
+from .catalog_queries import create_external_var_cat
 
 from time import time as t
 from time import sleep
@@ -1119,6 +1120,7 @@ python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
                                 print(f'Generating Catalogue {cut}')
                                 tr.external_save_cat(radec=cutCentreCoords[cut-1],size=1.1*rad,cutCornerPx=cutCorners[cut-1],
                                                     image_path=image_path,save_path=save_path,maglim=19)
+                                create_external_var_cat(image_path,save_path)
                                 completed.append(cut)
                                 try:
                                     os.system('rm -r ~/.astropy/cache/astroquery/Vizier/*.pickle')
