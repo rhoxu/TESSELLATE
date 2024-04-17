@@ -451,7 +451,7 @@ class Detector():
         for e in event_time:
             ind = (obj['frame'].values >= e[0]) & (obj['frame'].values <= e[1])
             event = deepcopy(obj.iloc[ind])
-            event = event.drop(['Type'])
+            event = event.drop(columns='Type')
             event = obj.iloc[ind].mean().to_frame().T
             event['eventID'] = counter
             event['frame_start'] = e[0]
