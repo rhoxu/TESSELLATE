@@ -658,8 +658,8 @@ class Detector():
 
             fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3],[4,4,4,4,4]],figsize=(7,9),constrained_layout=True)
 
-            frameStart = source['frame_start'] #min(source['frame'].values)
-            frameEnd = source['frame_end'] #max(source['frame'].values)
+            frameStart = int(source['frame_start']) #min(source['frame'].values)
+            frameEnd = int(source['frame_end']) #max(source['frame'].values)
 
             f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
             if frameEnd - frameStart >= 2:
