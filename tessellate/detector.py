@@ -24,7 +24,7 @@ import os
 from scipy.signal import find_peaks
 
 from .dataprocessor import DataProcessor
-from .catalog_queries import find_variables, gaia_stars
+from .catalog_queries import find_variables, gaia_stars, match_result_to_cat
 
 # -- Primary Detection Functions -- #
 
@@ -479,11 +479,37 @@ class Detector():
         self.events = events 
 
     def _gather_results(self,cut):
+        path = f'{self.path}/Cut{cut}of{self.n**2}'
+        self.result = pd.read_csv(f'{path}/detected_sources.csv')
+        try:
+            self.events = pd.read_csv(f'{path}/detected_events.csv')
+        except:
+            print('No detected events file found')
+        try:
+            self.wcs = f'{path}/wcs.fits'
+        except:
+            print('No wcs found')
+            self.wcs = None
+        '''try:
+            self.gaia = pd.read_csv(f'{path}/local_gaia_cat.csv')
+            query_gaia = False
+        except:
+            print('No local Gaia cat, will try to query')
 
-        self.result = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv')
-        if self.match_variables:
-            self.result['Prob'] = 0; self.result['Type'] = 0
-            self.result['GaiaID'] = 0
+        try:
+            self.variables = pd.read_csv(f'{path}/variable_catalog.csv')
+        except:
+            print('No local variable catalog, will try to query.')
+            query_var = False
+        self.result['Prob'] = 0; self.result['Type'] = 0
+        self.result['GaiaID'] = 0
+        if ~query_gaia:
+            self.result = match_result_to_cat(deepcopy(self.result),self.gaia,columns=['Source'])
+            self.result = self.result.rename(columns={'Source': 'GaiaID'})
+        if ~query_var:
+            self.result = match_result_to_cat(deepcopy(self.result),self.variables,columns=['Type','Prob'])
+
+        if query_gaia | query_var:
             try:
                 ids = np.unique(self.result['objid'].values)
                 ra = []; dec = []
@@ -510,12 +536,12 @@ class Detector():
 
             except:
                 print('Could not query variable catalogs')
-        self._get_all_independent_events()
+        self._get_all_independent_events()'''
 
 
     def event_coords(self,objid):
-        self.obj_ra = self.result.loc[self.result['objid'] == id, 'ra'].mean()
-        self.obj_dec = self.result.loc[self.result['objid'] == id, 'dec'].mean()
+        self.obj_ra = self.result.loc[self.result['objid'] == objid, 'ra'].mean()
+        self.obj_dec = self.result.loc[self.result['objid'] == objid, 'dec'].mean()
 
 
     def source_detect(self,cut):
@@ -532,9 +558,24 @@ class Detector():
 
         results = detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,row=row,mask=self.mask,inputNums=None)
         results = self._wcs_time_info(results,cut)
+        try:
+            gaia = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv')
+            result = match_result_to_cat(deepcopy(result),gaia,columns=['Source'])
+            result = result.rename(columns={'Source': 'GaiaID'})
+        except:
+            print('No local Gaia catalog, can not cross match.')
+        try:
+            variables = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/variable_catalog.csv')
+            result = match_result_to_cat(deepcopy(result),variables,columns=['Type','Prob'])
+        except:
+            print('No local variable catalog, can not cross match.')
+
         wcs_save = self.wcs.to_fits()
         wcs_save.writeto(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits',overwrite=True)
         results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv',index=False)
+        self.results = results
+        self._get_all_independent_events()
+        self.events.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_events.csv',index=False)
 
     def plot_results(self,cut):
 
