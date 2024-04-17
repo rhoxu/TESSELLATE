@@ -348,7 +348,7 @@ def periodogram(period,plot=True,axis=None):
         else:
             ax.set_title(f'Peak frequency None')
         ax.set_xlabel(r'Frequency (days$^{-1}$)')
-        ax.set_ylabel(r'Power $(e^-/\rms)$')
+        ax.set_ylabel(r'Power $(e^-/s)$')
 
     return frequencies
 
