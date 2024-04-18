@@ -201,6 +201,7 @@ def match_result_to_cat(result,cat,columns=['Type','Prob'],distance=2*21,min_ent
             ra += [result.loc[result['objid'] == id, 'ra'].mean()]
             dec += [result.loc[result['objid'] == id, 'dec'].mean()]
     pos = {'objid':Id,'ra':ra,'dec':dec}
+    pos = pd.DataFrame(pos)
     id_ind, cat_ind = cross_match_DB(pos,cat,distance)
     obj_id = ids[id_ind]
     for column in columns:
