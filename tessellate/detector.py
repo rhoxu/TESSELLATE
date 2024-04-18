@@ -558,17 +558,17 @@ class Detector():
 
         results = detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,row=row,mask=self.mask,inputNums=None)
         results = self._wcs_time_info(results,cut)
-        try:
-            gaia = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv')
-            result = match_result_to_cat(deepcopy(result),gaia,columns=['Source'])
-            result = result.rename(columns={'Source': 'GaiaID'})
-        except:
-            print('No local Gaia catalog, can not cross match.')
-        try:
-            variables = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/variable_catalog.csv')
-            result = match_result_to_cat(deepcopy(result),variables,columns=['Type','Prob'])
-        except:
-            print('No local variable catalog, can not cross match.')
+        #try:
+        gaia = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv')
+        result = match_result_to_cat(deepcopy(result),gaia,columns=['Source'])
+        result = result.rename(columns={'Source': 'GaiaID'})
+        # except:
+        #     print('No local Gaia catalog, can not cross match.')
+        # try:
+        variables = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/variable_catalog.csv')
+        result = match_result_to_cat(deepcopy(result),variables,columns=['Type','Prob'])
+        # except:
+        #     print('No local variable catalog, can not cross match.')
 
         wcs_save = self.wcs.to_fits()
         wcs_save.writeto(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits',overwrite=True)
