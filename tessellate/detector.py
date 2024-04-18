@@ -560,13 +560,13 @@ class Detector():
         results = self._wcs_time_info(results,cut)
         #try:
         gaia = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv')
-        result = match_result_to_cat(deepcopy(result),gaia,columns=['Source'])
-        result = result.rename(columns={'Source': 'GaiaID'})
+        results = match_result_to_cat(deepcopy(results),gaia,columns=['Source'])
+        results = results.rename(columns={'Source': 'GaiaID'})
         # except:
         #     print('No local Gaia catalog, can not cross match.')
         # try:
         variables = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/variable_catalog.csv')
-        result = match_result_to_cat(deepcopy(result),variables,columns=['Type','Prob'])
+        results = match_result_to_cat(deepcopy(results),variables,columns=['Type','Prob'])
         # except:
         #     print('No local variable catalog, can not cross match.')
 
