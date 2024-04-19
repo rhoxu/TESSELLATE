@@ -348,7 +348,7 @@ def periodogram(period,plot=True,axis=None):
         else:
             ax.set_title(f'Peak frequency None')
         ax.set_xlabel(r'Frequency (days$^{-1}$)')
-        ax.set_ylabel(r'Power $(e^-/\rms)$')
+        ax.set_ylabel(r'Power $(e^-/s)$')
 
     return frequencies
 
@@ -368,7 +368,7 @@ class Detector():
         self.flux = None
         self.time = None
         self.mask = None
-        self.result = None
+        self.events = None
         self.cut = None
 
         self.path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}'
@@ -398,7 +398,7 @@ class Detector():
             print('Could not find a wcs file')
     
     def isolate_events(self,objid,frame_buffer=20,duration=1):
-        obj = self.result.iloc[self.result['objid'].values == objid]
+        obj = self.events.iloc[self.events['objid'].values == objid]
         frames = obj.frame.values
         if len(frames) > 1:
             triggers = np.zeros_like(self.time)
@@ -470,7 +470,7 @@ class Detector():
         return events 
 
     def _get_all_independent_events(self,frame_buffer=20):
-        ids = np.unique(self.result['objid'].values)
+        ids = np.unique(self.events['objid'].values)
         events = []
         for id in ids:
             e = self.isolate_events(id,frame_buffer=frame_buffer)
@@ -480,7 +480,7 @@ class Detector():
 
     def _gather_results(self,cut):
         path = f'{self.path}/Cut{cut}of{self.n**2}'
-        self.result = pd.read_csv(f'{path}/detected_sources.csv')
+        #self.result = pd.read_csv(f'{path}/detected_sources.csv')
         try:
             self.events = pd.read_csv(f'{path}/detected_events.csv')
         except:
@@ -540,8 +540,8 @@ class Detector():
 
 
     def event_coords(self,objid):
-        self.obj_ra = self.result.loc[self.result['objid'] == objid, 'ra'].mean()
-        self.obj_dec = self.result.loc[self.result['objid'] == objid, 'dec'].mean()
+        self.obj_ra = self.events.loc[self.events['objid'] == objid, 'ra'].mean()
+        self.obj_dec = self.events.loc[self.events['objid'] == objid, 'dec'].mean()
 
 
     def source_detect(self,cut):
@@ -558,22 +558,22 @@ class Detector():
 
         results = detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,row=row,mask=self.mask,inputNums=None)
         results = self._wcs_time_info(results,cut)
-        try:
-            gaia = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv')
-            result = match_result_to_cat(deepcopy(result),gaia,columns=['Source'])
-            result = result.rename(columns={'Source': 'GaiaID'})
-        except:
-            print('No local Gaia catalog, can not cross match.')
-        try:
-            variables = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/variable_catalog.csv')
-            result = match_result_to_cat(deepcopy(result),variables,columns=['Type','Prob'])
-        except:
-            print('No local variable catalog, can not cross match.')
+        #try:
+        gaia = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv')
+        results = match_result_to_cat(deepcopy(results),gaia,columns=['Source'])
+        results = results.rename(columns={'Source': 'GaiaID'})
+        # except:
+        #     print('No local Gaia catalog, can not cross match.')
+        # try:
+        variables = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/variable_catalog.csv')
+        results = match_result_to_cat(deepcopy(results),variables,columns=['Type','Prob'])
+        # except:
+        #     print('No local variable catalog, can not cross match.')
 
         wcs_save = self.wcs.to_fits()
         wcs_save.writeto(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits',overwrite=True)
-        results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv',index=False)
-        self.results = results
+        #results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv',index=False)
+        self.events = results
         self._get_all_independent_events()
         self.events.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_events.csv',index=False)
 
@@ -585,7 +585,7 @@ class Detector():
             self.cut = cut
 
         fig,ax = plt.subplots(figsize=(12,6),ncols=2)
-        ax[0].scatter(self.result['xcentroid'],self.result['ycentroid'],c=self.result['frame'],s=5)
+        ax[0].scatter(self.events['xcentroid'],self.events['ycentroid'],c=self.events['frame'],s=5)
         ax[0].imshow(self.flux[0],cmap='gray',origin='lower',vmin=-10,vmax=10)
         ax[0].set_xlabel(f'Frame 0')
 
@@ -598,7 +598,7 @@ class Detector():
 
         ax[1].imshow(newmask,origin='lower')
 
-        ax[1].scatter(self.result['xcentroid'],self.result['ycentroid'],c=self.result['source_mask'],s=5,cmap='Reds')
+        ax[1].scatter(self.events['xcentroid'],self.events['ycentroid'],c=self.events['source_mask'],s=5,cmap='Reds')
         ax[1].set_xlabel('Source Mask')
 
     def count_detections(self,cut,starkiller=False,lower=None,upper=None):
@@ -609,9 +609,9 @@ class Detector():
             self.cut = cut
 
         if starkiller:
-            r = self.result[self.result['source_mask']==0]
+            r = self.events[self.events['source_mask']==0]
         else:
-            r = self.result
+            r = self.events
 
         array = r['objid'].values
         id,count = np.unique(array, return_counts=True)
@@ -699,8 +699,8 @@ class Detector():
 
             fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3],[4,4,4,4,4]],figsize=(7,9),constrained_layout=True)
 
-            frameStart = source['frame_start'] #min(source['frame'].values)
-            frameEnd = source['frame_end'] #max(source['frame'].values)
+            frameStart = int(source['frame_start']) #min(source['frame'].values)
+            frameEnd = int(source['frame_end']) #max(source['frame'].values)
 
             f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
             if frameEnd - frameStart >= 2:
@@ -826,7 +826,7 @@ class Detector():
             self._gather_results(cut)
             self.cut = cut
 
-        return self.result[(self.result['ycentroid'].values < ycentroid+threshold) & (self.result['ycentroid'].values > ycentroid-threshold) & (self.result['xcentroid'].values < xcentroid+threshold) & (self.result['xcentroid'].values > xcentroid-threshold)]
+        return self.events[(self.events['ycentroid'].values < ycentroid+threshold) & (self.events['ycentroid'].values > ycentroid-threshold) & (self.events['xcentroid'].values < xcentroid+threshold) & (self.events['xcentroid'].values > xcentroid-threshold)]
 
     def full_ccd(self):
 

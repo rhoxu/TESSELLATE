@@ -1113,7 +1113,7 @@ python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
                 for cut in self.cuts:
                     if cut not in completed:
                         save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                        if os.path.exists(f'{save_path}/local_gaia_cat.csv'):
+                        if os.path.exists(f'{save_path}/variable_catalog.csv'):
                             completed.append(cut)
                         elif os.path.exists(f'{save_path}/cut.txt'):
                             try:
