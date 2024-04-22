@@ -164,6 +164,18 @@ def create_external_var_cat(image_path,save_path):
     varcat = get_variable_cats(center,dist,dist)
     varcat.to_csv(save_path+'/variable_catalog.csv',index=False)
 
+def create_external_gaia_cat(image_path,save_path):
+    file = _Extract_fits(image_path)
+    wcsItem = WCS(file[1].header)
+    file.close()
+    center = wcsItem.all_pix2world(wcsItem.pixel_shape[1]/2,wcsItem.pixel_shape[0]/2,0)
+    corners = wcsItem.calc_footprint()
+    ra = corners[:,1]
+    dec = corners[:,1]
+    dist = np.max(np.sqrt((ra-center[0])**2+(dec-center[1])**2)) + 1/60
+    varcat = get_variable_cats(center,dist,dist)
+    varcat.to_csv(save_path+'/variable_catalog.csv',index=False)
+
 
 def cross_match_DB(cat1,cat2,distance=2*21,njobs=-1):
     all_ra = np.append(cat1['ra'].values,cat2['ra'].values)

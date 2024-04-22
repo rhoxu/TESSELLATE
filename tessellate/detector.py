@@ -398,7 +398,7 @@ class Detector():
             print('Could not find a wcs file')
     
     def isolate_events(self,objid,frame_buffer=20,duration=1):
-        obj = self.events.iloc[self.events['objid'].values == objid]
+        obj = self.result.iloc[self.result['objid'].values == objid]
         frames = obj.frame.values
         if len(frames) > 1:
             triggers = np.zeros_like(self.time)
@@ -470,7 +470,7 @@ class Detector():
         return events 
 
     def _get_all_independent_events(self,frame_buffer=20):
-        ids = np.unique(self.events['objid'].values)
+        ids = np.unique(self.result['objid'].values)
         events = []
         for id in ids:
             e = self.isolate_events(id,frame_buffer=frame_buffer)
@@ -480,7 +480,7 @@ class Detector():
 
     def _gather_results(self,cut):
         path = f'{self.path}/Cut{cut}of{self.n**2}'
-        #self.result = pd.read_csv(f'{path}/detected_sources.csv')
+        self.result = pd.read_csv(f'{path}/detected_sources.csv')
         try:
             self.events = pd.read_csv(f'{path}/detected_events.csv')
         except:
@@ -536,7 +536,11 @@ class Detector():
 
             except:
                 print('Could not query variable catalogs')
-        self._get_all_independent_events()'''
+        '''
+        if self.events is None:
+            self.result['Prob'] = 0; self.result['Type'] = 0
+            self.result['GaiaID'] = 0
+            self._get_all_independent_events()
 
 
     def event_coords(self,objid):
@@ -572,8 +576,8 @@ class Detector():
 
         wcs_save = self.wcs.to_fits()
         wcs_save.writeto(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits',overwrite=True)
-        #results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv',index=False)
-        self.events = results
+        results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv',index=False)
+        #self.events = results
         self._get_all_independent_events()
         self.events.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_events.csv',index=False)
 
@@ -585,7 +589,7 @@ class Detector():
             self.cut = cut
 
         fig,ax = plt.subplots(figsize=(12,6),ncols=2)
-        ax[0].scatter(self.events['xcentroid'],self.events['ycentroid'],c=self.events['frame'],s=5)
+        ax[0].scatter(self.result['xcentroid'],self.result['ycentroid'],c=self.result['frame'],s=5)
         ax[0].imshow(self.flux[0],cmap='gray',origin='lower',vmin=-10,vmax=10)
         ax[0].set_xlabel(f'Frame 0')
 
@@ -598,7 +602,7 @@ class Detector():
 
         ax[1].imshow(newmask,origin='lower')
 
-        ax[1].scatter(self.events['xcentroid'],self.events['ycentroid'],c=self.events['source_mask'],s=5,cmap='Reds')
+        ax[1].scatter(self.result['xcentroid'],self.result['ycentroid'],c=self.result['source_mask'],s=5,cmap='Reds')
         ax[1].set_xlabel('Source Mask')
 
     def count_detections(self,cut,starkiller=False,lower=None,upper=None):
