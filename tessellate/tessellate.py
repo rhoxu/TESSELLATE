@@ -460,8 +460,8 @@ class Tessellate():
         """
 
         if self.download_number is None:
-            dNum = input("   - Download Number [int,'all'] = ")
-            message += f"   - Download Number [int,'all'] = {dNum}\n"
+            dNum = input("   - Download Number [int,all] = ")
+            message += f"   - Download Number [int,all] = {dNum}\n"
             done = False
             while not done:
                 try:
@@ -470,15 +470,15 @@ class Tessellate():
                         self.download_number = dNum
                         done = True
                     else:
-                        dNum = input("      Invalid choice! Download Number [int,'all'] = ")
-                        message += f"      Invalid choice! Download Number [int,'all'] = {dNum}\n"
+                        dNum = input("      Invalid choice! Download Number [int,all] = ")
+                        message += f"      Invalid choice! Download Number [int,all] = {dNum}\n"
                 except:
                     if dNum == 'all':
                         self.download_number = dNum
                         done = True
                     else:
-                        dNum = input("      Invalid choice! Download Number [int,'all'] = ")
-                        message += f"      Invalid choice! Download Number [int,'all'] = {dNum}\n"
+                        dNum = input("      Invalid choice! Download Number [int,all] = ")
+                        message += f"      Invalid choice! Download Number [int,all] = {dNum}\n"
         elif self.download_number == 'all':
             print(f'   - Download Number = all')
             message += f'   - Download Number = all\n'
