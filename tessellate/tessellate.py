@@ -1116,27 +1116,28 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                         if os.path.exists(f'{save_path}/variable_catalog.csv'):
                             completed.append(cut)
                         elif os.path.exists(f'{save_path}/cut.txt'):
+                            #try:
+                            print(f'Generating Catalogue {cut}')
+                            if os.path.exists(f'{save_path}/local_gaia_cat.csv'):
+                                print('Gaia catalog already made, skipping.')
+                            else:
+                                rad = rad + 2*60/21
+                                tr.external_save_cat(radec=cutCentreCoords[cut-1],size=rad,cutCornerPx=cutCorners[cut-1],
+                                                    image_path=image_path,save_path=save_path,maglim=19) # oversize radius by 2 arcmin in terms of tess pixels
+                                t.sleep(10)
+                            rad2 = rad*21/60**2
+                            #print('rad: ',rad)
+                            #print('center: ',cutCentreCoords[cut-1])
+                            #print('rad2: ',rad2)
+                            create_external_var_cat(center=cutCentreCoords[cut-1],size=rad2,save_path=save_path) # This one queries in degrees!!!!
+                            completed.append(cut)
                             try:
-                                print(f'Generating Catalogue {cut}')
-                                if os.path.exists(f'{save_path}/local_gaia_cat.csv'):
-                                    print('Gaia catalog already made, skipping.')
-                                else:
-                                    tr.external_save_cat(radec=cutCentreCoords[cut-1],size=rad + 2*60/21,cutCornerPx=cutCorners[cut-1],
-                                                        image_path=image_path,save_path=save_path,maglim=19) # oversize radius by 2 arcmin in terms of tess pixels
-                                    t.sleep(10)
-                                print('center: ',cutCentreCoords[cut-1])
-                                r = rad*21*2/60**2 + 2*60/21
-                                print('radius: ',r)
-                                
-                                create_external_var_cat(center=cutCentreCoords[cut-1],size=(rad*2)/60**2 + 2*60,save_path=save_path) # This one queries in degrees!!!!
-                                completed.append(cut)
-                                try:
-                                    os.system('rm -r ~/.astropy/cache/astroquery/Vizier/*.pickle')
-                                except:
-                                    pass
-
+                                os.system('rm -r ~/.astropy/cache/astroquery/Vizier/*.pickle')
                             except:
                                 pass
+
+                            #except:
+                            #    pass
 
                 i += 1
 

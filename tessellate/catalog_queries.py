@@ -23,18 +23,16 @@ def cross_match(obs_cat, viz_cat,tol=2*21,variable=True):
         obs_cat['GaiaID'].iloc[valid] = viz_cat['Source'].iloc[matched]
     return obs_cat
  
-def get_catalog(catalog, centre, width, height,gaia=False):
+def get_catalog(catalog, centre, radius,gaia=False):
     coords = SkyCoord(ra=centre[0]*u.deg,
                       dec=centre[1]*u.deg)
     v = Vizier(row_limit=-1)
     if gaia:
-        t_result = v.query_region(coords, width=width*u.deg,
-                                  height=height*u.deg,
+        t_result = v.query_region(coords, radius=radius*u.deg,
                                   catalog=catalog,
                                   column_filters={'Gmag':'<19.5'})
     else:
-        t_result = v.query_region(coords, width=width*u.deg,
-                                  height=height*u.deg,
+        t_result = v.query_region(coords, radius=radius*u.deg,
                                   catalog=catalog)
  
     if len(t_result) > 0:
@@ -42,19 +40,19 @@ def get_catalog(catalog, centre, width, height,gaia=False):
     else:
         return None
  
-def find_variables(coords,viz_cat,width,height):
+def find_variables(coords,viz_cat,radius):
     # Fetch and save catalogs from Vizier.
     # Gaia Variable Catalog
-    varisum = get_catalog("I/358/varisum",coords,width,height)
+    varisum = get_catalog("I/358/varisum",coords,radius)
     t.sleep(10)
     # ASASN Variable Catalog
-    asasn = get_catalog("II/366/catalog",coords,width,height)
+    asasn = get_catalog("II/366/catalog",coords,radius)
     t.sleep(10)
     # DES RRLyrae Catalog
-    des_var = get_catalog("J/AJ/158/16/table11",coords,width,height)
+    des_var = get_catalog("J/AJ/158/16/table11",coords,radius)
     if (varisum is None) & (asasn is None) & (des_var is None):
         print("No known variables found ...")
-        varcat = [0]
+        variables = pd.DataFrame(columns=['ra','dec','Type','Prob'])
     else:
         if varisum is not None:
             varisum['Type'] = 'None'
@@ -114,15 +112,15 @@ def _Extract_fits(pixelfile):
         print('OSError ',pixelfile)
         return
 
-def get_variable_cats(coords,width,height):
-    varisum = get_catalog("I/358/varisum",coords,width,height)
+def get_variable_cats(coords,radius):
+    varisum = get_catalog("I/358/varisum",coords,radius)
     # ASASN Variable Catalog
-    asasn = get_catalog("II/366/catalog",coords,width,height)
+    asasn = get_catalog("II/366/catalog",coords,radius)
     # DES RRLyrae Catalog
-    des_var = get_catalog("J/AJ/158/16/table11",coords,width,height)
+    des_var = get_catalog("J/AJ/158/16/table11",coords,radius)
     if (varisum is None) & (asasn is None) & (des_var is None):
         print("No known variables found ...")
-        varcat = [0]
+        variables = pd.DataFrame(columns=['ra','dec','Type','Prob'])
     else:
         if varisum is not None:
             varisum['Type'] = 'None'
@@ -135,11 +133,13 @@ def get_variable_cats(coords,width,height):
             varisum = varisum.rename(columns={'RA_ICRS': 'ra',
                                               'DE_ICRS': 'dec'})
             varisum = pd.DataFrame(varisum, columns=['ra','dec','Type','Prob'])
+            varisum.loc[varisum['Type'] == 'Rot:','Type'] = 'Rot'
  
         if asasn is not None:
             asasn = asasn.rename(columns={'RAJ2000': 'ra',
                                           'DEJ2000': 'dec'})
             asasn = pd.DataFrame(asasn, columns=['ra','dec','Type','Prob'])
+            asasn.loc[asasn['Type'] == 'Rot:','Type'] = 'Rot'
         else:
             asasn = None
  
@@ -157,20 +157,12 @@ def get_variable_cats(coords,width,height):
 
 #def create_external_var_cat(image_path,save_path):
 def create_external_var_cat(center,size,save_path):
-    varcat = get_variable_cats(center,size,size)
+    varcat = get_variable_cats(center,size)
     varcat.to_csv(save_path+'/variable_catalog.csv',index=False)
 
-def create_external_gaia_cat(image_path,save_path):
-    file = _Extract_fits(image_path)
-    wcsItem = WCS(file[1].header)
-    file.close()
-    center = wcsItem.all_pix2world(wcsItem.pixel_shape[1]/2,wcsItem.pixel_shape[0]/2,0)
-    corners = wcsItem.calc_footprint()
-    ra = corners[:,1]
-    dec = corners[:,1]
-    dist = np.max(np.sqrt((ra-center[0])**2+(dec-center[1])**2)) + 1/60
-    varcat = get_variable_cats(center,dist,dist)
-    varcat.to_csv(save_path+'/variable_catalog.csv',index=False)
+def create_external_gaia_cat(center,size,save_path):
+    varcat = get_variable_cats(center,size)
+    varcat.to_csv(save_path+'/local_gaia_cat.csv',index=False)
 
 
 def cross_match_DB(cat1,cat2,distance=2*21,njobs=-1):
