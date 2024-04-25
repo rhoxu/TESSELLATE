@@ -6,6 +6,7 @@ import numpy as np
 from astropy.io import fits 
 from astropy.wcs import WCS 
 from sklearn.cluster import DBSCAN
+from time import time as t
  
 def cross_match(obs_cat, viz_cat,tol=2*21,variable=True):
     dist = np.sqrt((obs_cat.ra[:,np.newaxis] - viz_cat.ra[np.newaxis,:])**2 + (obs_cat.dec[:,np.newaxis] - viz_cat.dec[np.newaxis,:])**2)
@@ -45,8 +46,10 @@ def find_variables(coords,viz_cat,width,height):
     # Fetch and save catalogs from Vizier.
     # Gaia Variable Catalog
     varisum = get_catalog("I/358/varisum",coords,width,height)
+    t.sleep(10)
     # ASASN Variable Catalog
     asasn = get_catalog("II/366/catalog",coords,width,height)
+    t.sleep(10)
     # DES RRLyrae Catalog
     des_var = get_catalog("J/AJ/158/16/table11",coords,width,height)
     if (varisum is None) & (asasn is None) & (des_var is None):

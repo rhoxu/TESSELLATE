@@ -1121,11 +1121,13 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                                 if os.path.exists(f'{save_path}/local_gaia_cat.csv'):
                                     print('Gaia catalog already made, skipping.')
                                 else:
-                                    tr.external_save_cat(radec=cutCentreCoords[cut-1],size=rad + 2*60,cutCornerPx=cutCorners[cut-1],
-                                                        image_path=image_path,save_path=save_path,maglim=19) # oversize radius by 2 arcmin
+                                    tr.external_save_cat(radec=cutCentreCoords[cut-1],size=rad + 2*60/21,cutCornerPx=cutCorners[cut-1],
+                                                        image_path=image_path,save_path=save_path,maglim=19) # oversize radius by 2 arcmin in terms of tess pixels
                                     t.sleep(10)
                                 print('center: ',cutCentreCoords[cut-1])
-                                print('radius: ',rad*2 + 2/60)
+                                r = rad*21*2/60**2 + 2*60/21
+                                print('radius: ',r)
+                                
                                 create_external_var_cat(center=cutCentreCoords[cut-1],size=(rad*2)/60**2 + 2*60,save_path=save_path) # This one queries in degrees!!!!
                                 completed.append(cut)
                                 try:
