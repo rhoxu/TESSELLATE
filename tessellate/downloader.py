@@ -79,7 +79,7 @@ def Download_cam_ccd_FFIs(path,sector,cam,ccd,time,lower,upper,number):
         Parallel(n_jobs=multiprocessing.cpu_count())(delayed(_download_line)(goodlines[ind],path,cam,ccd) for ind in tqdm(inds, position=0, leave=True))
     else:
         for i in range(number):     # download {number} files from the goodlines
-            _download_line(goodlines[i])
+            _download_line(goodlines[i],path,cam,ccd)
             print(f'Done {i+1}', end='\r')
 
     os.chdir(homepath)

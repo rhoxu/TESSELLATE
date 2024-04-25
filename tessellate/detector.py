@@ -243,9 +243,9 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdiff
         inputNum = 0
 
     if sector < 4:
-        prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz100/_local_TESS_PRFs/Sectors1_2_3')
+        prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz335/_local_TESS_PRFs/Sectors1_2_3')
     else:
-        prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz100/_local_TESS_PRFs/Sectors4+')
+        prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz335/_local_TESS_PRFs/Sectors4+')
 
     t1 = t()
     frame = _main_correlation(flux,prf,corlim,psfdifflim,inputNum)
@@ -368,7 +368,8 @@ class Detector():
         self.flux = None
         self.time = None
         self.mask = None
-        self.events = None
+        self.sources = None  #raw detection results
+        self.events = None   #temporally located with same object id
         self.cut = None
 
         self.path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}'
@@ -398,7 +399,7 @@ class Detector():
             print('Could not find a wcs file')
     
     def isolate_events(self,objid,frame_buffer=20,duration=1):
-        obj = self.result.iloc[self.result['objid'].values == objid]
+        obj = self.sources.iloc[self.sources['objid'].values == objid]
         frames = obj.frame.values
         if len(frames) > 1:
             triggers = np.zeros_like(self.time)
@@ -452,7 +453,7 @@ class Detector():
             ind = (obj['frame'].values >= e[0]) & (obj['frame'].values <= e[1])
             event = deepcopy(obj.iloc[ind])
             event = event.drop(columns='Type')
-            event = event.iloc[ind].mean().to_frame().T
+            event = event.mean().to_frame().T
             event['eventID'] = counter
             event['frame_start'] = e[0]
             event['frame_end'] = e[1]
@@ -470,7 +471,7 @@ class Detector():
         return events 
 
     def _get_all_independent_events(self,frame_buffer=20):
-        ids = np.unique(self.result['objid'].values)
+        ids = np.unique(self.sources['objid'].values)
         events = []
         for id in ids:
             e = self.isolate_events(id,frame_buffer=frame_buffer)
@@ -480,7 +481,7 @@ class Detector():
 
     def _gather_results(self,cut):
         path = f'{self.path}/Cut{cut}of{self.n**2}'
-        self.result = pd.read_csv(f'{path}/detected_sources.csv')
+        self.sources = pd.read_csv(f'{path}/detected_sources.csv')
         try:
             self.events = pd.read_csv(f'{path}/detected_events.csv')
         except:
@@ -538,8 +539,8 @@ class Detector():
                 print('Could not query variable catalogs')
         '''
         if self.events is None:
-            self.result['Prob'] = 0; self.result['Type'] = 0
-            self.result['GaiaID'] = 0
+            self.sources['Prob'] = 0; self.sources['Type'] = 0
+            self.sources['GaiaID'] = 0
             self._get_all_independent_events()
 
 
@@ -577,7 +578,7 @@ class Detector():
         wcs_save = self.wcs.to_fits()
         wcs_save.writeto(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits',overwrite=True)
         results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv',index=False)
-        #self.events = results
+        self.sources = results
         self._get_all_independent_events()
         self.events.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_events.csv',index=False)
 
@@ -589,7 +590,7 @@ class Detector():
             self.cut = cut
 
         fig,ax = plt.subplots(figsize=(12,6),ncols=2)
-        ax[0].scatter(self.result['xcentroid'],self.result['ycentroid'],c=self.result['frame'],s=5)
+        ax[0].scatter(self.sources['xcentroid'],self.sources['ycentroid'],c=self.sources['frame'],s=5)
         ax[0].imshow(self.flux[0],cmap='gray',origin='lower',vmin=-10,vmax=10)
         ax[0].set_xlabel(f'Frame 0')
 
@@ -602,7 +603,7 @@ class Detector():
 
         ax[1].imshow(newmask,origin='lower')
 
-        ax[1].scatter(self.result['xcentroid'],self.result['ycentroid'],c=self.result['source_mask'],s=5,cmap='Reds')
+        ax[1].scatter(self.sources['xcentroid'],self.sources['ycentroid'],c=self.sources['source_mask'],s=5,cmap='Reds')
         ax[1].set_xlabel('Source Mask')
 
     def count_detections(self,cut,starkiller=False,lower=None,upper=None):
@@ -613,9 +614,9 @@ class Detector():
             self.cut = cut
 
         if starkiller:
-            r = self.events[self.events['source_mask']==0]
+            r = self.sources[self.sources['source_mask']==0]
         else:
-            r = self.events
+            r = self.sources
 
         array = r['objid'].values
         id,count = np.unique(array, return_counts=True)

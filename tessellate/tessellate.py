@@ -219,7 +219,7 @@ class Tessellate():
             reduce_cpu_sug = '32'
             reduce_mem_req = 60
 
-            search_time_sug = '5:00'
+            search_time_sug = '10:00'
             search_cpu_sug = '32'
             search_mem_req = 32
 
@@ -236,7 +236,7 @@ class Tessellate():
             reduce_cpu_sug = '32'
             reduce_mem_req = 128
 
-            search_time_sug = '10:00'
+            search_time_sug = '15:00'
             search_cpu_sug = '32'
             search_mem_req = 128
 
@@ -253,7 +253,7 @@ class Tessellate():
             reduce_cpu_sug = '32'
             reduce_mem_req = 200
 
-            search_time_sug = '10:00'
+            search_time_sug = '20:00'
             search_cpu_sug = '32'
             search_mem_req = 100
 
@@ -460,8 +460,8 @@ class Tessellate():
         """
 
         if self.download_number is None:
-            dNum = input('   - Download Number = ')
-            message += f'   - Download Number = {dNum}\n'
+            dNum = input("   - Download Number [int,all] = ")
+            message += f"   - Download Number [int,all] = {dNum}\n"
             done = False
             while not done:
                 try:
@@ -470,15 +470,15 @@ class Tessellate():
                         self.download_number = dNum
                         done = True
                     else:
-                        dNum = input('      Invalid choice! Download Number =  ')
-                        message += f'      Invalid choice! Download Number = {dNum}\n'
+                        dNum = input("      Invalid choice! Download Number [int,all] = ")
+                        message += f"      Invalid choice! Download Number [int,all] = {dNum}\n"
                 except:
                     if dNum == 'all':
                         self.download_number = dNum
                         done = True
                     else:
-                        dNum = input('      Invalid choice! Download Number =  ')
-                        message += f'      Invalid choice! Download Number = {dNum}\n'
+                        dNum = input("      Invalid choice! Download Number [int,all] = ")
+                        message += f"      Invalid choice! Download Number [int,all] = {dNum}\n"
         elif self.download_number == 'all':
             print(f'   - Download Number = all')
             message += f'   - Download Number = all\n'
@@ -1039,9 +1039,9 @@ class Tessellate():
                     print('\n')
                 else:
                     # -- Delete old scripts -- #
-                    if os.path.exists(f'{self.working_path}/cubing_scripts/C{cam}C{ccd}_script.sh'):
-                        os.system(f'rm {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.sh')
-                        os.system(f'rm {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py')
+                    if os.path.exists(f'{self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh'):
+                        os.system(f'rm {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh')
+                        os.system(f'rm {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py')
 
                     # -- Create python file for cubing-- # 
                     print(f'Creating Cubing Python File for Cam{cam}Ccd{ccd}')
@@ -1053,7 +1053,7 @@ processor.make_cube(cam={cam},ccd={ccd})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', 'w') as file:\n\
     file.write('Cubed!')"   
                 
-                    with open(f"{self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py", "w") as python_file:
+                    with open(f"{self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py", "w") as python_file:
                         python_file.write(python_text)
 
                     # -- Create bash file to submit job -- #
@@ -1070,14 +1070,14 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', '
 #SBATCH --cpus-per-task={self.cube_cpu}\n\
 #SBATCH --mem-per-cpu={self.cube_mem}G\n\
 \n\
-python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
+python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 
-                    with open(f"{self.working_path}/cubing_scripts/C{cam}C{ccd}_script.sh", "w") as batch_file:
+                    with open(f"{self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh", "w") as batch_file:
                         batch_file.write(batch_text)
 
                     # -- Submit job -- #
                     #print('Submitting Cubing Batch File')
-                    os.system(f'sbatch {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.sh')
+                    os.system(f'sbatch {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh')
                     print('\n')
 
     def _get_catalogues(self,cam,ccd):
@@ -1130,6 +1130,7 @@ python {self.working_path}/cubing_scripts/C{cam}C{ccd}_script.py"
                                     os.system('rm -r ~/.astropy/cache/astroquery/Vizier/*.pickle')
                                 except:
                                     pass
+
                             except:
                                 pass
 
@@ -1265,9 +1266,9 @@ python {self.working_path}/cutting_scripts/cut{cut}_script.py"
 
                             
                         # -- Delete old scripts -- #
-                        if os.path.exists(f'{self.working_path}/reduction_scripts/C{cam}C{ccd}cut{cut}_script.sh'):
-                            os.system(f'rm {self.working_path}/reduction_scripts/C{cam}C{ccd}cut{cut}_script.sh')
-                            os.system(f'rm {self.working_path}/reduction_scripts/C{cam}C{ccd}cut{cut}_script.py')
+                        if os.path.exists(f'{self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.sh'):
+                            os.system(f'rm {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.sh')
+                            os.system(f'rm {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.py')
 
                         # -- Create python file for reducing a cut-- # 
                         print(f'Creating Reduction Python File for Cam{cam} Ccd{ccd} Cut{cut}')
@@ -1279,7 +1280,7 @@ processor.reduce(cam={cam},ccd={ccd},n={self.n},cut={cut})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reduced.txt', 'w') as file:\n\
     file.write('Reduced!')"
                 
-                        with open(f"{self.working_path}/reduction_scripts/C{cam}C{ccd}cut{cut}_script.py", "w") as python_file:
+                        with open(f"{self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.py", "w") as python_file:
                             python_file.write(python_text)
 
                         # -- Create bash file to submit job -- #
@@ -1296,22 +1297,22 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{se
 #SBATCH --cpus-per-task={self.reduce_cpu}\n\
 #SBATCH --mem-per-cpu={self.reduce_mem}G\n\
 \n\
-python {self.working_path}/reduction_scripts/C{cam}C{ccd}cut{cut}_script.py"
+python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.py"
 
-                        with open(f"{self.working_path}/reduction_scripts/C{cam}C{ccd}cut{cut}_script.sh", "w") as batch_file:
+                        with open(f"{self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.sh", "w") as batch_file:
                             batch_file.write(batch_text)
                                 
                         #print('Submitting Reduction Batch File')
-                        os.system(f'sbatch {self.working_path}/reduction_scripts/C{cam}C{ccd}cut{cut}_script.sh')
+                        os.system(f'sbatch {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.sh')
 
                         print('\n')
 
     def _cut_transient_search(self,cam,ccd,cut):
 
         # -- Delete old scripts -- #
-        if os.path.exists(f'{self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.sh'):
-            os.system(f'rm {self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.sh')
-            os.system(f'rm {self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.py')
+        if os.path.exists(f'{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.sh'):
+            os.system(f'rm {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.sh')
+            os.system(f'rm {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.py')
 
         # -- Create python file for reducing a cut-- # 
         print(f'Creating Transient Search File for Cam{cam} Ccd{ccd} Cut{cut}')
@@ -1322,7 +1323,7 @@ import numpy as np\n\
 detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
 detector.source_detect(cut={cut})"
                     
-        with open(f"{self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.py", "w") as python_file:
+        with open(f"{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.py", "w") as python_file:
             python_file.write(python_text)
 
         # -- Create bash file to submit job -- #
@@ -1339,13 +1340,13 @@ detector.source_detect(cut={cut})"
 #SBATCH --cpus-per-task={self.search_cpu}\n\
 #SBATCH --mem-per-cpu={self.search_mem}G\n\
 \n\
-python {self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.py"
+python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.py"
 
-        with open(f"{self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.sh", "w") as batch_file:
+        with open(f"{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.sh", "w") as batch_file:
             batch_file.write(batch_text)
                 
         #print('Submitting Transient Search Batch File')
-        os.system(f'sbatch {self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.sh')
+        os.system(f'sbatch {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.sh')
 
         print('\n')
 
@@ -1363,7 +1364,7 @@ python {self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.py"
                 if not reducing:
                     for cut in self.cuts:
                         save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                        if os.path.exists(f'{save_path}/detected_sources.csv'):
+                        if os.path.exists(f'{save_path}/detected_events.csv'):
                             print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
                             print('\n')
                         elif os.path.exists(f'{save_path}/reduced.txt'):
@@ -1399,7 +1400,7 @@ python {self.working_path}/detection_scripts/C{cam}C{ccd}cut{cut}_script.py"
                             for cut in self.cuts:
                                 if cut not in completed:
                                     save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                                    if os.path.exists(f'{save_path}/detected_sources.csv'):
+                                    if os.path.exists(f'{save_path}/detected_events.csv'):
                                         completed.append(cut)
                                         print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
                                         print('\n')
