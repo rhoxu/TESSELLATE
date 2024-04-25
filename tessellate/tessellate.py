@@ -1116,18 +1116,23 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                         if os.path.exists(f'{save_path}/variable_catalog.csv'):
                             completed.append(cut)
                         elif os.path.exists(f'{save_path}/cut.txt'):
-                            #try:
-                            print(f'Generating Catalogue {cut}')
-                            tr.external_save_cat(radec=cutCentreCoords[cut-1],size=1.1*rad,cutCornerPx=cutCorners[cut-1],
-                                                image_path=image_path,save_path=save_path,maglim=19)
-                            create_external_var_cat(image_path,save_path)
-                            completed.append(cut)
                             try:
-                                os.system('rm -r ~/.astropy/cache/astroquery/Vizier/*.pickle')
+                                print(f'Generating Catalogue {cut}')
+                                if os.path.exists(f'{save_path}/local_gaia_cat.csv'):
+                                    print('Gaia catalog already made, skipping.')
+                                else:
+                                    tr.external_save_cat(radec=cutCentreCoords[cut-1],size=rad + 1/60,cutCornerPx=cutCorners[cut-1],
+                                                        image_path=image_path,save_path=save_path,maglim=19) # oversize radius by 1 arcmin
+                                    t.sleep(10)
+                                create_external_var_cat(image_path,save_path)
+                                completed.append(cut)
+                                try:
+                                    os.system('rm -r ~/.astropy/cache/astroquery/Vizier/*.pickle')
+                                except:
+                                    pass
+
                             except:
                                 pass
-                            # except:
-                            #     pass
 
                 i += 1
 
