@@ -1029,7 +1029,7 @@ class Tessellate():
 
         for cam in self.cam:
             for ccd in self.ccd: 
-                print(_Print_buff(30,f'Making Cube for Cam{cam} Ccd{ccd}'))
+                print(_Print_buff(30,f'Making Cube for Sector{self.sector} Cam{cam} Ccd{ccd}'))
                 print('\n')
 
                 # -- Generate Cube Path -- #
@@ -1040,11 +1040,10 @@ class Tessellate():
                 else:
                     # -- Delete old scripts -- #
                     if os.path.exists(f'{self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh'):
-                        os.system(f'rm {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh')
-                        os.system(f'rm {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py')
+                        os.system(f'rm {self.working_path}/cubing_scripts/*')
 
                     # -- Create python file for cubing-- # 
-                    print(f'Creating Cubing Python File for Cam{cam}Ccd{ccd}')
+                    print(f'Creating Cubing Python File for Sector{self.sector} Cam{cam}Ccd{ccd}')
                     python_text = f"\
 from tessellate import DataProcessor\n\
 \n\
@@ -1159,7 +1158,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 
         for cam in self.cam:
             for ccd in self.ccd: 
-                print(_Print_buff(30,f'Making Cut(s) for Cam{cam} Ccd{ccd}')) 
+                print(_Print_buff(30,f'Making Cut(s) for Sector{self.sector} Cam{cam} Ccd{ccd}')) 
                 print('\n')
                 cube_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt'
                 if not os.path.exists(cube_check):
@@ -1201,11 +1200,10 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                     
                         # -- Delete old scripts -- #
                         if os.path.exists(f'{self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh'):
-                            os.system(f'rm {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh')
-                            os.system(f'rm {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py')
+                            os.system(f'rm {self.working_path}/cutting_scripts/*')
 
                         # -- Create python file for cubing, cutting, reducing a cut-- # 
-                        print(f'Creating Cutting Python File for Cam{cam} Ccd{ccd} Cut{cut}')
+                        print(f'Creating Cutting Python File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
                         python_text = f"\
 from tessellate import DataProcessor\n\
 \n\
@@ -1257,7 +1255,7 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
 
         for cam in self.cam:
             for ccd in self.ccd: 
-                print(_Print_buff(40,f'Reducing Cut(s) for Cam{cam} Ccd{ccd}'))
+                print(_Print_buff(40,f'Reducing Cut(s) for Sector{self.sector} Cam{cam} Ccd{ccd}'))
                 print('\n')
                 for cut in self.cuts:
                     cut_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
@@ -1275,12 +1273,11 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
 
                             
                         # -- Delete old scripts -- #
-                        if os.path.exists(f'{self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.sh'):
-                            os.system(f'rm {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.sh')
-                            os.system(f'rm {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.py')
+                        if os.path.exists(f'{self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh'):
+                            os.system(f'rm {self.working_path}/reduction_scripts/*')
 
                         # -- Create python file for reducing a cut-- # 
-                        print(f'Creating Reduction Python File for Cam{cam} Ccd{ccd} Cut{cut}')
+                        print(f'Creating Reduction Python File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
                         python_text = f"\
 from tessellate import DataProcessor\n\
 \n\
@@ -1289,7 +1286,7 @@ processor.reduce(cam={cam},ccd={ccd},n={self.n},cut={cut})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reduced.txt', 'w') as file:\n\
     file.write('Reduced!')"
                 
-                        with open(f"{self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.py", "w") as python_file:
+                        with open(f"{self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
                             python_file.write(python_text)
 
                         # -- Create bash file to submit job -- #
@@ -1306,25 +1303,24 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{se
 #SBATCH --cpus-per-task={self.reduce_cpu}\n\
 #SBATCH --mem-per-cpu={self.reduce_mem}G\n\
 \n\
-python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.py"
+python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py"
 
-                        with open(f"{self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.sh", "w") as batch_file:
+                        with open(f"{self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh", "w") as batch_file:
                             batch_file.write(batch_text)
                                 
                         #print('Submitting Reduction Batch File')
-                        os.system(f'sbatch {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.sh')
+                        os.system(f'sbatch {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh')
 
                         print('\n')
 
     def _cut_transient_search(self,cam,ccd,cut):
 
         # -- Delete old scripts -- #
-        if os.path.exists(f'{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.sh'):
-            os.system(f'rm {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.sh')
-            os.system(f'rm {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.py')
+        if os.path.exists(f'{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh'):
+            os.system(f'rm {self.working_path}/detection_scripts/*')
 
         # -- Create python file for reducing a cut-- # 
-        print(f'Creating Transient Search File for Cam{cam} Ccd{ccd} Cut{cut}')
+        print(f'Creating Transient Search File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
         python_text = f"\
 from tessellate import Detector\n\
 import numpy as np\n\
@@ -1332,7 +1328,7 @@ import numpy as np\n\
 detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
 detector.source_detect(cut={cut})"
                     
-        with open(f"{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.py", "w") as python_file:
+        with open(f"{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
             python_file.write(python_text)
 
         # -- Create bash file to submit job -- #
@@ -1349,13 +1345,13 @@ detector.source_detect(cut={cut})"
 #SBATCH --cpus-per-task={self.search_cpu}\n\
 #SBATCH --mem-per-cpu={self.search_mem}G\n\
 \n\
-python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.py"
+python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py"
 
-        with open(f"{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.sh", "w") as batch_file:
+        with open(f"{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh", "w") as batch_file:
             batch_file.write(batch_text)
                 
         #print('Submitting Transient Search Batch File')
-        os.system(f'sbatch {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_script.sh')
+        os.system(f'sbatch {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh')
 
         print('\n')
 
@@ -1368,7 +1364,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}cut{cut}_
 
         for cam in self.cam:
             for ccd in self.ccd:
-                print(_Print_buff(40,f'Transient Search for Cam{cam} Ccd{ccd}'))
+                print(_Print_buff(40,f'Transient Search for Sector{self.sector} Cam{cam} Ccd{ccd}'))
                 print('\n')
                 if not reducing:
                     for cut in self.cuts:
