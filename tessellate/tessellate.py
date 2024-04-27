@@ -1124,7 +1124,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                                 rad = rad + 2*60/21
                                 tr.external_save_cat(radec=cutCentreCoords[cut-1],size=rad,cutCornerPx=cutCorners[cut-1],
                                                     image_path=image_path,save_path=save_path,maglim=19) # oversize radius by 2 arcmin in terms of tess pixels
-                                t.sleep(10)
+                                #t.sleep(10)
                             rad2 = rad*21/60**2
                             #print('rad: ',rad)
                             #print('center: ',cutCentreCoords[cut-1])
