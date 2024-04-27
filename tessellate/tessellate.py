@@ -33,7 +33,7 @@ class Tessellate():
         Inputs
         ------
         data_path : str 
-            /path/to/data/location (use '/fred/oz100/TESSdata')
+            /path/to/data/location (use '/fred/oz335/TESSdata')
         job_output_path : str
             /path/to/job_log/output/location
         working_path : str
@@ -1117,14 +1117,14 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                             completed.append(cut)
                         elif os.path.exists(f'{save_path}/cut.txt'):
                             #try:
-                            print(f'Generating Catalogue {cut}')
+                            print(f'Generating Catalogues {cut}')
                             if os.path.exists(f'{save_path}/local_gaia_cat.csv'):
                                 print('Gaia catalog already made, skipping.')
                             else:
                                 rad = rad + 2*60/21
                                 tr.external_save_cat(radec=cutCentreCoords[cut-1],size=rad,cutCornerPx=cutCorners[cut-1],
                                                     image_path=image_path,save_path=save_path,maglim=19) # oversize radius by 2 arcmin in terms of tess pixels
-                                #t.sleep(10)
+                                
                             rad2 = rad*21/60**2
                             #print('rad: ',rad)
                             #print('center: ',cutCentreCoords[cut-1])
@@ -1196,9 +1196,9 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                     else:
                     
                         # -- Delete old scripts -- #
-                        if os.path.exists(f'{self.working_path}/cutting_scripts/cut{cut}_script.sh'):
-                            os.system(f'rm {self.working_path}/cutting_scripts/cut{cut}_script.sh')
-                            os.system(f'rm {self.working_path}/cutting_scripts/cut{cut}_script.py')
+                        if os.path.exists(f'{self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh'):
+                            os.system(f'rm {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh')
+                            os.system(f'rm {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py')
 
                         # -- Create python file for cubing, cutting, reducing a cut-- # 
                         print(f'Creating Cutting Python File for Cam{cam} Ccd{ccd} Cut{cut}')
@@ -1210,7 +1210,7 @@ processor.make_cuts(cam={cam},ccd={ccd},n={self.n},cut={cut})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/cut.txt', 'w') as file:\n\
     file.write('Cut!')"
 
-                        with open(f"{self.working_path}/cutting_scripts/cut{cut}_script.py", "w") as python_file:
+                        with open(f"{self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
                             python_file.write(python_text)
 
                         # -- Create bash file to submit job -- #
@@ -1227,13 +1227,13 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{se
 #SBATCH --cpus-per-task={self.cut_cpu}\n\
 #SBATCH --mem-per-cpu={self.cut_mem}G\n\
 \n\
-python {self.working_path}/cutting_scripts/cut{cut}_script.py"
+python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py"
 
-                        with open(f"{self.working_path}/cutting_scripts/cut{cut}_script.sh", "w") as batch_file:
+                        with open(f"{self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh", "w") as batch_file:
                             batch_file.write(batch_text)
 
                         #print('Submitting Cutting Batch File')
-                        os.system(f'sbatch {self.working_path}/cutting_scripts/cut{cut}_script.sh')
+                        os.system(f'sbatch {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh')
                         print('\n')
 
                 done = self._get_catalogues(cam=cam,ccd=ccd)
