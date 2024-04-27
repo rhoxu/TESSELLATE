@@ -7,6 +7,6 @@ Author: Hugh Roxburgh
 Author-email: roxburghhugh@gmail.com
 License: MIT
 License-File: LICENSE
-Requires-Dist: tessreduce@ git+https://github.com/rhoxu/TESSreduce.git
 Requires-Dist: astrocut
 Requires-Dist: photutils>=1.4
+Requires-Dist: tessreduce@ git+https://github.com/rhoxu/TESSreduce.git
