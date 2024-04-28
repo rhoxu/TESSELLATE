@@ -79,8 +79,6 @@ def _get_wcs(path,wcs_path_check):
                 file.close()
                 if wcsItem.get_axis_types()[0]['coordinate_type'] == 'celestial':
                     done = True
-                    wcs_save = wcsItem.to_fits()
-                    wcs_save.writeto(f'{path}/cube_wcs.fits',overwrite=True)
                 else:
                     i += 1
         else:
