@@ -406,8 +406,6 @@ class DataProcessor():
         cutPath = f'{cutFolder}/{cutName}'
 
         fluxName = f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_ReducedFlux.npy'
-        maskName = f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Mask.npy'
-        timesName = f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Times.npy'
 
         if os.path.exists(fluxName):
             if self.verbose > 0:
