@@ -61,25 +61,29 @@ def _Print_buff(length,string):
     buff = '-' * int((length-strLength)/2)
     return f"{buff}{string}{buff}"
 
-def _get_wcs(path):
+def _get_wcs(path,wcs_path_check):
     """
     Get WCS data from a file in the path
     """
-    if glob(f'{path}/*ffic.fits'):
-        done = False
-        i = 0
-        while not done:
-            filepath = glob(f'{path}/*ffic.fits')[i]
-            file = _Extract_fits(filepath)
-            wcsItem = wcs.WCS(file[1].header)
-            file.close()
-            if wcsItem.get_axis_types()[0]['coordinate_type'] == 'celestial':
-                done = True
-            else:
-                i += 1
+
+    if os.path.exists(wcs_path_check):
+        wcsItem = wcs.WCS(wcs_path_check)
     else:
-        print('No Data!')
-        return
+        if glob(f'{path}/*ffic.fits'):
+            done = False
+            i = 0
+            while not done:
+                filepath = glob(f'{path}/*ffic.fits')[i]
+                file = _Extract_fits(filepath)
+                wcsItem = wcs.WCS(file[1].header)
+                file.close()
+                if wcsItem.get_axis_types()[0]['coordinate_type'] == 'celestial':
+                    done = True
+                else:
+                    i += 1
+        else:
+            print('No Data!')
+            return
 
     return wcsItem
 
@@ -204,7 +208,10 @@ class DataProcessor():
         """
 
         newpath = f'{self.path}/Cam{cam}/Ccd{ccd}'
-        wcsItem = _get_wcs(newpath)
+        wcsItem = _get_wcs(newpath,f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits')
+        if not os.path.exists(f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits'):
+            wcs_save = wcsItem.to_fits()
+            wcs_save.writeto(f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits')
 
         if wcsItem is None:
             print('WCS Extraction Failed')
