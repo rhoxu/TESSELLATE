@@ -10,6 +10,7 @@ from astropy.stats import sigma_clipped_stats
 from scipy.ndimage import center_of_mass
 from sklearn.cluster import DBSCAN
 
+
 import multiprocessing
 from joblib import Parallel, delayed 
 import warnings
@@ -390,6 +391,7 @@ class Detector():
     
     def _gather_data(self,cut):
         base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'
+        self.base_name = base
         self.flux = np.load(base + '_ReducedFlux.npy')
         self.mask = np.load(base + '_Mask.npy')
         self.time = np.load(base + '_Times.npy')
@@ -440,13 +442,22 @@ class Detector():
                     event_time += [[start,end]]
             event_time = np.array(event_time)
         else:
-            start = frames-1 
-            if start < 0:
-                start = 0
-            end = frames +1 
-            if end >= len(self.time):
-                end = len(self.time) - 1 
-            event_time = np.array([[start,end]])
+            try:
+                start = frames-1 
+                if start < 0:
+                    start = 0
+                end = frames +1 
+                if end >= len(self.time):
+                    end = len(self.time) - 1 
+                event_time = np.array([[start,end]])
+            except:
+                start = frames[0]-1 
+                if start < 0:
+                    start = 0
+                end = frames[-1] +1 
+                if end >= len(self.time):
+                    end = len(self.time) - 1 
+                event_time = np.array([[start,end]])
         events = []
         counter = 1
         for e in event_time:
@@ -548,8 +559,9 @@ class Detector():
         self.obj_ra = self.events.loc[self.events['objid'] == objid, 'ra'].mean()
         self.obj_dec = self.events.loc[self.events['objid'] == objid, 'dec'].mean()
 
-
     def source_detect(self,cut):
+        from glob import glob 
+        from astropy.io import fits 
 
         if cut != self.cut:
             self._gather_data(cut)
@@ -643,7 +655,10 @@ class Detector():
         """
         #for d in dirlist:
         if not os.path.isdir(save_path):
-            os.mkdir(save_path)
+            try:
+                os.mkdir(save_path)
+            except:
+                pass
 
     def period_bin(self,frequencies):
         f = frequencies['peak_freq']
@@ -663,8 +678,19 @@ class Detector():
             extension = 'none'
         return extension
 
-    def plot_source(self,cut,id,event='seperate',savename=None,save_path='.',star_bin=True,period_bin=True,type_bin=True,objectid_bin=True):
 
+    def plot_ALL(self,cut,save_path=None,lower=3,starkiller=False):
+        detections = self.count_detections(cut=cut,lower=lower,starkiller=starkiller)
+        if save_path is None:
+            save_path = self.path + f'/Cut{cut}of{self.n**2}/figs/'
+            print('Figure path: ',save_path)
+            self._check_dirs(save_path)
+        inds = list(detections.keys())
+        
+        events = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path) for ind in inds)
+        
+
+    def plot_source(self,cut,id,event='seperate',savename=None,save_path='.',star_bin=True,period_bin=True,type_bin=True,objectid_bin=True):
         if cut != self.cut:
             self._gather_data(cut)
             self._gather_results(cut)
@@ -748,10 +774,10 @@ class Detector():
             bright_frame = self.flux[brightestframe,y-1:y+2,x-1:x+2]
             vmin = np.percentile(bright_frame,16)
             if vmin > -5:
-                vmin =-5
+                vmin = -5
             vmax = np.percentile(bright_frame,95)
-            if vmax < 10:
-                vmax = 10
+            #if vmax < 10:
+            #    vmax = 10
             cutout_image = self.flux[:,ymin:y+16,xmin:x+16]
             ax[2].imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
             ax[2].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1*',alpha=0.8)

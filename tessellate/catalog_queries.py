@@ -180,7 +180,7 @@ def cross_match_DB(cat1,cat2,distance=2*21,njobs=-1):
     for label in unique_labels:
         if label > -1:
             inds = np.where(labels == label)[0]
-            if (inds < cat2_ind).any():
+            if (inds < cat2_ind).any() & (inds > cat2_ind).any():
                 if len(inds) > 2:
                     dra = all_ra[np.where(labels == label)[0]]
                     ddec = all_dec[np.where(labels == label)[0]]

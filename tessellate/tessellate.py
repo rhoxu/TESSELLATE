@@ -23,8 +23,9 @@ class Tessellate():
                  job_output_path=None,working_path=None,
                  cube_time=None,cube_mem=None,cut_time=None,cut_mem=None,
                  reduce_time=None,reduce_cpu=None,search_time=None,
+                 plot_time=None,
                  download=None,make_cube=None,make_cuts=None,reduce=None,search=None,
-                 delete=None):
+                 plot=None,delete=None):
         
         """
         Initialise.
@@ -141,6 +142,10 @@ class Tessellate():
         self.search_time = search_time
         self.search_mem = None
         self.search_cpu = None
+        
+        self.plot_time = plot_time
+        self.plot_mem = None
+        self.plot_cpu = None
 
         self.skip = []
 
@@ -151,7 +156,7 @@ class Tessellate():
         suggestions = self._sector_suggestions()  
 
         # -- Ask for which tessellation steps to perform -- #
-        message, download, make_cube, make_cuts, reduce, search, delete = self._which_processes(message,download, make_cube, make_cuts, reduce, search, delete)
+        message, download, make_cube, make_cuts, reduce, search, plot, delete = self._which_processes(message,download, make_cube, make_cuts, reduce, search, plot, delete)
 
         # -- Ask for inputs -- #
         if download:
@@ -174,9 +179,11 @@ class Tessellate():
             message = self._search_properties(message,cutting_reducing,suggestions[3])
             _Save_space(f'{job_output_path}/tessellate_search_logs')
 
-
+        if plot:
+            message = self._plotting_properties(message,search,suggestions[4])
+            _Save_space(f'{job_output_path}/tessellate_plotting_logs')
         # -- Reset Job Logs -- #
-        message = self._reset_logs(message,make_cube,make_cuts,reduce,search)
+        message = self._reset_logs(message,make_cube,make_cuts,reduce,search,plot)
 
         # -- Run Processes -- #
         if download:
@@ -193,6 +200,9 @@ class Tessellate():
 
         if search:
             self.transient_search(reducing=reduce) 
+        
+        if plot:
+            self.transient_plot(searching=search)
 
         if delete:
             self.delete_FFIs()  
@@ -222,6 +232,10 @@ class Tessellate():
             search_time_sug = '10:00'
             search_cpu_sug = '32'
             search_mem_req = 32
+            
+            plot_time_sug = '10:00'
+            plot_cpu_sug = '32'
+            plot_mem_req = 10
 
         elif self.sector in secondary_mission:
             cube_time_sug = '1:15:00'
@@ -239,6 +253,10 @@ class Tessellate():
             search_time_sug = '15:00'
             search_cpu_sug = '32'
             search_mem_req = 128
+            
+            plot_time_sug = '15:00'
+            plot_cpu_sug = '32'
+            plot_mem_req = 10
 
         elif self.sector in tertiary_mission:
             cube_time_sug = '3:00:00'
@@ -256,11 +274,16 @@ class Tessellate():
             search_time_sug = '20:00'
             search_cpu_sug = '32'
             search_mem_req = 100
+            
+            plot_time_sug = '15:00'
+            plot_cpu_sug = '32'
+            plot_mem_req = 10
 
         suggestions = [[cube_time_sug,cube_mem_sug,cube_mem_req],
                        [cut_time_sug,cut_mem_sug,cut_mem_req],
                        [reduce_time_sug,reduce_cpu_sug,reduce_mem_req],
-                       [search_time_sug,search_cpu_sug,search_mem_req]]
+                       [search_time_sug,search_cpu_sug,search_mem_req],
+                       [plot_time_sug,plot_cpu_sug,plot_mem_req]]
         
         return suggestions
 
@@ -357,7 +380,7 @@ class Tessellate():
 
         return message
     
-    def _which_processes(self,message,download,make_cube,make_cuts,reduce,search,delete):
+    def _which_processes(self,message,download,make_cube,make_cuts,reduce,search,plot,delete):
 
         if download is None:
             d = input('   - Download FFIs? [y/n] = ')
@@ -418,7 +441,7 @@ class Tessellate():
                 else:
                     d = input('      Invalid choice! Reduce Cut(s)? [y/n] = ')
                     message += f'      Invalid choice! Reduce Cut(s)? [y/n] = {d}\n'
-
+            
         if search is None:
             d = input('   - Run Transient Search on Cut(s)? [y/n] = ')
             message += f'   - Run Transient Search on Cut(s)? [y/n] = {d}\n'
@@ -433,6 +456,22 @@ class Tessellate():
                 else:
                     d = input('      Invalid choice! Run Transient Search on Cut(s)? [y/n] = ')
                     message += f'      Invalid choice! Run Transient Search on Cut(s)? [y/n] = {d}\n'
+        
+        if plot is None:
+            d = input('   - Run Transient Plotting on Cut(s)? [y/n] = ')
+            message += f'   - Run Transient Plotting on Cut(s)? [y/n] = {d}\n'
+            done = False
+            while not done:
+                if d.lower() == 'y':
+                    plot = True
+                    done=True
+                elif d.lower() == 'n':
+                    plot = False
+                    done=True
+                else:
+                    d = input('      Invalid choice! Run Transient Plotting on Cut(s)? [y/n] = ')
+                    message += f'      Invalid choice! Run Transient Plotting on Cut(s)? [y/n] = {d}\n'
+            
 
         if delete is None:
             d = input('   - Delete all FFIs upon completion? [y/n] = ')
@@ -452,7 +491,7 @@ class Tessellate():
         print('\n')
         message += '\n'
 
-        return message, download, make_cube, make_cuts, reduce, search, delete
+        return message, download, make_cube, make_cuts, reduce, search, plot, delete
     
     def _download_properties(self,message):
         """
@@ -971,7 +1010,138 @@ class Tessellate():
 
         return message
     
-    def _reset_logs(self,message,make_cube,make_cuts,reduce,search):
+    def _plotting_properties(self,message,searching,suggestions):
+        """
+        Confirm transient search process properties.
+        """
+
+        if not searching:
+            if self.n is None:
+                n = input('   - n (Number of Cuts = n^2) = ')
+                message += f'   - n (Number of Cuts = n^2) = {n}\n'
+                done = False
+                while not done:
+                    try:
+                        n = int(n)
+                        if n > 0:
+                            self.n = n
+                            done = True
+                        else:
+                            n = input('      Invalid choice! n (Number of Cuts = n^2) =  ')
+                            message += f'      Invalid choice! n (Number of Cuts = n^2) = {n}\n'
+                    except:
+                        n = input('      Invalid choice! n (Number of Cuts = n^2) =  ')
+                        message += f'      Invalid choice! n (Number of Cuts = n^2) = {n}\n'
+            elif self.n > 0:
+                print(f'   - n (Number of Cuts = n^2) = {self.n}')
+                message += f'  - n (Number of Cuts = n^2) = {self.n}\n'
+            else:
+                e = f"Invalid 'n' value Input of {self.n}\n"
+                raise ValueError(e)
+            
+            
+            if self.cuts is None:
+                cut = input(f'   - Cut [1-{self.n**2},all] = ')
+                message += f'   - Cut [1-{self.n**2},all] = {cut}\n'
+                done = False
+                while not done:
+                    if cut == 'all':
+                        self.cuts = range(1,self.n**2+1)
+                        done = True
+                    elif cut in np.array(range(1,self.n**2+1)).astype(str):
+                        self.cuts = [int(cut)]
+                        done = True
+                    else:
+                        cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
+                        message += f'      Invalid choice! Cut [1-{self.n**2},all] = {cut}\n'
+            elif self.cuts == 'all':
+                print(f'   - Cut = all')
+                message += f'   - Cut = all\n'
+                self.cuts = range(1,self.n**2+1)
+            elif self.cuts in range(1,self.n**2+1):
+                print(f'   - Cut = {self.cuts}')
+                message += f'   - Cut = {self.cuts}\n'
+                self.cuts = [self.cut]  
+            else:
+                e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
+                raise ValueError(e)
+            
+            
+            print('\n')
+            message += '\n'
+
+
+        if self.plot_time is None:
+            plot_time = input(f"   - Plotting Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
+            message += f"   - Plotting Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = {plot_time}\n"
+            done = False
+            while not done:
+                if ':' in plot_time:
+                    self.plot_time = plot_time
+                    done = True
+                else:
+                    plot_time = input(f"      Invalid format! Plotting Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
+                    message += f"      Invalid choice! Plotting Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = {plot_time}\n"
+        else:
+            print(f'   - Plotting Batch Time = {self.plot_time}')
+            message += f"   - Plotting Batch Time = {self.plot_time}')\n"
+
+
+        if self.plot_cpu is None:
+            plot_cpu = input(f"   - Plotting Num CPUs [1-32] ({suggestions[1]} suggested) = ")
+            message += f"   - PLotting Num CPUs [1-32] ({suggestions[1]} suggested) = {plot_cpu}\n"
+            done = False
+            while not done:
+                try:
+                    plot_cpu = int(plot_cpu)
+                    if 0 < plot_cpu < 33:
+                        self.plot_cpu = plot_cpu
+                        done = True
+                    else:
+                        plot_cpu = input(f"      Invalid format! Plotting Num CPUs [1-32] ({suggestions[1]} suggested) = ")
+                        message += f"      Invalid choice! Plotting Num CPUs [1-32] ({suggestions[1]} suggested) = {plot_cpu}\n"
+                except:
+                    plot_cpu = input(f"      Invalid format! Plotting Num CPUs [1-32] ({suggestions[1]} suggested) = ")
+                    message += f"      Invalid choice! Plotting Num CPUs [1-32] ({suggestions[1]} suggested) = {plot_cpu}\n"
+        elif 0 < self.plot_cpu < 33:
+            print(f'   - Plotting Num CPUs = {self.plot_cpu}')
+            message += f"   - Plotting Num CPUs = {self.plot_cpu}\n"
+        else:
+            e = f"Invalid Plotting CPUs Input of {self.plot_cpu}\n"
+            raise ValueError(e)
+        
+        
+        if type(self.download_number) == int:
+            plot_mem = input(f"   - Plot Mem/CPU = ")
+            message += f"   - Plot Mem/CPU = {plot_mem}\n"
+            done = False
+            while not done:
+                try:
+                    plot_mem = int(plot_mem)
+                    if 0<plot_mem < 500:
+                        self.plot_mem = plot_mem
+                        done=True
+                    else:
+                        plot_mem = input(f"      Invalid format! Plot Mem/CPU = ")
+                        message += f"      Invalid choice! Plot Mem/CPU = {plot_mem}\n"
+                except:
+                    if plot_mem[-1].lower() == 'g':
+                        self.plot_mem = plot_mem[:-1]
+                        done = True
+                    else:
+                        plot_mem = input(f"      Invalid format! Plot Mem/CPU = ")
+                        message += f"      Invalid choice! Search Mem/CPU = {plot_mem}\n"
+        else:
+            self.plot_mem = np.ceil(suggestions[2]/self.plot_cpu).astype(int)
+            print(f'   - Plot Mem/CPU Needed = {self.plot_mem}')
+            message += f'   - Plot Mem/CPU Needed = {self.plot_mem}\n'  
+
+        print('\n')
+        message += '\n'
+
+        return message
+    
+    def _reset_logs(self,message,make_cube,make_cuts,reduce,search,plot):
         """
         Reset slurm job logs in provided output path.
         """
@@ -986,6 +1156,8 @@ class Tessellate():
                 os.system(f'rm {self.job_output_path}/tessellate_reduction_logs/*')
             if search:
                 os.system(f'rm {self.job_output_path}/tessellate_search_logs/*')
+            if plot:
+                os.system(f'rm {self.job_output_path}/tessellate_plotting_logs/*')
 
             message = message + 'y \n'
         else:
@@ -1412,8 +1584,110 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                                         completed.append(cut)
                             i+=1
 
-    def delete_FFIs(self):
 
+    def _cut_transient_plot(self,cam,ccd,cut):
+
+        # -- Delete old scripts -- #
+        if os.path.exists(f'{self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh'):
+            os.system(f'rm {self.working_path}/plotting_scripts/*')
+
+        # -- Create python file for reducing a cut-- # 
+        print(f'Creating Transient Plotting File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
+        python_text = f"\
+from tessellate import Detector\n\
+import numpy as np\n\
+\n\
+detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
+detector.plot_ALL(cut={cut},lower=3)"
+                    
+        with open(f"{self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
+            python_file.write(python_text)
+
+        # -- Create bash file to submit job -- #
+        #print('Creating Transient Search Batch File')
+        batch_text = f"\
+#!/bin/bash\n\
+#\n\
+#SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Plotting\n\
+#SBATCH --output={self.job_output_path}/tessellate_plotting_logs/plotting_job_output_%A.txt\n\
+#SBATCH --error={self.job_output_path}/tessellate_plotting_logs/plotting_errors_%A.txt\n\
+#\n\
+#SBATCH --ntasks=1\n\
+#SBATCH --time={self.plot_time}\n\
+#SBATCH --cpus-per-task={self.plot_cpu}\n\
+#SBATCH --mem-per-cpu={self.plot_mem}G\n\
+\n\
+python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py"
+
+        with open(f"{self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh", "w") as batch_file:
+            batch_file.write(batch_text)
+                
+        #print('Submitting Transient Search Batch File')
+        os.system(f'sbatch {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh')
+
+        print('\n')
+
+    def transient_plot(self,searching=False):
+        """
+        Transient Search!
+        """
+
+        _Save_space(f'{self.working_path}/plotting_scripts')
+
+        for cam in self.cam:
+            for ccd in self.ccd:
+                print(_Print_buff(40,f'Transient Plotting for Sector{self.sector} Cam{cam} Ccd{ccd}'))
+                print('\n')
+                if not searching:
+                    for cut in self.cuts:
+                        save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+                        if os.path.exists(f'{save_path}/figs'):
+                            print(f'Cam {cam} Chip {ccd} cut {cut} already plotted!')
+                            print('\n')
+                        elif os.path.exists(f'{save_path}/detected_events.csv'):
+                            self._cut_transient_plot(cam,ccd,cut)
+                        else:
+                            e = f'No Event File Detected for Plotting of Cut {cut}!\n'
+                            raise ValueError(e)
+                            
+                        
+                else:
+                    completed = []
+                    message = 'Waiting for Search'
+
+                    tStart = t()
+                    l = self.search_time.split(':')
+                    seconds = 1 * int(l[-1]) + 60 * int(l[-2])
+                    if len(l) == 3:
+                        seconds += 3600 * int(l[-3])
+                    else:
+                        l.insert(0,0)
+                    i = 0
+                    while len(completed) < len(self.cuts):
+                        if t()-tStart > seconds + 600:
+                            print('Restarting Search')
+                            print('\n')
+                            self.search_time = f'{int(l[0])+1}:{l[1]}:{l[2]}'
+                            self.transient_search()
+                            tStart = t()
+                        else:
+                            if i > 0:
+                                print(message, end='\r')
+                                sleep(120)
+                            for cut in self.cuts:
+                                if cut not in completed:
+                                    save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+                                    if os.path.exists(f'{save_path}/figs'):
+                                        completed.append(cut)
+                                        print(f'Cam {cam} Chip {ccd} cut {cut} already plotted!')
+                                        print('\n')
+                                    elif os.path.exists(f'{save_path}/detected_events.csv'):
+                                        self._cut_transient_plot(cam,ccd,cut)
+                                        completed.append(cut)
+                            i+=1
+
+
+    def delete_FFIs(self):
         for cam in self.cam:
             for ccd in self.ccd:
                 os.system(f'rm {self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/*ffic.fits')
