@@ -1668,7 +1668,7 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                             print('Restarting Search')
                             print('\n')
                             self.search_time = f'{int(l[0])+1}:{l[1]}:{l[2]}'
-                            self.transient_search()
+                            self.transient_search(False)
                             tStart = t()
                         else:
                             if i > 0:

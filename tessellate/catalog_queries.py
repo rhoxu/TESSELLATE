@@ -186,6 +186,9 @@ def cross_match_DB(cat1,cat2,distance=2*21,njobs=-1):
                     ddec = all_dec[np.where(labels == label)[0]]
                     d = (dra - dra[0])**2 + (ddec - ddec[0])**2
                     args = np.argsort(d)
+                    good = inds[args] - cat2_ind > 0
+                    good[0] = True
+                    args = args[good]
                     inds = inds[args[:2]]
                 cat1_id += [inds[0]]
                 cat2_id += [inds[1] - cat2_ind]
