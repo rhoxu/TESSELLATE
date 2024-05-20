@@ -588,6 +588,9 @@ class Detector():
         #     print('No local variable catalog, can not cross match.')
 
         wcs_save = self.wcs.to_fits()
+        wcs_save[0].header['NAXIS'] = self.wcs.naxis
+        wcs_save[0].header['NAXIS1'] = self.wcs._naxis[0]
+        wcs_save[0].header['NAXIS2'] = self.wcs._naxis[1]
         wcs_save.writeto(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits',overwrite=True)
         results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv',index=False)
         self.sources = results
@@ -660,20 +663,24 @@ class Detector():
             except:
                 pass
 
-    def period_bin(self,frequencies):
+    def period_bin(self,frequencies,power_limit=1):
         f = frequencies['peak_freq']
+        power = frequencies['peak_power']
         if len(f)>0:
             p = 1/f[0]
-            if p <= 1/24:
-                extension = '1hr_below'
-            elif (p > 1/24) & (p <= 10/24):
-                extension = '1to10hr'
-            elif (p > 10/24) & (p <= 1):
-                extension = '10hrto1day'
-            elif (p > 1) & (p <= 10):
-                extension = '1to10day'
-            elif (p >10):
-                extension = '10day_greater'
+            if power > power_limit:
+                if p <= 1/24:
+                    extension = '1hr_below'
+                elif (p > 1/24) & (p <= 10/24):
+                    extension = '1to10hr'
+                elif (p > 10/24) & (p <= 1):
+                    extension = '10hrto1day'
+                elif (p > 1) & (p <= 10):
+                    extension = '1to10day'
+                elif (p >10):
+                    extension = '10day_greater'
+            else:
+                extension = 'none'
         else:
             extension = 'none'
         return extension
@@ -690,7 +697,13 @@ class Detector():
         events = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path) for ind in inds)
         
 
-    def plot_source(self,cut,id,event='seperate',savename=None,save_path='.',star_bin=True,period_bin=True,type_bin=True,objectid_bin=True):
+    def plot_source(self,cut,id,event='seperate',savename=None,save_path='.',star_bin=True,period_bin=True,type_bin=True,objectid_bin=True,include_periodogram=False,latex=False,period_power_limit=10):
+        if latex:
+            plt.rc('text', usetex=True)
+            plt.rc('font', family='serif')
+        #else:
+            #plt.rc('text', usetex=False)
+            #plt.rc('font', family='sans-serif')
         if cut != self.cut:
             self._gather_data(cut)
             self._gather_results(cut)
@@ -727,8 +740,10 @@ class Detector():
             y = (source['yint']+0.5).astype(int)
 
             #frames = source['frame'].values
-
-            fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3],[4,4,4,4,4]],figsize=(7,9),constrained_layout=True)
+            if include_periodogram:
+                fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3],[4,4,4,4,4]],figsize=(7,9),constrained_layout=True)
+            else:
+                fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3]],figsize=(7,5.5),constrained_layout=True)
 
             frameStart = int(source['frame_start']) #min(source['frame'].values)
             frameEnd = int(source['frame_end']) #max(source['frame'].values)
@@ -748,22 +763,26 @@ class Detector():
             if frameEnd >= len(self.flux):
                 frameEnd -= 1
             time = self.time - self.time[0]
-            if (frameEnd - frameStart) > 2:
-                ax[0].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
-            else:
-                ax[0].axvline(time[(frameEnd + frameStart)//2],color='C1')
-            ax[0].plot(time,f)
-            ax[0].set_ylabel('Brightness')
-            ax[0].set_title('Light curve')
             
-            ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
+            ax[0].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
             fstart = frameStart-10
             if fstart < 0:
                 fstart = 0
             zoom = f[fstart:frameEnd+20]
-            ax[1].plot(time[fstart:frameEnd+20],zoom)
+            ax[0].set_title('Light curve')
+            ax[0].plot(time[fstart:frameEnd+20],zoom,'k',alpha=0.8)
+            ax[0].set_ylabel('Brightness')
+            
+            
+            if (frameEnd - frameStart) > 2:
+                ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
+            else:
+                ax[1].axvline(time[(frameEnd + frameStart)//2],color='C1')
+            ax[1].plot(time,f,'k',alpha=0.8)
             ax[1].set_ylabel('Brightness')
             ax[1].set_xlabel('Time (days)')
+            
+                
             
             ymin = y - 15
             if ymin < 0:
@@ -772,10 +791,11 @@ class Detector():
             if xmin < 0:
                 xmin = 0
             bright_frame = self.flux[brightestframe,y-1:y+2,x-1:x+2]
-            vmin = np.percentile(bright_frame,16)
-            if vmin > -5:
-                vmin = -5
-            vmax = np.percentile(bright_frame,95)
+            vmin = np.percentile(self.flux[brightestframe],16)
+            #if vmin > -5:
+            #    vmin =-5
+            vmax = np.percentile(bright_frame,80)
+            print(vmin)
             #if vmax < 10:
             #    vmax = 10
             cutout_image = self.flux[:,ymin:y+16,xmin:x+16]
@@ -785,12 +805,18 @@ class Detector():
             ax[2].add_patch(rect)
 
             #ax[2].set_xlabel(f'Time {np.round(time[brightestframe],2)}')
-            ax[2].set_title('Brightest frame')
+            ax[2].set_title('Brightest image')
+            ax[2].get_xaxis().set_visible(False)
+            ax[2].get_yaxis().set_visible(False)
+            ax[3].get_xaxis().set_visible(False)
+            ax[3].get_yaxis().set_visible(False)
+            
             
             #vmax = np.max(self.flux[brightestframe,y-1:y+2,x-1:x+2])/2
             #im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
             #plt.colorbar(im)
-            after = brightestframe + 2
+            tdiff = np.where(time-time[brightestframe] >= 1/24)[0][0]
+            after = tdiff#brightestframe + 1
             if after >= len(cutout_image):
                 after = len(cutout_image) - 1 
             before = brightestframe - 5
@@ -801,15 +827,43 @@ class Detector():
             ax[3].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1*',alpha=0.8)
             rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin),5,5, linewidth=2, edgecolor='r', facecolor='none')
             ax[3].add_patch(rect)
-            ax[3].set_title('2 frames later')
+            ax[3].set_title('1 hour later')
 
             unit = u.electron / u.s
             light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
             period = light.to_periodogram()
-            frequencies = periodogram(period,axis=ax[4])
+            if include_periodogram:
+                frequencies = periodogram(period,axis=ax[4])
+            else:
+                frequencies = periodogram(period,axis=None,plot=False)
+                signal_num = frequencies['signal_num']
+                harmonic = frequencies['harmonic']
+                textstr = r'$\bf{Period}$' + '\n'
+                #for i in range(1):
+                ind = (signal_num == 1) & (harmonic == 1)
+                try:
+                    print('power: ',frequencies['peak_power'][ind][0])
+                    if frequencies['peak_power'][ind][0] > period_power_limit:
+                        period = str(np.round(1/frequencies['peak_freq'][ind][0],2)) +' days\n'
+                    
+                        textstr += period
+                    
+
+                    # these are matplotlib.patch.Patch properties
+                        props = dict(boxstyle='round', facecolor='white', alpha=0.7)
+
+                        # place a text box in upper left in axes coords
+                        ax[1].text(0.05, 0.95, textstr[:-1], transform=ax[1].transAxes, fontsize=10,
+                                verticalalignment='top', bbox=props)
+                        ylims = ax[1].get_ylim()
+                        start_flux = np.nanmax(f[:len(f)//2])
+                        if ylims[1] < start_flux * 1.4:
+                            ax[1].set_ylim(ylims[0],start_flux * 1.4)
+                except:
+                    pass
 
             plt.tight_layout()
-            plt.subplots_adjust(hspace=0.3)
+            #plt.subplots_adjust(hspace=0.1)
             #plt.subplots_adjust(wspace=0.1)
             if savename is not None:
                 sp = deepcopy(save_path)
@@ -849,6 +903,8 @@ class Detector():
         self.periodogram = period
         self.frequencies = frequencies
         return source
+
+
 
     def locate_transient(self,cut,xcentroid,ycentroid,threshold=3):
 
