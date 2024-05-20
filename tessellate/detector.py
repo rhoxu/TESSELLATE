@@ -842,7 +842,7 @@ class Detector():
                 #for i in range(1):
                 ind = (signal_num == 1) & (harmonic == 1)
                 try:
-                    print('power: ',frequencies['peak_power'][ind][0])
+                    #print('power: ',frequencies['peak_power'][ind][0])
                     if frequencies['peak_power'][ind][0] > period_power_limit:
                         period = str(np.round(1/frequencies['peak_freq'][ind][0],2)) +' days\n'
                     
