@@ -668,7 +668,7 @@ class Detector():
         power = frequencies['peak_power']
         if len(f)>0:
             p = 1/f[0]
-            if power > power_limit:
+            if power[0] > power_limit:
                 if p <= 1/24:
                     extension = '1hr_below'
                 elif (p > 1/24) & (p <= 10/24):
