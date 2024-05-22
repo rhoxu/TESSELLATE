@@ -697,7 +697,10 @@ class Detector():
         events = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path) for ind in inds)
         
 
-    def plot_source(self,cut,id,event='seperate',savename=None,save_path='.',star_bin=True,period_bin=True,type_bin=True,objectid_bin=True,include_periodogram=False,latex=False,period_power_limit=10):
+    def plot_source(self,cut,id,event='seperate',savename=None,save_path='.',
+                    asteroid_distance=0.8,asteroid_flux=0.45,asteroid_duration=1/12,
+                    star_bin=True,period_bin=True,type_bin=True,objectid_bin=True,
+                    include_periodogram=False,latex=False,period_power_limit=10):
         if latex:
             plt.rc('text', usetex=True)
             plt.rc('font', family='serif')
@@ -776,8 +779,11 @@ class Detector():
             
             if (frameEnd - frameStart) > 2:
                 ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
+                duration = time[frameEnd] - time[frameStart]
             else:
                 ax[1].axvline(time[(frameEnd + frameStart)//2],color='C1')
+                duration = 0
+                
             ax[1].plot(time,f,'k',alpha=0.8)
             ax[1].set_ylabel('Brightness')
             ax[1].set_xlabel('Time (days)')
@@ -795,7 +801,8 @@ class Detector():
             #if vmin > -5:
             #    vmin =-5
             vmax = np.percentile(bright_frame,80)
-            print(vmin)
+            if vmin > vmax:
+                vmin = vmax - 10
             #if vmax < 10:
             #    vmax = 10
             cutout_image = self.flux[:,ymin:y+16,xmin:x+16]
@@ -815,8 +822,39 @@ class Detector():
             #vmax = np.max(self.flux[brightestframe,y-1:y+2,x-1:x+2])/2
             #im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
             #plt.colorbar(im)
-            tdiff = np.where(time-time[brightestframe] >= 1/24)[0][0]
+            try:
+                tdiff = np.where(time-time[brightestframe] >= 1/24)[0][0]
+            except:
+                tdiff = np.where(time[brightestframe] - time >= 1/24)[0][-1]
             after = tdiff#brightestframe + 1
+            com_bright = center_of_mass(self.flux[brightestframe,y-1:y+2,x-1:x+2])
+            beep = deepcopy(self.flux[after])
+            beep[beep < 0] = 0
+            com_next = center_of_mass(beep[y-2:y+3,x-2:x+3])
+            com_bright = np.array(com_bright)
+            com_next = np.array(com_next)
+            bright_flux = np.nansum(self.flux[brightestframe,y-2:y+3,x-2:x+3])
+            xx = (x + (com_next[1]-3) +.5).astype(int)
+            yy = (y +(com_next[0]-3)+.5).astype(int)
+            next_flux = np.nansum(beep[yy-1:yy+2,xx-1:xx+2])
+            #next_flux = np.nansum(self.flux[after,y-2:y+3,x-2:x+3])
+            #next_flux = np.nansum(self.flux[after,(y+com_next[0]+.5-3).astype(int)-1:(y+com_next[0]+.5-3).astype(int)+2,
+                                            #(x+com_next[1]+.5-3).astype(int)-1:(x+com_next[1]+.5-3).astype(int)+2])
+            #rect = patches.Rectangle((x-2.5 +(com_next[1]-3) - xmin, y-2.5 +(com_next[0]-3) - ymin),5,5, linewidth=2, edgecolor='r', facecolor='none')
+            #ax[3].add_patch(rect)
+            #ax[3].plot((x + (com_next[1]-3) +.5).astype(int) - xmin, (y +(com_next[0]-3)+.5).astype(int) - ymin,'*C1')
+            if next_flux < 0:
+                next_flux = 0
+            flux_ratio = np.round(next_flux / bright_flux,1)
+            diff = np.sqrt(np.nansum((com_bright - com_next)**2))
+            durtime = (duration > 0) & (duration <= asteroid_duration)
+            #print('com brightest: ',com_bright,bright_flux)
+            #print('com next: ',com_next,next_flux)
+            #print('flux ratio: ',flux_ratio,flux_ratio>=0.45)
+            #print('diff: ', diff, diff > 0.8)
+            #print('Asteroid? ',(diff > 0.8) & (flux_ratio>=0.45))
+            asteroid = (diff > asteroid_distance) & (flux_ratio>=asteroid_flux) & durtime
+            
             if after >= len(cutout_image):
                 after = len(cutout_image) - 1 
             before = brightestframe - 5
@@ -877,23 +915,31 @@ class Detector():
                 sp += '/' + extension
                 self._check_dirs(sp)
 
-                if period_bin:
-                    if type_bin:
-                        if source['Prob'] > 0:
-                            extension = source['Type']
-                        else:
-                            extension = self.period_bin(frequencies)
+                if asteroid:
+                    extension = 'asteroid'
                     sp += '/' + extension
                     self._check_dirs(sp)
-                if objectid_bin:
-                    extension = f'{self.sector}_{self.cam}_{self.ccd}_{self.cut}_{id}'
-                    sp += '/' + extension
-                    self._check_dirs(sp)
-                if event == 'all':
-                    plt.savefig(sp+'/'+savename+'_all_events.png', bbox_inches = "tight")
-                else:
                     plt.savefig(sp+'/'+savename+f'_event{i+1}of{total_events}.png', 
-                                bbox_inches = "tight")
+                                    bbox_inches = "tight")
+                    
+                else:
+                    if period_bin:
+                        if type_bin:
+                            if source['Prob'] > 0:
+                                extension = source['Type']
+                            else:
+                                extension = self.period_bin(frequencies)
+                        sp += '/' + extension
+                        self._check_dirs(sp)
+                    if objectid_bin:
+                        extension = f'{self.sector}_{self.cam}_{self.ccd}_{self.cut}_{id}'
+                        sp += '/' + extension
+                        self._check_dirs(sp)
+                    if event == 'all':
+                        plt.savefig(sp+'/'+savename+'_all_events.png', bbox_inches = "tight")
+                    else:
+                        plt.savefig(sp+'/'+savename+f'_event{i+1}of{total_events}.png', 
+                                    bbox_inches = "tight")
                 #np.save(save_path+'/'+savename+'_lc.npy',[time,f])
                 #np.save(save_path+'/'+savename+'_cutout.npy',cutout_image)
                 self.save_base = sp+'/'+savename
