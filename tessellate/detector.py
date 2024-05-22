@@ -23,7 +23,7 @@ from astropy.time import Time
 from astropy.wcs import WCS
 import os
 from scipy.signal import find_peaks
-
+from scipy.stats import pearsonr
 from .dataprocessor import DataProcessor
 from .catalog_queries import find_variables, gaia_stars, match_result_to_cat
 
@@ -400,7 +400,7 @@ class Detector():
         except:
             print('Could not find a wcs file')
     
-    def isolate_events(self,objid,frame_buffer=20,duration=1):
+    def isolate_events(self,objid,frame_buffer=20,duration=1,asteroid_distance=0.8,asteroid_correlation=0.8):
         obj = self.sources.iloc[self.sources['objid'].values == objid]
         frames = obj.frame.values
         if len(frames) > 1:
@@ -460,17 +460,35 @@ class Detector():
                 event_time = np.array([[start,end]])
         events = []
         counter = 1
+        obj['eventID'] = 0
         for e in event_time:
             ind = (obj['frame'].values >= e[0]) & (obj['frame'].values <= e[1])
-            event = deepcopy(obj.iloc[ind])
-            event = event.drop(columns='Type')
-            event = event.mean().to_frame().T
+            obj.loc[ind,'eventID'] = counter
+            detections = deepcopy(obj.iloc[ind])
+            detections = detections.drop(columns='Type')
+            # check for asteroid
+            x = detections.xcentroid.values; y = detections.ycentroid.values
+            dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
+            dist = np.nanmax(dist,axis=1)
+            av_dist = np.nanmean(dist)
+            if len(x)>= 2:
+                cor = np.round(abs(pearsonr(x,y)[0]),1)
+            else:
+                cor = 0
+            asteroid = (av_dist - asteroid_distance) + (cor - asteroid_correlation) > 0 #(cor >= 0.8) & (dist >= 0.85)
+            
+            event = deepcopy(detections.mean().to_frame().T)
             event['eventID'] = counter
             event['frame_start'] = e[0]
             event['frame_end'] = e[1]
             event['mjd_start'] = self.time[e[0]]
             event['mjd_end'] = self.time[e[1]]
-            event['mjd_duration'] = self.time[e[1]] - self.time[e[0]]
+            duration = self.time[e[1]] - self.time[e[0]]
+            event['mjd_duration'] = duration
+            if asteroid:
+                obj.loc[ind,'Type'] = 'Asteroid'
+                event['Prob'] = 1
+              
             event['Type'] = obj['Type'].iloc[0]
             events += [event]
             counter += 1
@@ -697,7 +715,10 @@ class Detector():
         events = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path) for ind in inds)
         
 
-    def plot_source(self,cut,id,event='seperate',savename=None,save_path='.',star_bin=True,period_bin=True,type_bin=True,objectid_bin=True,include_periodogram=False,latex=False,period_power_limit=10):
+    def plot_source(self,cut,id,event='seperate',savename=None,save_path='.',
+                    star_bin=True,period_bin=True,type_bin=True,objectid_bin=True,
+                    include_periodogram=False,latex=False,period_power_limit=10,
+                    asteroid_check=True):
         if latex:
             plt.rc('text', usetex=True)
             plt.rc('font', family='serif')
@@ -731,7 +752,7 @@ class Detector():
         #source = self.result[self.result['objid']==id]
         for i in range(len(sources)):
             #if type(sources) == list:
-            #    source = sources[0]
+            #   source = sources[0]
             #else:
             source = deepcopy(sources.iloc[i])
             #x = source.iloc[0]['xint'].astype(int)
@@ -793,11 +814,10 @@ class Detector():
             bright_frame = self.flux[brightestframe,y-1:y+2,x-1:x+2]
             vmin = np.percentile(self.flux[brightestframe],16)
             #if vmin > -5:
-            #    vmin =-5
+            #   vmin =-5
             vmax = np.percentile(bright_frame,80)
-            print(vmin)
             #if vmax < 10:
-            #    vmax = 10
+            #   vmax = 10
             cutout_image = self.flux[:,ymin:y+16,xmin:x+16]
             ax[2].imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
             ax[2].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1*',alpha=0.8)
@@ -865,6 +885,27 @@ class Detector():
             plt.tight_layout()
             #plt.subplots_adjust(hspace=0.1)
             #plt.subplots_adjust(wspace=0.1)
+            if asteroid_check:
+                s = self.sources.iloc[self.sources.objid.values == id]
+                e = s.iloc[(s.frame.values >= frameStart) & (s.frame.values <= frameEnd)]
+                x = e.xcentroid.values
+                y = e.ycentroid.values
+                dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
+                dist = np.nanmax(dist,axis=1)
+                dist = np.nanmean(dist)
+                if len(x)>= 2:
+                    cor = np.round(abs(pearsonr(x,y)[0]),1)
+                else:
+                    cor = 0
+                dpass = dist - 0.8
+                cpass = cor - 0.8
+                asteroid = dpass + cpass > 0 
+                print('asteroid')
+                if asteroid:
+                    source['Type'] = 'Asteroid'
+                    source['Prob'] = 1
+                
+                
             if savename is not None:
                 sp = deepcopy(save_path)
                 if savename.lower() == 'auto':
