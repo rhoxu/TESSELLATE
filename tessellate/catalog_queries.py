@@ -7,6 +7,7 @@ from astropy.io import fits
 from astropy.wcs import WCS 
 from sklearn.cluster import DBSCAN
 from time import time as t
+from sklearn.neighbors import KDTree
  
 def cross_match(obs_cat, viz_cat,tol=2*21,variable=True):
     dist = np.sqrt((obs_cat.ra[:,np.newaxis] - viz_cat.ra[np.newaxis,:])**2 + (obs_cat.dec[:,np.newaxis] - viz_cat.dec[np.newaxis,:])**2)
@@ -194,6 +195,24 @@ def cross_match_DB(cat1,cat2,distance=2*21,njobs=-1):
                 cat2_id += [inds[1] - cat2_ind]
     return cat1_id,cat2_id
 
+def cross_match_tree(cat1,cat2,distance=2,ax1='ra',ax2='dec'):
+    p1 = np.array([cat1[ax1].values,cat1[ax2].values]).T.astype(float)
+    p2 = np.array([cat2[ax1].values,cat2[ax2].values]).T.astype(float)
+
+    tree = KDTree(p1)
+    dist,ind = tree.query(p2, k=1)
+    ind = ind.flatten()
+    dist = dist.flatten()
+
+    d_ind = np.where(dist < distance)[0]
+    min_dist = np.argmin(dist[d_ind])
+    d_ind = d_ind[min_dist]
+    
+    cat2_ind = d_ind
+    cat1_ind = ind[cat2_ind]
+
+    return cat1_ind,cat2_ind
+
 def match_result_to_cat(result,cat,columns=['Type','Prob'],distance=2*21,min_entry=2):
     ids = np.unique(result['objid'].values)
     ra = []; dec = []
@@ -205,10 +224,14 @@ def match_result_to_cat(result,cat,columns=['Type','Prob'],distance=2*21,min_ent
             dec += [result.loc[result['objid'] == id, 'dec'].mean()]
     pos = {'objid':Id,'ra':ra,'dec':dec}
     pos = pd.DataFrame(pos)
-    id_ind, cat_ind = cross_match_DB(pos,cat,distance)
+    id_ind, cat_ind = cross_match_DB(pos,cat,distance) #cross_match_tree(pos,cat,distance/60**2)
     obj_id = ids[id_ind]
     for column in columns:
         result[column] = 0
+    if isinstance(obj_id,int) | isinstance(obj_id,np.int64):
+        obj_id = [obj_id]
+    if isinstance(cat_ind,int) | isinstance(cat_ind,np.int64):
+        cat_ind = [cat_ind]
     for i in range(len(obj_id)):
         for column in columns:
             result.loc[result['objid']==obj_id[i],column] = cat[column].values[cat_ind[i]]

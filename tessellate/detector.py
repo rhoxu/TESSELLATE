@@ -401,8 +401,9 @@ class Detector():
             print('Could not find a wcs file')
     
     def isolate_events(self,objid,frame_buffer=20,duration=1,
-                       asteroid_distance=0.8,asteroid_correlation=0.8,asteroid_duration=6/24):
-        obj = self.sources.iloc[self.sources['objid'].values == objid]
+                       asteroid_distance=0.8,asteroid_correlation=0.8,asteroid_duration=1):
+        obj_ind = self.sources['objid'].values == objid
+        obj = self.sources.iloc[obj_ind]
         frames = obj.frame.values
         if len(frames) > 1:
             triggers = np.zeros_like(self.time)
@@ -489,11 +490,12 @@ class Detector():
             if asteroid & (duration < asteroid_duration):
                 obj.loc[ind,'Type'] = 'Asteroid'
                 event['Prob'] = 1
-              
             event['Type'] = obj['Type'].iloc[0]
             events += [event]
             counter += 1
         events = pd.concat(events,ignore_index=True)
+        events['total_events'] = len(events)
+        
         try:
             events = events.drop('Unnamed: 0',axis=1)
         except:
@@ -717,7 +719,7 @@ class Detector():
         
 
     def plot_source(self,cut,id,event='seperate',savename=None,save_path='.',
-                    star_bin=True,period_bin=True,type_bin=True,objectid_bin=True,
+                    star_bin=True,period_bin=True,type_bin=True,objectid_bin='auto',
                     include_periodogram=False,latex=False,period_power_limit=10,
                     asteroid_check=True):
         if latex:
@@ -732,6 +734,11 @@ class Detector():
             self.cut = cut
         sources =  self.events[self.events['objid']==id]
         total_events = len(sources)
+        if type(objectid_bin) == str:
+            if total_events > 5:
+                objectid_bin = True
+            else:
+                objectid_bin = False
         if type(event) == str:
             if event.lower() == 'seperate':
                 pass
@@ -792,7 +799,11 @@ class Detector():
                 fstart = 0
             zoom = f[fstart:frameEnd+20]
             ax[0].set_title('Light curve')
-            ax[0].plot(time[fstart:frameEnd+20],zoom,'k',alpha=0.8)
+            ax[0].plot(time[fstart:frameEnd+20],zoom,'k',alpha=0)
+            ylims = ax[0].get_ylim()
+            ax[0].plot(time,f,'k',alpha=0.8)
+            plt.xlim(time[fstart],time[frameEnd+20])
+            plt.ylim(ylims[0],ylims[1])
             ax[0].set_ylabel('Brightness')
             
             
@@ -936,7 +947,7 @@ class Detector():
                 dpass = dist - 0.8
                 cpass = cor - 0.8
                 asteroid = dpass + cpass > 0 
-                if asteroid & (duration < 6/24):
+                if asteroid & (duration < 1):
                     source['Type'] = 'Asteroid'
                     source['Prob'] = 1
                 
