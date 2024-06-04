@@ -1454,7 +1454,7 @@ processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2
 processor.reduce(cam={cam},ccd={ccd},n={self.n},cut={cut})\n\
 if os.path.exists('{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Shifts.npy'):\n\
     with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reduced.txt', 'w') as file:\n\
-        file.write('Reduced!')"
+        file.write('Reduced with TESSreduce version {tr.__version__}.')"
                 
                         with open(f"{self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
                             python_file.write(python_text)
