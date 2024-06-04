@@ -422,32 +422,32 @@ class DataProcessor():
             if self.verbose > 0:
                 print(f'--Reduction Cam {cam} Chip {ccd} Cut {cut} (of {n**2})--')
             
-            try: 
-                # -- Defining so can be deleted if failed -- #
-                tessreduce = 0
+            # try: 
+            # -- Defining so can be deleted if failed -- #
+            tessreduce = 0
 
-                # -- reduce -- #
-                tessreduce = tr.tessreduce(tpf=cutPath,sector=self.sector,reduce=True,corr_correction=True,
-                                            calibrate=False,catalogue_path=cutFolder)
-                
-                if self.verbose > 0:
-                    print(f'--Reduction Complete (Time: {((t()-ts)/60):.2f} mins)--')
-                    print('\n')
-                #tw = t()   # write timeStart
-                
-                # -- Saves information out as Numpy Arrays -- #
-                np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Times.npy',tessreduce.lc[0])
-                np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_ReducedFlux.npy',tessreduce.flux)
-                np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Mask.npy',tessreduce.mask)
-                np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Shifts.npy',tessreduce.shift)
+            # -- reduce -- #
+            tessreduce = tr.tessreduce(tpf=cutPath,sector=self.sector,reduce=True,corr_correction=True,
+                                        calibrate=False,catalogue_path=cutFolder)
+            
+            if self.verbose > 0:
+                print(f'--Reduction Complete (Time: {((t()-ts)/60):.2f} mins)--')
+                print('\n')
+            #tw = t()   # write timeStart
+            
+            # -- Saves information out as Numpy Arrays -- #
+            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Times.npy',tessreduce.lc[0])
+            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_ReducedFlux.npy',tessreduce.flux)
+            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Mask.npy',tessreduce.mask)
+            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Shifts.npy',tessreduce.shift)
 
-                del (tessreduce)
+            del (tessreduce)
 
-            except:
-                # -- Deletes Memory -- #
-                del(tessreduce)
+            # except:
+            #     # -- Deletes Memory -- #
+            #     del(tessreduce)
 
-                if self.verbose > 0:
-                    print(f'Reducing Cam {cam} Chip {ccd} Cut {cut} Failed :( Time Elapsed: {((t()-ts)/60):.2f} mins.')
-                    print('\n')
-                pass 
+            #     if self.verbose > 0:
+            #         print(f'Reducing Cam {cam} Chip {ccd} Cut {cut} Failed :( Time Elapsed: {((t()-ts)/60):.2f} mins.')
+            #         print('\n')
+            #     pass 
