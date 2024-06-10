@@ -752,7 +752,7 @@ class Detector():
     def plot_source(self,cut,id,event='seperate',savename=None,save_path='.',
                     star_bin=True,period_bin=True,type_bin=True,objectid_bin='auto',
                     include_periodogram=False,latex=False,period_power_limit=10,
-                    asteroid_check=True,y_values=False):
+                    asteroid_check=True,zoo_mode=False):
         if latex:
             plt.rc('text', usetex=True)
             plt.rc('font', family='serif')
@@ -847,14 +847,17 @@ class Detector():
             else:
                 ax[1].axvline(time[(frameEnd + frameStart)//2],color='C1')
                 duration = 0
-            ax[1].set_title('Is there a transient in the orange region?')    
+            if zoo_mode:
+                ax[1].set_title('Is there a transient in the orange region?')    
+            else:
+                ax[1].set_title('Lightcurve')    
             ax[1].plot(time,f,'k',alpha=0.8)
             ax[1].set_ylabel('Brightness',fontsize=15,labelpad=10)
             ax[1].set_xlabel('Time (days)',fontsize=15)
             ylims = ax[1].get_ylim()
             ax[1].set_ylim(ylims[0],ylims[1]+(abs(ylims[0]-ylims[1])))
             ax[1].set_xlim(np.min(time),np.max(time))
-            if y_values:
+            if not zoo_mode:
                 axins = ax[1].inset_axes([0.1, 0.55, 0.86, 0.43])
             else:
                 axins = ax[1].inset_axes([0.02, 0.55, 0.96, 0.43])
@@ -866,7 +869,7 @@ class Detector():
             axins.set_xlim(time[fstart],time[fe])
             axins.set_ylim(np.nanmin(zoom)*0.9,np.nanmax(zoom)*1.1)
             mark_inset(ax[1], axins, loc1=3, loc2=4, fc="none", ec="0.5")
-            if not y_values:
+            if zoo_mode:
                 axins.yaxis.set_tick_params(labelleft=False,left=False)
                 axins.xaxis.set_tick_params(labelbottom=False,bottom=False)
                 ax[1].yaxis.set_tick_params(labelleft=False,left=False)
@@ -894,7 +897,10 @@ class Detector():
 
             #ax[2].set_xlabel(f'Time {np.round(time[brightestframe],2)}')
             #ax[2].set_title('Brightest image')
-            ax[2].set_title('Is it stationary?')
+            if zoo_mode:
+                ax[2].set_title('Is it stationary?')
+            else:
+                ax[2].set_title('Brightest image')
             ax[2].get_xaxis().set_visible(False)
             ax[2].get_yaxis().set_visible(False)
             ax[3].get_xaxis().set_visible(False)
