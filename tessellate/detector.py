@@ -1,6 +1,7 @@
 import lightkurve as lk
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 import numpy as np
 import pandas as pd
 from PRF import TESS_PRF
@@ -400,8 +401,31 @@ class Detector():
         except:
             print('Could not find a wcs file')
     
+    def _check_lc_significance(self,event,buffer = 10,base_range=20):
+        lc = np.nansum(self.flux[:,event.ycentroid.values,event.xcentroid.values],axis=(1,2))
+        fs = event['frame_start'].values - buffer
+        fe = event['frame_end'].values + buffer
+        if fs < 0:
+            fs = 0
+        if fe > len(lc):
+            fe = len(lc) - 1 
+        baseline = lc
+        bs = fs - base_range
+        be = fe + base_range
+        if bs < 0:
+            bs = 0
+        if be > len(lc):
+            be = len(lc) - 1 
+        frames = np.arange(0,len(lc))
+        ind = ((frames > bs) & (frames < fs)) | ((frames > be) & (frames < fe))
+        mean,med, std = sigma_clipped_stats(lc[ind])
+        lc_max = np.nanmax(lc[event['frame_start'].values:event['frame_end'].values])
+        significance = (lc_max - med) / std
+        return significance 
+        
+    
     def isolate_events(self,objid,frame_buffer=20,duration=1,
-                       asteroid_distance=0.8,asteroid_correlation=0.8,asteroid_duration=1):
+                       asteroid_distance=1.5,asteroid_correlation=0.8,asteroid_duration=1):
         obj_ind = self.sources['objid'].values == objid
         obj = self.sources.iloc[obj_ind]
         frames = obj.frame.values
@@ -470,9 +494,10 @@ class Detector():
             detections = detections.drop(columns='Type')
             # check for asteroid
             x = detections.xcentroid.values; y = detections.ycentroid.values
-            dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
-            dist = np.nanmax(dist,axis=1)
-            av_dist = np.nanmean(dist)
+            #dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
+            #dist = np.nanmax(dist,axis=1)
+            #av_dist = np.nanmean(dist)
+            av_dist = np.sqrt((x[0]]-x[-1])**2 + (y[0]-y[-1])**2)
             if len(x)>= 2:
                 cor = np.round(abs(pearsonr(x,y)[0]),1)
             else:
@@ -491,8 +516,12 @@ class Detector():
                 obj.loc[ind,'Type'] = 'Asteroid'
                 event['Prob'] = 1
             event['Type'] = obj['Type'].iloc[0]
+            sig = self._check_lc_significance(event)
+            event['lc_sig'] = sig
+            
             events += [event]
             counter += 1
+            
         events = pd.concat(events,ignore_index=True)
         events['total_events'] = len(events)
         
@@ -718,10 +747,12 @@ class Detector():
         events = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path) for ind in inds)
         
 
+
+
     def plot_source(self,cut,id,event='seperate',savename=None,save_path='.',
                     star_bin=True,period_bin=True,type_bin=True,objectid_bin='auto',
                     include_periodogram=False,latex=False,period_power_limit=10,
-                    asteroid_check=True):
+                    asteroid_check=True,y_values=False):
         if latex:
             plt.rc('text', usetex=True)
             plt.rc('font', family='serif')
@@ -770,9 +801,9 @@ class Detector():
 
             #frames = source['frame'].values
             if include_periodogram:
-                fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3],[4,4,4,4,4]],figsize=(7,9),constrained_layout=True)
+                fig,ax = plt.subplot_mosaic([[1,1,1,2,2],[1,1,1,3,3],[4,4,4,4,4]],figsize=(7,9),constrained_layout=True)
             else:
-                fig,ax = plt.subplot_mosaic([[0,0,0,2,2],[1,1,1,3,3]],figsize=(7,5.5),constrained_layout=True)
+                fig,ax = plt.subplot_mosaic([[1,1,1,2,2],[1,1,1,3,3]],figsize=(7,5.5),constrained_layout=True)
 
             frameStart = int(source['frame_start']) #min(source['frame'].values)
             frameEnd = int(source['frame_end']) #max(source['frame'].values)
@@ -793,11 +824,14 @@ class Detector():
                 frameEnd -= 1
             time = self.time - self.time[0]
             
-            ax[0].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
+            
             fstart = frameStart-10
             if fstart < 0:
                 fstart = 0
             zoom = f[fstart:frameEnd+20]
+            '''
+            ax[0].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
+            
             ax[0].set_title('Light curve')
             ax[0].plot(time[fstart:frameEnd+20],zoom,'k',alpha=0)
             ylims = ax[0].get_ylim()
@@ -805,7 +839,7 @@ class Detector():
             plt.xlim(time[fstart],time[frameEnd+20])
             plt.ylim(ylims[0],ylims[1])
             ax[0].set_ylabel('Brightness')
-            
+            '''
             
             if (frameEnd - frameStart) > 2:
                 ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
@@ -813,12 +847,30 @@ class Detector():
             else:
                 ax[1].axvline(time[(frameEnd + frameStart)//2],color='C1')
                 duration = 0
-                
+            ax[1].set_title('Is there a transient in the orange region?')    
             ax[1].plot(time,f,'k',alpha=0.8)
-            ax[1].set_ylabel('Brightness')
-            ax[1].set_xlabel('Time (days)')
-            
-                
+            ax[1].set_ylabel('Brightness',fontsize=15,labelpad=10)
+            ax[1].set_xlabel('Time (days)',fontsize=15)
+            ylims = ax[1].get_ylim()
+            ax[1].set_ylim(ylims[0],ylims[1]+(abs(ylims[0]-ylims[1])))
+            ax[1].set_xlim(np.min(time),np.max(time))
+            if y_values:
+                axins = ax[1].inset_axes([0.1, 0.55, 0.86, 0.43])
+            else:
+                axins = ax[1].inset_axes([0.02, 0.55, 0.96, 0.43])
+            axins.axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
+            axins.plot(time,f,'k',alpha=0.8)
+            fe = frameEnd + 20
+            if fe >= len(time):
+                fe = len(time) - 1
+            axins.set_xlim(time[fstart],time[fe])
+            axins.set_ylim(np.nanmin(zoom)*0.9,np.nanmax(zoom)*1.1)
+            mark_inset(ax[1], axins, loc1=3, loc2=4, fc="none", ec="0.5")
+            if not y_values:
+                axins.yaxis.set_tick_params(labelleft=False,left=False)
+                axins.xaxis.set_tick_params(labelbottom=False,bottom=False)
+                ax[1].yaxis.set_tick_params(labelleft=False,left=False)
+
             
             ymin = y - 15
             if ymin < 0:
@@ -836,53 +888,24 @@ class Detector():
             #   vmax = 10
             cutout_image = self.flux[:,ymin:y+16,xmin:x+16]
             ax[2].imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
-            ax[2].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1*',alpha=0.8)
+            #ax[2].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1*',alpha=0.8)
             rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin),5,5, linewidth=2, edgecolor='r', facecolor='none')
             ax[2].add_patch(rect)
 
             #ax[2].set_xlabel(f'Time {np.round(time[brightestframe],2)}')
-            ax[2].set_title('Brightest image')
+            #ax[2].set_title('Brightest image')
+            ax[2].set_title('Is it stationary?')
             ax[2].get_xaxis().set_visible(False)
             ax[2].get_yaxis().set_visible(False)
             ax[3].get_xaxis().set_visible(False)
             ax[3].get_yaxis().set_visible(False)
             
-            
-            #vmax = np.max(self.flux[brightestframe,y-1:y+2,x-1:x+2])/2
-            #im = ax[3].imshow(self.flux[brightestframe,y-2:y+3,x-2:x+3],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
-            #plt.colorbar(im)
             try:
                 tdiff = np.where(time-time[brightestframe] >= 1/24)[0][0]
             except:
                 tdiff = np.where(time[brightestframe] - time >= 1/24)[0][-1]
             after = tdiff#brightestframe + 1
-            #com_bright = center_of_mass(self.flux[brightestframe,y-1:y+2,x-1:x+2])
-            #beep = deepcopy(self.flux[after])
-            #beep[beep < 0] = 0
-            #com_next = center_of_mass(beep[y-2:y+3,x-2:x+3])
-            #com_bright = np.array(com_bright)
-            #com_next = np.array(com_next)
-            #bright_flux = np.nansum(self.flux[brightestframe,y-2:y+3,x-2:x+3])
-            #xx = (x + (com_next[1]-3) +.5).astype(int)
-            #yy = (y +(com_next[0]-3)+.5).astype(int)
-            #next_flux = np.nansum(beep[yy-1:yy+2,xx-1:xx+2])
-            #next_flux = np.nansum(self.flux[after,y-2:y+3,x-2:x+3])
-            #next_flux = np.nansum(self.flux[after,(y+com_next[0]+.5-3).astype(int)-1:(y+com_next[0]+.5-3).astype(int)+2,
-                                            #(x+com_next[1]+.5-3).astype(int)-1:(x+com_next[1]+.5-3).astype(int)+2])
-            #rect = patches.Rectangle((x-2.5 +(com_next[1]-3) - xmin, y-2.5 +(com_next[0]-3) - ymin),5,5, linewidth=2, edgecolor='r', facecolor='none')
-            #ax[3].add_patch(rect)
-            #ax[3].plot((x + (com_next[1]-3) +.5).astype(int) - xmin, (y +(com_next[0]-3)+.5).astype(int) - ymin,'*C1')
-            #if next_flux < 0:
-            #    next_flux = 0
-            #flux_ratio = np.round(next_flux / bright_flux,1)
-            #diff = np.sqrt(np.nansum((com_bright - com_next)**2))
-            #durtime = (duration > 0) & (duration <= asteroid_duration)
-            #print('com brightest: ',com_bright,bright_flux)
-            #print('com next: ',com_next,next_flux)
-            #print('flux ratio: ',flux_ratio,flux_ratio>=0.45)
-            #print('diff: ', diff, diff > 0.8)
-            #print('Asteroid? ',(diff > 0.8) & (flux_ratio>=0.45))
-            #asteroid = (diff > asteroid_distance) & (flux_ratio>=asteroid_flux) & durtime
+
             
             if after >= len(cutout_image):
                 after = len(cutout_image) - 1 
@@ -891,7 +914,7 @@ class Detector():
             #    before = 0
             ax[3].imshow(cutout_image[after],
                         cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
-            ax[3].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1*',alpha=0.8)
+            #ax[3].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1*',alpha=0.8)
             rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin),5,5, linewidth=2, edgecolor='r', facecolor='none')
             ax[3].add_patch(rect)
             ax[3].set_title('1 hour later')
