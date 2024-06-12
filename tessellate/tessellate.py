@@ -1259,7 +1259,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
         data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
         cutCorners,_,cutCentreCoords,rad = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
 
-        image_path = glob(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/*ffic.fits')[0]
+        #image_path = glob(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/*ffic.fits')[0]
 
         l = self.cut_time.split(':')
         seconds = 1 * int(l[-1]) + 60 * int(l[-2])
@@ -1293,8 +1293,11 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                                 print('Gaia catalog already made, skipping.')
                             else:
                                 rad = rad + 2*60/21
-                                tr.external_save_cat(radec=cutCentreCoords[cut-1],size=rad,cutCornerPx=cutCorners[cut-1],
-                                                    image_path=image_path,save_path=save_path,maglim=19) # oversize radius by 2 arcmin in terms of tess pixels
+                                cutPath = f'{save_path}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}.fits'
+                                tr.external_save_cat(tpf=cutPath,save_path=save_path,maglim=19) # oversize radius by 2 arcmin in terms of tess pixels
+                                
+                                # tr.external_save_cat(radec=cutCentreCoords[cut-1],size=rad,cutCornerPx=cutCorners[cut-1],
+                                #                     image_path=image_path,save_path=save_path,maglim=19) # oversize radius by 2 arcmin in terms of tess pixels
                                 
                             rad2 = rad*21/60**2
                             #print('rad: ',rad)
