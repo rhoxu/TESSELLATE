@@ -428,7 +428,7 @@ class DataProcessor():
 
             # -- reduce -- #
             tessreduce = tr.tessreduce(tpf=cutPath,sector=self.sector,reduce=True,corr_correction=True,
-                                        calibrate=False,catalogue_path=cutFolder)
+                                        calibrate=False,catalogue_path=f'{cutFolder}/local_gaia_cat.csv')
             
             if self.verbose > 0:
                 print(f'--Reduction Complete (Time: {((t()-ts)/60):.2f} mins)--')
