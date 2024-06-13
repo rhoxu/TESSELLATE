@@ -853,16 +853,16 @@ class Detector():
             #    ax[1].axvline(time[(frameEnd + frameStart)//2],color='C1')
                 duration = 0
             if zoo_mode:
-                ax[1].set_title('Is there a transient in the orange region?')    
+                ax[1].set_title('Is there a transient in the orange region?',fontsize=15)    
             else:
-                ax[1].set_title('Lightcurve')    
+                ax[1].set_title('Lightcurve',fontsize=15)    
             ax[1].plot(time,f,'k',alpha=0.8)
             ax[1].set_ylabel('Brightness',fontsize=15,labelpad=10)
             ax[1].set_xlabel('Time (days)',fontsize=15)
             ylims = ax[1].get_ylim()
             ax[1].set_ylim(ylims[0],ylims[1]+(abs(ylims[0]-ylims[1])))
             ax[1].set_xlim(np.min(time),np.max(time))
-            if y_values:
+            if zoo_mode:
                 axins = ax[1].inset_axes([0.1, 0.55, 0.86, 0.43])
             else:
                 axins = ax[1].inset_axes([0.02, 0.55, 0.96, 0.43])
@@ -877,7 +877,7 @@ class Detector():
             plt.setp(axins.spines.values(), color='r',lw=2)
             plt.setp([axins.get_xticklines(), axins.get_yticklines()], color='C3')
             
-            if not y_values:
+            if not zoo_mode:
                 axins.yaxis.set_tick_params(labelleft=False,left=False)
                 axins.xaxis.set_tick_params(labelbottom=False,bottom=False)
                 ax[1].yaxis.set_tick_params(labelleft=False,left=False)
