@@ -1,6 +1,7 @@
 import lightkurve as lk
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 import numpy as np
 import pandas as pd
 from PRF import TESS_PRF
@@ -400,8 +401,31 @@ class Detector():
         except:
             print('Could not find a wcs file')
     
+    def _check_lc_significance(self,event,buffer = 10,base_range=20):
+        lc = np.nansum(self.flux[:,event.ycentroid.values,event.xcentroid.values],axis=(1,2))
+        fs = event['frame_start'].values - buffer
+        fe = event['frame_end'].values + buffer
+        if fs < 0:
+            fs = 0
+        if fe > len(lc):
+            fe = len(lc) - 1 
+        baseline = lc
+        bs = fs - base_range
+        be = fe + base_range
+        if bs < 0:
+            bs = 0
+        if be > len(lc):
+            be = len(lc) - 1 
+        frames = np.arange(0,len(lc))
+        ind = ((frames > bs) & (frames < fs)) | ((frames > be) & (frames < fe))
+        mean,med, std = sigma_clipped_stats(lc[ind])
+        lc_max = np.nanmax(lc[event['frame_start'].values:event['frame_end'].values])
+        significance = (lc_max - med) / std
+        return significance 
+        
+    
     def isolate_events(self,objid,frame_buffer=20,duration=1,
-                       asteroid_distance=0.8,asteroid_correlation=0.8,asteroid_duration=1):
+                       asteroid_distance=1.5,asteroid_correlation=0.8,asteroid_duration=1):
         obj_ind = self.sources['objid'].values == objid
         obj = self.sources.iloc[obj_ind]
         frames = obj.frame.values
@@ -470,9 +494,10 @@ class Detector():
             detections = detections.drop(columns='Type')
             # check for asteroid
             x = detections.xcentroid.values; y = detections.ycentroid.values
-            dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
-            dist = np.nanmax(dist,axis=1)
-            av_dist = np.nanmean(dist)
+            #dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
+            #dist = np.nanmax(dist,axis=1)
+            #av_dist = np.nanmean(dist)
+            av_dist = np.sqrt((x[0]]-x[-1])**2 + (y[0]-y[-1])**2)
             if len(x)>= 2:
                 cor = np.round(abs(pearsonr(x,y)[0]),1)
             else:
@@ -491,8 +516,12 @@ class Detector():
                 obj.loc[ind,'Type'] = 'Asteroid'
                 event['Prob'] = 1
             event['Type'] = obj['Type'].iloc[0]
+            sig = self._check_lc_significance(event)
+            event['lc_sig'] = sig
+            
             events += [event]
             counter += 1
+            
         events = pd.concat(events,ignore_index=True)
         events['total_events'] = len(events)
         
@@ -718,10 +747,12 @@ class Detector():
         events = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path) for ind in inds)
         
 
+
+
     def plot_source(self,cut,id,event='seperate',savename=None,save_path='.',
                     star_bin=True,period_bin=True,type_bin=True,objectid_bin='auto',
                     include_periodogram=False,latex=False,period_power_limit=10,
-                    asteroid_check=True,y_values=False):
+                    asteroid_check=True,zoo_mode=False):
         if latex:
             plt.rc('text', usetex=True)
             plt.rc('font', family='serif')
@@ -771,6 +802,7 @@ class Detector():
             #frames = source['frame'].values
             if include_periodogram:
                 fig,ax = plt.subplot_mosaic([[1,1,1,2,2],[1,1,1,3,3],[4,4,4,4,4]],figsize=(7,9),constrained_layout=True)
+                fig,ax = plt.subplot_mosaic([[1,1,1,2,2],[1,1,1,3,3],[4,4,4,4,4]],figsize=(7,9),constrained_layout=True)
             else:
                 fig,ax = plt.subplot_mosaic([[1,1,1,2,2],[1,1,1,3,3]],figsize=(7*1.1,5.5*1.1),constrained_layout=True)
 
@@ -801,6 +833,9 @@ class Detector():
             '''
             ax[0].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
             
+            '''
+            ax[0].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
+            
             ax[0].set_title('Light curve')
             ax[0].plot(time[fstart:frameEnd+20],zoom,'k',alpha=0)
             ylims = ax[0].get_ylim()
@@ -809,6 +844,7 @@ class Detector():
             plt.ylim(ylims[0],ylims[1])
             ax[0].set_ylabel('Brightness')
             '''
+            '''
             
             if (frameEnd - frameStart) > 2:
             #    ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
@@ -816,7 +852,10 @@ class Detector():
             else:
             #    ax[1].axvline(time[(frameEnd + frameStart)//2],color='C1')
                 duration = 0
-            ax[1].set_title('Is there a transient in the orange region?',fontsize=15)    
+            if zoo_mode:
+                ax[1].set_title('Is there a transient in the orange region?')    
+            else:
+                ax[1].set_title('Lightcurve')    
             ax[1].plot(time,f,'k',alpha=0.8)
             ax[1].set_ylabel('Brightness',fontsize=15,labelpad=10)
             ax[1].set_xlabel('Time (days)',fontsize=15)
@@ -877,6 +916,7 @@ class Detector():
             except:
                 tdiff = np.where(time[brightestframe] - time >= 1/24)[0][-1]
             after = tdiff#brightestframe + 1
+
 
             
             if after >= len(cutout_image):
