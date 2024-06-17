@@ -831,21 +831,6 @@ class Detector():
             if fstart < 0:
                 fstart = 0
             zoom = f[fstart:frameEnd+20]
-            '''
-            ax[0].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
-            
-            '''
-            ax[0].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
-            
-            ax[0].set_title('Light curve')
-            ax[0].plot(time[fstart:frameEnd+20],zoom,'k',alpha=0)
-            ylims = ax[0].get_ylim()
-            ax[0].plot(time,f,'k',alpha=0.8)
-            plt.xlim(time[fstart],time[frameEnd+20])
-            plt.ylim(ylims[0],ylims[1])
-            ax[0].set_ylabel('Brightness')
-            '''
-            '''
             
             if (frameEnd - frameStart) > 2:
             #    ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
