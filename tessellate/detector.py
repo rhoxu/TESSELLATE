@@ -497,7 +497,7 @@ class Detector():
             #dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
             #dist = np.nanmax(dist,axis=1)
             #av_dist = np.nanmean(dist)
-            av_dist = np.sqrt((x[0]]-x[-1])**2 + (y[0]-y[-1])**2)
+            av_dist = np.sqrt((x[0]-x[-1])**2 + (y[0]-y[-1])**2)
             if len(x)>= 2:
                 cor = np.round(abs(pearsonr(x,y)[0]),1)
             else:
@@ -736,7 +736,7 @@ class Detector():
         return extension
 
 
-    def plot_ALL(self,cut,save_path=None,lower=3,starkiller=False):
+    def plot_ALL(self,cut,save_path=None,lower=3,starkiller=False,save_lc=True):
         detections = self.count_detections(cut=cut,lower=lower,starkiller=starkiller)
         if save_path is None:
             save_path = self.path + f'/Cut{cut}of{self.n**2}/figs/'
@@ -752,7 +752,7 @@ class Detector():
     def plot_source(self,cut,id,event='seperate',savename=None,save_path='.',
                     star_bin=True,period_bin=True,type_bin=True,objectid_bin='auto',
                     include_periodogram=False,latex=False,period_power_limit=10,
-                    asteroid_check=True,zoo_mode=False):
+                    asteroid_check=True,zoo_mode=True,save_lc=True):
         if latex:
             plt.rc('text', usetex=True)
             plt.rc('font', family='serif')
@@ -824,8 +824,9 @@ class Detector():
             if frameEnd >= len(self.flux):
                 frameEnd -= 1
             time = self.time - self.time[0]
-            
-            
+            frames = np.arange(0,len(self.time))
+            frames = (frames >= frameStart) & (frames <= frameEnd)
+            lc = np.array([time,f,frames]).T
             fstart = frameStart-20
             if fstart < 0:
                 fstart = 0
@@ -992,6 +993,8 @@ class Detector():
                 
             if savename is not None:
                 sp = deepcopy(save_path)
+                splc = deepcopy(save_path).replace('fig','lc')
+                self._check_dirs(splc)
                 if savename.lower() == 'auto':
                     savename = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_object{id}'
                 if star_bin:
@@ -1000,7 +1003,9 @@ class Detector():
                     else:
                         extension = 'no_star'
                 sp += '/' + extension
+                #splc += '/' + extension
                 self._check_dirs(sp)
+                #self._check_dirs(splc)
 
                 if period_bin:
                     if type_bin:
@@ -1010,15 +1015,27 @@ class Detector():
                             extension = self.period_bin(frequencies)
                     sp += '/' + extension
                     self._check_dirs(sp)
+                    #splc += '/' + extension
+                    #self._check_dirs(splc)
+                    
                 if objectid_bin:
                     extension = f'{self.sector}_{self.cam}_{self.ccd}_{self.cut}_{id}'
                     sp += '/' + extension
                     self._check_dirs(sp)
+                    #splc += '/' + extension
+                    #self._check_dirs(splc)
                 if event == 'all':
                     plt.savefig(sp+'/'+savename+'_all_events.png', bbox_inches = "tight")
                 else:
                     plt.savefig(sp+'/'+savename+f'_event{i+1}of{total_events}.png', 
                                 bbox_inches = "tight")
+                if save_lc:
+                    headers = ['mjd','counts','event']
+                    lc = pd.DataFrame(data=lc,columns=headers)
+                    if event == 'all':
+                        lc.to_csv(sp+'/'+savename+'_all_events.csv', index=False)
+                    else:
+                        lc.to_csv(sp+'/'+savename+f'_event{i+1}of{total_events}.csv', index=False)
                 #np.save(save_path+'/'+savename+'_lc.npy',[time,f])
                 #np.save(save_path+'/'+savename+'_cutout.npy',cutout_image)
                 self.save_base = sp+'/'+savename
