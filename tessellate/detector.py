@@ -842,6 +842,8 @@ class Detector():
                 ax[1].set_title('Is there a transient in the orange region?',fontsize=15)    
             else:
                 ax[1].set_title('Lightcurve',fontsize=15)    
+            ax[1].plot(time[fstart:frameEnd+20],zoom,'k',alpha=0)
+            insert_ylims = ax[1].get_ylim()
             ax[1].plot(time,f,'k',alpha=0.8)
             ax[1].set_ylabel('Brightness',fontsize=15,labelpad=10)
             ax[1].set_xlabel('Time (days)',fontsize=15)
@@ -849,21 +851,22 @@ class Detector():
             ax[1].set_ylim(ylims[0],ylims[1]+(abs(ylims[0]-ylims[1])))
             ax[1].set_xlim(np.min(time),np.max(time))
             if zoo_mode:
-                axins = ax[1].inset_axes([0.1, 0.55, 0.86, 0.43])
-            else:
                 axins = ax[1].inset_axes([0.02, 0.55, 0.96, 0.43])
+            else:
+                axins = ax[1].inset_axes([0.1, 0.55, 0.86, 0.43])
+                
             axins.axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
             axins.plot(time,f,'k',alpha=0.8)
             fe = frameEnd + 20
             if fe >= len(time):
                 fe = len(time) - 1
             axins.set_xlim(time[fstart],time[fe])
-            axins.set_ylim(np.nanmin(zoom)*0.9,np.nanmax(zoom)*1.1)
+            axins.set_ylim(insert_ylims[0],insert_ylims[1])
             mark_inset(ax[1], axins, loc1=3, loc2=4, fc="none", ec="r",lw=2)
             plt.setp(axins.spines.values(), color='r',lw=2)
             plt.setp([axins.get_xticklines(), axins.get_yticklines()], color='C3')
             
-            if not zoo_mode:
+            if zoo_mode:
                 axins.yaxis.set_tick_params(labelleft=False,left=False)
                 axins.xaxis.set_tick_params(labelbottom=False,bottom=False)
                 ax[1].yaxis.set_tick_params(labelleft=False,left=False)
@@ -932,6 +935,7 @@ class Detector():
                 textstr = r'$\bf{Period}$' + '\n'
                 #for i in range(1):
                 ind = (signal_num == 1) & (harmonic == 1)
+                '''
                 try:
                     #print('power: ',frequencies['peak_power'][ind][0])
                     if frequencies['peak_power'][ind][0] > period_power_limit:
@@ -952,6 +956,7 @@ class Detector():
                             ax[1].set_ylim(ylims[0],start_flux * 1.4)
                 except:
                     pass
+                '''
 
             #plt.tight_layout()
             #plt.subplots_adjust(hspace=0.1)
@@ -1018,9 +1023,9 @@ class Detector():
                     headers = ['mjd','counts','event']
                     lc = pd.DataFrame(data=lc,columns=headers)
                     if event == 'all':
-                        lc.to_csv(sp+'/'+savename+'_all_events.csv', index=False)
+                        lc.to_csv(splc+'/'+savename+'_all_events.csv', index=False)
                     else:
-                        lc.to_csv(sp+'/'+savename+f'_event{i+1}of{total_events}.csv', index=False)
+                        lc.to_csv(splc+'/'+savename+f'_event{i+1}of{total_events}.csv', index=False)
                 #np.save(save_path+'/'+savename+'_lc.npy',[time,f])
                 #np.save(save_path+'/'+savename+'_cutout.npy',cutout_image)
                 self.save_base = sp+'/'+savename
