@@ -402,7 +402,7 @@ class Detector():
             print('Could not find a wcs file')
     
     def _check_lc_significance(self,event,buffer = 10,base_range=20):
-        lc = np.nansum(self.flux[:,event.ycentroid.values,event.xcentroid.values],axis=(1,2))
+        lc = np.nansum(self.flux[:,event.yint.values,event.xint.values],axis=(1,2))
         fs = event['frame_start'].values - buffer
         fe = event['frame_end'].values + buffer
         if fs < 0:
