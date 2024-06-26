@@ -402,7 +402,10 @@ class Detector():
             print('Could not find a wcs file')
     
     def _check_lc_significance(self,event,buffer = 10,base_range=20):
-        lc = np.nansum(self.flux[:,event.yint.values,event.xint.values],axis=(1,2))
+        ap = np.zeros_like(self.flux[0])
+        y = event.yint.values.astype(int)
+        x = event.xint.values.astype(int)
+        lc = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(1,2))
         fs = event['frame_start'].values - buffer
         fe = event['frame_end'].values + buffer
         if fs < 0:
@@ -510,6 +513,8 @@ class Detector():
             event['frame_end'] = e[1]
             event['mjd_start'] = self.time[e[0]]
             event['mjd_end'] = self.time[e[1]]
+            event['yint'] = event['yint'].values.astype(int)
+            event['xint'] = event['xint'].values.astype(int)
             duration = self.time[e[1]] - self.time[e[0]]
             event['mjd_duration'] = duration
             if asteroid & (duration < asteroid_duration):
