@@ -420,7 +420,7 @@ class Detector():
         if be > len(lc):
             be = len(lc) - 1 
         frames = np.arange(0,len(lc))
-        ind = ((frames > bs) & (frames < fs)) | ((frames > be) & (frames < fe))
+        ind = ((frames > bs) & (frames < fs)) | ((frames < be) & (frames > fe))
         mean,med, std = sigma_clipped_stats(lc[ind])
         lc_max = np.nanmax(lc[event['frame_start'].values[0]:event['frame_end'].values[0]])
         significance = (lc_max - med) / std
