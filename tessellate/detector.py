@@ -403,11 +403,11 @@ class Detector():
     
     def _check_lc_significance(self,event,buffer = 10,base_range=20):
         ap = np.zeros_like(self.flux[0])
-        y = event.yint.values.astype(int)
-        x = event.xint.values.astype(int)
+        y = event.yint.values.astype(int)[0]
+        x = event.xint.values.astype(int)[0]
         lc = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(1,2))
-        fs = event['frame_start'].values - buffer
-        fe = event['frame_end'].values + buffer
+        fs = event['frame_start'].values[0] - buffer
+        fe = event['frame_end'].values[0] + buffer
         if fs < 0:
             fs = 0
         if fe > len(lc):
@@ -422,13 +422,13 @@ class Detector():
         frames = np.arange(0,len(lc))
         ind = ((frames > bs) & (frames < fs)) | ((frames > be) & (frames < fe))
         mean,med, std = sigma_clipped_stats(lc[ind])
-        lc_max = np.nanmax(lc[event['frame_start'].values:event['frame_end'].values])
+        lc_max = np.nanmax(lc[event['frame_start'].values[0]:event['frame_end'].values[0]])
         significance = (lc_max - med) / std
         return significance 
         
     
     def isolate_events(self,objid,frame_buffer=20,duration=1,
-                       asteroid_distance=1.5,asteroid_correlation=0.8,asteroid_duration=1):
+                       asteroid_distance=2,asteroid_correlation=0.8,asteroid_duration=1):
         obj_ind = self.sources['objid'].values == objid
         obj = self.sources.iloc[obj_ind]
         frames = obj.frame.values
