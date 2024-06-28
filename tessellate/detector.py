@@ -511,6 +511,7 @@ class Detector():
             event['eventID'] = counter
             event['frame_start'] = e[0]
             event['frame_end'] = e[1]
+            event['n_detections'] = e[1]-e[0]
             event['mjd_start'] = self.time[e[0]]
             event['mjd_end'] = self.time[e[1]]
             event['yint'] = event['yint'].values.astype(int)
