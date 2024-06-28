@@ -221,7 +221,7 @@ class Tessellate():
             cube_mem_sug = '20G'
             cube_mem_req = 60
 
-            cut_time_sug = '10:00'
+            cut_time_sug = '20:00'
             cut_mem_sug = '20G'
             cut_mem_req = 20
 
@@ -1201,7 +1201,7 @@ class Tessellate():
 
         for cam in self.cam:
             for ccd in self.ccd: 
-                print(_Print_buff(30,f'Making Cube for Sector{self.sector} Cam{cam} Ccd{ccd}'))
+                print(_Print_buff(60,f'Making Cube for Sector{self.sector} Cam{cam} Ccd{ccd}'))
                 print('\n')
 
                 # -- Generate Cube Path -- #
@@ -1329,7 +1329,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 
         for cam in self.cam:
             for ccd in self.ccd: 
-                print(_Print_buff(30,f'Making Cut(s) for Sector{self.sector} Cam{cam} Ccd{ccd}')) 
+                print(_Print_buff(60,f'Making Cut(s) for Sector{self.sector} Cam{cam} Ccd{ccd}')) 
                 print('\n')
                 cube_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt'
                 if not os.path.exists(cube_check):
@@ -1426,7 +1426,7 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
 
         for cam in self.cam:
             for ccd in self.ccd: 
-                print(_Print_buff(40,f'Reducing Cut(s) for Sector{self.sector} Cam{cam} Ccd{ccd}'))
+                print(_Print_buff(60,f'Reducing Cut(s) for Sector{self.sector} Cam{cam} Ccd{ccd}'))
                 print('\n')
                 for cut in self.cuts:
                     cut_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
@@ -1537,7 +1537,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
 
         for cam in self.cam:
             for ccd in self.ccd:
-                print(_Print_buff(40,f'Transient Search for Sector{self.sector} Cam{cam} Ccd{ccd}'))
+                print(_Print_buff(60,f'Transient Search for Sector{self.sector} Cam{cam} Ccd{ccd}'))
                 print('\n')
                 if not reducing:
                     for cut in self.cuts:
@@ -1639,7 +1639,7 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
 
         for cam in self.cam:
             for ccd in self.ccd:
-                print(_Print_buff(40,f'Transient Plotting for Sector{self.sector} Cam{cam} Ccd{ccd}'))
+                print(_Print_buff(60,f'Transient Plotting for Sector{self.sector} Cam{cam} Ccd{ccd}'))
                 print('\n')
                 if not searching:
                     for cut in self.cuts:
