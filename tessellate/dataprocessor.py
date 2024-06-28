@@ -1,5 +1,7 @@
 import os
 from glob import glob
+import shutil
+
 
 import tessreduce as tr
 import numpy as np
@@ -67,7 +69,8 @@ def _get_wcs(path,wcs_path_check):
     """
 
     if os.path.exists(wcs_path_check):
-        wcsItem = wcs.WCS(wcs_path_check)
+        wcsFile = _Extract_fits(wcs_path_check)
+        wcsItem = wcs.WCS(wcsFile[1].header)
     else:
         if glob(f'{path}/*ffic.fits'):
             done = False
@@ -79,6 +82,7 @@ def _get_wcs(path,wcs_path_check):
                 file.close()
                 if wcsItem.get_axis_types()[0]['coordinate_type'] == 'celestial':
                     done = True
+                    shutil.copy2(filepath,wcs_path_check)
                 else:
                     i += 1
         else:
@@ -87,7 +91,7 @@ def _get_wcs(path,wcs_path_check):
 
     return wcsItem
 
-def _cut_properties(wcsItem,n):
+def _cut_properties(wcsItem,n): 
 
         intervals = 2048/n
 
@@ -209,9 +213,9 @@ class DataProcessor():
 
         newpath = f'{self.path}/Cam{cam}/Ccd{ccd}'
         wcsItem = _get_wcs(newpath,f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits')
-        if not os.path.exists(f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits'):
-            wcs_save = wcsItem.to_fits()
-            wcs_save.writeto(f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits')
+        # if not os.path.exists(f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits'):
+        #     wcs_save = wcsItem.to_fits()
+        #     wcs_save.writeto(f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits')
 
         if wcsItem is None:
             print('WCS Extraction Failed')
