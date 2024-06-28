@@ -212,7 +212,7 @@ class DataProcessor():
         """
 
         newpath = f'{self.path}/Cam{cam}/Ccd{ccd}'
-        wcsItem = _get_wcs(newpath,f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits')
+        wcsItem = _get_wcs(f'{newpath}/image_files',f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits')
         # if not os.path.exists(f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits'):
         #     wcs_save = wcsItem.to_fits()
         #     wcs_save.writeto(f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits')
@@ -289,7 +289,7 @@ class DataProcessor():
         """
 
         # -- Generate Cube Path -- #
-        file_path = f'{self.path}/Cam{cam}/Ccd{ccd}'
+        file_path = f'{self.path}/Cam{cam}/Ccd{ccd}/input_files'
         cube_name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits'
         cube_path = f'{file_path}/{cube_name}'
 
