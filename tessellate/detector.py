@@ -685,13 +685,16 @@ class Detector():
             self.cut = cut
 
         if starkiller:
-            r = self.sources[self.sources['source_mask']==0]
+            r = self.events[self.events['source_mask']==0]
         else:
-            r = self.sources
+            r = self.events
 
         array = r['objid'].values
-        id,count = np.unique(array, return_counts=True)
-        dictionary = dict(zip(id, count))
+        counts = []
+        ids = np.unique(array)
+        for id in ids:
+            counts.append(np.nansum(self.events[self.events['objid']==id]['n_detections'].values))
+        dictionary = dict(zip(ids, counts))
 
         if upper is not None:
             if lower is not None:
