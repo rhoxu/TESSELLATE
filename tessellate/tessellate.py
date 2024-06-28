@@ -1175,7 +1175,7 @@ class Tessellate():
 
         for cam in self.cam:
             for ccd in self.ccd:
-                if len(glob(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/input_files/*ffic.fits')) > 1000:
+                if len(glob(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/image_files/*ffic.fits')) > 1000:
                     print(f'Sector {self.sector} Cam {cam} CCD {ccd} data already downloaded!')
                     print('\n')
                 else:
@@ -1693,4 +1693,4 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
     def delete_FFIs(self):
         for cam in self.cam:
             for ccd in self.ccd:
-                os.system(f'rm {self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/input_files/*ffic.fits')
+                os.system(f'rm {self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/image_files/*ffic.fits')
