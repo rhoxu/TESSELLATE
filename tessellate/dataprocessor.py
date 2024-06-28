@@ -289,7 +289,7 @@ class DataProcessor():
         """
 
         # -- Generate Cube Path -- #
-        file_path = f'{self.path}/Cam{cam}/Ccd{ccd}/input_files'
+        file_path = f'{self.path}/Cam{cam}/Ccd{ccd}/image_files'
         cube_name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits'
         cube_path = f'{file_path}/{cube_name}'
 
