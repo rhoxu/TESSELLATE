@@ -289,9 +289,10 @@ class DataProcessor():
         """
 
         # -- Generate Cube Path -- #
-        file_path = f'{self.path}/Cam{cam}/Ccd{ccd}/image_files'
+        broad_path = f'{self.path}/Cam{cam}/Ccd{ccd}'
+        file_path = f'{broad_path}/image_files'
         cube_name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits'
-        cube_path = f'{file_path}/{cube_name}'
+        cube_path = f'{broad_path}/{cube_name}'
 
         # if os.path.exists(cube_path):
         #     print(f'Cam {cam} CCD {ccd} cube already exists!')
