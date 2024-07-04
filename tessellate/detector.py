@@ -431,6 +431,8 @@ class Detector():
     
     def asteroid_checker(self):
 
+        events = deepcopy(self.events)
+
         time = self.time - self.time[0]
 
         for source in self.events.iterrows():
@@ -463,8 +465,12 @@ class Detector():
             asteroid_check = asteroid & (duration < 1)
         
             if asteroid_check:
-                self.events[self.events['objid']==source['objid']]['Type'] = 'Asteroid'
-                self.events[self.events['objid']==source['objid']]['Prob'] = 1.0
+                idx = events['objid']==source['objid']
+                events.loc[idx, 'Type'] = 'Asteroid'
+                events.loc[idx, 'Prob'] = 1.0
+    
+
+        
     
     def isolate_events(self,objid,frame_buffer=20,duration=1,
                        asteroid_distance=2,asteroid_correlation=0.8,asteroid_duration=1):
@@ -688,7 +694,8 @@ class Detector():
         results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv',index=False)
         self.sources = results
         self._get_all_independent_events()
-        # self.asteroid_checker()
+        self.asteroid_checker()
+        self.events['objid'] = self.events['objid'].astype(int)
         self.events.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_events.csv',index=False)
 
     def plot_results(self,cut):
