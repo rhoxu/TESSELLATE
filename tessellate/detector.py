@@ -139,10 +139,13 @@ def _star_finding_procedure(data,prf,sig_limit = 3):
     if len(good_tables)>0:
         total = pd.concat(good_tables)
         total = total[~pd.isna(total['xcentroid'])]
-        grouped = _spatial_group(total,distance=2)
-        res = grouped.groupby('objid').head(1)
-        res = res.reset_index(drop=True)
-        res = res.drop(['id','objid'],axis=1)
+        if len(total) > 0:
+            grouped = _spatial_group(total,distance=2)
+            res = grouped.groupby('objid').head(1)
+            res = res.reset_index(drop=True)
+            res = res.drop(['id','objid'],axis=1)
+        else:
+            res=None
     else:
         res = None
 
