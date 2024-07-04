@@ -677,7 +677,7 @@ class Detector():
         ax[1].scatter(self.sources['xcentroid'],self.sources['ycentroid'],c=self.sources['source_mask'],s=5,cmap='Reds')
         ax[1].set_xlabel('Source Mask')
 
-    def count_detections(self,cut,starkiller=False,lower=None,upper=None):
+    def count_detections(self,cut,starkiller=False,lower=None,upper=None,sig_thresh=None):
 
         if cut != self.cut:
             self._gather_data(cut)
@@ -688,6 +688,9 @@ class Detector():
             r = self.events[self.events['source_mask']==0]
         else:
             r = self.events
+
+        if sig_thresh is not None:
+            r = r[r['lc_sig']>sig_thresh]
 
         array = r['objid'].values
         counts = []
