@@ -541,7 +541,7 @@ class Detector():
         return events 
 
     def _get_all_independent_events(self,frame_buffer=20):
-        ids = np.unique(self.sources['objid'].values)
+        ids = np.unique(self.sources['objid'].values).astype(int)
         events = []
         for id in ids:
             e = self.isolate_events(id,frame_buffer=frame_buffer)
