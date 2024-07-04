@@ -429,7 +429,7 @@ class Detector():
         significance = (lc_max - med) / std
         return significance 
     
-    def asteroid_checker(self):
+    def _asteroid_checker(self):
 
         events = deepcopy(self.events)
 
@@ -469,7 +469,7 @@ class Detector():
                 events.loc[idx, 'Type'] = 'Asteroid'
                 events.loc[idx, 'Prob'] = 1.0
     
-
+        self.events = events
         
     
     def isolate_events(self,objid,frame_buffer=20,duration=1,
@@ -694,7 +694,7 @@ class Detector():
         results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv',index=False)
         self.sources = results
         self._get_all_independent_events()
-        self.asteroid_checker()
+        self._asteroid_checker()
         self.events['objid'] = self.events['objid'].astype(int)
         self.events.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_events.csv',index=False)
 
