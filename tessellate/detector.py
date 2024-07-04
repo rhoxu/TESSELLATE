@@ -468,30 +468,6 @@ class Detector():
             if asteroid_check:
                 self.events[self.events['objid']==event['objid']]['Type'] = 'Asteroid'
                 self.events[self.events['objid']==event['objid']]['Prob'] = 1.0
-
-
-        
-    def asteroid_checker(self,source,id,frameStart,frameEnd,duration):
-
-        s = self.sources.iloc[self.sources.objid.values == id]
-        e = s.iloc[(s.frame.values >= frameStart) & (s.frame.values <= frameEnd)]
-        x = e.xcentroid.values
-        y = e.ycentroid.values
-        dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
-        dist = np.nanmax(dist,axis=1)
-        dist = np.nanmean(dist)
-        if len(x)>= 2:
-            cor = np.round(abs(pearsonr(x,y)[0]),1)
-        else:
-            cor = 0
-        dpass = dist - 0.8
-        cpass = cor - 0.8
-        asteroid = dpass + cpass > 0 
-        if asteroid & (duration < 1):
-            source['Type'] = 'Asteroid'
-            source['Prob'] = 1
-        
-        return source
     
     def isolate_events(self,objid,frame_buffer=20,duration=1,
                        asteroid_distance=2,asteroid_correlation=0.8,asteroid_duration=1):
