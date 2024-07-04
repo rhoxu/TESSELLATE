@@ -428,7 +428,70 @@ class Detector():
         lc_max = np.nanmax(lc[event['frame_start'].values[0]:event['frame_end'].values[0]])
         significance = (lc_max - med) / std
         return significance 
+    
+    def asteroid_checker(self):
+
+        time = self.time - self.time[0]
+
+        for event in self.events.iterrows():
+            event = event[1]
+            asteroid_check = False
+            sources = self.sources.iloc[self.sources.objid.values == event['objid']]
+            for source in sources.iterrows():
+                source = source[1]
+
+                frameStart = source['frame_start']
+                frameEnd = source['frame_end']
+
+                if (frameEnd - frameStart) > 2:
+                #    ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
+                    duration = time[frameEnd] - time[frameStart]
+                else:
+                #    ax[1].axvline(time[(frameEnd + frameStart)//2],color='C1')
+                    duration = 0
+
+                e = sources.iloc[(sources.frame.values >= frameStart) & (sources.frame.values <= frameEnd)]
+                x = e.xcentroid.values
+                y = e.ycentroid.values
+                dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
+                dist = np.nanmax(dist,axis=1)
+                dist = np.nanmean(dist)
+                if len(x)>= 2:
+                    cor = np.round(abs(pearsonr(x,y)[0]),1)
+                else:
+                    cor = 0
+                dpass = dist - 0.8
+                cpass = cor - 0.8
+                asteroid = dpass + cpass > 0 
+                asteroid_check = asteroid & (duration < 1)
+            
+            if asteroid_check:
+                self.events[self.events['objid']==event['objid']]['Type'] = 'Asteroid'
+                self.events[self.events['objid']==event['objid']]['Prob'] = 1.0
+
+
         
+    def asteroid_checker(self,source,id,frameStart,frameEnd,duration):
+
+        s = self.sources.iloc[self.sources.objid.values == id]
+        e = s.iloc[(s.frame.values >= frameStart) & (s.frame.values <= frameEnd)]
+        x = e.xcentroid.values
+        y = e.ycentroid.values
+        dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
+        dist = np.nanmax(dist,axis=1)
+        dist = np.nanmean(dist)
+        if len(x)>= 2:
+            cor = np.round(abs(pearsonr(x,y)[0]),1)
+        else:
+            cor = 0
+        dpass = dist - 0.8
+        cpass = cor - 0.8
+        asteroid = dpass + cpass > 0 
+        if asteroid & (duration < 1):
+            source['Type'] = 'Asteroid'
+            source['Prob'] = 1
+        
+        return source
     
     def isolate_events(self,objid,frame_buffer=20,duration=1,
                        asteroid_distance=2,asteroid_correlation=0.8,asteroid_duration=1):
@@ -452,8 +515,6 @@ class Detector():
                     start = indf[testind][j]
                     end = (indf[testind][j] + testf[testind][j])
                     temp[start:end] = True
-
-            
             temp[0] = False
             temp[-1] = False
             testf = np.diff(np.where(~temp)[0] -1 )
@@ -654,6 +715,7 @@ class Detector():
         results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv',index=False)
         self.sources = results
         self._get_all_independent_events()
+        self.asteroid_checker()
         self.events.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_events.csv',index=False)
 
     def plot_results(self,cut):
