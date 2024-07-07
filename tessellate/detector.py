@@ -291,34 +291,6 @@ def exp_func(x,a,b,c):
    e = np.exp(a)*np.exp(-x/np.exp(b)) + np.exp(c)
    return e
 
-def fit_period(source,significance=3):
-    x = (source['xint']+0.5).astype(int)
-    y = (source['yint']+0.5).astype(int)
-
-    f = np.nansum(detector.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
-    unit = u.electron / u.s
-    light = lk.LightCurve(time=Time(detector.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
-    period = light.to_periodogram()
-
-    x = period.frequency.value
-    y = period.power.value
-    ind = x > 2.5
-    ind[:np.where(x < 2)[0][-1]] = False
-    for i in range(2):
-        popt, pcov = curve_fit(exp_func, x[ind], y[ind])
-        fit = exp_func(x, *popt)
-        m,med,std = sigma_clipped_stats(y - fit)
-        ind = (y - fit) / med > 3 * std
-
-    norm = y/exp_func(x, *popt)
-    a = find_peaks(norm,prominence=3,distance=50,wlen=300,height=significance)
-    peak_power = y[a[0]]
-    peak_freq = x[a[0]]
-    peak_freq = peak_freq[peak_power>1] 
-    peak_power = peak_power[peak_power>1] 
-    return peak_freq, peak_power
-
-
 # -- Secondary Functions (Just for functionality in testing) -- #
 
 def periodogram(period,plot=True,axis=None):
@@ -506,6 +478,38 @@ class Detector():
     
         self.events = events
         
+    def fit_period(self,source,significance=3):
+        x = (source['xint']+0.5).astype(int)
+        y = (source['yint']+0.5).astype(int)
+
+        f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
+        unit = u.electron / u.s
+        light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
+        period = light.to_periodogram()
+
+        x = period.frequency.value
+        y = period.power.value
+        ind = x > 2.5
+        ind[:np.where(x < 2)[0][-1]] = False
+        for i in range(2):
+            popt, pcov = curve_fit(exp_func, x[ind], y[ind])
+            fit = exp_func(x, *popt)
+            m,med,std = sigma_clipped_stats(y - fit)
+            ind = (y - fit) < (5 * std + med)
+
+        norm = y/exp_func(x, *popt)
+        a = find_peaks(norm,prominence=3,distance=50,wlen=300,height=significance)
+        peak_power = y[a[0]]
+        peak_freq = x[a[0]]
+        peak_freq = peak_freq[peak_power>1] 
+        peak_power = peak_power[peak_power>1] 
+        if peak_power is None:
+            peak_power = [np.nan]
+            peak_freq = [np.nan]
+        elif len(peak_power) < 1:
+            peak_power = [np.nan]
+            peak_freq = [np.nan]
+        return peak_freq, peak_power
     
     def isolate_events(self,objid,frame_buffer=20,duration=1,
                        asteroid_distance=2,asteroid_correlation=0.8,asteroid_duration=1):
@@ -566,7 +570,7 @@ class Detector():
                     end = len(self.time) - 1 
                 event_time = np.array([[start,end]])
         events = []
-        peak_freq, peak_power = fit_period(obj.iloc[0])
+        peak_freq, peak_power = self.fit_period(obj.iloc[0])
         counter = 1
         obj['eventID'] = 0
         for e in event_time:
@@ -812,9 +816,9 @@ class Detector():
                 pass
 
     def period_bin(self,frequency,power,power_limit=1):
-        if len(frequency)>0:
+        if np.isfinite(frequency):
             p = 1/frequency
-            if power[0] > power_limit:
+            if power > power_limit:
                 if p <= 1/24:
                     extension = '1hr_below'
                 elif (p > 1/24) & (p <= 10/24):
@@ -1016,9 +1020,9 @@ class Detector():
             ax[3].add_patch(rect)
             ax[3].set_title('1 hour later',fontsize=15)
             ax[3].annotate('', xy=(0.2, 1.15), xycoords='axes fraction', xytext=(0.2, 1.), 
-            					arrowprops=dict(arrowstyle="<|-", color='r',lw=3))
+                                arrowprops=dict(arrowstyle="<|-", color='r',lw=3))
             ax[3].annotate('', xy=(0.8, 1.15), xycoords='axes fraction', xytext=(0.8, 1.), 
-            					arrowprops=dict(arrowstyle="<|-", color='r',lw=3))
+                                arrowprops=dict(arrowstyle="<|-", color='r',lw=3))
             
             if include_periodogram:
                 frequencies = periodogram(period,axis=ax[4])
