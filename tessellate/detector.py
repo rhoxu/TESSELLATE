@@ -24,6 +24,7 @@ from astropy.time import Time
 from astropy.wcs import WCS
 import os
 from scipy.signal import find_peaks
+from scipy.optimize import curve_fit
 from scipy.stats import pearsonr
 from .dataprocessor import DataProcessor
 from .catalog_queries import find_variables, gaia_stars, match_result_to_cat
@@ -284,6 +285,40 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdiff
 
     return frame
 
+# -- Secondary Functions for looking at periods -- #
+
+def exp_func(x,a,b,c):
+   e = np.exp(a)*np.exp(-x/np.exp(b)) + np.exp(c)
+   return e
+
+def fit_period(source,significance=3):
+    x = (source['xint']+0.5).astype(int)
+    y = (source['yint']+0.5).astype(int)
+
+    f = np.nansum(detector.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
+    unit = u.electron / u.s
+    light = lk.LightCurve(time=Time(detector.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
+    period = light.to_periodogram()
+
+    x = period.frequency.value
+    y = period.power.value
+    ind = x > 2.5
+    ind[:np.where(x < 2)[0][-1]] = False
+    for i in range(2):
+        popt, pcov = curve_fit(exp_func, x[ind], y[ind])
+        fit = exp_func(x, *popt)
+        m,med,std = sigma_clipped_stats(y - fit)
+        ind = (y - fit) / med > 3 * std
+
+    norm = y/exp_func(x, *popt)
+    a = find_peaks(norm,prominence=3,distance=50,wlen=300,height=significance)
+    peak_power = y[a[0]]
+    peak_freq = x[a[0]]
+    peak_freq = peak_freq[peak_power>1] 
+    peak_power = peak_power[peak_power>1] 
+    return peak_freq, peak_power
+
+
 # -- Secondary Functions (Just for functionality in testing) -- #
 
 def periodogram(period,plot=True,axis=None):
@@ -531,6 +566,7 @@ class Detector():
                     end = len(self.time) - 1 
                 event_time = np.array([[start,end]])
         events = []
+        peak_freq, peak_power = fit_period(obj.iloc[0])
         counter = 1
         obj['eventID'] = 0
         for e in event_time:
@@ -565,6 +601,8 @@ class Detector():
                 obj.loc[ind,'Type'] = 'Asteroid'
                 event['Prob'] = 1
             event['Type'] = obj['Type'].iloc[0]
+            event['peak_freq'] = peak_freq[0]
+            event['peak_power'] = peak_power[0]
             sig = self._check_lc_significance(event)
             event['lc_sig'] = sig
             
@@ -773,11 +811,9 @@ class Detector():
             except:
                 pass
 
-    def period_bin(self,frequencies,power_limit=1):
-        f = frequencies['peak_freq']
-        power = frequencies['peak_power']
-        if len(f)>0:
-            p = 1/f[0]
+    def period_bin(self,frequency,power,power_limit=1):
+        if len(frequency)>0:
+            p = 1/frequency
             if power[0] > power_limit:
                 if p <= 1/24:
                     extension = '1hr_below'
@@ -983,18 +1019,19 @@ class Detector():
             					arrowprops=dict(arrowstyle="<|-", color='r',lw=3))
             ax[3].annotate('', xy=(0.8, 1.15), xycoords='axes fraction', xytext=(0.8, 1.), 
             					arrowprops=dict(arrowstyle="<|-", color='r',lw=3))
-            unit = u.electron / u.s
-            light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
-            period = light.to_periodogram()
+            
             if include_periodogram:
                 frequencies = periodogram(period,axis=ax[4])
-            else:
-                frequencies = periodogram(period,axis=None,plot=False)
-                signal_num = frequencies['signal_num']
-                harmonic = frequencies['harmonic']
-                textstr = r'$\bf{Period}$' + '\n'
+                unit = u.electron / u.s
+                light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
+                period = light.to_periodogram()
+            #else:
+            #    frequencies = periodogram(period,axis=None,plot=False)
+            #    signal_num = frequencies['signal_num']
+            #    harmonic = frequencies['harmonic']
+            #    textstr = r'$\bf{Period}$' + '\n'
                 #for i in range(1):
-                ind = (signal_num == 1) & (harmonic == 1)
+            #    ind = (signal_num == 1) & (harmonic == 1)
                 '''
                 try:
                     #print('power: ',frequencies['peak_power'][ind][0])
@@ -1062,7 +1099,7 @@ class Detector():
                         if source['Prob'] > 0:
                             extension = source['Type']
                         else:
-                            extension = self.period_bin(frequencies)
+                            extension = self.period_bin(source['peak_freq'],source['peak_power'])
                     sp += '/' + extension
                     self._check_dirs(sp)
                     #splc += '/' + extension
@@ -1092,8 +1129,8 @@ class Detector():
         self.lc = [time,f]
         self.cutout = cutout_image
         
-        self.periodogram = period
-        self.frequencies = frequencies
+        #self.periodogram = period
+        #self.frequencies = frequencies
         return source
 
 
