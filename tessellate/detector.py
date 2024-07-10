@@ -26,6 +26,9 @@ import os
 from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
 from scipy.stats import pearsonr
+
+from sourcedetect import SourceDetect
+
 from .dataprocessor import DataProcessor
 from .catalog_queries import find_variables, gaia_stars, match_result_to_cat
 
@@ -237,7 +240,29 @@ def _main_correlation(flux,prf,corlim,psfdifflim,inputNum):
 
     return frame
 
-def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdifflim=0.5):
+def _par_machine_detect(flux,inputNum):
+    
+    obj = SourceDetect(flux,run=True,train=False)
+    sources = obj.sources
+    sources['frame'] = frame_num
+    return sources
+
+def _machine_detector(flux,frame_num):
+    length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)   
+    results = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(_par_machine_detect)(flux[i],inputNum+i) for i in tqdm(length))
+    
+    sources = None
+
+    for result in results:
+        if sources is None:
+            sources = result
+        else:
+            sources = pd.concat([sources,result])
+    return sources
+     
+
+
+def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdifflim=0.5,mode='sourcedetect'):
     """
     Main Function.
     """
@@ -247,15 +272,20 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdiff
         inputNum = inputNums[-1]
     else:
         inputNum = 0
-
-    if sector < 4:
-        prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz335/_local_TESS_PRFs/Sectors1_2_3')
+    if mode == 'sourcedetect':
+        t1 = t()
+        frame = _machine_detector(flux,inputNum)
+        print(f'Sourcedetect: {(t()-t1):.1f} sec')
+        
     else:
-        prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz335/_local_TESS_PRFs/Sectors4+')
+        if sector < 4:
+            prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz335/_local_TESS_PRFs/Sectors1_2_3')
+        else:
+            prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz335/_local_TESS_PRFs/Sectors4+')
 
-    t1 = t()
-    frame = _main_correlation(flux,prf,corlim,psfdifflim,inputNum)
-    print(f'Main Correlation: {(t()-t1):.1f} sec')
+        t1 = t()
+        frame = _main_correlation(flux,prf,corlim,psfdifflim,inputNum)
+        print(f'Main Correlation: {(t()-t1):.1f} sec')
 
     # if len(frame) > 25_000:
     #     print(len(frame))
@@ -484,13 +514,17 @@ class Detector():
 
         f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
         unit = u.electron / u.s
-        light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
+        t = self.time
+        finite = np.isfinite(f) & np.isfinite(t)
+        light = lk.LightCurve(time=Time(t[finite], format='mjd'),flux=(f[finite] - np.nanmedian(f[finite]))*unit)
         period = light.to_periodogram()
 
         x = period.frequency.value
         y = period.power.value
-        ind = x > 2.5
-        ind[:np.where(x < 2)[0][-1]] = False
+        finite = np.isfinite(x) & np.isfinite(y)
+        x = x[finite]; y = y[finite]
+        ind = (x > 2)
+        #ind[:np.where(x < 2)[0][-1]] = False
         for i in range(2):
             popt, pcov = curve_fit(exp_func, x[ind], y[ind])
             fit = exp_func(x, *popt)
@@ -700,7 +734,7 @@ class Detector():
         self.obj_ra = self.events.loc[self.events['objid'] == objid, 'ra'].mean()
         self.obj_dec = self.events.loc[self.events['objid'] == objid, 'dec'].mean()
 
-    def source_detect(self,cut):
+    def source_detect(self,cut,mode='sourcedetect'):
         from glob import glob 
         from astropy.io import fits 
 
@@ -714,7 +748,7 @@ class Detector():
         column = cutCentrePx[cut-1][0]
         row = cutCentrePx[cut-1][1]
 
-        results = detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,row=row,mask=self.mask,inputNums=None)
+        results = detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,row=row,mask=self.mask,inputNums=None,mode=mode)
         results = self._wcs_time_info(results,cut)
         #try:
         gaia = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv')

@@ -25,7 +25,7 @@ class Tessellate():
                  reduce_time=None,reduce_cpu=None,search_time=None,
                  plot_time=None,
                  download=None,make_cube=None,make_cuts=None,reduce=None,search=None,
-                 plot=None,delete=None):
+                 plot=None,delete=None,detect_mode='old'):
         
         """
         Initialise.
@@ -146,6 +146,7 @@ class Tessellate():
         self.plot_time = plot_time
         self.plot_mem = None
         self.plot_cpu = None
+        self.detect_mode = detect_mode
 
         self.skip = []
 
@@ -1499,7 +1500,7 @@ from tessellate import Detector\n\
 import numpy as np\n\
 \n\
 detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
-detector.source_detect(cut={cut})"
+detector.source_detect(cut={cut},model={self.detect_mode})"
                     
         with open(f"{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
             python_file.write(python_text)
