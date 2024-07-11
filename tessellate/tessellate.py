@@ -1,11 +1,8 @@
-print('Importing local things')
-
 from .dataprocessor import _Extract_fits, _Print_buff, _Save_space, DataProcessor
 from .detector import Detector
 from .catalog_queries import create_external_var_cat
 from .tools import delete_files
 
-print('Importing basic modules')
 from time import time as t
 from time import sleep
 
@@ -14,7 +11,6 @@ import os
 
 import numpy as np
 
-print('Importing tessreduce')
 import tessreduce as tr
 
 
@@ -188,6 +184,10 @@ class Tessellate():
         if plot:
             message = self._plotting_properties(message,search,suggestions[4])
             _Save_space(f'{job_output_path}/tessellate_plotting_logs')
+
+        # -- Check for overwriting -- #
+        message = self._overwrite_suggestions(message, make_cube, make_cuts, reduce, search)
+
         # -- Reset Job Logs -- #
         message = self._reset_logs(message,make_cube,make_cuts,reduce,search,plot)
 
@@ -410,6 +410,7 @@ class Tessellate():
             while not done:
                 if d.lower() == 'y':
                     make_cube = True
+                    processes.append('cube')
                     done=True
                 elif d.lower() == 'n':
                     make_cube = False
@@ -1147,6 +1148,44 @@ class Tessellate():
 
         return message
     
+    def _overwrite_suggestions(self,message, make_cube, make_cuts, reduce, search):
+
+        options = []
+        if make_cube:
+            options.append('cube')
+        if make_cuts:
+            options.append('cut')
+        if reduce:
+            options.append('reduce')
+        if search:
+            options.append('search')
+
+        done = False
+        while not done:
+            over = input(f'   - Overwrite any steps? [y,n,{str(options)[1:-1]}]')
+            message += f'   - Overwrite any steps? [y,n,{str(options)[1:-1]}]'
+
+            if over == 'y':
+                self.overwrite = 'all'
+                done = True
+            elif over == 'n':
+                self.overwrite = None
+                done = True
+            else:
+                self.overwrite = (over.replace(' ','')).split(',')
+                good = True
+                for thing in self.overwrite:
+                    if thing not in ['cube','cut','reduce','search']:
+                        good = False
+                if good:
+                    done = True
+                    message += over
+                else:
+                    print(f"      Invalid choice! Overwrite any steps? [y,n,{str(options)[1:-1]}]")
+                    message += f"      Invalid choice! Overwrite any steps? [y,n,{str(options)[1:-1]}]"
+
+        return message
+    
     def _reset_logs(self,message,make_cube,make_cuts,reduce,search,plot):
         """
         Reset slurm job logs in provided output path.
@@ -1204,6 +1243,8 @@ class Tessellate():
 
         _Save_space(f'{self.working_path}/cubing_scripts')
 
+        if (self.overwrite == 'all') | ('cube' in self.overwrite):
+            delete_files('cubes',self.data_path,self.sector,self.n,self.cam,self.ccd)
 
         for cam in self.cam:
             for ccd in self.ccd: 
@@ -1333,6 +1374,9 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 
         _Save_space(f'{self.working_path}/cutting_scripts')
 
+        if (self.overwrite == 'all') | ('cut' in self.overwrite):
+            delete_files('cuts',self.data_path,self.sector,self.n,self.cam,self.ccd)
+
         for cam in self.cam:
             for ccd in self.ccd: 
                 print(_Print_buff(60,f'Making Cut(s) for Sector{self.sector} Cam{cam} Ccd{ccd}')) 
@@ -1429,6 +1473,9 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
         """
 
         _Save_space(f'{self.working_path}/reduction_scripts')
+
+        if (self.overwrite == 'all') | ('reduce' in self.overwrite):
+            delete_files('reductions',self.data_path,self.sector,self.n,self.cam,self.ccd)
 
         for cam in self.cam:
             for ccd in self.ccd: 
@@ -1540,6 +1587,9 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
         """
 
         _Save_space(f'{self.working_path}/detection_scripts')
+
+        if (self.overwrite == 'all') | ('search' in self.overwrite):
+            delete_files('search',self.data_path,self.sector,self.n,self.cam,self.ccd)
 
         for cam in self.cam:
             for ccd in self.ccd:
@@ -1694,92 +1744,4 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                                         self._cut_transient_plot(cam,ccd,cut)
                                         completed.append(cut)
                             i+=1
-
-
-    def _remove_ffis(self,cams,ccds,cuts):
-
-        home_path = os.getcwd()
-        for cam in cams:
-            for ccd in ccds:
-                os.chdir(f'{self.data_path}/Cam{cam}/Ccd{ccd}')
-                os.system('rm -r image_files')
-
-        os.chdir(home_path)
-
-    def _remove_cubes(self,cams,ccds,cuts):
-
-        home_path = os.getcwd()
-        for cam in cams:
-            for ccd in ccds:
-                os.chdir(f'{self.data_path}/Cam{cam}/Ccd{ccd}')
-                os.system(f'rm sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits')
-                os.system(f'rm sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits')
-                os.system(f'rm cubed.txt')
-
-        os.chdir(home_path)
-
-    def _remove_cuts(self,cams,ccds,cuts):
-
-        for cam in cams:
-            for ccd in ccds:
-                for cut in cuts:
-                    os.system(f'rm -r {self.data_path}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}')
-
-    def _remove_reductions(self,cams,ccds,cuts):
-
-        home_path = os.getcwd()
-        for cam in cams:
-            for ccd in ccds:
-                for cut in cuts:
-                    os.chdir(f'{self.data_path}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}')
-                    os.system(f'rm *.npy')
-                    os.system(f'rm reduced.txt')
-                    os.system(f'rm detected_events.csv')
-                    os.system(f'rm detected_sources.csv')
-                    os.system('rm -r figs')
-                    os.system('rm -r lcs')    
-
-        os.chdir(home_path)
-
-    def _remove_search(self,cams,ccds,cuts):
-
-        home_path = os.getcwd()
-        for cam in cams:
-            for ccd in ccds:
-                for cut in cuts:
-                    os.chdir(f'{self.data_path}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}')
-                    os.system(f'rm detected_events.csv')
-                    os.system(f'rm detected_sources.csv')
-                    os.system('rm -r figs')
-                    os.system('rm -r lcs')    
-
-        os.chdir(home_path)
-
-    def delete_files(self,filetype,cams='all',ccds='all',cuts='all'):
-
-        if cams == 'all':
-            cams = [1,2,3,4]
-        elif type(cams) == int:
-            cams = [cams]
-        if ccds == 'all':
-            ccds = [1,2,3,4]
-        elif type(ccds) == int:
-            ccds = [ccds]
-        if cuts == 'all':
-            cuts = np.linspace(1,self.n**2,self.n**2)
-        elif type(cuts) == int:
-            cuts = [cuts]
-            
-        possibleFiles = {'ffis':self._remove_ffis,
-                         'cubes':self._remove_cubes,
-                         'cuts':self._remove_cuts,
-                         'reductions':self._remove_reductions,
-                         'search':self._remove_search}
-        
-        if filetype.lower() in possibleFiles.keys():
-            function = possibleFiles[filetype.lower()]
-            function(cams,ccds,cuts)
-        else:
-            e = 'Invalid filetype! Valid types: "ffis" , "cubes" , "cuts" , "reductions" , "search". '
-            raise AttributeError(e)
 
