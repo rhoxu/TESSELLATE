@@ -60,7 +60,7 @@ def _remove_search(data_path,sector,n,cams,ccds,cuts):
 
     os.chdir(home_path)
 
-def delete_files(self,filetype,data_path,sector,n=4,cams='all',ccds='all',cuts='all'):
+def delete_files(filetype,data_path,sector,n=4,cams='all',ccds='all',cuts='all'):
 
     if cams == 'all':
         cams = [1,2,3,4]
@@ -71,7 +71,7 @@ def delete_files(self,filetype,data_path,sector,n=4,cams='all',ccds='all',cuts='
     elif type(ccds) == int:
         ccds = [ccds]
     if cuts == 'all':
-        cuts = np.linspace(1,n**2,n**2)
+        cuts = np.linspace(1,n**2,n**2).astype(int)
     elif type(cuts) == int:
         cuts = [cuts]
         
