@@ -206,7 +206,7 @@ class Tessellate():
             self.transient_plot(searching=search)
 
         if delete:
-            self.delete_FFIs()  
+            self.delete_files(filetype='ffis')  
 
     def _sector_suggestions(self):
         """
@@ -1691,7 +1691,90 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                             i+=1
 
 
-    def delete_FFIs(self):
-        for cam in self.cam:
-            for ccd in self.ccd:
-                os.system(f'rm {self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/image_files/*ffic.fits')
+    def _remove_ffis(self,cams,ccds,cuts):
+
+        home_path = os.getcwd()
+        for cam in cams:
+            for ccd in ccds:
+                os.chdir(f'{self.data_path}/Cam{cam}/Ccd{ccd}')
+                os.system('rm -r image_files')
+
+        os.chdir(home_path)
+
+    def _remove_cubes(self,cams,ccds,cuts):
+
+        home_path = os.getcwd()
+        for cam in cams:
+            for ccd in ccds:
+                os.chdir(f'{self.data_path}/Cam{cam}/Ccd{ccd}')
+                os.system(f'rm sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits')
+                os.system(f'rm sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits')
+                os.system(f'rm cubed.txt')
+
+        os.chdir(home_path)
+
+    def _remove_cuts(self,cams,ccds,cuts):
+
+        for cam in cams:
+            for ccd in ccds:
+                for cut in cuts:
+                    os.system(f'rm -r {self.data_path}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}')
+
+    def _remove_reductions(self,cams,ccds,cuts):
+
+        home_path = os.getcwd()
+        for cam in cams:
+            for ccd in ccds:
+                for cut in cuts:
+                    os.chdir(f'{self.data_path}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}')
+                    os.system(f'rm *.npy')
+                    os.system(f'rm reduced.txt')
+                    os.system(f'rm detected_events.csv')
+                    os.system(f'rm detected_sources.csv')
+                    os.system('rm -r figs')
+                    os.system('rm -r lcs')    
+
+        os.chdir(home_path)
+
+    def _remove_search(self,cams,ccds,cuts):
+
+        home_path = os.getcwd()
+        for cam in cams:
+            for ccd in ccds:
+                for cut in cuts:
+                    os.chdir(f'{self.data_path}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}')
+                    os.system(f'rm detected_events.csv')
+                    os.system(f'rm detected_sources.csv')
+                    os.system('rm -r figs')
+                    os.system('rm -r lcs')    
+
+        os.chdir(home_path)
+
+    def delete_files(self,filetype,cams='all',ccds='all',cuts='all'):
+
+        if cams == 'all':
+            cams = [1,2,3,4]
+        elif type(cams) == int:
+            cams = [cams]
+        if ccds == 'all':
+            ccds = [1,2,3,4]
+        elif type(ccds) == int:
+            ccds = [ccds]
+        if cuts == 'all':
+            cuts = np.linspace(1,self.n**2,self.n**2)
+        elif type(cuts) == int:
+            cuts = [cuts]
+            
+        possibleFiles = {'ffis':self._remove_ffis,
+                         'cubes':self._remove_cubes,
+                         'cuts':self._remove_cuts,
+                         'reductions':self._remove_reductions,
+                         'search':self._remove_search}
+        
+        if filetype.lower() in possibleFiles.keys():
+            function = possibleFiles[filetype.lower()]
+            function(cams,ccds,cuts)
+        else:
+            e = 'Invalid filetype! Valid types: "ffis" , "cubes" , "cuts" , "reductions" , "search". '
+            raise AttributeError(e)
+
