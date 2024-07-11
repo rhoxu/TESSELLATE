@@ -1,6 +1,7 @@
 from .dataprocessor import _Extract_fits, _Print_buff, _Save_space, DataProcessor
 from .detector import Detector
 from .catalog_queries import create_external_var_cat
+from .tools import delete_files
 
 from time import time as t
 from time import sleep
@@ -206,7 +207,7 @@ class Tessellate():
             self.transient_plot(searching=search)
 
         if delete:
-            self.delete_files(filetype='ffis')  
+            delete_files(filetype='ffis',sector=self.sector,n=self.n)  
 
     def _sector_suggestions(self):
         """
