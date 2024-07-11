@@ -1,8 +1,11 @@
+print('Importing local things')
+
 from .dataprocessor import _Extract_fits, _Print_buff, _Save_space, DataProcessor
 from .detector import Detector
 from .catalog_queries import create_external_var_cat
 from .tools import delete_files
 
+print('Importing basic modules')
 from time import time as t
 from time import sleep
 
@@ -11,6 +14,7 @@ import os
 
 import numpy as np
 
+print('Importing tessreduce')
 import tessreduce as tr
 
 
