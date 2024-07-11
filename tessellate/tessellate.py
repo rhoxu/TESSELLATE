@@ -1162,7 +1162,7 @@ class Tessellate():
 
         done = False
         while not done:
-            over = input(f'   - Overwrite any steps? [y,n,{str(options)[1:-1]}] : \n')
+            over = input(f'   - Overwrite any steps? [y,n,{str(options)[1:-1]}] : ')
             message += f'   - Overwrite any steps? [y,n,{str(options)[1:-1]}] : \n{over}'
             
             if over == 'y':
@@ -1181,7 +1181,7 @@ class Tessellate():
                     done = True
                     message += over
                 else:
-                    print(f"      Invalid choice! Overwrite any steps? [y,n,{str(options)[1:-1]}] : \n")
+                    print(f"      Invalid choice! Overwrite any steps? [y,n,{str(options)[1:-1]}] : ")
                     message += f"      Invalid choice! Overwrite any steps? [y,n,{str(options)[1:-1]}] : \n"
 
         
