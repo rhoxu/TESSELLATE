@@ -60,7 +60,7 @@ def _remove_search(data_path,sector,n,cams,ccds,cuts):
 
     os.chdir(home_path)
 
-def delete_files(self,filetype,sector,n=4,cams='all',ccds='all',cuts='all'):
+def delete_files(self,filetype,data_path,sector,n=4,cams='all',ccds='all',cuts='all'):
 
     if cams == 'all':
         cams = [1,2,3,4]
@@ -83,7 +83,7 @@ def delete_files(self,filetype,sector,n=4,cams='all',ccds='all',cuts='all'):
     
     if filetype.lower() in possibleFiles.keys():
         function = possibleFiles[filetype.lower()]
-        function(cams,ccds,cuts)
+        function(data_path,sector,n,cams,ccds,cuts)
     else:
         e = 'Invalid filetype! Valid types: "ffis" , "cubes" , "cuts" , "reductions" , "search". '
         raise AttributeError(e)
