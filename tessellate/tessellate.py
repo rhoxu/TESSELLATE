@@ -1248,7 +1248,7 @@ class Tessellate():
 
         _Save_space(f'{self.working_path}/cubing_scripts')
 
-        if overwrite:
+        if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('cube' in self.overwrite):
                 delete_files('cubes',self.data_path,self.sector,self.n,self.cam,self.ccd)
 
@@ -1381,7 +1381,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 
         _Save_space(f'{self.working_path}/cutting_scripts')
 
-        if overwrite:
+        if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('cut' in self.overwrite):
                 delete_files('cuts',self.data_path,self.sector,self.n,self.cam,self.ccd)
 
@@ -1483,7 +1483,7 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
 
         _Save_space(f'{self.working_path}/reduction_scripts')
 
-        if overwrite:
+        if (overwrite) & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('reduce' in self.overwrite):
                 delete_files('reductions',self.data_path,self.sector,self.n,self.cam,self.ccd)
 
@@ -1600,7 +1600,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
 
         _Save_space(f'{self.working_path}/detection_scripts')
 
-        if overwrite:
+        if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('search' in self.overwrite):
                 delete_files('search',self.data_path,self.sector,self.n,self.cam,self.ccd)
 
