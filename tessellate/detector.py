@@ -155,26 +155,55 @@ def _star_finding_procedure(data,prf,sig_limit = 3):
 
     return res
 
-def _frame_correlation(data,prf,corlim,psfdifflim,frameNum):
+def _frame_detection(data,prf,corlim,psfdifflim,frameNum,mode='both'):
     """
     Acts on a frame of data. Uses StarFinder to find bright sources, then on each source peform correlation check.
     """
 
     if np.nansum(data) != 0.0:
         t1 = t()
-        res = _star_finding_procedure(data,prf)
+        if mode == 'starfind':
+            star = _star_finding_procedure(data,prf)
+        elif mode == 'sourcedetect':
+            machine = SourceDetect(data,run=True)
+        elif mode == 'both':
+            star = _star_finding_procedure(data,prf)
+            machine = SourceDetect(data,run=True)
         #print(f'StarFinding: {(t()-t1):.1f} sec')
-        if res is not None:
+
+        if star is not None:
             res['frame'] = frameNum
             t2 = t()    
-            ind, cors,diff = _correlation_check(res,data,prf,corlim=corlim,psfdifflim=psfdifflim)
+            ind, cors,diff = _correlation_check(star,data,prf,corlim=corlim,psfdifflim=psfdifflim)
             #print(f'Correlation Check: {(t()-t2):.1f} sec - {len(res)} events')
-            res['psflike'] = cors
-            res['psfdiff'] = diff
-            res = res[ind]
-            return res
+            star['psflike'] = cors
+            star['psfdiff'] = diff
+            star['flux_sign'] = positive
+            star = star[ind]
+        if machine is not None:
+            machine['psfdiff'] = 0
+            machine['frame'] = frameNum
+        if mode == 'both':
+            table = [machine, star]
+            good_tables = [table.to_pandas() for table in tables if table is not None]
+            if len(good_tables)>0:
+                total = pd.concat(good_tables)
+                total = total[~pd.isna(total['xcentroid'])]
+                if len(total) > 0:
+                    grouped = _spatial_group(total,distance=2)
+                    res = grouped.groupby('objid').head(1)
+                    res = res.reset_index(drop=True)
+                    res = res.drop(['id','objid'],axis=1)
         else:
-            return None
+            if star is not None:
+                res = star
+            elif machine is not None:
+                res = machine
+            else:
+                res = None
+        
+        return res
+
     else:
         return None
     
@@ -218,11 +247,11 @@ def _count_detections(result):
 
     return result
 
-def _main_correlation(flux,prf,corlim,psfdifflim,inputNum):
+def _main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
 
     length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
 
-    results = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(_frame_correlation)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
+    results = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i,mode) for i in tqdm(length))
 
     frame = None
 
@@ -262,7 +291,7 @@ def _machine_detector(flux,frame_num):
      
 
 
-def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdifflim=0.5,mode='sourcedetect'):
+def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdifflim=0.5,mode='both'):
     """
     Main Function.
     """
@@ -272,10 +301,6 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdiff
         inputNum = inputNums[-1]
     else:
         inputNum = 0
-    if mode == 'sourcedetect':
-        t1 = t()
-        frame = _machine_detector(flux,inputNum)
-        print(f'Sourcedetect: {(t()-t1):.1f} sec')
         
     else:
         if sector < 4:
@@ -284,7 +309,7 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdiff
             prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz335/_local_TESS_PRFs/Sectors4+')
 
         t1 = t()
-        frame = _main_correlation(flux,prf,corlim,psfdifflim,inputNum)
+        frame = _main_detection(flux,prf,corlim,psfdifflim,inputNum,mode=mode)
         print(f'Main Correlation: {(t()-t1):.1f} sec')
 
     # if len(frame) > 25_000:
