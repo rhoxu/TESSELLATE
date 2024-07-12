@@ -27,7 +27,7 @@ from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
 from scipy.stats import pearsonr
 
-from sourcedetect import SourceDetect
+# from sourcedetect import SourceDetect
 
 from .dataprocessor import DataProcessor
 from .catalog_queries import find_variables, gaia_stars, match_result_to_cat

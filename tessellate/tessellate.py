@@ -1,6 +1,7 @@
 from .dataprocessor import _Extract_fits, _Print_buff, _Save_space, DataProcessor
 from .detector import Detector
 from .catalog_queries import create_external_var_cat
+from .tools import delete_files
 
 from time import time as t
 from time import sleep
@@ -183,6 +184,10 @@ class Tessellate():
         if plot:
             message = self._plotting_properties(message,search,suggestions[4])
             _Save_space(f'{job_output_path}/tessellate_plotting_logs')
+
+        # -- Check for overwriting -- #
+        message = self._overwrite_suggestions(message, make_cube, make_cuts, reduce, search)
+
         # -- Reset Job Logs -- #
         message = self._reset_logs(message,make_cube,make_cuts,reduce,search,plot)
 
@@ -206,7 +211,7 @@ class Tessellate():
             self.transient_plot(searching=search)
 
         if delete:
-            self.delete_FFIs()  
+            delete_files(filetype='ffis',sector=self.sector,n=self.n)  
 
     def _sector_suggestions(self):
         """
@@ -228,7 +233,7 @@ class Tessellate():
 
             reduce_time_sug = '1:00:00'
             reduce_cpu_sug = '32'
-            reduce_mem_req = 60
+            reduce_mem_req = 90
 
             search_time_sug = '10:00'
             search_cpu_sug = '32'
@@ -405,6 +410,7 @@ class Tessellate():
             while not done:
                 if d.lower() == 'y':
                     make_cube = True
+                    processes.append('cube')
                     done=True
                 elif d.lower() == 'n':
                     make_cube = False
@@ -1142,6 +1148,49 @@ class Tessellate():
 
         return message
     
+    def _overwrite_suggestions(self,message, make_cube, make_cuts, reduce, search):
+
+        options = []
+        if make_cube:
+            options.append('cube')
+        if make_cuts:
+            options.append('cut')
+        if reduce:
+            options.append('reduce')
+        if search:
+            options.append('search')
+
+        done = False
+        over = input(f'   - Overwrite any steps? [y,n,{str(options)[1:-1]}] = ')
+        message += f'   - Overwrite any steps? [y,n,{str(options)[1:-1]}] = \n{over}'
+        while not done:
+            
+            if over == 'y':
+                self.overwrite = 'all'
+                done = True
+            elif over == 'n':
+                self.overwrite = None
+                done = True
+            else:
+                self.overwrite = (over.replace(' ','')).split(',')
+                good = True
+                for thing in self.overwrite:
+                    if thing not in ['cube','cut','reduce','search']:
+                        good = False
+                if good:
+                    done = True
+                    message += over
+                else:
+                    over = input(f"      Invalid choice! Overwrite any steps? [y,n,{str(options)[1:-1]}] = ")
+                    message += f"      Invalid choice! Overwrite any steps? [y,n,{str(options)[1:-1]}] = \n"
+
+        
+        
+        print('\n')
+        message += '\n'
+
+        return message
+    
     def _reset_logs(self,message,make_cube,make_cuts,reduce,search,plot):
         """
         Reset slurm job logs in provided output path.
@@ -1150,15 +1199,15 @@ class Tessellate():
         message += 'Delete Past Job Logs? [y/n] :\n'
         if input('Delete Past Job Logs? [y/n] :\n').lower() == 'y':
             if make_cube:
-                os.system(f'rm {self.job_output_path}/tessellate_cubing_logs/*')
+                os.system(f'rm -f {self.job_output_path}/tessellate_cubing_logs/*')
             if make_cuts:
-                os.system(f'rm {self.job_output_path}/tessellate_cutting_logs/*')
+                os.system(f'rm -f {self.job_output_path}/tessellate_cutting_logs/*')
             if reduce:
-                os.system(f'rm {self.job_output_path}/tessellate_reduction_logs/*')
+                os.system(f'rm -f {self.job_output_path}/tessellate_reduction_logs/*')
             if search:
-                os.system(f'rm {self.job_output_path}/tessellate_search_logs/*')
+                os.system(f'rm -f {self.job_output_path}/tessellate_search_logs/*')
             if plot:
-                os.system(f'rm {self.job_output_path}/tessellate_plotting_logs/*')
+                os.system(f'rm -f {self.job_output_path}/tessellate_plotting_logs/*')
 
             message = message + 'y \n'
         else:
@@ -1190,7 +1239,7 @@ class Tessellate():
                     message += f'Sector {self.sector} Cam {cam} Ccd {ccd} Download Complete ({((t()-tDownload)/60):.2f} mins).\n'
                     message += '\n'
 
-    def make_cube(self):
+    def make_cube(self,overwrite=True):
         """
         Make Cube! 
 
@@ -1199,6 +1248,9 @@ class Tessellate():
 
         _Save_space(f'{self.working_path}/cubing_scripts')
 
+        if overwrite & (self.overwrite is not None):
+            if (self.overwrite == 'all') | ('cube' in self.overwrite):
+                delete_files('cubes',self.data_path,self.sector,self.n,self.cam,self.ccd)
 
         for cam in self.cam:
             for ccd in self.ccd: 
@@ -1214,6 +1266,7 @@ class Tessellate():
                     # -- Delete old scripts -- #
                     if os.path.exists(f'{self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh'):
                         os.system(f'rm {self.working_path}/cubing_scripts/*')
+                        sleep(3)
 
                     # -- Create python file for cubing-- # 
                     print(f'Creating Cubing Python File for Sector{self.sector} Cam{cam}Ccd{ccd}')
@@ -1318,7 +1371,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 
         return done
 
-    def make_cuts(self,cubing):
+    def make_cuts(self,cubing,overwrite=True):
         """
         Make cuts! 
 
@@ -1327,6 +1380,10 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
         """
 
         _Save_space(f'{self.working_path}/cutting_scripts')
+
+        if overwrite & (self.overwrite is not None):
+            if (self.overwrite == 'all') | ('cut' in self.overwrite):
+                delete_files('cuts',self.data_path,self.sector,self.n,self.cam,self.ccd)
 
         for cam in self.cam:
             for ccd in self.ccd: 
@@ -1350,7 +1407,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                             if t()-tStart > seconds + 3600:
                                 print('Restarting Cubing')
                                 print('\n')
-                                self.make_cube()
+                                self.make_cube(overwrite=False)
                                 tStart = t()
                             else:
                                 if i > 0:
@@ -1373,6 +1430,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                         # -- Delete old scripts -- #
                         if os.path.exists(f'{self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh'):
                             os.system(f'rm {self.working_path}/cutting_scripts/*')
+                            sleep(3)
 
                         # -- Create python file for cubing, cutting, reducing a cut-- # 
                         print(f'Creating Cutting Python File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
@@ -1415,15 +1473,19 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
                 if not done:
                     print('Restarting Cutting')
                     print('\n')
-                    self.make_cuts(cubing=cubing)
+                    self.make_cuts(cubing=cubing,overwrite=False)
 
 
-    def reduce(self):
+    def reduce(self,overwrite=True):
         """
         Reduce! 
         """
 
         _Save_space(f'{self.working_path}/reduction_scripts')
+
+        if (overwrite) & (self.overwrite is not None):
+            if (self.overwrite == 'all') | ('reduce' in self.overwrite):
+                delete_files('reductions',self.data_path,self.sector,self.n,self.cam,self.ccd)
 
         for cam in self.cam:
             for ccd in self.ccd: 
@@ -1447,6 +1509,7 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
                         # -- Delete old scripts -- #
                         if os.path.exists(f'{self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh'):
                             os.system(f'rm {self.working_path}/reduction_scripts/*')
+                            sleep(3)
 
                         # -- Create python file for reducing a cut-- # 
                         print(f'Creating Reduction Python File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
@@ -1492,6 +1555,7 @@ python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
         # -- Delete old scripts -- #
         if os.path.exists(f'{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh'):
             os.system(f'rm {self.working_path}/detection_scripts/*')
+            sleep(3)
 
         # -- Create python file for reducing a cut-- # 
         print(f'Creating Transient Search File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
@@ -1529,12 +1593,16 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
 
         print('\n')
 
-    def transient_search(self,reducing):
+    def transient_search(self,reducing,overwrite=True):
         """
         Transient Search!
         """
 
         _Save_space(f'{self.working_path}/detection_scripts')
+
+        if overwrite & (self.overwrite is not None):
+            if (self.overwrite == 'all') | ('search' in self.overwrite):
+                delete_files('search',self.data_path,self.sector,self.n,self.cam,self.ccd)
 
         for cam in self.cam:
             for ccd in self.ccd:
@@ -1570,7 +1638,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                             print('Restarting Reducing')
                             print('\n')
                             self.reduce_time = f'{int(l[0])+1}:{l[1]}:{l[2]}'
-                            self.reduce()
+                            self.reduce(overwrite=False)
                             tStart = t()
                         else:
                             if i > 0:
@@ -1594,6 +1662,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
         # -- Delete old scripts -- #
         if os.path.exists(f'{self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh'):
             os.system(f'rm {self.working_path}/plotting_scripts/*')
+            sleep(3)
 
         # -- Create python file for reducing a cut-- # 
         print(f'Creating Transient Plotting File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
@@ -1672,7 +1741,7 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                             print('Restarting Search')
                             print('\n')
                             self.search_time = f'{int(l[0])+1}:{l[1]}:{l[2]}'
-                            self.transient_search(False)
+                            self.transient_search(False,overwrite=False)
                             tStart = t()
                         else:
                             if i > 0:
@@ -1690,8 +1759,3 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                                         completed.append(cut)
                             i+=1
 
-
-    def delete_FFIs(self):
-        for cam in self.cam:
-            for ccd in self.ccd:
-                os.system(f'rm {self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/image_files/*ffic.fits')
