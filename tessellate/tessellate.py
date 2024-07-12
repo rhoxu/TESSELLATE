@@ -1248,6 +1248,9 @@ class Tessellate():
 
         _Save_space(f'{self.working_path}/cubing_scripts')
 
+        # -- Delete old scripts -- #
+        os.system(f'rm -f {self.working_path}/cubing_scripts/*')
+
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('cube' in self.overwrite):
                 delete_files('cubes',self.data_path,self.sector,self.n,self.cam,self.ccd)
@@ -1263,9 +1266,6 @@ class Tessellate():
                     print(f'Cam {cam} CCD {ccd} cube already exists!')
                     print('\n')
                 else:
-                    # -- Delete old scripts -- #
-                    os.system(f'rm -f {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh')
-                    os.system(f'rm -f {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py')
 
                     # -- Create python file for cubing-- # 
                     print(f'Creating Cubing Python File for Sector{self.sector} Cam{cam}Ccd{ccd}')
@@ -1380,6 +1380,9 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 
         _Save_space(f'{self.working_path}/cutting_scripts')
 
+        # -- Delete old scripts -- #
+        os.system(f'rm -f {self.working_path}/cutting_scripts/*')
+
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('cut' in self.overwrite):
                 delete_files('cuts',self.data_path,self.sector,self.n,self.cam,self.ccd)
@@ -1425,10 +1428,6 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                         print(f'Cam {cam} CCD {ccd} cut {cut} already made!')
                         print('\n')
                     else:
-                    
-                        # -- Delete old scripts -- #
-                        os.system(f'rm -f {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh')
-                        os.system(f'rm -f {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py')
 
                         # -- Create python file for cubing, cutting, reducing a cut-- # 
                         print(f'Creating Cutting Python File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
@@ -1481,6 +1480,9 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
 
         _Save_space(f'{self.working_path}/reduction_scripts')
 
+        # -- Delete old scripts -- #
+        os.system(f'rm -f {self.working_path}/reduction_scripts/*')
+
         if (overwrite) & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('reduce' in self.overwrite):
                 delete_files('reductions',self.data_path,self.sector,self.n,self.cam,self.ccd)
@@ -1501,11 +1503,7 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
                         print(f'Cam {cam} Chip {ccd} cut {cut} already reduced!')
                         print('\n')
                     
-                    else:
-
-                        # -- Delete old scripts -- #
-                        os.system(f'rm -f {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh')
-                        os.system(f'rm -f {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py')                        
+                    else:                    
 
                         # -- Create python file for reducing a cut-- # 
                         print(f'Creating Reduction Python File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
@@ -1547,10 +1545,6 @@ python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                         print('\n')
 
     def _cut_transient_search(self,cam,ccd,cut):
-
-        # -- Delete old scripts -- #
-        os.system(f'rm -f {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh')
-        os.system(f'rm -f {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py')
 
         # -- Create python file for reducing a cut-- # 
         print(f'Creating Transient Search File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
@@ -1594,6 +1588,9 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
         """
 
         _Save_space(f'{self.working_path}/detection_scripts')
+
+        # -- Delete old scripts -- #
+        os.system(f'rm -f {self.working_path}/detection_scripts/*')
 
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('search' in self.overwrite):
@@ -1654,10 +1651,6 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
 
     def _cut_transient_plot(self,cam,ccd,cut):
 
-        # -- Delete old scripts -- #
-        os.system(f'rm -f {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh')
-        os.system(f'rm -f {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py')
-
         # -- Create python file for reducing a cut-- # 
         print(f'Creating Transient Plotting File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
         python_text = f"\
@@ -1700,6 +1693,9 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
         """
 
         _Save_space(f'{self.working_path}/plotting_scripts')
+
+        # -- Delete old scripts -- #
+        os.system(f'rm -f {self.working_path}/plotting_scripts/*')
 
         for cam in self.cam:
             for ccd in self.ccd:
