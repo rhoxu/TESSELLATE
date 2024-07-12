@@ -1249,7 +1249,7 @@ class Tessellate():
         _Save_space(f'{self.working_path}/cubing_scripts')
 
         # -- Delete old scripts -- #
-        os.system(f'rm -f {self.working_path}/cubing_scripts/*')
+        os.system(f'rm -f {self.working_path}/cubing_scripts/S{self.sector}C*')
 
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('cube' in self.overwrite):
@@ -1381,7 +1381,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
         _Save_space(f'{self.working_path}/cutting_scripts')
 
         # -- Delete old scripts -- #
-        os.system(f'rm -f {self.working_path}/cutting_scripts/*')
+        os.system(f'rm -f {self.working_path}/cutting_scripts/S{self.sector}C*')
 
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('cut' in self.overwrite):
@@ -1481,7 +1481,7 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
         _Save_space(f'{self.working_path}/reduction_scripts')
 
         # -- Delete old scripts -- #
-        os.system(f'rm -f {self.working_path}/reduction_scripts/*')
+        os.system(f'rm -f {self.working_path}/reduction_scripts/S{self.sector}C*')
 
         if (overwrite) & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('reduce' in self.overwrite):
@@ -1590,7 +1590,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
         _Save_space(f'{self.working_path}/detection_scripts')
 
         # -- Delete old scripts -- #
-        os.system(f'rm -f {self.working_path}/detection_scripts/*')
+        os.system(f'rm -f {self.working_path}/detection_scripts/S{self.sector}C*')
 
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('search' in self.overwrite):
@@ -1695,7 +1695,7 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
         _Save_space(f'{self.working_path}/plotting_scripts')
 
         # -- Delete old scripts -- #
-        os.system(f'rm -f {self.working_path}/plotting_scripts/*')
+        os.system(f'rm -f {self.working_path}/plotting_scripts/S{self.sector}C*')
 
         for cam in self.cam:
             for ccd in self.ccd:
