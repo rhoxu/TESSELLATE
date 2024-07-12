@@ -1239,7 +1239,7 @@ class Tessellate():
                     message += f'Sector {self.sector} Cam {cam} Ccd {ccd} Download Complete ({((t()-tDownload)/60):.2f} mins).\n'
                     message += '\n'
 
-    def make_cube(self):
+    def make_cube(self,overwrite=True):
         """
         Make Cube! 
 
@@ -1248,8 +1248,9 @@ class Tessellate():
 
         _Save_space(f'{self.working_path}/cubing_scripts')
 
-        if (self.overwrite == 'all') | ('cube' in self.overwrite):
-            delete_files('cubes',self.data_path,self.sector,self.n,self.cam,self.ccd)
+        if overwrite:
+            if (self.overwrite == 'all') | ('cube' in self.overwrite):
+                delete_files('cubes',self.data_path,self.sector,self.n,self.cam,self.ccd)
 
         for cam in self.cam:
             for ccd in self.ccd: 
@@ -1369,7 +1370,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 
         return done
 
-    def make_cuts(self,cubing):
+    def make_cuts(self,cubing,overwrite=True):
         """
         Make cuts! 
 
@@ -1379,8 +1380,9 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 
         _Save_space(f'{self.working_path}/cutting_scripts')
 
-        if (self.overwrite == 'all') | ('cut' in self.overwrite):
-            delete_files('cuts',self.data_path,self.sector,self.n,self.cam,self.ccd)
+        if overwrite:
+            if (self.overwrite == 'all') | ('cut' in self.overwrite):
+                delete_files('cuts',self.data_path,self.sector,self.n,self.cam,self.ccd)
 
         for cam in self.cam:
             for ccd in self.ccd: 
@@ -1404,7 +1406,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                             if t()-tStart > seconds + 3600:
                                 print('Restarting Cubing')
                                 print('\n')
-                                self.make_cube()
+                                self.make_cube(overwrite=False)
                                 tStart = t()
                             else:
                                 if i > 0:
@@ -1469,18 +1471,19 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
                 if not done:
                     print('Restarting Cutting')
                     print('\n')
-                    self.make_cuts(cubing=cubing)
+                    self.make_cuts(cubing=cubing,overwrite=False)
 
 
-    def reduce(self):
+    def reduce(self,overwrite=True):
         """
         Reduce! 
         """
 
         _Save_space(f'{self.working_path}/reduction_scripts')
 
-        if (self.overwrite == 'all') | ('reduce' in self.overwrite):
-            delete_files('reductions',self.data_path,self.sector,self.n,self.cam,self.ccd)
+        if overwrite:
+            if (self.overwrite == 'all') | ('reduce' in self.overwrite):
+                delete_files('reductions',self.data_path,self.sector,self.n,self.cam,self.ccd)
 
         for cam in self.cam:
             for ccd in self.ccd: 
@@ -1586,15 +1589,16 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
 
         print('\n')
 
-    def transient_search(self,reducing):
+    def transient_search(self,reducing,overwrite=True):
         """
         Transient Search!
         """
 
         _Save_space(f'{self.working_path}/detection_scripts')
 
-        if (self.overwrite == 'all') | ('search' in self.overwrite):
-            delete_files('search',self.data_path,self.sector,self.n,self.cam,self.ccd)
+        if overwrite:
+            if (self.overwrite == 'all') | ('search' in self.overwrite):
+                delete_files('search',self.data_path,self.sector,self.n,self.cam,self.ccd)
 
         for cam in self.cam:
             for ccd in self.ccd:
@@ -1630,7 +1634,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                             print('Restarting Reducing')
                             print('\n')
                             self.reduce_time = f'{int(l[0])+1}:{l[1]}:{l[2]}'
-                            self.reduce()
+                            self.reduce(overwrite=False)
                             tStart = t()
                         else:
                             if i > 0:
@@ -1732,7 +1736,7 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                             print('Restarting Search')
                             print('\n')
                             self.search_time = f'{int(l[0])+1}:{l[1]}:{l[2]}'
-                            self.transient_search(False)
+                            self.transient_search(False,overwrite=False)
                             tStart = t()
                         else:
                             if i > 0:
