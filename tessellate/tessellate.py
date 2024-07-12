@@ -1215,6 +1215,8 @@ class Tessellate():
         print('\n')
         message += '\n'
 
+        sleep(5)
+
         return message
         
     def download(self,message):
