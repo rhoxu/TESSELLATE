@@ -1264,9 +1264,8 @@ class Tessellate():
                     print('\n')
                 else:
                     # -- Delete old scripts -- #
-                    if os.path.exists(f'{self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh'):
-                        os.system(f'rm {self.working_path}/cubing_scripts/*')
-                        sleep(3)
+                    os.system(f'rm -f {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh')
+                    os.system(f'rm -f {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py')
 
                     # -- Create python file for cubing-- # 
                     print(f'Creating Cubing Python File for Sector{self.sector} Cam{cam}Ccd{ccd}')
@@ -1428,9 +1427,8 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                     else:
                     
                         # -- Delete old scripts -- #
-                        if os.path.exists(f'{self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh'):
-                            os.system(f'rm {self.working_path}/cutting_scripts/*')
-                            sleep(3)
+                        os.system(f'rm -f {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh')
+                        os.system(f'rm -f {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py')
 
                         # -- Create python file for cubing, cutting, reducing a cut-- # 
                         print(f'Creating Cutting Python File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
@@ -1505,11 +1503,9 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
                     
                     else:
 
-                            
                         # -- Delete old scripts -- #
-                        if os.path.exists(f'{self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh'):
-                            os.system(f'rm {self.working_path}/reduction_scripts/*')
-                            sleep(3)
+                        os.system(f'rm -f {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh')
+                        os.system(f'rm -f {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py')                        
 
                         # -- Create python file for reducing a cut-- # 
                         print(f'Creating Reduction Python File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
@@ -1553,9 +1549,8 @@ python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
     def _cut_transient_search(self,cam,ccd,cut):
 
         # -- Delete old scripts -- #
-        if os.path.exists(f'{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh'):
-            os.system(f'rm {self.working_path}/detection_scripts/*')
-            sleep(3)
+        os.system(f'rm -f {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh')
+        os.system(f'rm -f {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py')
 
         # -- Create python file for reducing a cut-- # 
         print(f'Creating Transient Search File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
@@ -1660,9 +1655,8 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
     def _cut_transient_plot(self,cam,ccd,cut):
 
         # -- Delete old scripts -- #
-        if os.path.exists(f'{self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh'):
-            os.system(f'rm {self.working_path}/plotting_scripts/*')
-            sleep(3)
+        os.system(f'rm -f {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh')
+        os.system(f'rm -f {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py')
 
         # -- Create python file for reducing a cut-- # 
         print(f'Creating Transient Plotting File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
