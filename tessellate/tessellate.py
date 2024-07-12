@@ -1199,15 +1199,15 @@ class Tessellate():
         message += 'Delete Past Job Logs? [y/n] :\n'
         if input('Delete Past Job Logs? [y/n] :\n').lower() == 'y':
             if make_cube:
-                os.system(f'rm {self.job_output_path}/tessellate_cubing_logs/*')
+                os.system(f'rm -f {self.job_output_path}/tessellate_cubing_logs/*')
             if make_cuts:
-                os.system(f'rm {self.job_output_path}/tessellate_cutting_logs/*')
+                os.system(f'rm -f {self.job_output_path}/tessellate_cutting_logs/*')
             if reduce:
-                os.system(f'rm {self.job_output_path}/tessellate_reduction_logs/*')
+                os.system(f'rm -f {self.job_output_path}/tessellate_reduction_logs/*')
             if search:
-                os.system(f'rm {self.job_output_path}/tessellate_search_logs/*')
+                os.system(f'rm -f {self.job_output_path}/tessellate_search_logs/*')
             if plot:
-                os.system(f'rm {self.job_output_path}/tessellate_plotting_logs/*')
+                os.system(f'rm -f {self.job_output_path}/tessellate_plotting_logs/*')
 
             message = message + 'y \n'
         else:
