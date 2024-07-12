@@ -1,5 +1,5 @@
 from .dataprocessor import _Extract_fits, _Print_buff, _Save_space, DataProcessor
-from .detector import Detector
+#from .detector import Detector
 from .catalog_queries import create_external_var_cat
 from .tools import delete_files
 
