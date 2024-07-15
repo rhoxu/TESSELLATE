@@ -422,7 +422,7 @@ def periodogram(period,plot=True,axis=None):
 
 class Detector():
 
-    def __init__(self,sector,cam,ccd,data_path,n,match_variables=True):
+    def __init__(self,sector,cam,ccd,data_path,n,match_variables=True,mode='both'):
 
         self.sector = sector
         self.cam = cam
@@ -437,6 +437,8 @@ class Detector():
         self.sources = None  #raw detection results
         self.events = None   #temporally located with same object id
         self.cut = None
+
+        self.mode = mode
 
         self.path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}'
 
@@ -760,9 +762,11 @@ class Detector():
         self.obj_ra = self.events.loc[self.events['objid'] == objid, 'ra'].mean()
         self.obj_dec = self.events.loc[self.events['objid'] == objid, 'dec'].mean()
 
-    def source_detect(self,cut,mode='sourcedetect'):
+    def source_detect(self,cut,mode=None):
         from glob import glob 
         from astropy.io import fits 
+        if mode is None:
+            mode = self.mode
 
         if cut != self.cut:
             self._gather_data(cut)
