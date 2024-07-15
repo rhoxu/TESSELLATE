@@ -178,7 +178,7 @@ def _frame_detection(data,prf,corlim,psfdifflim,frameNum,mode='both'):
             #print(f'Correlation Check: {(t()-t2):.1f} sec - {len(res)} events')
             star['psflike'] = cors
             star['psfdiff'] = diff
-            star['flux_sign'] = positive
+            star['flux_sign'] = 1
             star = star[ind]
         if machine is not None:
             machine['psfdiff'] = 0
@@ -570,10 +570,11 @@ class Detector():
             peak_freq = [np.nan]
         return peak_freq, peak_power
     
-    def isolate_events(self,objid,frame_buffer=20,duration=1,
+    def isolate_events(self,objid,frame_buffer=10,duration=1,
                        asteroid_distance=2,asteroid_correlation=0.8,asteroid_duration=1):
         obj_ind = self.sources['objid'].values == objid
         obj = self.sources.iloc[obj_ind]
+        variable = abs(np.nanmean(obj['flux_sign'].values)) <= 0.7
         frames = obj.frame.values
         if len(frames) > 1:
             triggers = np.zeros_like(self.time)
@@ -666,6 +667,7 @@ class Detector():
             event['Type'] = obj['Type'].iloc[0]
             event['peak_freq'] = peak_freq[0]
             event['peak_power'] = peak_power[0]
+            event['variable'] = variable
             sig = self._check_lc_significance(event)
             event['lc_sig'] = sig
             
