@@ -301,16 +301,15 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdiff
         inputNum = inputNums[-1]
     else:
         inputNum = 0
-        
+            
+    if sector < 4:
+        prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz335/_local_TESS_PRFs/Sectors1_2_3')
     else:
-        if sector < 4:
-            prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz335/_local_TESS_PRFs/Sectors1_2_3')
-        else:
-            prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz335/_local_TESS_PRFs/Sectors4+')
+        prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz335/_local_TESS_PRFs/Sectors4+')
 
-        t1 = t()
-        frame = _main_detection(flux,prf,corlim,psfdifflim,inputNum,mode=mode)
-        print(f'Main Correlation: {(t()-t1):.1f} sec')
+    t1 = t()
+    frame = _main_detection(flux,prf,corlim,psfdifflim,inputNum,mode=mode)
+    print(f'Main Correlation: {(t()-t1):.1f} sec')
 
     # if len(frame) > 25_000:
     #     print(len(frame))
