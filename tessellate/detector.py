@@ -534,22 +534,26 @@ class Detector():
         x = x[finite]; y = y[finite]
         ind = (x > 2)
         #ind[:np.where(x < 2)[0][-1]] = False
-        for i in range(2):
-            popt, pcov = curve_fit(exp_func, x[ind], y[ind])
-            fit = exp_func(x, *popt)
-            m,med,std = sigma_clipped_stats(y - fit)
-            ind = (y - fit) < (5 * std + med)
+        try:
+            for i in range(2):
+                popt, pcov = curve_fit(exp_func, x[ind], y[ind])
+                fit = exp_func(x, *popt)
+                m,med,std = sigma_clipped_stats(y - fit)
+                ind = (y - fit) < (5 * std + med)
 
-        norm = y/exp_func(x, *popt)
-        a = find_peaks(norm,prominence=3,distance=50,wlen=300,height=significance)
-        peak_power = y[a[0]]
-        peak_freq = x[a[0]]
-        peak_freq = peak_freq[peak_power>1] 
-        peak_power = peak_power[peak_power>1] 
-        if peak_power is None:
-            peak_power = [np.nan]
-            peak_freq = [np.nan]
-        elif len(peak_power) < 1:
+            norm = y/exp_func(x, *popt)
+            a = find_peaks(norm,prominence=3,distance=50,wlen=300,height=significance)
+            peak_power = y[a[0]]
+            peak_freq = x[a[0]]
+            peak_freq = peak_freq[peak_power>1] 
+            peak_power = peak_power[peak_power>1] 
+            if peak_power is None:
+                peak_power = [np.nan]
+                peak_freq = [np.nan]
+            elif len(peak_power) < 1:
+                peak_power = [np.nan]
+                peak_freq = [np.nan]
+        except:
             peak_power = [np.nan]
             peak_freq = [np.nan]
         return peak_freq, peak_power
