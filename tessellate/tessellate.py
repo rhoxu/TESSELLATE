@@ -1,5 +1,5 @@
 from .dataprocessor import _Extract_fits, _Print_buff, _Save_space, DataProcessor
-#from .detector import Detector
+from .detector import Detector
 from .catalog_queries import create_external_var_cat
 from .tools import delete_files
 
@@ -26,7 +26,7 @@ class Tessellate():
                  reduce_time=None,reduce_cpu=None,search_time=None,
                  plot_time=None,
                  download=None,make_cube=None,make_cuts=None,reduce=None,search=None,
-                 plot=None,delete=None,detect_mode='old'):
+                 plot=None,delete=None,detect_mode='both'):
         
         """
         Initialise.

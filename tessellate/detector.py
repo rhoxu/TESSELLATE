@@ -27,7 +27,7 @@ from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
 from scipy.stats import pearsonr
 
-# from sourcedetect import SourceDetect
+from sourcedetect import SourceDetect
 
 from .dataprocessor import DataProcessor
 from .catalog_queries import find_variables, gaia_stars, match_result_to_cat
@@ -155,24 +155,17 @@ def _star_finding_procedure(data,prf,sig_limit = 3):
 
     return res
 
-def _frame_detection(data,prf,corlim,psfdifflim,frameNum,mode='both'):
+def _frame_detection(data,prf,corlim,psfdifflim,frameNum):
     """
     Acts on a frame of data. Uses StarFinder to find bright sources, then on each source peform correlation check.
     """
-
+    star = None
     if np.nansum(data) != 0.0:
         t1 = t()
-        if mode == 'starfind':
-            star = _star_finding_procedure(data,prf)
-        elif mode == 'sourcedetect':
-            machine = SourceDetect(data,run=True)
-        elif mode == 'both':
-            star = _star_finding_procedure(data,prf)
-            machine = SourceDetect(data,run=True)
-        #print(f'StarFinding: {(t()-t1):.1f} sec')
+        star = _star_finding_procedure(data,prf)
 
         if star is not None:
-            res['frame'] = frameNum
+            star['frame'] = frameNum
             t2 = t()    
             ind, cors,diff = _correlation_check(star,data,prf,corlim=corlim,psfdifflim=psfdifflim)
             #print(f'Correlation Check: {(t()-t2):.1f} sec - {len(res)} events')
@@ -180,33 +173,8 @@ def _frame_detection(data,prf,corlim,psfdifflim,frameNum,mode='both'):
             star['psfdiff'] = diff
             star['flux_sign'] = 1
             star = star[ind]
-        if machine is not None:
-            machine['psfdiff'] = 0
-            machine['frame'] = frameNum
-        if mode == 'both':
-            table = [machine, star]
-            good_tables = [table.to_pandas() for table in tables if table is not None]
-            if len(good_tables)>0:
-                total = pd.concat(good_tables)
-                total = total[~pd.isna(total['xcentroid'])]
-                if len(total) > 0:
-                    grouped = _spatial_group(total,distance=2)
-                    res = grouped.groupby('objid').head(1)
-                    res = res.reset_index(drop=True)
-                    res = res.drop(['id','objid'],axis=1)
-        else:
-            if star is not None:
-                res = star
-            elif machine is not None:
-                res = machine
-            else:
-                res = None
-        
-        return res
+    return star
 
-    else:
-        return None
-    
 def _source_mask(res,mask):
 
     xInts = res['xint'].values
@@ -247,14 +215,25 @@ def _count_detections(result):
 
     return result
 
-def _main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
+def _source_detect(flux,inputNum):
+    res = SourceDetect(flux,run=True,train=False).result
+    res['psfdiff'] = 0
+    res['xint'] = deepcopy(np.round(res['xcentroid'].values)).astype(int)
+    res['yint'] = deepcopy(np.round(res['ycentroid'].values)).astype(int)
+    ind = (res['xint'].values >3) & (res['xint'].values < flux.shape[2]-3) & (res['yint'].values >3) & (res['yint'].values < flux.shape[1]-3)
+    res = res[ind]
+    #length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
+    #for i in tqdm(length):
+    #    if np.nansum(flux[i]) != 0.0:
+    #        obj = SourceDetect(flux[i],run=True,train=False).result
+    #        obj['frame'] = inputNum + i
+    #        obj['psfdiff'] = 0
+    #        res += [obj]
+    #res = _make_dataframe(res,flux[0])
+    return res
 
-    length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
-
-    results = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i,mode) for i in tqdm(length))
-
+def _make_dataframe(results,data):
     frame = None
-
     for result in results:
         if frame is None:
             frame = result
@@ -263,33 +242,37 @@ def _main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
     
     frame['xint'] = deepcopy(np.round(frame['xcentroid'].values)).astype(int)
     frame['yint'] = deepcopy(np.round(frame['ycentroid'].values)).astype(int)
-    data = flux[0]
     ind = (frame['xint'].values >3) & (frame['xint'].values < data.shape[1]-3) & (frame['yint'].values >3) & (frame['yint'].values < data.shape[0]-3)
     frame = frame[ind]
-
     return frame
-
-def _par_machine_detect(flux,inputNum):
     
-    obj = SourceDetect(flux,run=True,train=False)
-    sources = obj.sources
-    sources['frame'] = frame_num
-    return sources
 
-def _machine_detector(flux,frame_num):
-    length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)   
-    results = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(_par_machine_detect)(flux[i],inputNum+i) for i in tqdm(length))
-    
-    sources = None
+def _main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
 
-    for result in results:
-        if sources is None:
-            sources = result
-        else:
-            sources = pd.concat([sources,result])
-    return sources
-     
+    length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
+    if mode == 'starfind':
+        results = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
+        results = _make_dataframe(results,flux[0])
+    elif mode == 'sourcedetect':
+        results = _source_detect(flux,inputNum)
+    elif mode == 'both':
+        results = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
+        star = _make_dataframe(results,flux[0])
+        machine = _source_detect(flux,inputNum)
+        total = [star,machine]
+        total = pd.concat(total)
+        total = total[~pd.isna(total['xcentroid'])]
+        grouped = _spatial_group(total,distance=2)
+        drop = []
+        for obj in grouped['objid'].unique():
+            sub = grouped[grouped['objid'] == obj]
+            for frame in sub['frame'].unique():
+                s2 = sub[sub['frame'] == frame]
+                if len(s2) == 2:
+                    drop += [s2.index[1]]
+        results = grouped.drop(drop)
 
+    return results
 
 def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdifflim=0.5,mode='both'):
     """
@@ -303,9 +286,9 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdiff
         inputNum = 0
             
     if sector < 4:
-        prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz335/_local_TESS_PRFs/Sectors1_2_3')
+        prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/home/phys/astronomy/rri38/tess/all_sky/_local_TESS_PRFs/Sectors1_2_3')
     else:
-        prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/fred/oz335/_local_TESS_PRFs/Sectors4+')
+        prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir='/home/phys/astronomy/rri38/tess/all_sky/_local_TESS_PRFs/Sectors4+')
 
     t1 = t()
     frame = _main_detection(flux,prf,corlim,psfdifflim,inputNum,mode=mode)
@@ -571,7 +554,7 @@ class Detector():
             peak_freq = [np.nan]
         return peak_freq, peak_power
     
-    def isolate_events(self,objid,frame_buffer=10,duration=1,
+    def isolate_events(self,objid,frame_buffer=20,duration=1,
                        asteroid_distance=2,asteroid_correlation=0.8,asteroid_duration=1):
         obj_ind = self.sources['objid'].values == objid
         obj = self.sources.iloc[obj_ind]
@@ -668,7 +651,7 @@ class Detector():
             event['Type'] = obj['Type'].iloc[0]
             event['peak_freq'] = peak_freq[0]
             event['peak_power'] = peak_power[0]
-            event['variable'] = variable
+            event['variable'] = variable | np.isfinite(peak_power[0])
             sig = self._check_lc_significance(event)
             event['lc_sig'] = sig
             
@@ -767,7 +750,12 @@ class Detector():
         from astropy.io import fits 
         if mode is None:
             mode = self.mode
-
+        if (mode == 'both') | (mode == 'starfind') | (mode == 'sourcedetect'):
+            pass
+        else:
+            m = 'Mode must be one of the following: both, starfind, sourcedetect.'
+            raise ValueError(m)
+        
         if cut != self.cut:
             self._gather_data(cut)
             self.cut = cut
@@ -953,6 +941,7 @@ class Detector():
             m = "No valid option selected, input either 'all', 'seperate', an integer event id, or list of inegers."
             raise ValueError(m)
         #source = self.result[self.result['objid']==id]
+        time = self.time - self.time[0]
         for i in range(len(sources)):
             #if type(sources) == list:
             #   source = sources[0]
@@ -987,7 +976,6 @@ class Detector():
                 brightestframe -= 1
             if frameEnd >= len(self.flux):
                 frameEnd -= 1
-            time = self.time - self.time[0]
             frames = np.arange(0,len(self.time))
             frames = (frames >= frameStart) & (frames <= frameEnd)
             lc = np.array([time,f,frames]).T
