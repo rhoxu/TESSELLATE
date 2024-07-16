@@ -339,6 +339,8 @@ class Tessellate():
                 elif cam.lower() == 'all':
                     self.cam = [1,2,3,4]
                     done = True
+                elif cam == '34':
+                    self.cam = [3,4]
                 else:
                     cam = input('      Invalid choice! Cam [1,2,3,4,all] = ')
                     message += f'      Invalid choice! Cam [1,2,3,4,all] = {cam}\n'
