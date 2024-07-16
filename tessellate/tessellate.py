@@ -410,7 +410,6 @@ class Tessellate():
             while not done:
                 if d.lower() == 'y':
                     make_cube = True
-                    processes.append('cube')
                     done=True
                 elif d.lower() == 'n':
                     make_cube = False
