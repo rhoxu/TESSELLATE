@@ -1553,7 +1553,7 @@ from tessellate import Detector\n\
 import numpy as np\n\
 \n\
 detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
-detector.source_detect(cut={cut},model={self.detect_mode})"
+detector.source_detect(cut={cut},model='{self.detect_mode}')"
                     
         with open(f"{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
             python_file.write(python_text)
