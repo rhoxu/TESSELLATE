@@ -1285,8 +1285,8 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', '
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cubing\n\
-#SBATCH --output={self.job_output_path}/tessellate_cubing_logs/cubing_job_output_%A.txt\n\
-#SBATCH --error={self.job_output_path}/tessellate_cubing_logs/cubing_errors_%A.txt\n\
+#SBATCH --output={self.job_output_path}/tessellate_cubing_logs/%A_cubing_job_output.txt\n\
+#SBATCH --error={self.job_output_path}/tessellate_cubing_logs/%A_cubing_errors.txt\n\
 #\n\
 #SBATCH --ntasks=1\n\
 #SBATCH --time={self.cube_time}\n\
@@ -1447,8 +1447,8 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{se
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Cutting\n\
-#SBATCH --output={self.job_output_path}/tessellate_cutting_logs/cutting_job_output_%A.txt\n\
-#SBATCH --error={self.job_output_path}/tessellate_cutting_logs/cutting_errors_%A.txt\n\
+#SBATCH --output={self.job_output_path}/tessellate_cutting_logs/%A_cutting_job_output.txt\n\
+#SBATCH --error={self.job_output_path}/tessellate_cutting_logs/%A_cutting_errors.txt\n\
 #\n\
 #SBATCH --ntasks=1\n\
 #SBATCH --time={self.cut_time}\n\
@@ -1525,8 +1525,8 @@ if os.path.exists('{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cu
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Reduction\n\
-#SBATCH --output={self.job_output_path}/tessellate_reduction_logs/reduction_job_output_%A.txt\n\
-#SBATCH --error={self.job_output_path}/tessellate_reduction_logs/reduction_errors_%A.txt\n\
+#SBATCH --output={self.job_output_path}/tessellate_reduction_logs/%A_reduction_job_output.txt\n\
+#SBATCH --error={self.job_output_path}/tessellate_reduction_logs/%A_reduction_errors.txt\n\
 #\n\
 #SBATCH --ntasks=1\n\
 #SBATCH --time={self.reduce_time}\n\
@@ -1668,8 +1668,8 @@ detector.plot_ALL(cut={cut},lower=1)"
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Plotting\n\
-#SBATCH --output={self.job_output_path}/tessellate_plotting_logs/plotting_job_output_%A.txt\n\
-#SBATCH --error={self.job_output_path}/tessellate_plotting_logs/plotting_errors_%A.txt\n\
+#SBATCH --output={self.job_output_path}/tessellate_plotting_logs/%A_plotting_job_output.txt\n\
+#SBATCH --error={self.job_output_path}/tessellate_plotting_logs/%A_plotting_errors.txt\n\
 #\n\
 #SBATCH --ntasks=1\n\
 #SBATCH --time={self.plot_time}\n\
