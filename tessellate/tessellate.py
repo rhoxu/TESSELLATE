@@ -1563,8 +1563,8 @@ detector.source_detect(cut={cut},model='{self.detect_mode}')"
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Search\n\
-#SBATCH --output={self.job_output_path}/tessellate_search_logs/search_job_output_%A.txt\n\
-#SBATCH --error={self.job_output_path}/tessellate_search_logs/search_errors_%A.txt\n\
+#SBATCH --output={self.job_output_path}/tessellate_search_logs/%A_search_job_output.txt\n\
+#SBATCH --error={self.job_output_path}/tessellate_search_logs/%A_search_errors.txt\n\
 #\n\
 #SBATCH --ntasks=1\n\
 #SBATCH --time={self.search_time}\n\
