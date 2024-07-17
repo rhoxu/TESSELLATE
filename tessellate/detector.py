@@ -570,8 +570,12 @@ class Detector():
             tarr = triggers>0
             temp = np.insert(tarr,0,False)
             temp = np.insert(temp,-1,False)
-            testf = np.diff(np.where(temp)[0])
-            testf = np.insert(testf,-1,0)
+            detections = np.where(temp)[0]
+            if len(detections) > 1:
+                testf = np.diff(np.where(temp)[0])
+                testf = np.insert(testf,-1,0)
+            else:
+                testf = np.array([0,0])
             indf = np.where(temp)[0]
             
             min_length = frame_buffer
