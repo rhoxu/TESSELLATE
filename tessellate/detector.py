@@ -53,7 +53,7 @@ def _correlation_check(res,data,prf,corlim=0.8,psfdifflim=0.5):
             cut = deepcopy(data)[y-2:y+3,x-2:x+3]
             cut[cut<0] = 0
             
-            if np.nansum(cut) > 0.95:
+            if np.nansum(cut) != 0.0:
                 cut /= np.nansum(cut)
                 cm = center_of_mass(cut)
 
@@ -226,14 +226,16 @@ def _source_detect(flux,inputNum,prf,corlim,psfdifflim,cpu):
     res['yint'] = deepcopy(np.round(res['ycentroid'].values)).astype(int)
     ind = (res['xint'].values >3) & (res['xint'].values < flux.shape[2]-3) & (res['yint'].values >3) & (res['yint'].values < flux.shape[1]-3)
     res = res[ind]
-    frames = source['frame'].unique()
-    ind,cors,diff = zip(*Parallel(n_jobs=cpu)(delayed(_parallel_correlation_check(source.loc[source['frame'] == frame],flux[frame],prf,corlim,psfdifflim) for frame in frames)))
+    frames = res['frame'].unique()
+    ind,cors,diff = zip(*Parallel(n_jobs=cpu)(delayed(_parallel_correlation_check)(res.loc[res['frame'] == frame],flux[frame],prf,corlim,psfdifflim) for frame in frames))
     res['good'] = False
     for i in range(len(frames)):
-        res['good'].iloc[ind[i]] = True
-        res['psfdiff'].iloc[ind[i]] = diff[i]
-        res['psflike'].iloc[ind[i]] = cors[i]
-    res = res.loc[res['good']]    
+        index = np.where(res['frame'].values == frames[i])[0]
+        res['good'].iloc[index[ind[i]]] = True
+        res['psfdiff'].iloc[index] = diff[i]
+        res['psflike'].iloc[index] = cors[i]
+    res = res.loc[res['good']]
+    res = res.drop(columns='good')
     #length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
     #for i in tqdm(length):
     #    if np.nansum(flux[i]) != 0.0:
