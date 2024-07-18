@@ -215,13 +215,25 @@ def _count_detections(result):
 
     return result
 
-def _source_detect(flux,inputNum):
+def _parallel_correlation_check(source,data,prf,corlim,psfdifflim):
+    ind, cors,diff = _correlation_check(source,data,prf,corlim=corlim,psfdifflim=psfdifflim)
+    return ind,cors,diff
+
+def _source_detect(flux,inputNum,prf,corlim,psfdifflim,cpu):
     res = SourceDetect(flux,run=True,train=False).result
     res['psfdiff'] = 0
     res['xint'] = deepcopy(np.round(res['xcentroid'].values)).astype(int)
     res['yint'] = deepcopy(np.round(res['ycentroid'].values)).astype(int)
     ind = (res['xint'].values >3) & (res['xint'].values < flux.shape[2]-3) & (res['yint'].values >3) & (res['yint'].values < flux.shape[1]-3)
     res = res[ind]
+    frames = source['frame'].unique()
+    ind,cors,diff = zip(*Parallel(n_jobs=cpu)(delayed(_parallel_correlation_check(source.loc[source['frame'] == frame],flux[frame],prf,corlim,psfdifflim) for frame in frames)))
+    res['good'] = False
+    for i in range(len(frames)):
+        res['good'].iloc[ind[i]] = True
+        res['psfdiff'].iloc[ind[i]] = diff[i]
+        res['psflike'].iloc[ind[i]] = cors[i]
+    res = res.loc[res['good']]    
     #length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
     #for i in tqdm(length):
     #    if np.nansum(flux[i]) != 0.0:
@@ -254,11 +266,11 @@ def _main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
         results = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
         results = _make_dataframe(results,flux[0])
     elif mode == 'sourcedetect':
-        results = _source_detect(flux,inputNum)
+        results = _source_detect(flux,inputNum,prf,corlim,psfdifflim,int(multiprocessing.cpu_count()/2))
     elif mode == 'both':
         results = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
         star = _make_dataframe(results,flux[0])
-        machine = _source_detect(flux,inputNum)
+        machine = _source_detect(flux,inputNum,prf,corlim,psfdifflim,int(multiprocessing.cpu_count()/2))
         total = [star,machine]
         total = pd.concat(total)
         total = total[~pd.isna(total['xcentroid'])]
