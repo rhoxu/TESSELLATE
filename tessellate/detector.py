@@ -114,7 +114,7 @@ def _spatial_group(result,distance=0.5,njobs=-1):
     result['objid'] = result['objid'].astype(int)
     return result
 
-def _star_finding_procedure(data,prf,sig_limit = 3):
+def _star_finding_procedure(data,prf,sig_limit = 2):
 
     mean, med, std = sigma_clipped_stats(data, sigma=5.0)
 
@@ -485,7 +485,10 @@ class Detector():
         frames = np.arange(0,len(lc))
         ind = ((frames > bs) & (frames < fs)) | ((frames < be) & (frames > fe))
         mean,med, std = sigma_clipped_stats(lc[ind])
-        lc_max = np.nanmax(lc[event['frame_start'].values[0]:event['frame_end'].values[0]])
+        if event['flux_sign'] >= 0:
+            lc_max = np.nanmax(lc[event['frame_start'].values[0]:event['frame_end'].values[0]])
+        else:
+            lc_max = np.nanmin(lc[event['frame_start'].values[0]:event['frame_end'].values[0]])
         significance = (lc_max - med) / std
         return significance 
     
@@ -987,7 +990,7 @@ class Detector():
             f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
             if frameEnd - frameStart >= 2:
                 #brightestframe = source['frame'].values[np.where(f[source['frame'].values] == np.nanmax(f[source['frame'].values]))[0][0]]
-                brightestframe = frameStart + np.where(f[frameStart:frameEnd] == np.nanmax(f[frameStart:frameEnd]))[0][0]
+                brightestframe = frameStart + np.where(abs(f[frameStart:frameEnd]) == np.nanmax(abs(f[frameStart:frameEnd])))[0][0]
             else:
                 brightestframe = frameStart
             try:
@@ -1016,9 +1019,15 @@ class Detector():
                 ax[1].set_title('Is there a transient in the orange region?',fontsize=15)    
             else:
                 ax[1].set_title('Lightcurve',fontsize=15)    
+            
             ax[1].plot(time[fstart:frameEnd+20],zoom,'k',alpha=0)
             insert_ylims = ax[1].get_ylim()
-            ax[1].plot(time,f,'k',alpha=0.8)
+            tn = deepcopy(time)
+            fn = deepcopy(f)
+            b = np.where(np.diff(tn) > 0.5)[0]
+            timen = np.insert(tn,b,np.nan)
+            fn = np.insert(fn,b,np.nan)
+            ax[1].plot(timen,fn,'k',alpha=0.8)
             ax[1].set_ylabel('Brightness',fontsize=15,labelpad=10)
             ax[1].set_xlabel('Time (days)',fontsize=15)
             ylims = ax[1].get_ylim()
@@ -1030,7 +1039,7 @@ class Detector():
                 axins = ax[1].inset_axes([0.1, 0.55, 0.86, 0.43])
                 
             axins.axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
-            axins.plot(time,f,'k',alpha=0.8)
+            axins.plot(timen,fn,'k',alpha=0.8)
             fe = frameEnd + 20
             if fe >= len(time):
                 fe = len(time) - 1
