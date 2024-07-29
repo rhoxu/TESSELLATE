@@ -288,7 +288,7 @@ def _main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
 
     return results
 
-def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.8,psfdifflim=0.5,mode='both'):
+def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdifflim=0.7,mode='both'):
     """
     Main Function.
     """
@@ -485,7 +485,7 @@ class Detector():
         frames = np.arange(0,len(lc))
         ind = ((frames > bs) & (frames < fs)) | ((frames < be) & (frames > fe))
         mean,med, std = sigma_clipped_stats(lc[ind])
-        if event['flux_sign'] >= 0:
+        if event['flux_sign'].values >= 0:
             lc_max = np.nanmax(lc[event['frame_start'].values[0]:event['frame_end'].values[0]])
         else:
             lc_max = np.nanmin(lc[event['frame_start'].values[0]:event['frame_end'].values[0]])
