@@ -26,6 +26,7 @@ import os
 from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
 from scipy.stats import pearsonr
+from scipy.ndimage import convolve
 
 from sourcedetect import SourceDetect
 
@@ -434,6 +435,7 @@ class Detector():
         self.sources = None  #raw detection results
         self.events = None   #temporally located with same object id
         self.cut = None
+        self.bkg = None
 
         self.mode = mode
 
@@ -457,6 +459,10 @@ class Detector():
         base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'
         self.base_name = base
         self.flux = np.load(base + '_ReducedFlux.npy')
+        try:
+            self.bkg = np.load(base + '_Background.npy')
+        except:
+            pass
         self.mask = np.load(base + '_Mask.npy')
         self.time = np.load(base + '_Times.npy')
         try:
@@ -811,6 +817,18 @@ class Detector():
         wcs_save[0].header['NAXIS2'] = self.wcs._naxis[1]
         wcs_save.writeto(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits',overwrite=True)
         results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv',index=False)
+        results['bkg_level'] = 0
+        if self.bkg is not None:
+            f = results['frame'].values
+            x = results['xint'].values; y = results['yint'].values
+            bkg = self.bkg
+            mask = np.zeros_like(bkg)
+            mask[f,y,x] = 1
+            mask = convolve(mask,np.ones((1,3,3)))
+            b = np.nansum(bkg*mask,axis=(1,2))
+            results['bkg_level'].iloc[f] = b[f]
+        else:
+            results['bkg_level'] = 0
         self.sources = results
         self._get_all_independent_events()
         self._asteroid_checker()
@@ -1231,7 +1249,7 @@ class Detector():
 
         return self.events[(self.events['ycentroid'].values < ycentroid+threshold) & (self.events['ycentroid'].values > ycentroid-threshold) & (self.events['xcentroid'].values < xcentroid+threshold) & (self.events['xcentroid'].values > xcentroid-threshold)]
 
-    def full_ccd(self):
+    def full_ccd(self,psflike_lim=0,psfdiff_lim=1,savename=None):
 
         p = DataProcessor(sector=self.sector,path=self.data_path)
         lb,_,_,_ = p.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
@@ -1255,9 +1273,12 @@ class Detector():
             try:
                 path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Cut{cut}of{self.n**2}'
                 r = pd.read_csv(f'{path}/detected_sources.csv')
+                r = r.loc[(r.psfdiff < psfdiff_lim) & (r.psflike > psflike_lim)]
                 r['xcentroid'] += lb[cut-1][0]
                 r['ycentroid'] += lb[cut-1][1]
                 ax.scatter(r['xcentroid'],r['ycentroid'],c=r['frame'],s=5)
+                if savename is not None:
+                    plt.savefig(savename)
             except:
                 pass
 
