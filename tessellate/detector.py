@@ -792,7 +792,7 @@ class Detector():
             self.cut = cut
 
         processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=2)
-        _, cutCentrePx, _, _ = processor.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
+        cutCorners, cutCentrePx, _, _ = processor.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
 
         column = cutCentrePx[cut-1][0]
         row = cutCentrePx[cut-1][1]
@@ -810,6 +810,9 @@ class Detector():
         results = match_result_to_cat(deepcopy(results),variables,columns=['Type','Prob'])
         # except:
         #     print('No local variable catalog, can not cross match.')
+
+        results['xccd'] = deepcopy(results['xint'] + cutCorners[cut-1][0]).astype(int)
+        results['yccd'] = deepcopy(results['yint'] + cutCorners[cut-1][1]).astype(int)
 
         wcs_save = self.wcs.to_fits()
         wcs_save[0].header['NAXIS'] = self.wcs.naxis
