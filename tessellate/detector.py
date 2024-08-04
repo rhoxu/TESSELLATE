@@ -674,6 +674,8 @@ class Detector():
             event['mjd_end'] = self.time[e[1]]
             event['yint'] = event['yint'].values.astype(int)
             event['xint'] = event['xint'].values.astype(int)
+            event['yccd'] = event['yccd'].values.astype(int)
+            event['xccd'] = event['xccd'].values.astype(int)
             duration = self.time[e[1]] - self.time[e[0]]
             event['mjd_duration'] = duration
             if asteroid & (duration < asteroid_duration):
