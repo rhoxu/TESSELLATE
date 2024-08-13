@@ -336,7 +336,7 @@ def _main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
 
     return results
 
-def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdifflim=0.7,mode='starfind'
+def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdifflim=0.7,mode='starfind',
             datadir='/fred/oz335/_local_TESS_PRFs/'):
     """
     Main Function.
@@ -826,7 +826,7 @@ class Detector():
         self.obj_ra = self.events.loc[self.events['objid'] == objid, 'ra'].mean()
         self.obj_dec = self.events.loc[self.events['objid'] == objid, 'dec'].mean()
 
-    def source_detect(self,cut,mode=None):
+    def source_detect(self,cut,mode='starfind',prf_path='/fred/oz335/_local_TESS_PRFs/'):
         from glob import glob 
         from astropy.io import fits 
         if mode is None:
@@ -847,7 +847,8 @@ class Detector():
         column = cutCentrePx[cut-1][0]
         row = cutCentrePx[cut-1][1]
 
-        results = detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,row=row,mask=self.mask,inputNums=None,mode=mode)
+        results = detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,
+                         row=row,mask=self.mask,inputNums=None,mode=mode,datadir=prf_path)
         results = self._wcs_time_info(results,cut)
         #try:
         gaia = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv')
