@@ -666,6 +666,16 @@ class Detector():
             asteroid = (av_dist - asteroid_distance) + (cor - asteroid_correlation) > 0 #(cor >= 0.8) & (dist >= 0.85)
             
             event = deepcopy(detections.mean().to_frame().T)
+            prfs = detections['psflike'].values
+            psfdiff = detections['psfdiff'].values
+            d = prfs[abs(prfs) == np.nanmax(prfs)]
+            if len(d) > 1:
+                d = d[0]
+            event['max_psflike'] = d
+            d = psfdiff[abs(psfdiff) == np.nanmax(psfdiff)]
+            if len(d) > 1:
+                d = d[0]
+            event['min_psfdiff'] = d
             event['eventID'] = counter
             event['frame_start'] = e[0]
             event['frame_end'] = e[1]
@@ -676,6 +686,10 @@ class Detector():
             event['xint'] = event['xint'].values.astype(int)
             event['yccd'] = event['yccd'].values.astype(int)
             event['xccd'] = event['xccd'].values.astype(int)
+            event['sector'] = self.sector 
+            event['camera'] = self.cam
+            event['ccd'] = self.ccd
+            
             duration = self.time[e[1]] - self.time[e[0]]
             event['mjd_duration'] = duration
             if asteroid & (duration < asteroid_duration):
