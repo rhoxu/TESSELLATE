@@ -23,8 +23,8 @@ class Tessellate():
                  verbose=2,download_number=None,cuts=None,
                  job_output_path=None,working_path=None,
                  cube_time=None,cube_mem=None,cut_time=None,cut_mem=None,
-                 reduce_time=None,reduce_cpu=None,search_time=None,
-                 plot_time=None,
+                 reduce_time=None,reduce_cpu=None,search_time=None,search_cpu=None,
+                 plot_time=None,plot_cpu=None,
                  download=None,make_cube=None,make_cuts=None,reduce=None,search=None,
                  plot=None,delete=None,detect_mode='both'):
         
@@ -142,11 +142,11 @@ class Tessellate():
 
         self.search_time = search_time
         self.search_mem = None
-        self.search_cpu = None
+        self.search_cpu = search_cpu
         
         self.plot_time = plot_time
         self.plot_mem = None
-        self.plot_cpu = None
+        self.plot_cpu = plot_cpu
         self.detect_mode = detect_mode
 
         self.skip = []
