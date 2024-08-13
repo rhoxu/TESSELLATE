@@ -7,6 +7,9 @@ import pandas as pd
 from PRF import TESS_PRF
 from copy import deepcopy
 from photutils.detection import StarFinder
+from photutils.aperture import RectangularAperture, RectangularAnnulus
+from photutils.aperture import ApertureStats, aperture_photometry
+
 from astropy.stats import sigma_clipped_stats
 from scipy.ndimage import center_of_mass
 from sklearn.cluster import DBSCAN
@@ -29,6 +32,8 @@ from scipy.stats import pearsonr
 from scipy.ndimage import convolve
 
 from sourcedetect import SourceDetect
+
+
 
 from .dataprocessor import DataProcessor
 from .catalog_queries import find_variables, gaia_stars, match_result_to_cat
@@ -101,6 +106,9 @@ def _correlation_check(res,data,prf,corlim=0.8,psfdifflim=0.5):
 
     return ind,cors,diff
 
+#def _aperture_photom(source, frame):
+
+
 def _spatial_group(result,distance=0.5,njobs=-1):
     """
     Groups events based on proximity.
@@ -125,19 +133,19 @@ def _star_finding_procedure(data,prf,sig_limit = 2):
 
     psfUR = prf.locate(5.25,5.25,(11,11))
     finder = StarFinder(med + sig_limit*std,kernel=psfUR)
-    res2 = None#finder.find_stars(deepcopy(data))
+    res2 = finder.find_stars(deepcopy(data))
 
     psfUL = prf.locate(4.75,5.25,(11,11))
     finder = StarFinder(med + sig_limit*std,kernel=psfUL)
-    res3 = None#finder.find_stars(deepcopy(data))
+    res3 = finder.find_stars(deepcopy(data))
 
     psfDR = prf.locate(5.25,4.75,(11,11))
     finder = StarFinder(med + sig_limit*std,kernel=psfDR)
-    res4 = None#finder.find_stars(deepcopy(data))
+    res4 = finder.find_stars(deepcopy(data))
 
     psfDL = prf.locate(4.75,4.75,(11,11))
     finder = StarFinder(med + sig_limit*std,kernel=psfDL)
-    res5 = None#finder.find_stars(deepcopy(data))
+    res5 = finder.find_stars(deepcopy(data))
 
     tables = [res1, res2, res3, res4, res5]
     good_tables = [table.to_pandas() for table in tables if table is not None]
@@ -156,24 +164,65 @@ def _star_finding_procedure(data,prf,sig_limit = 2):
 
     return res
 
+
+def find_stars(data,prf,fwhmlim=5,negative=False):
+    if negative:
+        data = data * -1
+    star = _star_finding_procedure(data,prf,sig_limit=1)
+    ind = star['fwhm'].values < fwhmlim
+    pos_ind = ((star.xcentroid.values >=3) & (star.xcentroid.values < data.shape[1]-3) & 
+                (star.ycentroid.values >=3) & (star.ycentroid.values < data.shape[0]-3))
+    star = star.iloc[ind & pos_ind]
+
+    x = (star.xcentroid.values + 0.5).astype(int); y = (star.ycentroid.values + 0.5).astype(int)
+    pos = list(zip(x, y))
+    aperture = RectangularAperture(pos, 3.0, 3.0)
+    annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=15,h_out=15)
+
+    aperstats_sky = ApertureStats(data, annulus_aperture)
+    aperstats_source = ApertureStats(data, aperture)
+    phot_table = aperture_photometry(data, aperture)
+    phot_table = phot_table.to_pandas()
+
+    negative_ind = aperstats_source.min >= aperstats_sky.median - 3* aperstats_sky.std
+    star['sig'] = phot_table['aperture_sum'].values / (9 * aperstats_sky.std)
+    star['flux'] = phot_table['aperture_sum'].values
+    star['mag'] = -2.5*np.log10(phot_table['aperture_sum'].values)
+    star['bkgstd'] = 9 * aperstats_sky.std
+    star = star.iloc[negative_ind]
+    star = star.iloc[(star['sig'].values > 2)]
+    ind, psfcor, psfdiff = _correlation_check(star,data,prf,corlim=0,psfdifflim=1)
+    star['psflike'] = psfcor
+    star['psfdiff'] = psfdiff
+    if negative:
+        star['flux_sign'] = -1
+        star['flux'] = star['flux'].values * -1
+        star['max_value'] = star['max_value'].values * -1
+    else:
+        star['flux_sign'] = 1
+    return star
+
+
 def _frame_detection(data,prf,corlim,psfdifflim,frameNum):
     """
     Acts on a frame of data. Uses StarFinder to find bright sources, then on each source peform correlation check.
     """
     star = None
     if np.nansum(data) != 0.0:
-        t1 = t()
-        star = _star_finding_procedure(data,prf)
-
+        #t1 = t()
+        #star = _star_finding_procedure(data,prf)
+        p = find_stars(data,prf)
+        n = find_stars(deepcopy(data),prf,negative=True)
+        star = pd.concat([p,n])
         if star is not None:
             star['frame'] = frameNum
-            t2 = t()    
-            ind, cors,diff = _correlation_check(star,data,prf,corlim=corlim,psfdifflim=psfdifflim)
+            #t2 = t()    
+            #ind, cors,diff = _correlation_check(star,data,prf,corlim=corlim,psfdifflim=psfdifflim)
             #print(f'Correlation Check: {(t()-t2):.1f} sec - {len(res)} events')
-            star['psflike'] = cors
-            star['psfdiff'] = diff
-            star['flux_sign'] = 1
-            star = star[ind]
+            #star['psflike'] = cors
+            #star['psfdiff'] = diff
+            #star['flux_sign'] = 1
+            #star = star[ind]
     return star
 
 def _source_mask(res,mask):
@@ -289,7 +338,7 @@ def _main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
 
     return results
 
-def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdifflim=0.7,mode='both'):
+def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdifflim=0.7,mode='starfind'):
     """
     Main Function.
     """
