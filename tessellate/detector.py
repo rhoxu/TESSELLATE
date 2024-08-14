@@ -11,6 +11,8 @@ from photutils.aperture import RectangularAperture, RectangularAnnulus
 from photutils.aperture import ApertureStats, aperture_photometry
 
 from astropy.stats import sigma_clipped_stats
+from astropy.stats import sigma_clip
+from scipy.signal import fftconvolve
 from scipy.ndimage import center_of_mass
 from sklearn.cluster import DBSCAN
 
@@ -176,8 +178,9 @@ def find_stars(data,prf,fwhmlim=5,negative=False):
     pos = list(zip(x, y))
     aperture = RectangularAperture(pos, 3.0, 3.0)
     annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=15,h_out=15)
-
-    aperstats_sky = ApertureStats(data, annulus_aperture)
+    m = sigma_clip(data,masked=True,sigma=5).mask
+    mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
+    aperstats_sky = ApertureStats(data, annulus_aperture,mask = mask)
     aperstats_source = ApertureStats(data, aperture)
     phot_table = aperture_photometry(data, aperture)
     phot_table = phot_table.to_pandas()
