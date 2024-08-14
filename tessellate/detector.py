@@ -873,8 +873,8 @@ class Detector():
         # except:
         #     print('No local variable catalog, can not cross match.')
 
-        results['xccd'] = deepcopy(results['xint'] + cutCorners[cut-1][0]).astype(int)
-        results['yccd'] = deepcopy(results['yint'] + cutCorners[cut-1][1]).astype(int)
+        results['xccd'] = deepcopy(results['xint'] + cutCorners[cut-1][1]).astype(int)
+        results['yccd'] = deepcopy(results['yint'] + cutCorners[cut-1][0]).astype(int)
 
         wcs_save = self.wcs.to_fits()
         wcs_save[0].header['NAXIS'] = self.wcs.naxis
