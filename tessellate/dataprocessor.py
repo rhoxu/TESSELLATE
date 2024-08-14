@@ -285,8 +285,24 @@ class DataProcessor():
         sortedDates = np.array(sorted(dates))
         differences = np.diff(sortedDates)
         idx = np.where(differences == np.nanmax(differences))[0][0]+1
-        cube1_files = sortedDates[:idx]
-        cube2_files = sortedDates[idx:]
+
+        cube1_files = []
+        cube2_files = []
+        for f in input_files:
+            year = f[56:60]
+            daynum = f[60:63]
+            hour = f[63:65]
+            minute = f[65:67]
+            sec = f[67:69]
+            date = datetime.datetime.strptime(year + "-" + daynum, "%Y-%j")
+            month = date.month
+            day = date.day
+            imagetime = '{}-{}-{}T{}:{}:{}'.format(year,month,day,hour,minute,sec)
+            imagetime = Time(imagetime, format='isot', scale='utc').mjd
+            if imagetime in sortedDates[:idx]:
+                cube1_files.append(f)
+            elif imagetime in sortedDates[idx:]:
+                cube2_files.append(f)  
         cubes = [cube1_files,cube2_files]
 
         for i in range(2):

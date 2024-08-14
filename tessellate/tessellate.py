@@ -268,7 +268,7 @@ class Tessellate():
         elif self.sector in tertiary_mission:
             self.split = True
 
-            cube_time_sug = '3:00:00'
+            cube_time_sug = '6:00:00'
             cube_mem_sug = '20G'
             cube_mem_req = 400
 
