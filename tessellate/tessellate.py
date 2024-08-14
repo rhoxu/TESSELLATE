@@ -1462,11 +1462,11 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
 
                 if self.split:
                     for i in range(2):
-                        done = self._get_catalogues(cam=cam,ccd=ccd,save_path=f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part{i+1}')
+                        done = self._get_catalogues(cam=cam,ccd=ccd,base_path=f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part{i+1}')
                         if not done:
                             break
                 else:
-                    done = self._get_catalogues(cam=cam,ccd=ccd,save_path=f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}')
+                    done = self._get_catalogues(cam=cam,ccd=ccd,base_path=f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}')
                 
                 print('\n')
                 if not done:
