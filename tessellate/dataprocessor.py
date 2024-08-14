@@ -474,9 +474,9 @@ class DataProcessor():
                                                 target_pixel_file = name,
                                                 verbose=(self.verbose>1)) 
 
-        if self.verbose > 0:
-            print(f'Cam {cam} CCD {ccd} cut {cut} complete.')
-            print('\n')
+            if self.verbose > 0:
+                print(f'Cam {cam} CCD {ccd} cut {cut} complete.')
+                print('\n')
 
     def reduce(self,cam,ccd,n,cut):
         """
