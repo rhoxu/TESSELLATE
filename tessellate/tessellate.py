@@ -1496,19 +1496,37 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
                 print(_Print_buff(60,f'Reducing Cut(s) for Sector{self.sector} Cam{cam} Ccd{ccd}'))
                 print('\n')
                 for cut in self.cuts:
-                    cut_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
-                    if not os.path.exists(cut_check):
-                        e = f'No Source Catalogue Detected for Reduction of Cut {cut}!\n'
-                        raise ValueError(e)
+                    if self.split:
+                        cut_check1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
+                        cut_check2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
+                        if not os.path.exists(cut_check1):
+                            e = f'No Source Catalogue Detected for Reduction of Cut {cut} Part 1!\n'
+                            raise ValueError(e)
+                        elif not os.path.exists(cut_check2):
+                            e = f'No Source Catalogue Detected for Reduction of Cut {cut} Part 2!\n'
+                            raise ValueError(e)
+                    else:
+                        cut_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
+                        if not os.path.exists(cut_check):
+                            e = f'No Source Catalogue Detected for Reduction of Cut {cut}!\n'
+                            raise ValueError(e)
                     
-
-                    reduced_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reduced.txt'
-                    if os.path.exists(reduced_check):
-                        print(f'Cam {cam} Chip {ccd} cut {cut} already reduced!')
-                        print('\n')
+                    go = True
+                    if self.split:
+                        reduced_check1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}/reduced.txt'
+                        reduced_check2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/reduced.txt'
+                        if (os.path.exists(reduced_check1))&(os.path.exists(reduced_check2)):
+                            print(f'Cam {cam} Chip {ccd} cut {cut} already reduced!')
+                            print('\n')
+                            go = False
+                    else:
+                        reduced_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reduced.txt'
+                        if os.path.exists(reduced_check):
+                            print(f'Cam {cam} Chip {ccd} cut {cut} already reduced!')
+                            print('\n')
+                            go = False
                     
-                    else:                    
-
+                    if go:                    
                         # -- Create python file for reducing a cut-- # 
                         print(f'Creating Reduction Python File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
                         python_text = f"\
