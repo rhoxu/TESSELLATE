@@ -222,6 +222,7 @@ class Tessellate():
         secondary_mission = range(28,56)    # ~3600 FFIs , 10 min cadence
         tertiary_mission = range(56,100)    # ~12000 FFIs , 200 sec cadence
 
+        self.split = False
         if self.sector in primary_mission:
             cube_time_sug = '45:00'
             cube_mem_sug = '20G'
@@ -265,7 +266,9 @@ class Tessellate():
             plot_mem_req = 10
 
         elif self.sector in tertiary_mission:
-            cube_time_sug = '3:00:00'
+            self.split = True
+
+            cube_time_sug = '6:00:00'
             cube_mem_sug = '20G'
             cube_mem_req = 400
 
@@ -1275,7 +1278,7 @@ class Tessellate():
 from tessellate import DataProcessor\n\
 \n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
-processor.make_cube(cam={cam},ccd={ccd})\n\
+processor.make_cube(cam={cam},ccd={ccd},split={self.split})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', 'w') as file:\n\
     file.write('Cubed!')"   
                 
@@ -1306,7 +1309,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                     os.system(f'sbatch {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh')
                     print('\n')
 
-    def _get_catalogues(self,cam,ccd):
+    def _get_catalogues(self,cam,ccd,base_path):
         """
         Access internet, find Gaia sources and save for reduction.
         """
@@ -1338,7 +1341,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                 message += '.'
                 for cut in self.cuts:
                     if cut not in completed:
-                        save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+                        save_path = f'{base_path}/Cut{cut}of{self.n**2}'
                         if os.path.exists(f'{save_path}/variable_catalog.csv'):
                             completed.append(cut)
                         elif os.path.exists(f'{save_path}/cut.txt'):
@@ -1350,23 +1353,13 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                                 rad = rad + 2*60/21
                                 cutPath = f'{save_path}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}.fits'
                                 tr.external_save_cat(tpf=cutPath,save_path=save_path,maglim=19) # oversize radius by 2 arcmin in terms of tess pixels
-                                
-                                # tr.external_save_cat(radec=cutCentreCoords[cut-1],size=rad,cutCornerPx=cutCorners[cut-1],
-                                #                     image_path=image_path,save_path=save_path,maglim=19) # oversize radius by 2 arcmin in terms of tess pixels
-                                
                             rad2 = rad*21/60**2
-                            #print('rad: ',rad)
-                            #print('center: ',cutCentreCoords[cut-1])
-                            #print('rad2: ',rad2)
                             create_external_var_cat(center=cutCentreCoords[cut-1],size=rad2,save_path=save_path) # This one queries in degrees!!!!
                             completed.append(cut)
                             try:
                                 os.system('rm -r ~/.astropy/cache/astroquery/Vizier/*.pickle')
                             except:
                                 pass
-
-                            #except:
-                            #    pass
 
                 i += 1
 
@@ -1437,7 +1430,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 from tessellate import DataProcessor\n\
 \n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
-processor.make_cuts(cam={cam},ccd={ccd},n={self.n},cut={cut})\n\
+processor.make_cuts(cam={cam},ccd={ccd},n={self.n},cut={cut},split={self.split})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/cut.txt', 'w') as file:\n\
     file.write('Cut!')"
 
@@ -1467,7 +1460,14 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
                         os.system(f'sbatch {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh')
                         print('\n')
 
-                done = self._get_catalogues(cam=cam,ccd=ccd)
+                if self.split:
+                    for i in range(2):
+                        done = self._get_catalogues(cam=cam,ccd=ccd,base_path=f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part{i+1}')
+                        if not done:
+                            break
+                else:
+                    done = self._get_catalogues(cam=cam,ccd=ccd,base_path=f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}')
+                
                 print('\n')
                 if not done:
                     print('Restarting Cutting')

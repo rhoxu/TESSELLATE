@@ -12,11 +12,13 @@ import multiprocessing
 from joblib import Parallel, delayed 
 
 from time import time as t
+import datetime
 
 from astrocut import CubeFactory
 from astrocut import CutoutFactory
 from astropy.io import fits
 from astropy import wcs
+from astropy.time import Time
 
 from .downloader import Download_cam_ccd_FFIs
 
@@ -260,8 +262,65 @@ class DataProcessor():
                 ax.add_patch(rectangle)
                 
         return cutCorners, cutCentrePx, cutCentreCoords, cutSize
+    
+    def _make_split_cube(self,cam,ccd,input_files):
 
-    def make_cube(self,cam,ccd,delete_files=False):
+        # -- Generate Cube Path -- #
+        broad_path = f'{self.path}/Cam{cam}/Ccd{ccd}'
+        
+        dates = []
+        for f in input_files:
+            year = f[56:60]
+            daynum = f[60:63]
+            hour = f[63:65]
+            minute = f[65:67]
+            sec = f[67:69]
+            date = datetime.datetime.strptime(year + "-" + daynum, "%Y-%j")
+            month = date.month
+            day = date.day
+            imagetime = '{}-{}-{}T{}:{}:{}'.format(year,month,day,hour,minute,sec)
+            imagetime = Time(imagetime, format='isot', scale='utc').mjd
+            dates.append(imagetime)
+
+        sortedDates = np.array(sorted(dates))
+        differences = np.diff(sortedDates)
+        idx = np.where(differences == np.nanmax(differences))[0][0]+1
+
+        cube1_files = []
+        cube2_files = []
+        for f in input_files:
+            year = f[56:60]
+            daynum = f[60:63]
+            hour = f[63:65]
+            minute = f[65:67]
+            sec = f[67:69]
+            date = datetime.datetime.strptime(year + "-" + daynum, "%Y-%j")
+            month = date.month
+            day = date.day
+            imagetime = '{}-{}-{}T{}:{}:{}'.format(year,month,day,hour,minute,sec)
+            imagetime = Time(imagetime, format='isot', scale='utc').mjd
+            if imagetime in sortedDates[:idx]:
+                cube1_files.append(f)
+            elif imagetime in sortedDates[idx:]:
+                cube2_files.append(f)  
+        cubes = [cube1_files,cube2_files]
+
+        for i in range(2):
+            cube_name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits'
+            if not os.path.exists(f'{broad_path}/Part{i+1}'):
+                os.mkdir(f'{broad_path}/Part{i+1}')
+            cube_path = f'{broad_path}/Part{i+1}/{cube_name}'
+
+            if self.verbose > 0:
+                print(_Print_buff(50,f'Cubing Sector {self.sector} Cam {cam} CCD {ccd} Part {i+1}'))
+
+            # -- Make Cube -- #
+            cube_maker = CubeFactory()
+            cube_file = cube_maker.make_cube(cubes[i],cube_file=cube_path,verbose=self.verbose>1,max_memory=500)
+            print('\n')
+
+
+    def make_cube(self,cam,ccd,split=False):
         """
         Make cube for this cam,ccd.
         
@@ -291,8 +350,6 @@ class DataProcessor():
         # -- Generate Cube Path -- #
         broad_path = f'{self.path}/Cam{cam}/Ccd{ccd}'
         file_path = f'{broad_path}/image_files'
-        cube_name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits'
-        cube_path = f'{broad_path}/{cube_name}'
 
         # if os.path.exists(cube_path):
         #     print(f'Cam {cam} CCD {ccd} cube already exists!')
@@ -317,22 +374,51 @@ class DataProcessor():
             size = len(input_files) * 0.0355
             print(f'Estimated cube size = {size:.2f} GB')
 
-        # -- Allows for a custom cubing message (kinda dumb) -- #
-        if self.verbose > 0:
-            print(_Print_buff(50,f'Cubing Sector {self.sector} Cam {cam} CCD {ccd}'))
-        
-        # -- Make Cube -- #
-        cube_maker = CubeFactory()
-        cube_file = cube_maker.make_cube(input_files,cube_file=cube_path,verbose=self.verbose>1,max_memory=500)
+        if split:
+            self._make_split_cube(cam,ccd,input_files)
+        else:
+            cube_name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits'
+            cube_path = f'{broad_path}/{cube_name}'
 
-        # -- If true, delete files after cube is made -- #
-        if delete_files:
-            homedir = os.getcwd()
-            os.chdir(file_path)
-            os.system('rm *ffic.fits')
-            os.chdir(homedir)
+            # -- Allows for a custom cubing message (kinda dumb) -- #
+            if self.verbose > 0:
+                print(_Print_buff(50,f'Cubing Sector {self.sector} Cam {cam} CCD {ccd}'))
+            
+            # -- Make Cube -- #
+            cube_maker = CubeFactory()
+            cube_file = cube_maker.make_cube(input_files,cube_file=cube_path,verbose=self.verbose>1,max_memory=500)
+
+    def _make_split_cuts(self,cam,ccd,n,cut,file_path,cutCentreCoords, cutSize):
+
+        for i in range(2):
+
+            # -- Generate Cube Path -- #
+            cube_name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits'
+            cube_path = f'{file_path}/Part{i+1}/{cube_name}'
+        
+            name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}.fits'
+            if self.verbose > 0:
+                print(f'Cutting Cam {cam} CCD {ccd} Cut {cut} (of {n**2}) Part {i+1}')
+        
+            my_cutter = CutoutFactory() # astrocut class
+            coords = cutCentreCoords[cut-1]
+
+            _Save_space(f'{file_path}/Part{i+1}/Cut{cut}of{n**2}')
+                        
+            # -- Cut -- #
+            self.cut_file = my_cutter.cube_cut(cube_path, 
+                                                f"{coords[0]} {coords[1]}", 
+                                                (cutSize*2,cutSize*2), 
+                                                output_path = f'{file_path}/Cut{cut}of{n**2}',
+                                                target_pixel_file = name,
+                                                verbose=(self.verbose>1)) 
+
+            if self.verbose > 0:
+                print(f'Cam {cam} CCD {ccd} Cut {cut} Part {i+1} complete.')
+                print('\n')
+
     
-    def make_cuts(self,cam,ccd,n,cut):
+    def make_cuts(self,cam,ccd,n,cut,split=False):
         """
         Make cut(s) for this CCD.
         
@@ -360,30 +446,33 @@ class DataProcessor():
         if not os.path.exists(file_path):
             print('No data to cut!')
             return
-                
-        # -- Generate Cube Path -- #
-        cube_name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits'
-        cube_path = f'{file_path}/{cube_name}'
         
-        name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}.fits'
-        # if os.path.exists(f'{file_path}/Cut{cut}of{n**2}/{name}'):
-        #     print(f'Cam {cam} CCD {ccd} cut {cut} already made!')
-        # else:
-        if self.verbose > 0:
-            print(f'Cutting Cam {cam} CCD {ccd} cut {cut} (of {n**2})')
-        
-        my_cutter = CutoutFactory() # astrocut class
-        coords = cutCentreCoords[cut-1]
+        if split:
+            self._make_split_cuts(cam,ccd,n,cut,file_path,cutCentreCoords,cutSize)
+        else:   
+            # -- Generate Cube Path -- #
+            cube_name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits'
+            cube_path = f'{file_path}/{cube_name}'
+            
+            name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}.fits'
+            # if os.path.exists(f'{file_path}/Cut{cut}of{n**2}/{name}'):
+            #     print(f'Cam {cam} CCD {ccd} cut {cut} already made!')
+            # else:
+            if self.verbose > 0:
+                print(f'Cutting Cam {cam} CCD {ccd} cut {cut} (of {n**2})')
+            
+            my_cutter = CutoutFactory() # astrocut class
+            coords = cutCentreCoords[cut-1]
 
-        _Save_space(f'{file_path}/Cut{cut}of{n**2}')
-                        
-        # -- Cut -- #
-        self.cut_file = my_cutter.cube_cut(cube_path, 
-                                            f"{coords[0]} {coords[1]}", 
-                                            (cutSize*2,cutSize*2), 
-                                            output_path = f'{file_path}/Cut{cut}of{n**2}',
-                                            target_pixel_file = name,
-                                            verbose=(self.verbose>1)) 
+            _Save_space(f'{file_path}/Cut{cut}of{n**2}')
+                            
+            # -- Cut -- #
+            self.cut_file = my_cutter.cube_cut(cube_path, 
+                                                f"{coords[0]} {coords[1]}", 
+                                                (cutSize*2,cutSize*2), 
+                                                output_path = f'{file_path}/Cut{cut}of{n**2}',
+                                                target_pixel_file = name,
+                                                verbose=(self.verbose>1)) 
 
         if self.verbose > 0:
             print(f'Cam {cam} CCD {ccd} cut {cut} complete.')
