@@ -222,6 +222,7 @@ class Tessellate():
         secondary_mission = range(28,56)    # ~3600 FFIs , 10 min cadence
         tertiary_mission = range(56,100)    # ~12000 FFIs , 200 sec cadence
 
+        self.split = False
         if self.sector in primary_mission:
             cube_time_sug = '45:00'
             cube_mem_sug = '20G'
@@ -265,6 +266,8 @@ class Tessellate():
             plot_mem_req = 10
 
         elif self.sector in tertiary_mission:
+            self.split = True
+
             cube_time_sug = '3:00:00'
             cube_mem_sug = '20G'
             cube_mem_req = 400
@@ -1275,7 +1278,7 @@ class Tessellate():
 from tessellate import DataProcessor\n\
 \n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
-processor.make_cube(cam={cam},ccd={ccd})\n\
+processor.make_cube(cam={cam},ccd={ccd},split={self.split})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', 'w') as file:\n\
     file.write('Cubed!')"   
                 

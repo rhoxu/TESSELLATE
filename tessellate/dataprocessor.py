@@ -12,11 +12,13 @@ import multiprocessing
 from joblib import Parallel, delayed 
 
 from time import time as t
+import datetime
 
 from astrocut import CubeFactory
 from astrocut import CutoutFactory
 from astropy.io import fits
 from astropy import wcs
+from astropy.time import Time
 
 from .downloader import Download_cam_ccd_FFIs
 
@@ -260,8 +262,48 @@ class DataProcessor():
                 ax.add_patch(rectangle)
                 
         return cutCorners, cutCentrePx, cutCentreCoords, cutSize
+    
+    def _make_split_cube(self,cam,ccd,input_files):
 
-    def make_cube(self,cam,ccd,delete_files=False):
+        # -- Generate Cube Path -- #
+        broad_path = f'{self.path}/Cam{cam}/Ccd{ccd}'
+        
+        dates = []
+        for f in input_files:
+            year = f[56:60]
+            daynum = f[60:63]
+            hour = f[63:65]
+            minute = f[65:67]
+            sec = f[67:69]
+            date = datetime.datetime.strptime(year + "-" + daynum, "%Y-%j")
+            month = date.month
+            day = date.day
+            imagetime = '{}-{}-{}T{}:{}:{}'.format(year,month,day,hour,minute,sec)
+            imagetime = Time(imagetime, format='isot', scale='utc').mjd
+            dates.append(imagetime)
+
+        sortedDates = np.array(sorted(dates))
+        differences = np.diff(sortedDates)
+        idx = np.where(differences == np.nanmax(differences))[0][0]+1
+        cube1_files = sortedDates[:idx]
+        cube2_files = sortedDates[idx:]
+        cubes = [cube1_files,cube2_files]
+
+        for i in range(2):
+            cube_name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits'
+            if not os.path.exists(f'{broad_path}/Part{i+1}'):
+                os.mkdir(f'{broad_path}/Part{i+1}')
+            cube_path = f'{broad_path}/Part{i+1}/{cube_name}'
+
+            if self.verbose > 0:
+                print(_Print_buff(50,f'Cubing Sector {self.sector} Cam {cam} CCD {ccd} Part {i+1}'))
+
+            # -- Make Cube -- #
+            cube_maker = CubeFactory()
+            cube_file = cube_maker.make_cube(cubes[i],cube_file=cube_path,verbose=self.verbose>1,max_memory=500)
+
+
+    def make_cube(self,cam,ccd,split=False):
         """
         Make cube for this cam,ccd.
         
@@ -291,8 +333,6 @@ class DataProcessor():
         # -- Generate Cube Path -- #
         broad_path = f'{self.path}/Cam{cam}/Ccd{ccd}'
         file_path = f'{broad_path}/image_files'
-        cube_name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits'
-        cube_path = f'{broad_path}/{cube_name}'
 
         # if os.path.exists(cube_path):
         #     print(f'Cam {cam} CCD {ccd} cube already exists!')
@@ -317,20 +357,19 @@ class DataProcessor():
             size = len(input_files) * 0.0355
             print(f'Estimated cube size = {size:.2f} GB')
 
-        # -- Allows for a custom cubing message (kinda dumb) -- #
-        if self.verbose > 0:
-            print(_Print_buff(50,f'Cubing Sector {self.sector} Cam {cam} CCD {ccd}'))
-        
-        # -- Make Cube -- #
-        cube_maker = CubeFactory()
-        cube_file = cube_maker.make_cube(input_files,cube_file=cube_path,verbose=self.verbose>1,max_memory=500)
+        if split:
+            self._make_split_cube(cam,ccd,input_files)
+        else:
+            cube_name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits'
+            cube_path = f'{broad_path}/{cube_name}'
 
-        # -- If true, delete files after cube is made -- #
-        if delete_files:
-            homedir = os.getcwd()
-            os.chdir(file_path)
-            os.system('rm *ffic.fits')
-            os.chdir(homedir)
+            # -- Allows for a custom cubing message (kinda dumb) -- #
+            if self.verbose > 0:
+                print(_Print_buff(50,f'Cubing Sector {self.sector} Cam {cam} CCD {ccd}'))
+            
+            # -- Make Cube -- #
+            cube_maker = CubeFactory()
+            cube_file = cube_maker.make_cube(input_files,cube_file=cube_path,verbose=self.verbose>1,max_memory=500)
     
     def make_cuts(self,cam,ccd,n,cut):
         """
