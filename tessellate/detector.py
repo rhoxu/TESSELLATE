@@ -231,22 +231,22 @@ def _source_mask(res,mask):
     xInts = res['xint'].values
     yInts = res['yint'].values
 
-    newmask = deepcopy(mask)
+    #newmask = deepcopy(mask)
 
-    c1 = newmask.shape[0]//2
-    c2 = newmask.shape[1]//2
+    #c1 = newmask.shape[0]//2
+    #c2 = newmask.shape[1]//2
 
-    newmask[c1-2:c1+3,c2-2:c2+3] -= 1
-    newmask[(newmask>3)&(newmask<7)] -= 4
-    maskResult = np.array([newmask[yInts[i],xInts[i]] for i in range(len(xInts))])
+    #newmask[c1-2:c1+3,c2-2:c2+3] -= 1
+    #newmask[(newmask>3)&(newmask<7)] -= 4
+    #maskResult = np.array([newmask[yInts[i],xInts[i]] for i in range(len(xInts))])
 
-    for id in res['objid'].values:
-        index = (res['objid'] == id).values
-        subset = maskResult[index]
-        maxMask = np.nanmax(subset)
-        maskResult[index] = maxMask
+    #for id in res['objid'].values:
+    #    index = (res['objid'] == id).values
+    #    subset = maskResult[index]
+    #    maxMask = np.nanmax(subset)
+    #    maskResult[index] = maxMask
 
-    res['source_mask'] = maskResult
+    res['source_mask'] = mask[yInts,xInts]#maskResult
 
     return res
 
