@@ -716,14 +716,8 @@ class Detector():
             event = deepcopy(detections.mean().to_frame().T)
             prfs = detections['psflike'].values
             psfdiff = detections['psfdiff'].values
-            d = prfs[abs(prfs) == np.nanmax(prfs)]
-            if len(d) > 1:
-                d = d[0]
-            event['max_psflike'] = d
-            d = psfdiff[abs(psfdiff) == np.nanmax(psfdiff)]
-            if len(d) > 1:
-                d = d[0]
-            event['min_psfdiff'] = d
+            event['max_psflike'] = np.nanmax(prfs)
+            event['min_psfdiff'] = np.nanmin(psfdiff)
             event['eventID'] = counter
             event['frame_start'] = e[0]
             event['frame_end'] = e[1]
@@ -999,8 +993,8 @@ class Detector():
         return extension
 
 
-    def plot_ALL(self,cut,save_path=None,lower=3,starkiller=False,save_lc=True):
-        detections = self.count_detections(cut=cut,lower=lower,starkiller=starkiller)
+    def plot_ALL(self,cut,save_path=None,lower=3,starkiller=False,sig_thresh=3,save_lc=True):
+        detections = self.count_detections(cut=cut,lower=lower,starkiller=starkiller,sig_thresh=sig_thresh)
         if save_path is None:
             save_path = self.path + f'/Cut{cut}of{self.n**2}/figs/'
             print('Figure path: ',save_path)
