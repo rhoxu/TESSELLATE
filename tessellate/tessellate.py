@@ -1577,12 +1577,12 @@ from tessellate import Detector\n\
 import os\n\
 \n\
 if split:\n\
-    path1 = '{self.data_path}/{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}/detected_events.csv'
-    path2 = '{self.data_path}/{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/detected_events.csv'
-    if not os.path.exists(path1): 
+    path1 = '{self.data_path}/{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}/detected_events.csv'\n\
+    path2 = '{self.data_path}/{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/detected_events.csv'\n\
+    if not os.path.exists(path1):\n\ 
         detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=1)\n\
         detector.source_detect(cut={cut},mode='{self.detect_mode}')\n\
-    if not os.path.exists(path2): 
+    if not os.path.exists(path2):\n\ 
         detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=2)\n\
         detector.source_detect(cut={cut},mode='{self.detect_mode}')\n\
 else:\n\
