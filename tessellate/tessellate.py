@@ -280,7 +280,7 @@ class Tessellate():
             reduce_cpu_sug = '32'
             reduce_mem_req = 200
 
-            search_time_sug = '20:00'
+            search_time_sug = '1:00:00'
             search_cpu_sug = '32'
             search_mem_req = 100
             
@@ -1574,14 +1574,17 @@ python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
         print(f'Creating Transient Search File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
         python_text = f"\
 from tessellate import Detector\n\
-import numpy as np\n\
+import os\n\
 \n\
-split = {self.split}\n\
 if split:\n\
-    detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=1)\n\
-    detector.source_detect(cut={cut},mode='{self.detect_mode}')\n\
-    detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=2)\n\
-    detector.source_detect(cut={cut},mode='{self.detect_mode}')\n\
+    path1 = '{self.data_path}/{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}/detected_events.csv'
+    path2 = '{self.data_path}/{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/detected_events.csv'
+    if not os.path.exists(path1): 
+        detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=1)\n\
+        detector.source_detect(cut={cut},mode='{self.detect_mode}')\n\
+    if not os.path.exists(path2): 
+        detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=2)\n\
+        detector.source_detect(cut={cut},mode='{self.detect_mode}')\n\
 else:\n\
     detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
     detector.source_detect(cut={cut},mode='{self.detect_mode}')"
@@ -1710,7 +1713,6 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
         print(f'Creating Transient Plotting File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
         python_text = f"\
 from tessellate import Detector\n\
-import numpy as np\n\
 \n\
 split = {self.split}\n\
 if split:\n\
