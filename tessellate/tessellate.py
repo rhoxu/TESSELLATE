@@ -1633,17 +1633,31 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                 print('\n')
                 if not reducing:
                     for cut in self.cuts:
-                        save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                        if os.path.exists(f'{save_path}/detected_events.csv'):
-                            print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
-                            print('\n')
-                        elif os.path.exists(f'{save_path}/reduced.txt'):
-                            self._cut_transient_search(cam,ccd,cut)
+                        if self.split:
+                            save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
+                            save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
+                            if (os.path.exists(f'{save_path1}/detected_events.csv')) & (os.path.exists(f'{save_path2}/detected_events.csv')):
+                                print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
+                                print('\n')
+                            elif (os.path.exists(f'{save_path1}/reduced.txt')) & (os.path.exists(f'{save_path2}/reduced.txt')):
+                                self._cut_transient_search(cam,ccd,cut)
+                            elif not os.path.exists(f'{save_path1}/reduced.txt'):
+                                e = f'No Reduced File Detected for Search of Cut {cut} Part 1!\n'
+                                raise ValueError(e)
+                            else:
+                                e = f'No Reduced File Detected for Search of Cut {cut} Part 2!\n'
+                                raise ValueError(e)
                         else:
-                            e = f'No Reduced File Detected for Search of Cut {cut}!\n'
-                            raise ValueError(e)
+                            save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+                            if os.path.exists(f'{save_path}/detected_events.csv'):
+                                print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
+                                print('\n')
+                            elif os.path.exists(f'{save_path}/reduced.txt'):
+                                self._cut_transient_search(cam,ccd,cut)
+                            else:
+                                e = f'No Reduced File Detected for Search of Cut {cut}!\n'
+                                raise ValueError(e)
                             
-                        
                 else:
                     completed = []
                     message = 'Waiting for Reductions'
@@ -1669,14 +1683,24 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                                 sleep(120)
                             for cut in self.cuts:
                                 if cut not in completed:
-                                    save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                                    if os.path.exists(f'{save_path}/detected_events.csv'):
-                                        completed.append(cut)
-                                        print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
-                                        print('\n')
-                                    elif os.path.exists(f'{save_path}/reduced.txt'):
-                                        self._cut_transient_search(cam,ccd,cut)
-                                        completed.append(cut)
+                                    if self.split:
+                                        save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
+                                        save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
+                                        if (os.path.exists(f'{save_path1}/detected_events.csv')) & (os.path.exists(f'{save_path2}/detected_events.csv')):
+                                            print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
+                                            print('\n')
+                                        elif (os.path.exists(f'{save_path1}/reduced.txt')) & (os.path.exists(f'{save_path2}/reduced.txt')):
+                                            self._cut_transient_search(cam,ccd,cut)
+                                            completed.append(cut)
+                                    else:
+                                        save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+                                        if os.path.exists(f'{save_path}/detected_events.csv'):
+                                            completed.append(cut)
+                                            print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
+                                            print('\n')
+                                        elif os.path.exists(f'{save_path}/reduced.txt'):
+                                            self._cut_transient_search(cam,ccd,cut)
+                                            completed.append(cut)
                             i+=1
 
 
@@ -1688,8 +1712,15 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
 from tessellate import Detector\n\
 import numpy as np\n\
 \n\
-detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
-detector.plot_ALL(cut={cut},lower=1)"
+split = {self.split}\n\
+if split:\n\
+    detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=1)\n\
+    detector.plot_ALL(cut={cut},lower=1)\n\
+    detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=2)\n\
+    detector.plot_ALL(cut={cut},lower=1)\n\
+else:\n\
+    detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
+    detector.plot_ALL(cut={cut},lower=1)"
                     
         with open(f"{self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
             python_file.write(python_text)
