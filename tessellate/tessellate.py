@@ -270,7 +270,7 @@ class Tessellate():
 
             cube_time_sug = '6:00:00'
             cube_mem_sug = '20G'
-            cube_mem_req = 400
+            cube_mem_req = 200
 
             cut_time_sug = '3:00:00'
             cut_mem_sug = '20G'
@@ -989,7 +989,7 @@ class Tessellate():
             message += f"   - Search Num CPUs = {self.search_cpu}\n"
         else:
             e = f"Invalid Search CPUs Input of {self.search_cpu}\n"
-            raise ValueError(e)
+            raise ValueError(e) 
         
         
         if type(self.download_number) == int:
@@ -1576,8 +1576,15 @@ python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
 from tessellate import Detector\n\
 import numpy as np\n\
 \n\
-detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
-detector.source_detect(cut={cut},mode='{self.detect_mode}')"
+split = {self.split}\n\
+if split:\n\
+    detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=1)\n\
+    detector.source_detect(cut={cut},mode='{self.detect_mode}')\n\
+    detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=2)\n\
+    detector.source_detect(cut={cut},mode='{self.detect_mode}')\n\
+else:\n\
+    detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
+    detector.source_detect(cut={cut},mode='{self.detect_mode}')"
                     
         with open(f"{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
             python_file.write(python_text)

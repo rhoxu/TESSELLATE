@@ -471,7 +471,7 @@ def periodogram(period,plot=True,axis=None):
 
 class Detector():
 
-    def __init__(self,sector,cam,ccd,data_path,n,match_variables=True,mode='both'):
+    def __init__(self,sector,cam,ccd,data_path,n,match_variables=True,mode='both',split=None):
 
         self.sector = sector
         self.cam = cam
@@ -490,7 +490,15 @@ class Detector():
 
         self.mode = mode
 
-        self.path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}'
+        if split is None:
+            self.path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}'
+        elif split == 1:
+            self.path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Part1'
+        elif split == 2:
+            self.path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Part2'
+        else:
+            e = 'Invalid Split Parameter!'
+            raise AttributeError(e)
 
     def _wcs_time_info(self,result,cut):
         
@@ -507,6 +515,7 @@ class Detector():
         return result
     
     def _gather_data(self,cut):
+
         base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'
         self.base_name = base
         self.flux = np.load(base + '_ReducedFlux.npy')
