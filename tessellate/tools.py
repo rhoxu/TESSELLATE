@@ -93,21 +93,27 @@ def _remove_reductions(data_path,sector,n,cams,ccds,cuts,split):
             for cut in cuts:
                 if split:
                     for i in range(1,3):
-                        os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Part{i}/Cut{cut}of{n**2}')
+                        try:
+                            os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Part{i}/Cut{cut}of{n**2}')
+                            os.system(f'rm -f *.npy')
+                            os.system(f'rm -f reduced.txt')
+                            os.system(f'rm -f detected_events.csv')
+                            os.system(f'rm -f detected_sources.csv')
+                            os.system('rm -r -f figs')
+                            os.system('rm -r -f lcs')   
+                        except:
+                            pass
+                else:
+                    try:
+                        os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}')
                         os.system(f'rm -f *.npy')
                         os.system(f'rm -f reduced.txt')
                         os.system(f'rm -f detected_events.csv')
                         os.system(f'rm -f detected_sources.csv')
                         os.system('rm -r -f figs')
-                        os.system('rm -r -f lcs')   
-                else:
-                    os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}')
-                    os.system(f'rm -f *.npy')
-                    os.system(f'rm -f reduced.txt')
-                    os.system(f'rm -f detected_events.csv')
-                    os.system(f'rm -f detected_sources.csv')
-                    os.system('rm -r -f figs')
-                    os.system('rm -r -f lcs')    
+                        os.system('rm -r -f lcs') 
+                    except:
+                        pass   
 
     os.chdir(home_path)
 
@@ -119,17 +125,23 @@ def _remove_search(data_path,sector,n,cams,ccds,cuts,split):
             for cut in cuts:
                 if split:
                     for i in range(1,3):
-                        os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Part{i}/Cut{cut}of{n**2}')
+                        try:
+                            os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Part{i}/Cut{cut}of{n**2}')
+                            os.system(f'rm -f detected_events.csv')
+                            os.system(f'rm -f detected_sources.csv')
+                            os.system('rm -r -f figs')
+                            os.system('rm -r -f lcs') 
+                        except:
+                            pass
+                else:
+                    try:
+                        os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}')
                         os.system(f'rm -f detected_events.csv')
                         os.system(f'rm -f detected_sources.csv')
                         os.system('rm -r -f figs')
-                        os.system('rm -r -f lcs') 
-                else:
-                    os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}')
-                    os.system(f'rm -f detected_events.csv')
-                    os.system(f'rm -f detected_sources.csv')
-                    os.system('rm -r -f figs')
-                    os.system('rm -r -f lcs')    
+                        os.system('rm -r -f lcs')  
+                    except:
+                        pass  
 
     os.chdir(home_path)
 
