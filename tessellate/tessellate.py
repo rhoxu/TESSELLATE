@@ -1274,7 +1274,7 @@ class Tessellate():
                     # -- Create python file for cubing-- # 
                     print(f'Creating Cubing Python File for Sector{self.sector} Cam{cam}Ccd{ccd}')
                     python_text = f"\
-from tessellate import DataProcessor\n\
+from tessellate.dataprocessor import DataProcessor\n\
 \n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
 processor.make_cube(cam={cam},ccd={ccd},split={self.split})\n\
@@ -1440,7 +1440,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                         # -- Create python file for cubing, cutting, reducing a cut-- # 
                         print(f'Creating Cutting Python File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
                         python_text = f"\
-from tessellate import DataProcessor\n\
+from tessellate.dataprocessor import DataProcessor\n\
 \n\
 split = {self.split}\n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
@@ -1543,7 +1543,7 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
                         # -- Create python file for reducing a cut-- # 
                         print(f'Creating Reduction Python File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
                         python_text = f"\
-from tessellate import DataProcessor\n\
+from tessellate.dataprocessor import DataProcessor\n\
 import os\n\
 \n\
 split={self.split}\n\
@@ -1586,7 +1586,7 @@ python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
         # -- Create python file for reducing a cut-- # 
         print(f'Creating Transient Search File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
         python_text = f"\
-from tessellate import Detector\n\
+from tessellate.detector import Detector\n\
 import os\n\
 \n\
 split = {self.split}\n\
@@ -1727,7 +1727,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
         # -- Create python file for reducing a cut-- # 
         print(f'Creating Transient Plotting File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
         python_text = f"\
-from tessellate import Detector\n\
+from tessellate.detector import Detector\n\
 \n\
 split = {self.split}\n\
 if split:\n\

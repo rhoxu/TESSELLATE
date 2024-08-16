@@ -35,9 +35,6 @@ from scipy.ndimage import convolve
 
 from sourcedetect import SourceDetect
 
-
-
-from .dataprocessor import DataProcessor
 from .catalog_queries import find_variables, gaia_stars, match_result_to_cat
 
 # -- Primary Detection Functions -- #
@@ -847,8 +844,9 @@ class Detector():
         self.obj_dec = self.events.loc[self.events['objid'] == objid, 'dec'].mean()
 
     def source_detect(self,cut,mode='starfind',prf_path='/fred/oz335/_local_TESS_PRFs/'):
-        from glob import glob 
-        from astropy.io import fits 
+
+        from .dataprocessor import DataProcessor
+
         if mode is None:
             mode = self.mode
         if (mode == 'both') | (mode == 'starfind') | (mode == 'sourcedetect'):
