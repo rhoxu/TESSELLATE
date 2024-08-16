@@ -141,8 +141,30 @@ def _remove_search(data_path,sector,n,cams,ccds,cuts,split):
                         os.system('rm -r -f figs')
                         os.system('rm -r -f lcs')  
                     except:
-                        pass  
+                        pass 
+    os.chdir(home_path)
+    
+def _remove_plots(data_path,sector,n,cams,ccds,cuts):
 
+    home_path = os.getcwd()
+    for cam in cams:
+        for ccd in ccds:
+            for cut in cuts:
+                if split:
+                    for i in range(1,3):
+                        try:
+                            os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Part{i}/Cut{cut}of{n**2}')
+                            os.system('rm -r -f figs')
+                            os.system('rm -r -f lcs') 
+                        except:
+                            pass
+                else:
+                    try:
+                        os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}')
+                        os.system('rm -r -f figs')
+                        os.system('rm -r -f lcs')  
+                    except:
+                        pass 
     os.chdir(home_path)
 
 def delete_files(filetype,data_path,sector,n=4,cams='all',ccds='all',cuts='all',split=False):
@@ -164,11 +186,12 @@ def delete_files(filetype,data_path,sector,n=4,cams='all',ccds='all',cuts='all',
                         'cubes':_remove_cubes,
                         'cuts':_remove_cuts,
                         'reductions':_remove_reductions,
-                        'search':_remove_search}
+                        'search':_remove_search,
+                        'plot':_remove_plots}
     
     if filetype.lower() in possibleFiles.keys():
         function = possibleFiles[filetype.lower()]
         function(data_path,sector,n,cams,ccds,cuts,split)
     else:
-        e = 'Invalid filetype! Valid types: "ffis" , "cubes" , "cuts" , "reductions" , "search". '
+        e = 'Invalid filetype! Valid types: "ffis" , "cubes" , "cuts" , "reductions" , "search", "plot". '
         raise AttributeError(e)

@@ -21,7 +21,7 @@ class Tessellate():
                  reduce_time=None,reduce_cpu=None,search_time=None,search_cpu=None,
                  plot_time=None,plot_cpu=None,
                  download=None,make_cube=None,make_cuts=None,reduce=None,search=None,
-                 plot=None,delete=None,detect_mode='starfind'):
+                 plot=None,delete=None,detect_mode='starfind',time_bin=None):
         
         """
         Initialise.
@@ -143,6 +143,7 @@ class Tessellate():
         self.plot_mem = None
         self.plot_cpu = plot_cpu
         self.detect_mode = detect_mode
+        self.time_bin = time_bin
 
         self.skip = []
 
@@ -181,7 +182,7 @@ class Tessellate():
             _Save_space(f'{job_output_path}/tessellate_plotting_logs')
 
         # -- Check for overwriting -- #
-        message = self._overwrite_suggestions(message, make_cube, make_cuts, reduce, search)
+        message = self._overwrite_suggestions(message, make_cube, make_cuts, reduce, search,plot)
 
         # -- Reset Job Logs -- #
         message = self._reset_logs(message,make_cube,make_cuts,reduce,search,plot)
@@ -1148,7 +1149,7 @@ class Tessellate():
 
         return message
     
-    def _overwrite_suggestions(self,message, make_cube, make_cuts, reduce, search):
+    def _overwrite_suggestions(self,message, make_cube, make_cuts, reduce, search,plot):
 
         options = []
         if make_cube:
@@ -1159,6 +1160,8 @@ class Tessellate():
             options.append('reduce')
         if search:
             options.append('search')
+        if plot:
+            options.append('plot')
 
         done = False
         over = input(f'   - Overwrite any steps? [y,n,{str(options)[1:-1]}] = ')
@@ -1175,7 +1178,7 @@ class Tessellate():
                 self.overwrite = (over.replace(' ','')).split(',')
                 good = True
                 for thing in self.overwrite:
-                    if thing not in ['cube','cut','reduce','search']:
+                    if thing not in ['cube','cut','reduce','search','plot']:
                         good = False
                 if good:
                     done = True
@@ -1594,13 +1597,13 @@ if split:\n\
     path2 = '{self.data_path}/{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/detected_events.csv'\n\
     if not os.path.exists(path1):\n\
         detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=1)\n\
-        detector.source_detect(cut={cut},mode='{self.detect_mode}')\n\
+        detector.source_detect(cut={cut},mode='{self.detect_mode}',time_bin={self.time_bin})\n\
     if not os.path.exists(path2):\n\
         detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=2)\n\
-        detector.source_detect(cut={cut},mode='{self.detect_mode}')\n\
+        detector.source_detect(cut={cut},mode='{self.detect_mode}',time_bin={self.time_bin})\n\
 else:\n\
     detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
-    detector.source_detect(cut={cut},mode='{self.detect_mode}')"
+    detector.source_detect(cut={cut},mode='{self.detect_mode}',time_bin={self.time_bin})"
                     
         with open(f"{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
             python_file.write(python_text)
@@ -1764,7 +1767,7 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
 
         print('\n')
 
-    def transient_plot(self,searching=False):
+    def transient_plot(self,searching=False,overwrite=True): # here
         """
         Transient Search!
         """
@@ -1773,6 +1776,10 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
 
         # -- Delete old scripts -- #
         os.system(f'rm -f {self.working_path}/plotting_scripts/S{self.sector}C*')
+        
+        if overwrite & (self.overwrite is not None):
+            if (self.overwrite == 'all') | ('plot' in self.overwrite):
+                delete_files('plot',self.data_path,self.sector,self.n,self.cam,self.ccd)
 
         for cam in self.cam:
             for ccd in self.ccd:
