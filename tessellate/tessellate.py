@@ -1418,12 +1418,23 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                                     i += 1
             
                 for cut in self.cuts:
-                    cut_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/cut.txt'
-                    if os.path.exists(cut_check):
-                        print(f'Cam {cam} CCD {ccd} cut {cut} already made!')
-                        print('\n')
+                    go = False
+                    if self.split:
+                        cut_check1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}/cut.txt'
+                        cut_check2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/cut.txt'
+                        if (os.path.exists(cut_check1)) & (os.path.exists(cut_check1)):
+                            print(f'Cam {cam} CCD {ccd} cut {cut} already made!')
+                            print('\n')
+                        else:
+                            go = True
                     else:
-
+                        cut_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/cut.txt'
+                        if os.path.exists(cut_check):
+                            print(f'Cam {cam} CCD {ccd} cut {cut} already made!')
+                            print('\n')
+                        else:
+                            go = True
+                    if go:
                         # -- Create python file for cubing, cutting, reducing a cut-- # 
                         print(f'Creating Cutting Python File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
                         python_text = f"\
