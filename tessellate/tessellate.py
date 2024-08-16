@@ -1,7 +1,4 @@
-from .dataprocessor import _Extract_fits, _Print_buff, _Save_space, DataProcessor
-from .detector import Detector
-from .catalog_queries import create_external_var_cat
-from .tools import delete_files
+from .tools import delete_files, _Print_buff, _Save_space
 
 from time import time as t
 from time import sleep
@@ -211,7 +208,7 @@ class Tessellate():
             self.transient_plot(searching=search)
 
         if delete:
-            delete_files(filetype='ffis',sector=self.sector,n=self.n)  
+            delete_files(filetype='ffis',sector=self.sector,n=self.n,split=False)  
 
     def _sector_suggestions(self):
         """
@@ -1228,6 +1225,8 @@ class Tessellate():
         (message only is for clarity, tqdm makes weird progress bars so message prints confirmations once job is done.)
         """
 
+        from .dataprocessor import DataProcessor
+
         for cam in self.cam:
             for ccd in self.ccd:
                 if len(glob(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/image_files/*ffic.fits')) > 1000:
@@ -1258,7 +1257,7 @@ class Tessellate():
 
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('cube' in self.overwrite):
-                delete_files('cubes',self.data_path,self.sector,self.n,self.cam,self.ccd)
+                delete_files('cubes',self.data_path,self.sector,self.n,self.cam,self.ccd,split=self.split)
 
         for cam in self.cam:
             for ccd in self.ccd: 
@@ -1314,8 +1313,11 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
         Access internet, find Gaia sources and save for reduction.
         """
 
+        from .dataprocessor import DataProcessor
+        from .catalog_queries import create_external_var_cat
+
         data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
-        cutCorners,_,cutCentreCoords,rad = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
+        _,_,cutCentreCoords,rad = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
 
         #image_path = glob(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/*ffic.fits')[0]
 
@@ -1380,7 +1382,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('cut' in self.overwrite):
-                delete_files('cuts',self.data_path,self.sector,self.n,self.cam,self.ccd)
+                delete_files('cuts',self.data_path,self.sector,self.n,self.cam,self.ccd,split=self.split)
 
         for cam in self.cam:
             for ccd in self.ccd: 
@@ -1500,7 +1502,7 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
 
         if (overwrite) & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('reduce' in self.overwrite):
-                delete_files('reductions',self.data_path,self.sector,self.n,self.cam,self.ccd)
+                delete_files('reductions',self.data_path,self.sector,self.n,self.cam,self.ccd,split=self.split)
 
         for cam in self.cam:
             for ccd in self.ccd: 
@@ -1641,7 +1643,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
 
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('search' in self.overwrite):
-                delete_files('search',self.data_path,self.sector,self.n,self.cam,self.ccd)
+                delete_files('search',self.data_path,self.sector,self.n,self.cam,self.ccd,split=self.split)
 
         for cam in self.cam:
             for ccd in self.ccd:
