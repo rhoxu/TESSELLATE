@@ -371,7 +371,7 @@ class DataProcessor():
                 print(f'Cam {cam} CCD {ccd} Cut {cut} Part {i+1} complete.')
                 print('\n')
 
-            with open(f'{file_path}/Part{i+1}/Cut{cut}of{self.n**2}/cut.txt', 'w') as file:
+            with open(f'{file_path}/Part{i+1}/Cut{cut}of{n**2}/cut.txt', 'w') as file:
                 file.write('Cut!')
     
     def make_cuts(self,cam,ccd,n,cut,split=False):
