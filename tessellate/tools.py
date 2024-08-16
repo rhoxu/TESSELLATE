@@ -55,6 +55,18 @@ def _remove_search(data_path,sector,n,cams,ccds,cuts):
                 os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}')
                 os.system(f'rm -f detected_events.csv')
                 os.system(f'rm -f detected_sources.csv')
+                #os.system('rm -r -f figs')
+                #os.system('rm -r -f lcs')    
+
+    os.chdir(home_path)
+    
+def _remove_plots(data_path,sector,n,cams,ccds,cuts):
+
+    home_path = os.getcwd()
+    for cam in cams:
+        for ccd in ccds:
+            for cut in cuts:
+                os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}')
                 os.system('rm -r -f figs')
                 os.system('rm -r -f lcs')    
 
@@ -79,11 +91,12 @@ def delete_files(filetype,data_path,sector,n=4,cams='all',ccds='all',cuts='all')
                         'cubes':_remove_cubes,
                         'cuts':_remove_cuts,
                         'reductions':_remove_reductions,
-                        'search':_remove_search}
+                        'search':_remove_search,
+                        'plot':_remove_plots}
     
     if filetype.lower() in possibleFiles.keys():
         function = possibleFiles[filetype.lower()]
         function(data_path,sector,n,cams,ccds,cuts)
     else:
-        e = 'Invalid filetype! Valid types: "ffis" , "cubes" , "cuts" , "reductions" , "search". '
+        e = 'Invalid filetype! Valid types: "ffis" , "cubes" , "cuts" , "reductions" , "search", "plot". '
         raise AttributeError(e)

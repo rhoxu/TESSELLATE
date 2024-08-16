@@ -186,7 +186,7 @@ class Tessellate():
             _Save_space(f'{job_output_path}/tessellate_plotting_logs')
 
         # -- Check for overwriting -- #
-        message = self._overwrite_suggestions(message, make_cube, make_cuts, reduce, search)
+        message = self._overwrite_suggestions(message, make_cube, make_cuts, reduce, search,plot)
 
         # -- Reset Job Logs -- #
         message = self._reset_logs(message,make_cube,make_cuts,reduce,search,plot)
@@ -263,7 +263,7 @@ class Tessellate():
             
             plot_time_sug = '15:00'
             plot_cpu_sug = '32'
-            plot_mem_req = 10
+            plot_mem_req = 50
 
         elif self.sector in tertiary_mission:
             self.split = True
@@ -286,7 +286,7 @@ class Tessellate():
             
             plot_time_sug = '15:00'
             plot_cpu_sug = '32'
-            plot_mem_req = 10
+            plot_mem_req = 50
 
         suggestions = [[cube_time_sug,cube_mem_sug,cube_mem_req],
                        [cut_time_sug,cut_mem_sug,cut_mem_req],
@@ -1153,7 +1153,7 @@ class Tessellate():
 
         return message
     
-    def _overwrite_suggestions(self,message, make_cube, make_cuts, reduce, search):
+    def _overwrite_suggestions(self,message, make_cube, make_cuts, reduce, search,plot):
 
         options = []
         if make_cube:
@@ -1164,6 +1164,8 @@ class Tessellate():
             options.append('reduce')
         if search:
             options.append('search')
+        if plot:
+            options.append('plot')
 
         done = False
         over = input(f'   - Overwrite any steps? [y,n,{str(options)[1:-1]}] = ')
@@ -1180,7 +1182,7 @@ class Tessellate():
                 self.overwrite = (over.replace(' ','')).split(',')
                 good = True
                 for thing in self.overwrite:
-                    if thing not in ['cube','cut','reduce','search']:
+                    if thing not in ['cube','cut','reduce','search','plot']:
                         good = False
                 if good:
                     done = True
@@ -1711,7 +1713,7 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
 
         print('\n')
 
-    def transient_plot(self,searching=False):
+    def transient_plot(self,searching=False,overwrite=True): # here
         """
         Transient Search!
         """
@@ -1720,6 +1722,10 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
 
         # -- Delete old scripts -- #
         os.system(f'rm -f {self.working_path}/plotting_scripts/S{self.sector}C*')
+        
+        if overwrite & (self.overwrite is not None):
+            if (self.overwrite == 'all') | ('plot' in self.overwrite):
+                delete_files('plot',self.data_path,self.sector,self.n,self.cam,self.ccd)
 
         for cam in self.cam:
             for ccd in self.ccd:
