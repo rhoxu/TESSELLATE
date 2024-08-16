@@ -35,9 +35,6 @@ from scipy.ndimage import convolve
 
 from sourcedetect import SourceDetect
 
-
-
-from .dataprocessor import DataProcessor
 from .catalog_queries import find_variables, gaia_stars, match_result_to_cat
 
 # -- Primary Detection Functions -- #
@@ -471,7 +468,7 @@ def periodogram(period,plot=True,axis=None):
 
 class Detector():
 
-    def __init__(self,sector,cam,ccd,data_path,n,match_variables=True,mode='both'):
+    def __init__(self,sector,cam,ccd,data_path,n,match_variables=True,mode='both',split=None):
 
         self.sector = sector
         self.cam = cam
@@ -490,7 +487,15 @@ class Detector():
 
         self.mode = mode
 
-        self.path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}'
+        if split is None:
+            self.path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}'
+        elif split == 1:
+            self.path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Part1'
+        elif split == 2:
+            self.path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Part2'
+        else:
+            e = 'Invalid Split Parameter!'
+            raise AttributeError(e)
 
     def _wcs_time_info(self,result,cut):
         
@@ -507,6 +512,7 @@ class Detector():
         return result
     
     def _gather_data(self,cut):
+
         base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'
         self.base_name = base
         self.flux = np.load(base + '_ReducedFlux.npy')
@@ -838,8 +844,9 @@ class Detector():
         self.obj_dec = self.events.loc[self.events['objid'] == objid, 'dec'].mean()
 
     def source_detect(self,cut,mode='starfind',prf_path='/fred/oz335/_local_TESS_PRFs/'):
-        from glob import glob 
-        from astropy.io import fits 
+
+        from .dataprocessor import DataProcessor
+
         if mode is None:
             mode = self.mode
         if (mode == 'both') | (mode == 'starfind') | (mode == 'sourcedetect'):

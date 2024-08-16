@@ -8,63 +8,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-import multiprocessing
-from joblib import Parallel, delayed 
-
 from time import time as t
 import datetime
 
 from astrocut import CubeFactory
 from astrocut import CutoutFactory
-from astropy.io import fits
 from astropy import wcs
 from astropy.time import Time
 
 from .downloader import Download_cam_ccd_FFIs
-
-def _Save_space(Save,delete=False):
-    """
-    Creates a path if it doesn't already exist.
-    """
-    try:
-        os.makedirs(Save)
-    except FileExistsError:
-        if delete:
-            os.system(f'rm -r {Save}/')
-            os.makedirs(Save)
-        else:
-            pass
-
-def _Remove_emptys(files):
-    """
-    Deletes corrupt fits files before creating cube
-    """
-
-    deleted = 0
-    for file in files:
-        size = os.stat(file)[6]
-        if size < 35500000:
-            os.system('rm ' + file)
-            deleted += 1
-    return deleted
-
-def _Extract_fits(pixelfile):
-    """
-    Quickly extract fits
-    """
-    try:
-        hdu = fits.open(pixelfile)
-        return hdu
-    except OSError:
-        print('OSError ',pixelfile)
-        return
+from .tools import _Save_space, _Remove_emptys, _Extract_fits, _Print_buff
     
-def _Print_buff(length,string):
-
-    strLength = len(string)
-    buff = '-' * int((length-strLength)/2)
-    return f"{buff}{string}{buff}"
-
 def _get_wcs(path,wcs_path_check):
     """
     Get WCS data from a file in the path

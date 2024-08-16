@@ -1,7 +1,4 @@
-from .dataprocessor import _Extract_fits, _Print_buff, _Save_space, DataProcessor
-from .detector import Detector
-from .catalog_queries import create_external_var_cat
-from .tools import delete_files
+from .tools import delete_files, _Print_buff, _Save_space
 
 from time import time as t
 from time import sleep
@@ -10,8 +7,6 @@ from glob import glob
 import os
 
 import numpy as np
-
-import tessreduce as tr
 
 
 class Tessellate():
@@ -211,7 +206,7 @@ class Tessellate():
             self.transient_plot(searching=search)
 
         if delete:
-            delete_files(filetype='ffis',sector=self.sector,n=self.n)  
+            delete_files(filetype='ffis',sector=self.sector,n=self.n,split=False)  
 
     def _sector_suggestions(self):
         """
@@ -242,7 +237,7 @@ class Tessellate():
             
             plot_time_sug = '10:00'
             plot_cpu_sug = '32'
-            plot_mem_req = 10
+            plot_mem_req = 50
 
         elif self.sector in secondary_mission:
             cube_time_sug = '1:45:00'
@@ -270,7 +265,7 @@ class Tessellate():
 
             cube_time_sug = '6:00:00'
             cube_mem_sug = '20G'
-            cube_mem_req = 400
+            cube_mem_req = 200
 
             cut_time_sug = '3:00:00'
             cut_mem_sug = '20G'
@@ -280,7 +275,7 @@ class Tessellate():
             reduce_cpu_sug = '32'
             reduce_mem_req = 200
 
-            search_time_sug = '20:00'
+            search_time_sug = '1:00:00'
             search_cpu_sug = '32'
             search_mem_req = 100
             
@@ -989,7 +984,7 @@ class Tessellate():
             message += f"   - Search Num CPUs = {self.search_cpu}\n"
         else:
             e = f"Invalid Search CPUs Input of {self.search_cpu}\n"
-            raise ValueError(e)
+            raise ValueError(e) 
         
         
         if type(self.download_number) == int:
@@ -1230,6 +1225,8 @@ class Tessellate():
         (message only is for clarity, tqdm makes weird progress bars so message prints confirmations once job is done.)
         """
 
+        from .dataprocessor import DataProcessor
+
         for cam in self.cam:
             for ccd in self.ccd:
                 if len(glob(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/image_files/*ffic.fits')) > 1000:
@@ -1260,7 +1257,7 @@ class Tessellate():
 
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('cube' in self.overwrite):
-                delete_files('cubes',self.data_path,self.sector,self.n,self.cam,self.ccd)
+                delete_files('cubes',self.data_path,self.sector,self.n,self.cam,self.ccd,split=self.split)
 
         for cam in self.cam:
             for ccd in self.ccd: 
@@ -1277,7 +1274,7 @@ class Tessellate():
                     # -- Create python file for cubing-- # 
                     print(f'Creating Cubing Python File for Sector{self.sector} Cam{cam}Ccd{ccd}')
                     python_text = f"\
-from tessellate import DataProcessor\n\
+from tessellate.dataprocessor import DataProcessor\n\
 \n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
 processor.make_cube(cam={cam},ccd={ccd},split={self.split})\n\
@@ -1316,8 +1313,11 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
         Access internet, find Gaia sources and save for reduction.
         """
 
+        from .dataprocessor import DataProcessor, tr
+        from .catalog_queries import create_external_var_cat
+
         data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
-        cutCorners,_,cutCentreCoords,rad = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
+        _,_,cutCentreCoords,rad = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
 
         #image_path = glob(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/*ffic.fits')[0]
 
@@ -1382,7 +1382,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('cut' in self.overwrite):
-                delete_files('cuts',self.data_path,self.sector,self.n,self.cam,self.ccd)
+                delete_files('cuts',self.data_path,self.sector,self.n,self.cam,self.ccd,split=self.split)
 
         for cam in self.cam:
             for ccd in self.ccd: 
@@ -1420,16 +1420,27 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                                     i += 1
             
                 for cut in self.cuts:
-                    cut_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/cut.txt'
-                    if os.path.exists(cut_check):
-                        print(f'Cam {cam} CCD {ccd} cut {cut} already made!')
-                        print('\n')
+                    go = False
+                    if self.split:
+                        cut_check1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}/cut.txt'
+                        cut_check2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/cut.txt'
+                        if (os.path.exists(cut_check1)) & (os.path.exists(cut_check1)):
+                            print(f'Cam {cam} CCD {ccd} cut {cut} already made!')
+                            print('\n')
+                        else:
+                            go = True
                     else:
-
+                        cut_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/cut.txt'
+                        if os.path.exists(cut_check):
+                            print(f'Cam {cam} CCD {ccd} cut {cut} already made!')
+                            print('\n')
+                        else:
+                            go = True
+                    if go:
                         # -- Create python file for cubing, cutting, reducing a cut-- # 
                         print(f'Creating Cutting Python File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
                         python_text = f"\
-from tessellate import DataProcessor\n\
+from tessellate.dataprocessor import DataProcessor\n\
 \n\
 split = {self.split}\n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
@@ -1491,7 +1502,7 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
 
         if (overwrite) & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('reduce' in self.overwrite):
-                delete_files('reductions',self.data_path,self.sector,self.n,self.cam,self.ccd)
+                delete_files('reductions',self.data_path,self.sector,self.n,self.cam,self.ccd,split=self.split)
 
         for cam in self.cam:
             for ccd in self.ccd: 
@@ -1532,7 +1543,7 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
                         # -- Create python file for reducing a cut-- # 
                         print(f'Creating Reduction Python File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
                         python_text = f"\
-from tessellate import DataProcessor\n\
+from tessellate.dataprocessor import DataProcessor\n\
 import os\n\
 \n\
 split={self.split}\n\
@@ -1541,8 +1552,8 @@ processor.reduce(cam={cam},ccd={ccd},n={self.n},cut={cut},split=split)\n\
 if not split:\n\
     if os.path.exists('{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Shifts.npy'):\n\
         with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reduced.txt', 'w') as file:\n\
-            file.write('Reduced with TESSreduce version {tr.__version__}.')"
-                
+            file.write('Reduced!')"
+            # file.write('Reduced with TESSreduce version {tr.__version__}.')"
                         with open(f"{self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
                             python_file.write(python_text)
 
@@ -1575,11 +1586,23 @@ python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
         # -- Create python file for reducing a cut-- # 
         print(f'Creating Transient Search File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
         python_text = f"\
-from tessellate import Detector\n\
-import numpy as np\n\
+from tessellate.detector import Detector\n\
+import os\n\
 \n\
-detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
-detector.source_detect(cut={cut},mode='{self.detect_mode}')"
+split = {self.split}\n\
+\n\
+if split:\n\
+    path1 = '{self.data_path}/{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}/detected_events.csv'\n\
+    path2 = '{self.data_path}/{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/detected_events.csv'\n\
+    if not os.path.exists(path1):\n\
+        detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=1)\n\
+        detector.source_detect(cut={cut},mode='{self.detect_mode}')\n\
+    if not os.path.exists(path2):\n\
+        detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=2)\n\
+        detector.source_detect(cut={cut},mode='{self.detect_mode}')\n\
+else:\n\
+    detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
+    detector.source_detect(cut={cut},mode='{self.detect_mode}')"
                     
         with open(f"{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
             python_file.write(python_text)
@@ -1620,7 +1643,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
 
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('search' in self.overwrite):
-                delete_files('search',self.data_path,self.sector,self.n,self.cam,self.ccd)
+                delete_files('search',self.data_path,self.sector,self.n,self.cam,self.ccd,split=self.split)
 
         for cam in self.cam:
             for ccd in self.ccd:
@@ -1628,17 +1651,31 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                 print('\n')
                 if not reducing:
                     for cut in self.cuts:
-                        save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                        if os.path.exists(f'{save_path}/detected_events.csv'):
-                            print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
-                            print('\n')
-                        elif os.path.exists(f'{save_path}/reduced.txt'):
-                            self._cut_transient_search(cam,ccd,cut)
+                        if self.split:
+                            save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
+                            save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
+                            if (os.path.exists(f'{save_path1}/detected_events.csv')) & (os.path.exists(f'{save_path2}/detected_events.csv')):
+                                print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
+                                print('\n')
+                            elif (os.path.exists(f'{save_path1}/reduced.txt')) & (os.path.exists(f'{save_path2}/reduced.txt')):
+                                self._cut_transient_search(cam,ccd,cut)
+                            elif not os.path.exists(f'{save_path1}/reduced.txt'):
+                                e = f'No Reduced File Detected for Search of Cut {cut} Part 1!\n'
+                                raise ValueError(e)
+                            else:
+                                e = f'No Reduced File Detected for Search of Cut {cut} Part 2!\n'
+                                raise ValueError(e)
                         else:
-                            e = f'No Reduced File Detected for Search of Cut {cut}!\n'
-                            raise ValueError(e)
+                            save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+                            if os.path.exists(f'{save_path}/detected_events.csv'):
+                                print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
+                                print('\n')
+                            elif os.path.exists(f'{save_path}/reduced.txt'):
+                                self._cut_transient_search(cam,ccd,cut)
+                            else:
+                                e = f'No Reduced File Detected for Search of Cut {cut}!\n'
+                                raise ValueError(e)
                             
-                        
                 else:
                     completed = []
                     message = 'Waiting for Reductions'
@@ -1664,14 +1701,24 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                                 sleep(120)
                             for cut in self.cuts:
                                 if cut not in completed:
-                                    save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                                    if os.path.exists(f'{save_path}/detected_events.csv'):
-                                        completed.append(cut)
-                                        print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
-                                        print('\n')
-                                    elif os.path.exists(f'{save_path}/reduced.txt'):
-                                        self._cut_transient_search(cam,ccd,cut)
-                                        completed.append(cut)
+                                    if self.split:
+                                        save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
+                                        save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
+                                        if (os.path.exists(f'{save_path1}/detected_events.csv')) & (os.path.exists(f'{save_path2}/detected_events.csv')):
+                                            print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
+                                            print('\n')
+                                        elif (os.path.exists(f'{save_path1}/reduced.txt')) & (os.path.exists(f'{save_path2}/reduced.txt')):
+                                            self._cut_transient_search(cam,ccd,cut)
+                                            completed.append(cut)
+                                    else:
+                                        save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+                                        if os.path.exists(f'{save_path}/detected_events.csv'):
+                                            completed.append(cut)
+                                            print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
+                                            print('\n')
+                                        elif os.path.exists(f'{save_path}/reduced.txt'):
+                                            self._cut_transient_search(cam,ccd,cut)
+                                            completed.append(cut)
                             i+=1
 
 
@@ -1680,11 +1727,17 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
         # -- Create python file for reducing a cut-- # 
         print(f'Creating Transient Plotting File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
         python_text = f"\
-from tessellate import Detector\n\
-import numpy as np\n\
+from tessellate.detector import Detector\n\
 \n\
-detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
-detector.plot_ALL(cut={cut},lower=1)"
+split = {self.split}\n\
+if split:\n\
+    detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=1)\n\
+    detector.plot_ALL(cut={cut},lower=1)\n\
+    detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=2)\n\
+    detector.plot_ALL(cut={cut},lower=1)\n\
+else:\n\
+    detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
+    detector.plot_ALL(cut={cut},lower=1)"
                     
         with open(f"{self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
             python_file.write(python_text)
@@ -1733,15 +1786,30 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                 print('\n')
                 if not searching:
                     for cut in self.cuts:
-                        save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                        if os.path.exists(f'{save_path}/figs'):
-                            print(f'Cam {cam} Chip {ccd} cut {cut} already plotted!')
-                            print('\n')
-                        elif os.path.exists(f'{save_path}/detected_events.csv'):
-                            self._cut_transient_plot(cam,ccd,cut)
+                        if self.split:
+                            save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
+                            save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
+                            if (os.path.exists(f'{save_path1}/figs')) & (os.path.exists(f'{save_path2}/figs')):
+                                print(f'Cam {cam} Chip {ccd} cut {cut} plots already made!')
+                                print('\n')
+                            elif (os.path.exists(f'{save_path1}/detected_events.csv'))&(os.path.exists(f'{save_path2}/detected_events.csv')):
+                                self._cut_transient_plot(cam,ccd,cut)
+                            elif not os.path.exists(f'{save_path1}/detected_events.csv'):
+                                e = f'No Event File Detected for Plotting of Cut {cut} Part 1!\n'
+                                raise ValueError(e)
+                            else:
+                                e = f'No Event File Detected for Plotting of Cut {cut} Part 2!\n'
+                                raise ValueError(e)
                         else:
-                            e = f'No Event File Detected for Plotting of Cut {cut}!\n'
-                            raise ValueError(e)
+                            save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+                            if os.path.exists(f'{save_path}/figs'):
+                                print(f'Cam {cam} Chip {ccd} cut {cut} plots already made!')
+                                print('\n')
+                            elif os.path.exists(f'{save_path}/detected_events.csv'):
+                                self._cut_transient_plot(cam,ccd,cut)
+                            else:
+                                e = f'No Event File Detected for Plotting of Cut {cut}!\n'
+                                raise ValueError(e)
                             
                         
                 else:
@@ -1769,13 +1837,23 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                                 sleep(120)
                             for cut in self.cuts:
                                 if cut not in completed:
-                                    save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                                    if os.path.exists(f'{save_path}/figs'):
-                                        completed.append(cut)
-                                        print(f'Cam {cam} Chip {ccd} cut {cut} already plotted!')
-                                        print('\n')
-                                    elif os.path.exists(f'{save_path}/detected_events.csv'):
-                                        self._cut_transient_plot(cam,ccd,cut)
-                                        completed.append(cut)
+                                    if self.split:
+                                        save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
+                                        save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
+                                        if (os.path.exists(f'{save_path1}/figs')) & (os.path.exists(f'{save_path2}/figs')):
+                                            print(f'Cam {cam} Chip {ccd} cut {cut} plots already made!')
+                                            print('\n')
+                                        elif (os.path.exists(f'{save_path1}/detected_events.csv'))&(os.path.exists(f'{save_path2}/detected_events.csv')):
+                                            self._cut_transient_plot(cam,ccd,cut)
+                                            completed.append(cut)
+                                    else:
+                                        save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+                                        if os.path.exists(f'{save_path}/figs'):
+                                            completed.append(cut)
+                                            print(f'Cam {cam} Chip {ccd} cut {cut} already plotted!')
+                                            print('\n')
+                                        elif os.path.exists(f'{save_path}/detected_events.csv'):
+                                            self._cut_transient_plot(cam,ccd,cut)
+                                            completed.append(cut)
                             i+=1
 
