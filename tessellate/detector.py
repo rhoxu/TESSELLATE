@@ -468,7 +468,8 @@ def periodogram(period,plot=True,axis=None):
 
 class Detector():
 
-    def __init__(self,sector,cam,ccd,data_path,n,match_variables=True,mode='both',split=None):
+    def __init__(self,sector,cam,ccd,data_path,n,
+                 match_variables=True,mode='both',split=None,time_bin=None):
 
         self.sector = sector
         self.cam = cam
@@ -476,6 +477,7 @@ class Detector():
         self.data_path = data_path
         self.n = n
         self.match_variables = match_variables
+        self.time_bin = time_bin
 
         self.flux = None
         self.time = None
@@ -484,6 +486,7 @@ class Detector():
         self.events = None   #temporally located with same object id
         self.cut = None
         self.bkg = None
+        
 
         self.mode = mode
 
@@ -522,10 +525,27 @@ class Detector():
             pass
         self.mask = np.load(base + '_Mask.npy')
         self.time = np.load(base + '_Times.npy')
+        if self.time_bin is not None:
+            self._rebin_data()
         try:
             self.wcs = WCS(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits')
         except:
             print('Could not find a wcs file')
+    
+    def _rebin_data(self):
+        points = np.arange(self.time[0]+time_bin*.5,self.time[-1],self.time_bin)
+        flux = []
+        bkg = []
+        for i in range(len(points)):
+            ind = abs(points[i] - self.time) <= time_bin/2
+            flux += [np.nanmean(self.flux[ind])]
+            bkg += [np.nanmean(self.bkg[ind])]
+        flux = np.array(flux)
+        bkg = np.array(bkg)
+        
+        self.time = points
+        self.flux = flux
+        self.bkg = bkg
     
     def _check_lc_significance(self,event,buffer = 10,base_range=20):
         ap = np.zeros_like(self.flux[0])
@@ -888,7 +908,10 @@ class Detector():
         wcs_save[0].header['NAXIS1'] = self.wcs._naxis[0]
         wcs_save[0].header['NAXIS2'] = self.wcs._naxis[1]
         wcs_save.writeto(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits',overwrite=True)
-        results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv',index=False)
+        if self.time_bin is None:
+            results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv',index=False)
+        else:
+            results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources_tbin{self.time_bin_name}d.csv',index=False)
         results['bkg_level'] = 0
         if self.bkg is not None:
             f = results['frame'].values
@@ -905,7 +928,10 @@ class Detector():
         self._get_all_independent_events()
         self._asteroid_checker()
         self.events['objid'] = self.events['objid'].astype(int)
-        self.events.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_events.csv',index=False)
+        if self.time_bin is None:
+            self.events.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_events.csv',index=False)
+        else:
+            self.events.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_events_tbin{self.time_bin_name}d.csv',index=False)
 
     def plot_results(self,cut):
 
@@ -1297,9 +1323,15 @@ class Detector():
                     headers = ['mjd','counts','event']
                     lc = pd.DataFrame(data=lc,columns=headers)
                     if event == 'all':
-                        lc.to_csv(splc+'/'+savename+'_all_events.csv', index=False)
+                        if self.time_bin is None:
+                            lc.to_csv(splc+'/'+savename+'_all_events.csv', index=False)
+                        else:
+                            lc.to_csv(splc+'/'+savename+f'_all_events_tbin{self.time_bin_name}d.csv', index=False)
                     else:
-                        lc.to_csv(splc+'/'+savename+f'_event{i+1}of{total_events}.csv', index=False)
+                        if self.time_bin is None:
+                            lc.to_csv(splc+'/'+savename+f'_event{i+1}of{total_events}.csv', index=False)
+                        else:
+                            lc.to_csv(splc+'/'+savename+f'_event{i+1}of{total_events}_tbin{str(self.time_bin)}d.csv', index=False)
                 #np.save(save_path+'/'+savename+'_lc.npy',[time,f])
                 #np.save(save_path+'/'+savename+'_cutout.npy',cutout_image)
                 self.save_base = sp+'/'+savename

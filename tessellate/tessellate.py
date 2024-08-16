@@ -21,7 +21,7 @@ class Tessellate():
                  reduce_time=None,reduce_cpu=None,search_time=None,search_cpu=None,
                  plot_time=None,plot_cpu=None,
                  download=None,make_cube=None,make_cuts=None,reduce=None,search=None,
-                 plot=None,delete=None,detect_mode='starfind'):
+                 plot=None,delete=None,detect_mode='starfind',time_bin=None):
         
         """
         Initialise.
@@ -143,6 +143,7 @@ class Tessellate():
         self.plot_mem = None
         self.plot_cpu = plot_cpu
         self.detect_mode = detect_mode
+        self.time_bin = time_bin
 
         self.skip = []
 
@@ -1596,13 +1597,13 @@ if split:\n\
     path2 = '{self.data_path}/{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/detected_events.csv'\n\
     if not os.path.exists(path1):\n\
         detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=1)\n\
-        detector.source_detect(cut={cut},mode='{self.detect_mode}')\n\
+        detector.source_detect(cut={cut},mode='{self.detect_mode}',time_bin={self.time_bin})\n\
     if not os.path.exists(path2):\n\
         detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=2)\n\
-        detector.source_detect(cut={cut},mode='{self.detect_mode}')\n\
+        detector.source_detect(cut={cut},mode='{self.detect_mode}',time_bin={self.time_bin})\n\
 else:\n\
     detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
-    detector.source_detect(cut={cut},mode='{self.detect_mode}')"
+    detector.source_detect(cut={cut},mode='{self.detect_mode}',time_bin={self.time_bin})"
                     
         with open(f"{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
             python_file.write(python_text)
