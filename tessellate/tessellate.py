@@ -8,8 +8,6 @@ import os
 
 import numpy as np
 
-import tessreduce as tr
-
 
 class Tessellate():
     """
@@ -239,7 +237,7 @@ class Tessellate():
             
             plot_time_sug = '10:00'
             plot_cpu_sug = '32'
-            plot_mem_req = 10
+            plot_mem_req = 50
 
         elif self.sector in secondary_mission:
             cube_time_sug = '1:45:00'
@@ -260,7 +258,7 @@ class Tessellate():
             
             plot_time_sug = '15:00'
             plot_cpu_sug = '32'
-            plot_mem_req = 10
+            plot_mem_req = 50
 
         elif self.sector in tertiary_mission:
             self.split = True
@@ -283,7 +281,7 @@ class Tessellate():
             
             plot_time_sug = '15:00'
             plot_cpu_sug = '32'
-            plot_mem_req = 10
+            plot_mem_req = 50
 
         suggestions = [[cube_time_sug,cube_mem_sug,cube_mem_req],
                        [cut_time_sug,cut_mem_sug,cut_mem_req],
