@@ -214,7 +214,7 @@ def _frame_detection(data,prf,corlim,psfdifflim,frameNum):
         star = pd.concat([p,n])
         if star is not None:
             star['frame'] = frameNum
-            #t2 = t()    
+            #t2 = t()   
             #ind, cors,diff = _correlation_check(star,data,prf,corlim=corlim,psfdifflim=psfdifflim)
             #print(f'Correlation Check: {(t()-t2):.1f} sec - {len(res)} events')
             #star['psflike'] = cors
@@ -238,10 +238,10 @@ def _source_mask(res,mask):
     #maskResult = np.array([newmask[yInts[i],xInts[i]] for i in range(len(xInts))])
 
     #for id in res['objid'].values:
-    #    index = (res['objid'] == id).values
-    #    subset = maskResult[index]
-    #    maxMask = np.nanmax(subset)
-    #    maskResult[index] = maxMask
+    #   index = (res['objid'] == id).values
+    #   subset = maskResult[index]
+    #   maxMask = np.nanmax(subset)
+    #   maskResult[index] = maxMask
 
     res['source_mask'] = mask[yInts,xInts]#maskResult
 
@@ -286,11 +286,11 @@ def _source_detect(flux,inputNum,prf,corlim,psfdifflim,cpu):
     res = res.drop(columns='good')
     #length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
     #for i in tqdm(length):
-    #    if np.nansum(flux[i]) != 0.0:
-    #        obj = SourceDetect(flux[i],run=True,train=False).result
-    #        obj['frame'] = inputNum + i
-    #        obj['psfdiff'] = 0
-    #        res += [obj]
+    #   if np.nansum(flux[i]) != 0.0:
+    #      obj = SourceDetect(flux[i],run=True,train=False).result
+    #      obj['frame'] = inputNum + i
+    #      obj['psfdiff'] = 0
+    #      res += [obj]
     #res = _make_dataframe(res,flux[0])
     return res
 
@@ -358,18 +358,18 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdiff
     print(f'Main Correlation: {(t()-t1):.1f} sec')
 
     # if len(frame) > 25_000:
-    #     print(len(frame))
-    #     print('Increasing Correlation Limit to 0.9')
-    #     del(frame)
-    #     frame = _main_correlation(flux,prf,0.9,psfdifflim,inputNum)
-    #     print(f'Main Correlation: {(t()-t1):.1f} sec')
-    #     print(len(frame))
-    #     if len(frame) > 25_000:
-    #         print('Reducing PSF Difference Limit to 0.4')
-    #         del(frame)
-    #         frame = _main_correlation(flux,prf,0.9,0.4,inputNum)
-    #         print(f'Main Correlation: {(t()-t1):.1f} sec')
-    #         print(len(frame))
+    #    print(len(frame))
+    #    print('Increasing Correlation Limit to 0.9')
+    #    del(frame)
+    #    frame = _main_correlation(flux,prf,0.9,psfdifflim,inputNum)
+    #    print(f'Main Correlation: {(t()-t1):.1f} sec')
+    #    print(len(frame))
+    #    if len(frame) > 25_000:
+    #       print('Reducing PSF Difference Limit to 0.4')
+    #       del(frame)
+    #       frame = _main_correlation(flux,prf,0.9,0.4,inputNum)
+    #       print(f'Main Correlation: {(t()-t1):.1f} sec')
+    #       print(len(frame))
         
     t1 = t()
     frame = _spatial_group(frame,distance=1.5)
@@ -456,7 +456,7 @@ def periodogram(period,plot=True,axis=None):
             ax.legend(loc='upper left')
             ax.set_title('Periodogram')
             #ax.set_title(f'Peak frequency {np.round(peak_freq[0],2)}'+
-            #                r'$\;$days$^{-1}$' +f' ({np.round(1/peak_freq[0],2)} days)')
+            #            r'$\;$days$^{-1}$' +f' ({np.round(1/peak_freq[0],2)} days)')
         else:
             ax.set_title(f'Peak frequency None')
         ax.set_xlabel(r'Frequency (days$^{-1}$)')
@@ -588,10 +588,10 @@ class Detector():
             frameEnd = source['frame_end']
 
             if (frameEnd - frameStart) > 2:
-            #    ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
+            #   ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
                 duration = time[frameEnd] - time[frameStart]
             else:
-            #    ax[1].axvline(time[(frameEnd + frameStart)//2],color='C1')
+            #   ax[1].axvline(time[(frameEnd + frameStart)//2],color='C1')
                 duration = 0
 
             s = self.sources.iloc[self.sources.objid.values == source['objid']]
@@ -893,12 +893,12 @@ class Detector():
         results = match_result_to_cat(deepcopy(results),gaia,columns=['Source'])
         results = results.rename(columns={'Source': 'GaiaID'})
         # except:
-        #     print('No local Gaia catalog, can not cross match.')
+        #    print('No local Gaia catalog, can not cross match.')
         # try:
         variables = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/variable_catalog.csv')
         results = match_result_to_cat(deepcopy(results),variables,columns=['Type','Prob'])
         # except:
-        #     print('No local variable catalog, can not cross match.')
+        #    print('No local variable catalog, can not cross match.')
 
         results['xccd'] = deepcopy(results['xint'] + cutCorners[cut-1][1]).astype(int)
         results['yccd'] = deepcopy(results['yint'] + cutCorners[cut-1][0]).astype(int)
@@ -917,13 +917,16 @@ class Detector():
             f = results['frame'].values
             x = results['xint'].values; y = results['yint'].values
             bkg = self.bkg
-            mask = np.zeros_like(bkg)
-            mask[f,y,x] = 1
-            mask = convolve(mask,np.ones((1,3,3)))
-            b = np.nansum(bkg*mask,axis=(1,2))
-            results['bkg_level'].iloc[f] = b[f]
-        else:
-            results['bkg_level'] = 0
+            b = []
+            for i in range(3):
+                i-=1
+                for j in range(3):
+                    j-=1
+                    b += [bkg[f,y-i,x+j]]
+            b = np.array(b)
+            b = np.nansum(b,axis=0)
+            results['bkg_level'] = b
+
         self.sources = results
         self._get_all_independent_events()
         self._asteroid_checker()
@@ -1126,15 +1129,15 @@ class Detector():
             zoom = f[fstart:frameEnd+20]
             
             if (frameEnd - frameStart) > 2:
-            #    ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
+            #   ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
                 duration = time[frameEnd] - time[frameStart]
             else:
-            #    ax[1].axvline(time[(frameEnd + frameStart)//2],color='C1')
+            #   ax[1].axvline(time[(frameEnd + frameStart)//2],color='C1')
                 duration = 0
             if zoo_mode:
-                ax[1].set_title('Is there a transient in the orange region?',fontsize=15)    
+                ax[1].set_title('Is there a transient in the orange region?',fontsize=15)   
             else:
-                ax[1].set_title('Lightcurve',fontsize=15)    
+                ax[1].set_title('Lightcurve',fontsize=15)   
             
             ax[1].plot(time[fstart:frameEnd+20],zoom,'k',alpha=0)
             insert_ylims = ax[1].get_ylim()
@@ -1211,7 +1214,7 @@ class Detector():
                 after = len(cutout_image) - 1 
             #before = brightestframe - 5
             #if before < 0:
-            #    before = 0
+            #   before = 0
             ax[3].imshow(cutout_image[after],
                         cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
             #ax[3].plot(source['xcentroid'] - xmin,source['ycentroid'] - ymin,'C1*',alpha=0.8)
@@ -1229,12 +1232,12 @@ class Detector():
                 light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
                 period = light.to_periodogram()
             #else:
-            #    frequencies = periodogram(period,axis=None,plot=False)
-            #    signal_num = frequencies['signal_num']
-            #    harmonic = frequencies['harmonic']
-            #    textstr = r'$\bf{Period}$' + '\n'
+            #   frequencies = periodogram(period,axis=None,plot=False)
+            #   signal_num = frequencies['signal_num']
+            #   harmonic = frequencies['harmonic']
+            #   textstr = r'$\bf{Period}$' + '\n'
                 #for i in range(1):
-            #    ind = (signal_num == 1) & (harmonic == 1)
+            #   ind = (signal_num == 1) & (harmonic == 1)
                 '''
                 try:
                     #print('power: ',frequencies['peak_power'][ind][0])
