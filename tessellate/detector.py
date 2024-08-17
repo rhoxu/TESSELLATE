@@ -863,7 +863,7 @@ class Detector():
         self.obj_ra = self.events.loc[self.events['objid'] == objid, 'ra'].mean()
         self.obj_dec = self.events.loc[self.events['objid'] == objid, 'dec'].mean()
 
-    def source_detect(self,cut,mode='starfind',prf_path='/fred/oz335/_local_TESS_PRFs/'):
+    def source_detect(self,cut,mode='starfind',prf_path='/fred/oz335/_local_TESS_PRFs/',time_bin=None):
 
         from .dataprocessor import DataProcessor
 
@@ -879,6 +879,8 @@ class Detector():
             self._gather_data(cut)
             self.cut = cut
 
+        if time_bin is not None:
+            self.time_bin = time_bin
         processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=2)
         cutCorners, cutCentrePx, _, _ = processor.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
 
@@ -1032,7 +1034,9 @@ class Detector():
         return extension
 
 
-    def plot_ALL(self,cut,save_path=None,lower=3,starkiller=False,sig_thresh=3,save_lc=True):
+    def plot_ALL(self,cut,save_path=None,lower=3,starkiller=False,sig_thresh=3,save_lc=True,time_bin=None):
+        if time_bin is not None:
+            self.time_bin = time_bin
         detections = self.count_detections(cut=cut,lower=lower,starkiller=starkiller,sig_thresh=sig_thresh)
         if save_path is None:
             save_path = self.path + f'/Cut{cut}of{self.n**2}/figs/'
