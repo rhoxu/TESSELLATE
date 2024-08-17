@@ -162,7 +162,7 @@ def _star_finding_procedure(data,prf,sig_limit = 2):
     return res
 
 
-def find_stars(data,prf,fwhmlim=5,negative=False):
+def find_stars(data,prf,fwhmlim=7,siglim=2,bkgstd_lim=50,negative=False):
     if negative:
         data = data * -1
     star = _star_finding_procedure(data,prf,sig_limit=1)
@@ -188,7 +188,7 @@ def find_stars(data,prf,fwhmlim=5,negative=False):
     star['mag'] = -2.5*np.log10(phot_table['aperture_sum'].values)
     star['bkgstd'] = 9 * aperstats_sky.std
     star = star.iloc[negative_ind]
-    star = star.iloc[(star['sig'].values > 2)]
+    star = star.loc[(star['sig'] > siglim) & (star['bkgstd'] < bkgstd_lim)]
     ind, psfcor, psfdiff = _correlation_check(star,data,prf,corlim=0,psfdifflim=1)
     star['psflike'] = psfcor
     star['psfdiff'] = psfdiff
