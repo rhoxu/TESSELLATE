@@ -162,7 +162,7 @@ def _star_finding_procedure(data,prf,sig_limit = 2):
     return res
 
 
-def find_stars(data,prf,fwhmlim=7,siglim=2,bkgstd_lim=50,negative=False):
+def find_stars(data,prf,fwhmlim=5,siglim=2,bkgstd_lim=50,negative=False):
     if negative:
         data = data * -1
     star = _star_finding_procedure(data,prf,sig_limit=1)
