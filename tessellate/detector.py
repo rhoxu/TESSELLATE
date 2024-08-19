@@ -732,10 +732,10 @@ class Detector():
             detections = detections.drop(columns='Type')
             # check for asteroid
             x = detections.xcentroid.values; y = detections.ycentroid.values
-            #dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
-            #dist = np.nanmax(dist,axis=1)
-            #av_dist = np.nanmean(dist)
-            av_dist = np.sqrt((x[0]-x[-1])**2 + (y[0]-y[-1])**2)
+            dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
+            dist = np.nanmax(dist,axis=1)
+            av_dist = np.nanmean(dist)
+            #av_dist = np.sqrt((x[0]-x[-1])**2 + (y[0]-y[-1])**2)
             if len(x)>= 2:
                 cor = np.round(abs(pearsonr(x,y)[0]),1)
             else:
@@ -747,6 +747,7 @@ class Detector():
             psfdiff = detections['psfdiff'].values
             event['max_psflike'] = np.nanmax(prfs)
             event['min_psfdiff'] = np.nanmin(psfdiff)
+            ecent['sig'] = np.nanmax(detections['sig'].values)
             event['eventID'] = counter
             event['frame_start'] = e[0]
             event['frame_end'] = e[1]
