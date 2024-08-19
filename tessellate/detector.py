@@ -747,7 +747,7 @@ class Detector():
             psfdiff = detections['psfdiff'].values
             event['max_psflike'] = np.nanmax(prfs)
             event['min_psfdiff'] = np.nanmin(psfdiff)
-            ecent['sig'] = np.nanmax(detections['sig'].values)
+            event['sig'] = np.nanmax(detections['sig'].values)
             event['eventID'] = counter
             event['frame_start'] = e[0]
             event['frame_end'] = e[1]
