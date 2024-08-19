@@ -39,7 +39,7 @@ from .catalog_queries import find_variables, gaia_stars, match_result_to_cat
 
 # -- Primary Detection Functions -- #
 
-def _correlation_check(res,data,prf,corlim=0.8,psfdifflim=0.5):
+def _correlation_check(res,data,prf,corlim=0.8,psfdifflim=0.5,position=False):
     """
     Iterates over sources picked up by StarFinder in parent function.
     Cuts around the coordinates (currently size is 5x5).
@@ -55,7 +55,7 @@ def _correlation_check(res,data,prf,corlim=0.8,psfdifflim=0.5):
         try:
             x = np.round(source['xcentroid']).astype(int)
             y = np.round(source['ycentroid']).astype(int)
-            cut = deepcopy(data)[y-2:y+3,x-2:x+3]
+            cut = deepcopy(data)[y-1:y+2,x-1:x+2]
             cut[cut<0] = 0
             
             if np.nansum(cut) != 0.0:
@@ -72,6 +72,8 @@ def _correlation_check(res,data,prf,corlim=0.8,psfdifflim=0.5):
                             r = r[0,1]
                             cors += [r]
                             diff += [np.nansum(abs(cut-localpsf))]
+                            xcentroids += [cm[1]]
+                            ycentroids += [cm[0]]
                         else:
                             cors += [0]
                             diff += [2]
@@ -103,7 +105,10 @@ def _correlation_check(res,data,prf,corlim=0.8,psfdifflim=0.5):
     diff = np.array(diff)
     ind = (cors >= corlim) & (diff < psfdifflim)
 
-    return ind,cors,diff
+    if position:
+        return ind,cors,diff, ycentroid, xcentroid
+    else:
+        return ind,cors,diff
 
 
 def _spatial_group(result,distance=0.5,njobs=-1):
@@ -189,7 +194,8 @@ def find_stars(data,prf,fwhmlim=5,siglim=2,bkgstd_lim=50,negative=False):
     star['bkgstd'] = 9 * aperstats_sky.std
     star = star.iloc[negative_ind]
     star = star.loc[(star['sig'] > siglim) & (star['bkgstd'] < bkgstd_lim)]
-    ind, psfcor, psfdiff = _correlation_check(star,data,prf,corlim=0,psfdifflim=1)
+    ind, psfcor, psfdiff, ypos ,xpos = _correlation_check(star,data,prf,corlim=0,psfdifflim=1,position=True)
+    star['ycentroid'] = ypos; star['xcentroid'] = xpos
     star['psflike'] = psfcor
     star['psfdiff'] = psfdiff
     if negative:
