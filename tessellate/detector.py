@@ -106,7 +106,7 @@ def _correlation_check(res,data,prf,corlim=0.8,psfdifflim=0.5,position=False):
     ind = (cors >= corlim) & (diff < psfdifflim)
 
     if position:
-        return ind,cors,diff, ycentroid, xcentroid
+        return ind,cors,diff, ycentroids, xcentroids
     else:
         return ind,cors,diff
 
@@ -167,7 +167,7 @@ def _star_finding_procedure(data,prf,sig_limit = 2):
     return res
 
 
-def find_stars(data,prf,fwhmlim=5,siglim=2,bkgstd_lim=50,negative=False):
+def find_stars(data,prf,fwhmlim=6,siglim=2,bkgstd_lim=50,negative=False):
     if negative:
         data = data * -1
     star = _star_finding_procedure(data,prf,sig_limit=1)
