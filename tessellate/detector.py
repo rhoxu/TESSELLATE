@@ -665,7 +665,7 @@ class Detector():
         return peak_freq, peak_power
     
     def isolate_events(self,objid,frame_buffer=20,duration=1,
-                       asteroid_distance=2,asteroid_correlation=0.8,asteroid_duration=1):
+                       asteroid_distance=3,asteroid_correlation=0.9,asteroid_duration=1):
         obj_ind = self.sources['objid'].values == objid
         obj = self.sources.iloc[obj_ind]
         variable = abs(np.nanmean(obj['flux_sign'].values)) <= 0.7
@@ -1242,39 +1242,7 @@ class Detector():
                 unit = u.electron / u.s
                 light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
                 period = light.to_periodogram()
-            #else:
-            #   frequencies = periodogram(period,axis=None,plot=False)
-            #   signal_num = frequencies['signal_num']
-            #   harmonic = frequencies['harmonic']
-            #   textstr = r'$\bf{Period}$' + '\n'
-                #for i in range(1):
-            #   ind = (signal_num == 1) & (harmonic == 1)
-                '''
-                try:
-                    #print('power: ',frequencies['peak_power'][ind][0])
-                    if frequencies['peak_power'][ind][0] > period_power_limit:
-                        period = str(np.round(1/frequencies['peak_freq'][ind][0],2)) +' days\n'
-                    
-                        textstr += period
-                    
 
-                    # these are matplotlib.patch.Patch properties
-                        props = dict(boxstyle='round', facecolor='white', alpha=0.7)
-
-                        # place a text box in upper left in axes coords
-                        ax[1].text(0.05, 0.95, textstr[:-1], transform=ax[1].transAxes, fontsize=10,
-                                verticalalignment='top', bbox=props)
-                        ylims = ax[1].get_ylim()
-                        start_flux = np.nanmax(f[:len(f)//2])
-                        if ylims[1] < start_flux * 1.4:
-                            ax[1].set_ylim(ylims[0],start_flux * 1.4)
-                except:
-                    pass
-                '''
-
-            #plt.tight_layout()
-            #plt.subplots_adjust(hspace=0.1)
-            #plt.subplots_adjust(wspace=0.1)
             if asteroid_check:
                 s = self.sources.iloc[self.sources.objid.values == id]
                 e = s.iloc[(s.frame.values >= frameStart) & (s.frame.values <= frameEnd)]
