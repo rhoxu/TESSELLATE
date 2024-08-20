@@ -55,7 +55,7 @@ def _correlation_check(res,data,prf,corlim=0.8,psfdifflim=0.5,position=False):
         try:
             x = np.round(source['xcentroid']+0.5).astype(int)
             y = np.round(source['ycentroid']+0.5).astype(int)
-            cut = deepcopy(data)[y-1:y+2,x-1:x+2]
+            cut = deepcopy(data)[y-2:y+3,x-2:x+3]
             cut[cut<0] = 0
             
             if np.nansum(cut) != 0.0:
@@ -195,7 +195,7 @@ def find_stars(data,prf,fwhmlim=6,siglim=2,bkgstd_lim=50,negative=False):
     star = star.iloc[negative_ind]
     star = star.loc[(star['sig'] > siglim) & (star['bkgstd'] < bkgstd_lim)]
     ind, psfcor, psfdiff, ypos ,xpos = _correlation_check(star,data,prf,corlim=0,psfdifflim=1,position=True)
-    star['ycentroid'] = ypos; star['xcentroid'] = xpos
+    star['ycentroid_com'] = ypos; star['xcentroid_com'] = xpos
     star['psflike'] = psfcor
     star['psfdiff'] = psfdiff
     if negative:
