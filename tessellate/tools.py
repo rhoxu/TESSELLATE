@@ -144,7 +144,7 @@ def _remove_search(data_path,sector,n,cams,ccds,cuts,split):
                         pass 
     os.chdir(home_path)
     
-def _remove_plots(data_path,sector,n,cams,ccds,cuts):
+def _remove_plots(data_path,sector,n,cams,ccds,cuts,split):
 
     home_path = os.getcwd()
     for cam in cams:

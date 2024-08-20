@@ -53,8 +53,8 @@ def _correlation_check(res,data,prf,corlim=0.8,psfdifflim=0.5,position=False):
     ycentroids = []
     for _,source in res.iterrows():
         try:
-            x = np.round(source['xcentroid']).astype(int)
-            y = np.round(source['ycentroid']).astype(int)
+            x = np.round(source['xcentroid']+0.5).astype(int)
+            y = np.round(source['ycentroid']+0.5).astype(int)
             cut = deepcopy(data)[y-1:y+2,x-1:x+2]
             cut[cut<0] = 0
             
