@@ -1733,12 +1733,12 @@ from tessellate.detector import Detector\n\
 split = {self.split}\n\
 if split:\n\
     detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=1)\n\
-    detector.plot_ALL(cut={cut},lower=1)\n\
+    detector.plot_ALL(cut={cut},lower=2)\n\
     detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},split=2)\n\
-    detector.plot_ALL(cut={cut},lower=1)\n\
+    detector.plot_ALL(cut={cut},lower=2)\n\
 else:\n\
     detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
-    detector.plot_ALL(cut={cut},lower=1)"
+    detector.plot_ALL(cut={cut},lower=2)"
                     
         with open(f"{self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
             python_file.write(python_text)

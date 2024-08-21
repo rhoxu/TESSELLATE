@@ -72,8 +72,8 @@ def _correlation_check(res,data,prf,corlim=0.8,psfdifflim=0.5,position=False):
                             r = r[0,1]
                             cors += [r]
                             diff += [np.nansum(abs(cut-localpsf))]
-                            xcentroids += [cm[1]]
-                            ycentroids += [cm[0]]
+                            xcentroids += [x+cm[1]]
+                            ycentroids += [y+cm[0]]
                         else:
                             cors += [0]
                             diff += [2]
@@ -753,6 +753,8 @@ class Detector():
             psfdiff = detections['psfdiff'].values
             event['max_psflike'] = np.nanmax(prfs)
             event['min_psfdiff'] = np.nanmin(psfdiff)
+            event['flux'] = np.nanmax(detections['flux'].values)
+            event['mag'] = np.nanmin(detections['mag'].values)
             event['sig'] = np.nanmax(detections['sig'].values)
             event['eventID'] = counter
             event['frame_start'] = e[0]
@@ -985,7 +987,7 @@ class Detector():
             r = r[~(r['Type']=='Asteroid')]
 
         if sig_thresh is not None:
-            r = r[r['lc_sig']>sig_thresh]
+            r = r[r['lc_sig']>=sig_thresh]
 
         array = r['objid'].values
         counts = []
@@ -1041,7 +1043,7 @@ class Detector():
         return extension
 
 
-    def plot_ALL(self,cut,save_path=None,lower=3,starkiller=False,sig_thresh=3,save_lc=True,time_bin=None):
+    def plot_ALL(self,cut,save_path=None,lower=3,starkiller=False,sig_thresh=2,save_lc=True,time_bin=None):
         if time_bin is not None:
             self.time_bin = time_bin
         detections = self.count_detections(cut=cut,lower=lower,starkiller=starkiller,sig_thresh=sig_thresh)
