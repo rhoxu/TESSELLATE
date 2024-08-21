@@ -581,7 +581,7 @@ class Detector():
         significance = (lc_max - med) / std
         return significance 
     
-    def _asteroid_checker(self):
+    def _asteroid_checker(self,asteroid_distance=3,asteroid_correlation=0.9,asteroid_duration=1):
 
         events = deepcopy(self.events)
 
@@ -611,10 +611,10 @@ class Detector():
                 cor = np.round(abs(pearsonr(x,y)[0]),1)
             else:
                 cor = 0
-            dpass = dist - 0.8
-            cpass = cor - 0.8
+            dpass = dist - asteroid_distance
+            cpass = cor - asteroid_correlation
             asteroid = dpass + cpass > 0 
-            asteroid_check = asteroid & (duration < 1)
+            asteroid_check = asteroid & (duration < asteroid_duration)
         
             if asteroid_check:
                 idx = events['objid']==source['objid']
@@ -664,8 +664,7 @@ class Detector():
             peak_freq = [np.nan]
         return peak_freq, peak_power
     
-    def isolate_events(self,objid,frame_buffer=20,duration=1,
-                       asteroid_distance=3,asteroid_correlation=0.9,asteroid_duration=1):
+    def isolate_events(self,objid,frame_buffer=20,duration=1):
         obj_ind = self.sources['objid'].values == objid
         obj = self.sources.iloc[obj_ind]
         variable = abs(np.nanmean(obj['flux_sign'].values)) <= 0.7
@@ -736,17 +735,7 @@ class Detector():
             obj.loc[ind,'eventID'] = counter
             detections = deepcopy(obj.iloc[ind])
             detections = detections.drop(columns='Type')
-            # check for asteroid
-            x = detections.xcentroid.values; y = detections.ycentroid.values
-            dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
-            dist = np.nanmax(dist,axis=1)
-            av_dist = np.nanmean(dist)
-            #av_dist = np.sqrt((x[0]-x[-1])**2 + (y[0]-y[-1])**2)
-            if len(x)>= 2:
-                cor = np.round(abs(pearsonr(x,y)[0]),1)
-            else:
-                cor = 0
-            asteroid = (av_dist - asteroid_distance) + (cor - asteroid_correlation) > 0 #(cor >= 0.8) & (dist >= 0.85)
+
             
             event = deepcopy(detections.mean().to_frame().T)
             prfs = detections['psflike'].values
@@ -770,11 +759,6 @@ class Detector():
             event['camera'] = self.cam
             event['ccd'] = self.ccd
             
-            duration = self.time[e[1]] - self.time[e[0]]
-            event['mjd_duration'] = duration
-            if asteroid & (duration < asteroid_duration):
-                obj.loc[ind,'Type'] = 'Asteroid'
-                event['Prob'] = 1
             event['Type'] = obj['Type'].iloc[0]
             event['peak_freq'] = peak_freq[0]
             event['peak_power'] = peak_power[0]
