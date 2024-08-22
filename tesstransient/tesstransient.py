@@ -658,10 +658,10 @@ class TessTransient():
             reduce_time_sug = '1:00:00'
             reduce_cpu_sug = 32
 
-            search_time_sug = '10:00'
+            search_time_sug = '20:00'
             search_cpu_sug = 32
             
-            plot_time_sug = '10:00'
+            plot_time_sug = '20:00'
             plot_cpu_sug = 32
 
         elif self.sector in secondary_mission:
@@ -674,10 +674,10 @@ class TessTransient():
             reduce_time_sug = '1:15:00'
             reduce_cpu_sug = 32
 
-            search_time_sug = '15:00'
+            search_time_sug = '20:00'
             search_cpu_sug = 32
             
-            plot_time_sug = '15:00'
+            plot_time_sug = '20:00'
             plot_cpu_sug = 32
 
         elif self.sector in tertiary_mission:
@@ -744,7 +744,7 @@ class TessTransient():
                 go = input('Invalid format! Run Tessellate? [y/n] ')
 
         self._run_tessellate()
-        for cam,ccd in self.neighoburs:
+        for cam,ccd in self.neighbours:
             self._run_tessellate(cam,ccd)
 
         
