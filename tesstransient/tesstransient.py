@@ -4,6 +4,8 @@ from glob import glob
 import tessreduce as tr
 
 import numpy as np
+import pandas as pd 
+
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import math
@@ -15,6 +17,7 @@ from astropy.time import Time
 
 from tessellate import Tessellate
 from tessellate.dataprocessor import DataProcessor,_get_wcs
+from tessellate.detector import Detector
 
 from shapely.geometry.polygon import Polygon
 from shapely.geometry.point import Point
@@ -199,6 +202,50 @@ class TessTransient():
             except:
                 pass
         return [xs,ys]
+    
+    def _find_impacted_cuts(self,ellipse,cutCorners,cutSize,cutCentrePx):
+
+        intersects = []
+
+        for j in range(self.n**2):
+            if j not in intersects:
+                for i in range(len(ellipse[0])):
+                    point = ellipse[:,i]
+                    point = Point(point)
+                    polygon = Polygon([(cutCorners[j,0],cutCorners[j,1]), (cutCorners[j,0],cutCorners[j,1]+2*cutSize),
+                                        (cutCorners[j,0]+2*cutSize,cutCorners[j,1]),(cutCorners[j,0]+2*cutSize,cutCorners[j,1]+2*cutSize)])
+                    if polygon.contains(point):
+                        intersects.append(j)
+                        break
+
+        intersects = np.array(intersects)
+        notIntersects = np.setdiff1d(np.linspace(0,self.n**2-1,self.n**2), intersects).astype(int)
+        inside = []
+        for cut in notIntersects:
+            centre = Point(cutCentrePx[cut])
+            polygon = Polygon(np.array(list(zip(ellipse[0],ellipse[1]))))
+            if polygon.contains(centre):
+                inside.append(cut)
+
+        return intersects,inside
+    
+    def _gen_ellipse(self,wcsItem):
+
+        # -- Creates a 'circle' in realspace for RA,Dec -- #
+        raEll = []
+        decEll = []
+        for ii in np.linspace(0,2*np.pi,1000):
+            raEll.append(self.ra + self.error*np.cos(ii))
+            decEll.append(self.dec + self.error*np.sin(ii))
+        
+        # -- Converts circle to pixel space -- #
+        try:
+            errpixels = wcsItem.all_world2pix(raEll,decEll,0)  
+        except:
+            errpixels = self._secure_err_px(wcsItem,raEll,decEll)  
+        ellipse = np.array(errpixels)
+
+        return ellipse
         
     def find_error_ellipse(self,cam=None,ccd=None,plot=True,proj=True):
 
@@ -214,50 +261,15 @@ class TessTransient():
             
         wcsItem = _get_wcs(f'{data_path}/image_files',f'{data_path}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits')
         
-        # -- Creates a 'circle' in realspace for RA,Dec -- #
-        raEll = []
-        decEll = []
-        for ii in np.linspace(0,2*np.pi,1000):
-            raEll.append(self.ra + self.error*np.cos(ii))
-            decEll.append(self.dec + self.error*np.sin(ii))
-        
-        # -- Converts circle to pixel space -- #
-        try:
-            errpixels = wcsItem.all_world2pix(raEll,decEll,0)  
-        except:
-            errpixels = self._secure_err_px(wcsItem,raEll,decEll)  
-        ellipse = np.array(errpixels)
+        ellipse = self._gen_ellipse(wcsItem)
         
         if plot:
 
             d = DataProcessor(sector=self.sector,path=self.data_path)
             cutCorners, cutCentrePx, cutCentreCoords, cutSize = d.find_cuts(cam,ccd,self.n,plot=False)
 
-
-            intersects = []
-
-            for j in range(self.n**2):
-                if j not in intersects:
-                    for i in range(len(ellipse[0])):
-                        point = ellipse[:,i]
-                        point = Point(point)
-                        polygon = Polygon([(cutCorners[j,0],cutCorners[j,1]), (cutCorners[j,0],cutCorners[j,1]+2*cutSize),
-                                            (cutCorners[j,0]+2*cutSize,cutCorners[j,1]),(cutCorners[j,0]+2*cutSize,cutCorners[j,1]+2*cutSize)])
-                        if polygon.contains(point):
-                            intersects.append(j)
-                            break
-
-            intersects = np.array(intersects)
-            notIntersects = np.setdiff1d(np.linspace(0,self.n**2-1,self.n**2), intersects).astype(int)
-            inside = []
-            for cut in notIntersects:
-                centre = Point(cutCentrePx[cut])
-                polygon = Polygon(np.array(list(zip(ellipse[0],ellipse[1]))))
-                if polygon.contains(centre):
-                    inside.append(cut)
-
+            intersects,inside = self._find_impacted_cuts(ellipse,cutCorners,cutSize,cutCentrePx)
             interesting = np.union1d(intersects,inside)
-
 
             # -- Plots data -- #
             fig = plt.figure(constrained_layout=False, figsize=(6,6))
@@ -685,6 +697,7 @@ class TessTransient():
         tertiary_mission = range(56,100)    # ~12000 FFIs , 200 sec cadence
 
         if self.sector in primary_mission:
+            self._interval = 1/48
             cube_time_sug = '45:00'
             cube_mem_sug = 20
 
@@ -701,6 +714,7 @@ class TessTransient():
             plot_cpu_sug = 32
 
         elif self.sector in secondary_mission:
+            self._interval = 1/(144)
             cube_time_sug = '1:45:00'
             cube_mem_sug = 20
 
@@ -717,6 +731,7 @@ class TessTransient():
             plot_cpu_sug = 32
 
         elif self.sector in tertiary_mission:
+            self._interval = 200/86400
             cube_time_sug = '6:00:00'
             cube_mem_sug = 20
 
@@ -783,20 +798,62 @@ class TessTransient():
         for cam,ccd in self.neighbours:
             self._run_tessellate(cam,ccd)
 
-    def _find_included_cuts(self,cam,ccd):
-        """
-        Finds the full bounding box for the error ellipse.
-        """
-
-        xEdges = (44,2092) 
-        yEdges = (0,2048)
-
-        ellipse = self.find_error_ellipse(cam=cam,ccd=ccd,plot=False)
-
-        if len(ellipse[0]) == 0:
-            cuts=np.linspace(1,self.n**2,self.n**2)
+    def _cut_events_inside_ellipse(self,cam,ccd,cut,timestart,timeend,eventduration):
         
-        else:
-            point = Point(0.5, 0.5)
-            polygon = Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])
-            print(polygon.contains(point))
+        detector = Detector(sector=self.sector,cam=cam,ccd=ccd,n=self.n,data_path=self.data_path)
+        detector._gather_results(cut)
+
+        events = detector.events
+
+        return events[(events['mjd_start'].values > timestart) & (events['mjd_start'].values < timeend) & (events['mjd_duration'].values < eventduration)]
+
+    def _cut_events_intersecting_ellipse(self,cam,ccd,cut,ellipse,timestart,timeend,eventduration):
+        
+        detector = Detector(sector=self.sector,cam=cam,ccd=ccd,n=self.n,data_path=self.data_path)
+        detector._gather_results(cut)
+
+        events = detector.events
+
+        events = events[(events['mjd_start'].values > timestart) & (events['mjd_start'].values < timeend) & (events['mjd_duration'].values < eventduration)]
+
+        good = []
+        for i,event in events.iterrows():
+            point = Point((event['xccd'],event['yccd']))
+            polygon = Polygon(np.array(list(zip(ellipse[0],ellipse[1]))))
+            if polygon.contains(point):
+                good.append(i)
+        
+        events = events[good]
+
+        return events
+
+    def _gather_detection_tables(self,cam,ccd,timeStartBuffer,eventDuration):
+        """
+        timeBuffer is in minutes
+        """
+
+        data_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}'
+        wcsItem = _get_wcs(f'{data_path}/image_files',f'{data_path}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits')
+        ellipse = self._gen_ellipse(wcsItem)
+        d = DataProcessor(sector=self.sector,path=self.data_path)
+        cutCorners, cutCentrePx, cutCentreCoords, cutSize = d.find_cuts(cam,ccd,self.n,plot=False)
+        intersects,inside = self._find_impacted_cuts(ellipse,cutCorners,cutSize,cutCentrePx)
+
+        timeStart = self.eventtime-2*self._interval 
+        timeEnd = self.eventtime + timeStartBuffer/1440
+
+        tables = []
+        for cut in inside:
+            cut += 1
+            tables.append(self._cut_events_inside_ellipse(cam,ccd,cut,timeStart,timeEnd,eventDuration))
+        
+        for cut in intersects:
+            cut += 1
+            tables.append(self._cut_events_intersecting_ellipse(cam,ccd,cut,ellipse,timeStart,timeEnd,eventDuration))
+
+        return pd.concat(tables)
+
+
+
+
+        
