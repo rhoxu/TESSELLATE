@@ -15,6 +15,9 @@ from astropy.time import Time
 
 from tessellate import Tessellate
 from tessellate.dataprocessor import DataProcessor,_get_wcs
+
+from shapely.geometry.polygon import Polygon
+from shapely.geometry.point import Point
     
 class TessTransient():
     
@@ -229,6 +232,33 @@ class TessTransient():
 
             d = DataProcessor(sector=self.sector,path=self.data_path)
             cutCorners, cutCentrePx, cutCentreCoords, cutSize = d.find_cuts(cam,ccd,self.n,plot=False)
+
+
+            intersects = []
+
+            for j in range(self.n**2):
+                if j not in intersects:
+                    for i in range(len(ellipse[0])):
+                        point = ellipse[:,i]
+                        point = Point(point)
+                        polygon = Polygon([(cutCorners[j,0],cutCorners[j,1]), (cutCorners[j,0],cutCorners[j,1]+2*cutSize),
+                                            (cutCorners[j,0]+2*cutSize,cutCorners[j,1]),(cutCorners[j,0]+2*cutSize,cutCorners[j,1]+2*cutSize)])
+                        if polygon.contains(point):
+                            intersects.append(j)
+                            break
+
+            intersects = np.array(intersects)
+            notIntersects = np.setdiff1d(np.linspace(0,self.n**2-1,self.n**2), intersects).astype(int)
+            inside = []
+            for cut in notIntersects:
+                centre = Point(cutCentrePx[cut])
+                polygon = Polygon(np.array(list(zip(ellipse[0],ellipse[1]))))
+                if polygon.contains(centre):
+                    inside.append(cut)
+
+            interesting = np.union1d(intersects,inside)
+
+
             # -- Plots data -- #
             fig = plt.figure(constrained_layout=False, figsize=(6,6))
             
@@ -257,10 +287,16 @@ class TessTransient():
             # -- Adds cuts -- #
             colours = iter(plt.cm.rainbow(np.linspace(0, 1, self.n**2)))
 
-            for corner in cutCorners:
+            for i,corner in enumerate(cutCorners):
                 c = next(colours)
-                rectangle = patches.Rectangle(corner,2*cutSize,2*cutSize,edgecolor=c,
-                                                facecolor='none',alpha=1)
+                if i in interesting:
+                    c2 = np.copy(c)
+                    c2[-1] = 0.3
+                    rectangle = patches.Rectangle(corner,2*cutSize,2*cutSize,edgecolor=c,
+                                                    facecolor=c2,lw=2)
+                else:
+                    rectangle = patches.Rectangle(corner,2*cutSize,2*cutSize,edgecolor=c,
+                                                    facecolor='none',alpha=1,lw=2)
                 ax.add_patch(rectangle)
             
             ax.plot(ellipse[0],ellipse[1],color='black',linewidth=5,marker='.')
@@ -747,4 +783,20 @@ class TessTransient():
         for cam,ccd in self.neighbours:
             self._run_tessellate(cam,ccd)
 
+    def _find_included_cuts(self,cam,ccd):
+        """
+        Finds the full bounding box for the error ellipse.
+        """
+
+        xEdges = (44,2092) 
+        yEdges = (0,2048)
+
+        ellipse = self.find_error_ellipse(cam=cam,ccd=ccd,plot=False)
+
+        if len(ellipse[0]) == 0:
+            cuts=np.linspace(1,self.n**2,self.n**2)
         
+        else:
+            point = Point(0.5, 0.5)
+            polygon = Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])
+            print(polygon.contains(point))
