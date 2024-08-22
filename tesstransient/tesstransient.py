@@ -731,18 +731,17 @@ class TessTransient():
     def run(self):
 
         self.find_neighbour_ccds(verbose=True)
-        print('\n')
-        go = input('Run Tessellate? [y/n]')
+        go = input('Run Tessellate? [y/n] ')
         done = False
         while not done:
             if go == 'y':
                 done = True
                 print('\n')
             elif go == 'n':
-                print('Aborted')
+                print('Aborted\n')
                 return
             else:
-                go = input('Invalid format! Run Tessellate? [y/n]')
+                go = input('Invalid format! Run Tessellate? [y/n] ')
 
         self._run_tessellate()
         for cam,ccd in self.neighoburs:
