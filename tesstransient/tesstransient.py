@@ -217,7 +217,7 @@ class TessTransient():
         # -- Creates a 'circle' in realspace for RA,Dec -- #
         raEll = []
         decEll = []
-        for ii in np.linspace(0,2*np.pi,10000):
+        for ii in np.linspace(0,2*np.pi,1000):
             raEll.append(self.ra + self.error*np.cos(ii))
             decEll.append(self.dec + self.error*np.sin(ii))
         
