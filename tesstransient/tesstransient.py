@@ -817,6 +817,8 @@ class TessTransient():
 
         events = events[(events['mjd_start'].values > timestart) & (events['mjd_start'].values < timeend)]# & (events['mjd_duration'].values < eventduration)]
 
+        events.reset_index()
+
         good = []
         for i,event in events.iterrows():
             print(i)
