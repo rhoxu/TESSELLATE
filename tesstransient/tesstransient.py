@@ -717,7 +717,7 @@ class TessTransient():
         plotting = suggestions[4]
 
         run = Tessellate(data_path=self.data_path,working_path=self.working_path,job_output_path=self.job_output_path,
-                        sector=self.sector,cam=cam,ccd=ccd,n=self.n,
+                        sector=self.sector,cam=cam,ccd=ccd,n=self.n,cuts='all',
                         download=True,download_number='all',
                         make_cube=True,cube_time=cubing[0],cube_mem=cubing[1],
                         make_cuts=True,cut_time=cutting[0],cut_mem=cutting[1],
@@ -728,9 +728,21 @@ class TessTransient():
         
     def run(self):
 
-        self.find_neighbour_ccds()
-        self._run_tessellate()
+        self.find_neighbour_ccds(verbose=True)
+        print('\n')
+        go = input('Run Tessellate? [y/n]')
+        done = False
+        while not done:
+            if go == 'y':
+                done = True
+                print('\n')
+            elif go == 'n':
+                print('Aborted')
+                return
+            else:
+                go = input('Invalid format! Run Tessellate? [y/n]')
 
+        self._run_tessellate()
         for cam,ccd in self.neighoburs:
             self._run_tessellate(cam,ccd)
 
