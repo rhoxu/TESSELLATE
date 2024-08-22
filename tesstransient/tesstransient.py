@@ -656,13 +656,13 @@ class TessTransient():
             cut_mem_sug = 20
 
             reduce_time_sug = '1:00:00'
-            reduce_cpu_sug = '32'
+            reduce_cpu_sug = 32
 
             search_time_sug = '10:00'
-            search_cpu_sug = '32'
+            search_cpu_sug = 32
             
             plot_time_sug = '10:00'
-            plot_cpu_sug = '32'
+            plot_cpu_sug = 32
 
         elif self.sector in secondary_mission:
             cube_time_sug = '1:45:00'
@@ -672,13 +672,13 @@ class TessTransient():
             cut_mem_sug = 20
 
             reduce_time_sug = '1:15:00'
-            reduce_cpu_sug = '32'
+            reduce_cpu_sug = 32
 
             search_time_sug = '15:00'
-            search_cpu_sug = '32'
+            search_cpu_sug = 32
             
             plot_time_sug = '15:00'
-            plot_cpu_sug = '32'
+            plot_cpu_sug = 32
 
         elif self.sector in tertiary_mission:
             cube_time_sug = '6:00:00'
@@ -688,13 +688,13 @@ class TessTransient():
             cut_mem_sug = 20
 
             reduce_time_sug = '3:00:00'
-            reduce_cpu_sug = '32'
+            reduce_cpu_sug = 32
 
             search_time_sug = '1:00:00'
-            search_cpu_sug = '32'
+            search_cpu_sug = 32
             
             plot_time_sug = '20:00'
-            plot_cpu_sug = '32'
+            plot_cpu_sug = 32
 
         suggestions = [[cube_time_sug,cube_mem_sug],
                        [cut_time_sug,cut_mem_sug],
