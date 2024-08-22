@@ -168,7 +168,7 @@ class DataProcessor():
         """
 
         newpath = f'{self.path}/Cam{cam}/Ccd{ccd}'
-        wcsItem = _get_wcs(f'{newpath}/image_files',f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits')
+        wcsItem = _get_wcs(f'{newpath}/image_files',f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits') 
         # if not os.path.exists(f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits'):
         #     wcs_save = wcsItem.to_fits()
         #     wcs_save.writeto(f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits')
@@ -217,7 +217,7 @@ class DataProcessor():
                 
         return cutCorners, cutCentrePx, cutCentreCoords, cutSize
     
-    def _make_split_cube(self,cam,ccd,input_files):
+    def _make_part_cube(self,cam,ccd,input_files):
 
         # -- Generate Cube Path -- #
         broad_path = f'{self.path}/Cam{cam}/Ccd{ccd}'
@@ -274,7 +274,7 @@ class DataProcessor():
             print('\n')
 
 
-    def make_cube(self,cam,ccd,split=False):
+    def make_cube(self,cam,ccd,part=False):
         """
         Make cube for this cam,ccd.
         
@@ -328,8 +328,8 @@ class DataProcessor():
             size = len(input_files) * 0.0355
             print(f'Estimated cube size = {size:.2f} GB')
 
-        if split:
-            self._make_split_cube(cam,ccd,input_files)
+        if part:
+            self._make_part_cube(cam,ccd,input_files)
         else:
             cube_name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits'
             cube_path = f'{broad_path}/{cube_name}'
@@ -342,7 +342,7 @@ class DataProcessor():
             cube_maker = CubeFactory()
             cube_file = cube_maker.make_cube(input_files,cube_file=cube_path,verbose=self.verbose>1,max_memory=500)
 
-    def _make_split_cuts(self,cam,ccd,n,cut,file_path,cutCentreCoords, cutSize):
+    def _make_part_cuts(self,cam,ccd,n,cut,file_path,cutCentreCoords, cutSize):
 
         for i in range(2):
 
@@ -374,7 +374,7 @@ class DataProcessor():
             with open(f'{file_path}/Part{i+1}/Cut{cut}of{n**2}/cut.txt', 'w') as file:
                 file.write('Cut!')
     
-    def make_cuts(self,cam,ccd,n,cut,split=False):
+    def make_cuts(self,cam,ccd,n,cut,part=False):
         """
         Make cut(s) for this CCD.
         
@@ -403,8 +403,8 @@ class DataProcessor():
             print('No data to cut!')
             return
         
-        if split:
-            self._make_split_cuts(cam,ccd,n,cut,file_path,cutCentreCoords,cutSize)
+        if part:
+            self._make_part_cuts(cam,ccd,n,cut,file_path,cutCentreCoords,cutSize)
         else:   
             # -- Generate Cube Path -- #
             cube_name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits'
@@ -434,7 +434,7 @@ class DataProcessor():
                 print(f'Cam {cam} CCD {ccd} cut {cut} complete.')
                 print('\n')
 
-    def _reduce_split_cuts(self,cam,ccd,n,cut,filepath):
+    def _reduce_part_cuts(self,cam,ccd,n,cut,filepath):
 
         for i in range(2):
             cutFolder = f'{filepath}/Part{i+1}/Cut{cut}of{n**2}'
@@ -476,7 +476,7 @@ class DataProcessor():
                     file.write(f'Reduced with TESSreduce version {tr.__version__}.')
 
 
-    def reduce(self,cam,ccd,n,cut,split=False):
+    def reduce(self,cam,ccd,n,cut,part=False):
         """
         Reduces a cut on a ccd using TESSreduce. bkg correlation 
         correction and final calibration are disabled due to time constraints.
@@ -489,7 +489,7 @@ class DataProcessor():
         ccd : int
             desired ccd
         n : int
-            n**2 split cuts
+            n**2 part cuts
 
         -------
         Creates
@@ -500,8 +500,8 @@ class DataProcessor():
         
         filepath = f'{self.path}/Cam{cam}/Ccd{ccd}'
 
-        if split:
-            self._reduce_split_cuts(cam,ccd,n,cut,filepath)
+        if part:
+            self._reduce_part_cuts(cam,ccd,n,cut,filepath)
         else:
             cutFolder = f'{filepath}/Cut{cut}of{n**2}'
             cutName = f'sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}.fits'

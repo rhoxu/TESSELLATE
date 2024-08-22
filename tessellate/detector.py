@@ -475,7 +475,7 @@ def periodogram(period,plot=True,axis=None):
 class Detector():
 
     def __init__(self,sector,cam,ccd,data_path,n,
-                 match_variables=True,mode='both',split=None,time_bin=None):
+                 match_variables=True,mode='both',part=None,time_bin=None):
 
         self.sector = sector
         self.cam = cam
@@ -496,14 +496,14 @@ class Detector():
 
         self.mode = mode
 
-        if split is None:
+        if part is None:
             self.path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}'
-        elif split == 1:
+        elif part == 1:
             self.path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Part1'
-        elif split == 2:
+        elif part == 2:
             self.path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Part2'
         else:
-            e = 'Invalid Split Parameter!'
+            e = 'Invalid Part Parameter!'
             raise AttributeError(e)
 
     def _wcs_time_info(self,result,cut):
