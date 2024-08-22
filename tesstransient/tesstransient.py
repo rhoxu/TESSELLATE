@@ -648,10 +648,10 @@ class TessTransient():
 
         if self.sector in primary_mission:
             cube_time_sug = '45:00'
-            cube_mem_sug = '20G'
+            cube_mem_sug = 20
 
             cut_time_sug = '20:00'
-            cut_mem_sug = '20G'
+            cut_mem_sug = 20
 
             reduce_time_sug = '1:00:00'
             reduce_cpu_sug = '32'
@@ -664,10 +664,10 @@ class TessTransient():
 
         elif self.sector in secondary_mission:
             cube_time_sug = '1:45:00'
-            cube_mem_sug = '20G'
+            cube_mem_sug = 20
 
             cut_time_sug = '2:00:00'
-            cut_mem_sug = '20G'
+            cut_mem_sug = 20
 
             reduce_time_sug = '1:15:00'
             reduce_cpu_sug = '32'
@@ -680,10 +680,10 @@ class TessTransient():
 
         elif self.sector in tertiary_mission:
             cube_time_sug = '6:00:00'
-            cube_mem_sug = '20G'
+            cube_mem_sug = 20
 
             cut_time_sug = '3:00:00'
-            cut_mem_sug = '20G'
+            cut_mem_sug = 20
 
             reduce_time_sug = '3:00:00'
             reduce_cpu_sug = '32'
