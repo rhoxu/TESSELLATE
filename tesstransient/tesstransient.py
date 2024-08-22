@@ -810,7 +810,7 @@ class TessTransient():
 
         cut_array = np.ones_like(events['mjd_start'].values)*cut
         events['Cut'] = cut_array
-        events['Cut'] = events['Cut'].astype(int)
+        events['Cut'] = events['Cut'].values.astype(int)
 
         return events
 
