@@ -819,6 +819,7 @@ class TessTransient():
 
         good = []
         for i,event in events.iterrows():
+            print(i)
             point = Point((event['xccd'],event['yccd']))
             polygon = Polygon(np.array(list(zip(ellipse[0],ellipse[1]))))
             if polygon.contains(point):
