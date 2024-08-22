@@ -806,7 +806,12 @@ class TessTransient():
 
         events = detector.events
 
-        return events[(events['mjd_start'].values > timestart) & (events['mjd_start'].values < timeend)]# & (events['mjd_duration'].values < eventduration)]
+        events = events[(events['mjd_start'].values > timestart) & (events['mjd_start'].values < timeend) & ((events['mjd_end']-events['mjd_start']) < eventduration)]
+
+        cut_array = np.ones_like(events['mjd_start'].values)*cut
+        events['Cut'] = cut_array
+
+        return events
 
     def _cut_events_intersecting_ellipse(self,cam,ccd,cut,ellipse,timestart,timeend,eventduration):
         
@@ -815,7 +820,7 @@ class TessTransient():
 
         events = detector.events
 
-        events = events[(events['mjd_start'].values > timestart) & (events['mjd_start'].values < timeend)]# & (events['mjd_duration'].values < eventduration)]
+        events = events[(events['mjd_start'].values > timestart) & (events['mjd_start'].values < timeend) & ((events['mjd_end']-events['mjd_start']) < eventduration)]
 
         events.reset_index()
 
@@ -828,6 +833,9 @@ class TessTransient():
                 good.append(i)
         
         events = events.iloc[np.array(good)]
+
+        cut_array = np.ones_like(events['mjd_start'].values)*cut
+        events['Cut'] = cut_array
 
         return events
 
