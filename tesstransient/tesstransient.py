@@ -68,12 +68,13 @@ class TessTransient():
 
         print('\n')
         self._location_observed()
-        print('\n')
+        _ = self._sector_suggestions()
 
         self.ErrorEllipse = None
         self.neighbours = None
 
         if self.obs & run:
+            print('\n')
             self.run()
 
     def _location_observed(self):
