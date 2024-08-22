@@ -60,12 +60,14 @@ class TessTransient():
         self.job_output_path = job_output_path
         self.working_path = working_path
 
+        print('\n')
         self._location_observed()
+        print('\n')
 
         self.ErrorEllipse = None
         self.neighbours = None
 
-        if run:
+        if self.obs & run:
             self.run()
 
     def _location_observed(self):
