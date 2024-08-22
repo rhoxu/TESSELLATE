@@ -184,6 +184,8 @@ class Tessellate():
         # -- Check for overwriting -- #
         if overwrite != False:
             message = self._overwrite_suggestions(message, make_cube, make_cuts, reduce, search,plot)
+        else:
+            self.overwrite = None
 
         # -- Reset Job Logs -- #
         if reset_logs != False:
