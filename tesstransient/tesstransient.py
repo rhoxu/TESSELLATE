@@ -806,7 +806,7 @@ class TessTransient():
 
         events = detector.events
 
-        return events[(events['mjd_start'].values > timestart) & (events['mjd_start'].values < timeend) & (events['mjd_duration'].values < eventduration)]
+        return events[(events['mjd_start'].values > timestart) & (events['mjd_start'].values < timeend)]# & (events['mjd_duration'].values < eventduration)]
 
     def _cut_events_intersecting_ellipse(self,cam,ccd,cut,ellipse,timestart,timeend,eventduration):
         
@@ -815,7 +815,7 @@ class TessTransient():
 
         events = detector.events
 
-        events = events[(events['mjd_start'].values > timestart) & (events['mjd_start'].values < timeend) & (events['mjd_duration'].values < eventduration)]
+        events = events[(events['mjd_start'].values > timestart) & (events['mjd_start'].values < timeend)]# & (events['mjd_duration'].values < eventduration)]
 
         good = []
         for i,event in events.iterrows():
