@@ -823,9 +823,8 @@ class TessTransient():
             polygon = Polygon(np.array(list(zip(ellipse[0],ellipse[1]))))
             if polygon.contains(point):
                 good.append(i)
-        print(good)
         
-        events = events[np.array(good)]
+        events = events.iloc[np.array(good)]
 
         return events
 
