@@ -176,7 +176,7 @@ def _process_detection(star,parallel=False):
     x = star.xcentroid.values; y = star.ycentroid.values
     pos = list(zip(x, y))
     #aperture = RectangularAperture(pos, 3.0, 3.0)
-    aperture = CircularAperture(pos, 1.5, 1.5)
+    aperture = CircularAperture(pos, 1.5)
     annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=15,h_out=15)
     m = sigma_clip(data,masked=True,sigma=5).mask
     mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
@@ -210,7 +210,7 @@ def find_stars(data,prf,fwhmlim=7,siglim=2,bkgstd_lim=50,negative=False):
     x = star.xcentroid.values; y = star.ycentroid.values
     pos = list(zip(x, y))
     #aperture = RectangularAperture(pos, 3.0, 3.0)
-    aperture = CircularAperture(pos, 1.5, 1.5)
+    aperture = CircularAperture(pos, 1.5)
     annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=15,h_out=15)
     m = sigma_clip(data,masked=True,sigma=5).mask
     mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
@@ -659,10 +659,10 @@ class Detector():
         self.events = events
         
     def fit_period(self,source,significance=3):
-        #x = (source['xint']+0.5).astype(int)
-        #y = (source['yint']+0.5).astype(int)
+        x = (source['xint']+0.5).astype(int)
+        y = (source['yint']+0.5).astype(int)
 
-        #f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
+        f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
         #ap = CircularAperture([source.xcentroid,source.ycentroid],1.5)
         #phot_table = aperture_photometry(data, aperture)
         #phot_table = phot_table.to_pandas()
@@ -1067,7 +1067,7 @@ class Detector():
         return extension
 
 
-    def plot_ALL(self,cut,save_path=None,lower=3,starkiller=False,sig_thresh=2.5,save_lc=True,time_bin=None):
+    def plot_ALL(self,cut,save_path=None,lower=2,starkiller=False,sig_thresh=2.5,save_lc=True,time_bin=None):
         if time_bin is not None:
             self.time_bin = time_bin
         detections = self.count_detections(cut=cut,lower=lower,starkiller=starkiller,sig_thresh=sig_thresh)
