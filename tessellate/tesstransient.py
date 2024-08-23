@@ -857,7 +857,7 @@ class TessTransient():
         intersects,inside = self._find_impacted_cuts(ellipse,cutCorners,cutSize,cutCentrePx)
 
 
-        timeStart = self.eventtime-2*self._interval 
+        timeStart = self.eventtime
         timeEnd = self.eventtime + timeStartBuffer/1440
 
         tables = []
