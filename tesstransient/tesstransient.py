@@ -215,7 +215,7 @@ class TessTransient():
                     point = ellipse[:,i]
                     point = Point(point)
                     polygon = Polygon([(cutCorners[j,0],cutCorners[j,1]), (cutCorners[j,0],cutCorners[j,1]+2*cutSize),
-                                        (cutCorners[j,0]+2*cutSize,cutCorners[j,1]),(cutCorners[j,0]+2*cutSize,cutCorners[j,1]+2*cutSize)])
+                                (cutCorners[j,0]+2*cutSize,cutCorners[j,1]+2*cutSize),(cutCorners[j,0]+2*cutSize,cutCorners[j,1])])
                     if polygon.contains(point):
                         intersects.append(j)
                         break
@@ -871,7 +871,7 @@ class TessTransient():
 
         return pd.concat(tables)
 
-    def candidate_events(self,timeStartBuffer=10,eventDuration=12,num_plot=10):
+    def candidate_events(self,timeStartBuffer=120,eventDuration=12,num_plot=10):
         """
         timeStartBuffer in minutes, eventDuration in hours
         """
@@ -886,7 +886,7 @@ class TessTransient():
         table = []
         for cam,ccd in all_ccds:
             try:
-                table.append(self._gather_detection_tables(cam,ccd,timeStartBuffer,eventDuration))
+                table.append(self._gather_detection_tables(cam,ccd,timeStartBuffer,eventDuration/24))
             except:
                 print(f'Something failed in Cam {cam} Ccd {ccd}. Check if all TESSELLATE steps are completed.')
 
