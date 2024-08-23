@@ -23,7 +23,7 @@ setup(
     author_email=EMAIL,
     author=AUTHOR,
     license='MIT',
-    packages=['tessellate','tesstransient'],
+    packages=['tessellate'],
     install_requires=REQUIRED
 )
 

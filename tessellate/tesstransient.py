@@ -9,6 +9,7 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 import math
 import scipy
 
@@ -16,15 +17,13 @@ from time import time as t
 
 from astropy.time import Time
 
-from tessellate import Tessellate
-from tessellate.dataprocessor import DataProcessor,_get_wcs
-from tessellate.detector import Detector
+from .tessellate import Tessellate
+from .dataprocessor import DataProcessor,_get_wcs
+from .detector import Detector
 
 from shapely.geometry.polygon import Polygon
 from shapely.geometry.point import Point
 
-from mpl_toolkits.axes_grid1.inset_locator import mark_inset
-import matplotlib as mpl
     
 class TessTransient():
     
@@ -919,7 +918,7 @@ class TessTransient():
         ax1.set_xlim(np.min(d.time),np.max(d.time))
         axins = ax1.inset_axes([0.1, 0.55, 0.86, 0.43])
 
-        axins.axvspan(d.time[frameStart],d.time[frameEnd],color='C1',alpha=0.1)
+        axins.axvspan(d.time[frameStart],d.time[frameEnd],color='C1',alpha=0.2)
         axins.plot(timen,fn,'k',alpha=0.8)
         fe = frameEnd + 20
         if fe >= len(d.time):
