@@ -1,5 +1,6 @@
 import os
 from glob import glob
+from copy import deepcopy
 
 import tessreduce as tr
 
@@ -248,7 +249,7 @@ class TessTransient():
 
         return ellipse
         
-    def find_error_ellipse(self,cam=None,ccd=None,plot=True,proj=True):
+    def find_error_ellipse(self,cam=None,ccd=None,plot=True,proj=True,coord=None):
 
         if cam is None:
             cam = self.cam
@@ -283,7 +284,11 @@ class TessTransient():
                 ax = plt.subplot()
 
             coordPx = wcsItem.all_world2pix(self.ra,self.dec,0)
-            ax.scatter(coordPx[0],coordPx[1],s=40,c='black',marker='*')
+            ax.scatter(coordPx[0],coordPx[1],s=40,c='black',marker='s')
+
+            if coord is not None:
+                coordPx = wcsItem.all_world2pix(coord[0],coord[1],0)
+                ax.scatter(coordPx[0],coordPx[1],s=40,c='r',marker='*')
             #ax.text(x=coordPx[0],y=coordPx[1]+10,s=f'{coordPx[0]:.1f},{coordPx[1]:.1f}')
             
             # -- Real rectangle edge -- #
@@ -809,8 +814,7 @@ class TessTransient():
         events = events[(events['mjd_start'].values > timestart) & (events['mjd_start'].values < timeend) & ((events['mjd_end']-events['mjd_start']) < eventduration)]
 
         cut_array = np.ones_like(events['mjd_start'].values)*cut
-        events['Cut'] = cut_array
-        events['Cut'] = events['Cut'].values.astype(int)
+        events['Cut'] = cut_array.astype(int)
 
         return events
 
@@ -821,7 +825,7 @@ class TessTransient():
 
         events = detector.events
 
-        events = events[(events['mjd_start'].values > timestart) & (events['mjd_start'].values < timeend) & ((events['mjd_end']-events['mjd_start']) < eventduration)]
+        events = events[(events['mjd'].values > timestart) & (events['mjd'].values < timeend) & ((events['mjd_end']-events['mjd_start']) < eventduration)]
 
         events = events.reset_index()
 
@@ -835,7 +839,7 @@ class TessTransient():
         events = events.iloc[np.array(good)]
 
         cut_array = np.ones_like(events['mjd_start'].values)*cut
-        events['Cut'] = cut_array
+        events['Cut'] = cut_array.astype(int)
 
         return events
 
@@ -851,6 +855,7 @@ class TessTransient():
         cutCorners, cutCentrePx, cutCentreCoords, cutSize = d.find_cuts(cam,ccd,self.n,plot=False)
         intersects,inside = self._find_impacted_cuts(ellipse,cutCorners,cutSize,cutCentrePx)
 
+
         timeStart = self.eventtime-2*self._interval 
         timeEnd = self.eventtime + timeStartBuffer/1440
 
@@ -865,7 +870,31 @@ class TessTransient():
 
         return pd.concat(tables)
 
+    def candidate_events(self,timeStartBuffer=10,eventDuration=12,num_plot=10):
+        """
+        timeStartBuffer in minutes, eventDuration in hours
+        """
 
+        self.find_neighbour_ccds(verbose=False)
+        all_ccds = deepcopy(self.neighbours)
+        all_ccds.insert(0,(self.cam,self.ccd))
 
+        table = []
+        for cam,ccd in all_ccds:
+            try:
+                table.append(self._gather_detection_tables(cam,ccd,timeStartBuffer,eventDuration))
+            except:
+                print(f'Something failed in Cam {cam} Ccd {ccd}. Check if all TESSELLATE steps are completed.')
 
-        
+        table = pd.concat(table)
+
+        table = table.sort_values('lc_sig',ascending=False)   
+
+        for i in range(num_plot):
+            event = table.iloc[i]
+            d = Detector(sector=self.sector,cam=event['camera'],ccd=event['ccd'],data_path=self.data_path,n=self.n)
+            d.plot_source(cut=event['Cut'],id=event['objid'],zoo_mode=False,event='all')
+            e = self.find_error_ellipse(cam=event['camera'],ccd=event['ccd'],coord=(event['ra'],event['dec']))
+
+        return table
+    
