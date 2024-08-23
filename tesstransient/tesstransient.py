@@ -943,7 +943,6 @@ class TessTransient():
         coordPx = wcsItem.all_world2pix(self.ra,self.dec,0)
         ax.scatter(coordPx[0],coordPx[1],s=40,c='black',marker='.')
 
-        ax.scatter(event['xccd'],event['yccd'],s=40,c='r',marker='*')
 
         # -- Real rectangle edge -- #
         rectangleTotal = patches.Rectangle((44,0), 2048, 2048,edgecolor='black',facecolor='none',alpha=0.5)
@@ -971,6 +970,8 @@ class TessTransient():
             ax.add_patch(rectangle)
 
         ax.plot(ellipse[0],ellipse[1],color='black',linewidth=3)#,marker='.')
+        ax.scatter(event['xccd'],event['yccd'],s=40,c='r',marker='*')
+
 
 
     def candidate_events(self,timeStartBuffer=120,eventDuration=12,significanceCut=None,num_plot=10):
