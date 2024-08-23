@@ -801,8 +801,9 @@ class TessTransient():
                 go = input('Invalid format! Run Tessellate? [y/n] ')
 
         self._run_tessellate()
-        for cam,ccd in self.neighbours:
-            self._run_tessellate(cam,ccd)
+        if self.neighbours is not None:
+            for cam,ccd in self.neighbours:
+                self._run_tessellate(cam,ccd)
 
     def _cut_events_inside_ellipse(self,cam,ccd,cut,timestart,timeend,eventduration):
         
@@ -876,8 +877,11 @@ class TessTransient():
         """
 
         self.find_neighbour_ccds(verbose=False)
-        all_ccds = deepcopy(self.neighbours)
-        all_ccds.insert(0,(self.cam,self.ccd))
+        if self.neighbours is not None:
+            all_ccds = deepcopy(self.neighbours)
+            all_ccds.insert(0,(self.cam,self.ccd))
+        else:
+            all_ccds = [(self.cam,self.ccd)]
 
         table = []
         for cam,ccd in all_ccds:
