@@ -930,7 +930,7 @@ class TessTransient():
         plt.setp([axins.get_xticklines(), axins.get_yticklines()], color='C3')
         axins.axvline(self.eventtime,linestyle='--',lw=2,color='magenta')
 
-        ellipse = self.find_error_ellipse(plot=False)
+        ellipse = self.find_error_ellipse(cam=event['camera'],ccd=event['ccd'],plot=False)
         dp = DataProcessor(sector=self.sector,path=self.data_path)
         cutCorners, cutCentrePx, cutCentreCoords, cutSize = dp.find_cuts(event['camera'],event['ccd'],self.n,plot=False)
 
