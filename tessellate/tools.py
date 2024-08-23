@@ -45,7 +45,7 @@ def _Print_buff(length,string):
     buff = '-' * int((length-strLength)/2)
     return f"{buff}{string}{buff}"
 
-def _remove_ffis(data_path,sector,n,cams,ccds,cuts,split):
+def _remove_ffis(data_path,sector,n,cams,ccds,cuts,part):
 
     home_path = os.getcwd()
     for cam in cams:
@@ -55,12 +55,12 @@ def _remove_ffis(data_path,sector,n,cams,ccds,cuts,split):
 
     os.chdir(home_path)
 
-def _remove_cubes(data_path,sector,n,cams,ccds,cuts,split):
+def _remove_cubes(data_path,sector,n,cams,ccds,cuts,part):
 
     home_path = os.getcwd()
     for cam in cams:
         for ccd in ccds:
-            if split:
+            if part:
                 for i in range(1,3):
                     os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Part{i}')
                     os.system(f'rm -f sector{sector}_cam{cam}_ccd{ccd}_cube.fits')
@@ -74,24 +74,24 @@ def _remove_cubes(data_path,sector,n,cams,ccds,cuts,split):
 
     os.chdir(home_path)
 
-def _remove_cuts(data_path,sector,n,cams,ccds,cuts,split):
+def _remove_cuts(data_path,sector,n,cams,ccds,cuts,part):
 
     for cam in cams:
         for ccd in ccds:
             for cut in cuts:
-                if split:
+                if part:
                     for i in range(1,3):
                         os.system(f'rm -r -f {data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Part{i}/Cut{cut}of{n**2}')
                 else:
                     os.system(f'rm -r -f {data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}')
 
-def _remove_reductions(data_path,sector,n,cams,ccds,cuts,split):
+def _remove_reductions(data_path,sector,n,cams,ccds,cuts,part):
 
     home_path = os.getcwd()
     for cam in cams:
         for ccd in ccds:
             for cut in cuts:
-                if split:
+                if part:
                     for i in range(1,3):
                         try:
                             os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Part{i}/Cut{cut}of{n**2}')
@@ -117,13 +117,13 @@ def _remove_reductions(data_path,sector,n,cams,ccds,cuts,split):
 
     os.chdir(home_path)
 
-def _remove_search(data_path,sector,n,cams,ccds,cuts,split):
+def _remove_search(data_path,sector,n,cams,ccds,cuts,part):
 
     home_path = os.getcwd()
     for cam in cams:
         for ccd in ccds:
             for cut in cuts:
-                if split:
+                if part:
                     for i in range(1,3):
                         try:
                             os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Part{i}/Cut{cut}of{n**2}')
@@ -144,13 +144,13 @@ def _remove_search(data_path,sector,n,cams,ccds,cuts,split):
                         pass 
     os.chdir(home_path)
     
-def _remove_plots(data_path,sector,n,cams,ccds,cuts,split):
+def _remove_plots(data_path,sector,n,cams,ccds,cuts,part):
 
     home_path = os.getcwd()
     for cam in cams:
         for ccd in ccds:
             for cut in cuts:
-                if split:
+                if part:
                     for i in range(1,3):
                         try:
                             os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Part{i}/Cut{cut}of{n**2}')
@@ -167,7 +167,7 @@ def _remove_plots(data_path,sector,n,cams,ccds,cuts,split):
                         pass 
     os.chdir(home_path)
 
-def delete_files(filetype,data_path,sector,n=4,cams='all',ccds='all',cuts='all',split=False):
+def delete_files(filetype,data_path,sector,n=4,cams='all',ccds='all',cuts='all',part=False):
 
     if cams == 'all':
         cams = [1,2,3,4]
@@ -191,7 +191,7 @@ def delete_files(filetype,data_path,sector,n=4,cams='all',ccds='all',cuts='all',
     
     if filetype.lower() in possibleFiles.keys():
         function = possibleFiles[filetype.lower()]
-        function(data_path,sector,n,cams,ccds,cuts,split)
+        function(data_path,sector,n,cams,ccds,cuts,part)
     else:
         e = 'Invalid filetype! Valid types: "ffis" , "cubes" , "cuts" , "reductions" , "search", "plot". '
         raise AttributeError(e)
