@@ -22,6 +22,9 @@ from tessellate.detector import Detector
 
 from shapely.geometry.polygon import Polygon
 from shapely.geometry.point import Point
+
+from mpl_toolkits.axes_grid1.inset_locator import mark_inset
+import matplotlib as mpl
     
 class TessTransient():
     
@@ -208,17 +211,15 @@ class TessTransient():
     def _find_impacted_cuts(self,ellipse,cutCorners,cutSize,cutCentrePx):
 
         intersects = []
-
         for j in range(self.n**2):
-            if j not in intersects:
-                for i in range(len(ellipse[0])):
-                    point = ellipse[:,i]
-                    point = Point(point)
-                    polygon = Polygon([(cutCorners[j,0],cutCorners[j,1]), (cutCorners[j,0],cutCorners[j,1]+2*cutSize),
-                                (cutCorners[j,0]+2*cutSize,cutCorners[j,1]+2*cutSize),(cutCorners[j,0]+2*cutSize,cutCorners[j,1])])
-                    if polygon.contains(point):
-                        intersects.append(j)
-                        break
+            for i in range(len(ellipse[0])):
+                point = ellipse[:,i]
+                point = Point(point)
+                polygon = Polygon([(cutCorners[j,0],cutCorners[j,1]), (cutCorners[j,0],cutCorners[j,1]+2*cutSize),
+                            (cutCorners[j,0]+2*cutSize,cutCorners[j,1]+2*cutSize),(cutCorners[j,0]+2*cutSize,cutCorners[j,1])])
+                if polygon.contains(point):
+                    intersects.append(j)
+                    break
 
         intersects = np.array(intersects)
         notIntersects = np.setdiff1d(np.linspace(0,self.n**2-1,self.n**2), intersects).astype(int)
@@ -284,7 +285,7 @@ class TessTransient():
                 ax = plt.subplot()
 
             coordPx = wcsItem.all_world2pix(self.ra,self.dec,0)
-            ax.scatter(coordPx[0],coordPx[1],s=40,c='black',marker='s')
+            ax.scatter(coordPx[0],coordPx[1],s=40,c='black',marker='.')
 
             if coord is not None:
                 coordPx = wcsItem.all_world2pix(coord[0],coord[1],0)
@@ -317,7 +318,7 @@ class TessTransient():
                                                     facecolor='none',alpha=1,lw=2)
                 ax.add_patch(rectangle)
             
-            ax.plot(ellipse[0],ellipse[1],color='black',linewidth=5,marker='.')
+            ax.plot(ellipse[0],ellipse[1],color='black',linewidth=3)#,marker='.')
         
         return ellipse
     
@@ -675,7 +676,7 @@ class TessTransient():
             else:
                 print('Pointing: South')
             
-            print(f'This CCD: Camera {self.cam}, CCD {self.ccd}.')
+            print(f'Main CCD: Sector {self.sector} Camera {self.cam}, CCD {self.ccd}.')
             print('------------------------------')
             print('Neighbouring CCDs Required:')
             if neighbour_ccds != []:
@@ -870,6 +871,102 @@ class TessTransient():
             tables.append(self._cut_events_intersecting_ellipse(cam,ccd,cut,ellipse,timeStart,timeEnd,eventDuration))
 
         return pd.concat(tables)
+    
+    def plot_candidate(self,event):
+
+        d = Detector(sector=self.sector,cam=event['camera'],ccd=event['ccd'],data_path=self.data_path,n=self.n)
+        d._gather_data(cut=event['Cut'])
+
+        x = (event['xint']+0.5).astype(int)
+        y = (event['yint']+0.5).astype(int)
+
+        f = np.nansum(d.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
+
+        frameStart = int(event['frame_start']) #min(source['frame'].values)
+        frameEnd = int(event['frame_end']) #max(source['frame'].values)
+        fstart = frameStart-20
+        if fstart < 0:
+            fstart = 0
+        zoom = f[fstart:frameEnd+20]
+
+        wcsItem = _get_wcs(f"{self.data_path}/Sector{self.sector}/Cam{event['camera']}/Ccd{event['ccd']}/image_files",f"{self.data_path}/sector{self.sector}_cam{event['camera']}_ccd{event['ccd']}_wcs.fits")
+
+        fig = plt.figure(figsize=(9,4),constrained_layout=True)
+        fig.suptitle(f"Cam {event['camera']} CCD {event['ccd']} Cut {event['Cut']} Object {event['objid']}", fontsize=16)
+        fig.subplots_adjust(wspace=0.1)
+        ax1 = fig.add_subplot(121)
+        ax = fig.add_subplot(122,aspect='equal',projection=wcsItem)
+        ax.set_xlabel(' ')
+        ax.set_ylabel(' ')
+
+        ax1.plot(d.time[fstart:frameEnd+20],zoom,'k',alpha=0)
+        insert_ylims = ax1.get_ylim()
+        tn = deepcopy(d.time)
+        fn = deepcopy(f)
+        b = np.where(np.diff(tn) > 0.5)[0]
+        timen = np.insert(tn,b,np.nan)
+        fn = np.insert(fn,b,np.nan)
+        ax1.plot(timen,fn,'k',alpha=0.8)
+        ax1.set_ylabel('Brightness',fontsize=15,labelpad=10)
+        ax1.set_xlabel('Time (days)',fontsize=15)
+        ylims = ax1.get_ylim()
+        ax1.set_ylim(ylims[0],ylims[1]+(abs(ylims[0]-ylims[1])))
+        ax1.set_xlim(np.min(d.time),np.max(d.time))
+        axins = ax1.inset_axes([0.1, 0.55, 0.86, 0.43])
+
+        axins.axvspan(d.time[frameStart],d.time[frameEnd],color='C1',alpha=0.1)
+        axins.plot(timen,fn,'k',alpha=0.8)
+        fe = frameEnd + 20
+        if fe >= len(d.time):
+            fe = len(d.time) - 1
+        axins.set_xlim(d.time[fstart],d.time[fe])
+        axins.set_ylim(insert_ylims[0],insert_ylims[1])
+        mark_inset(ax1, axins, loc1=3, loc2=4, fc="none", ec="r",lw=2)
+        plt.setp(axins.spines.values(), color='r',lw=2)
+        plt.setp([axins.get_xticklines(), axins.get_yticklines()], color='C3')
+        axins.axvline(self.eventtime,linestyle='--',lw=2,color='magenta')
+
+        ellipse = self.find_error_ellipse(plot=False)
+        dp = DataProcessor(sector=self.sector,path=self.data_path)
+        cutCorners, cutCentrePx, cutCentreCoords, cutSize = dp.find_cuts(event['camera'],event['ccd'],self.n,plot=False)
+
+        intersects,inside = self._find_impacted_cuts(ellipse,cutCorners,cutSize,cutCentrePx)
+        interesting = np.union1d(intersects,inside)
+
+        # -- Plots data -- #
+
+        coordPx = wcsItem.all_world2pix(self.ra,self.dec,0)
+        ax.scatter(coordPx[0],coordPx[1],s=40,c='black',marker='.')
+
+        ax.scatter(event['xccd'],event['yccd'],s=40,c='r',marker='*')
+
+        # -- Real rectangle edge -- #
+        rectangleTotal = patches.Rectangle((44,0), 2048, 2048,edgecolor='black',facecolor='none',alpha=0.5)
+
+        # -- Sets title -- #
+        ax.set_xlim(0,2136)
+        ax.set_ylim(0,2078)
+        ax.grid()
+
+        ax.add_patch(rectangleTotal)
+            
+        # -- Adds cuts -- #
+        colours = iter(plt.cm.rainbow(np.linspace(0, 1, self.n**2)))
+
+        for i,corner in enumerate(cutCorners):
+            c = next(colours)
+            if i in interesting:
+                c2 = np.copy(c)
+                c2[-1] = 0.3
+                rectangle = patches.Rectangle(corner,2*cutSize,2*cutSize,edgecolor=c,
+                                                facecolor=c2,lw=2)
+            else:
+                rectangle = patches.Rectangle(corner,2*cutSize,2*cutSize,edgecolor=c,
+                                                facecolor='none',alpha=1,lw=2)
+            ax.add_patch(rectangle)
+
+        ax.plot(ellipse[0],ellipse[1],color='black',linewidth=3)#,marker='.')
+
 
     def candidate_events(self,timeStartBuffer=120,eventDuration=12,num_plot=10):
         """
@@ -894,11 +991,15 @@ class TessTransient():
 
         table = table.sort_values('lc_sig',ascending=False)   
 
-        for i in range(num_plot):
+        done = []
+        skip=1
+        for i in range(num_plot):     
             event = table.iloc[i]
-            d = Detector(sector=self.sector,cam=event['camera'],ccd=event['ccd'],data_path=self.data_path,n=self.n)
-            d.plot_source(cut=event['Cut'],id=event['objid'],zoo_mode=False,event='all')
-            e = self.find_error_ellipse(cam=event['camera'],ccd=event['ccd'],coord=(event['ra'],event['dec']))
+            if event['objid'] in done:
+                event = table.iloc[i+skip]
+                skip+=1
+            self.plot_candidate(event)    
+            done.append(event['objid'])
 
         return table
     
