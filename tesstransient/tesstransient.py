@@ -845,7 +845,7 @@ class TessTransient():
 
         return events
 
-    def _gather_detection_tables(self,cam,ccd,timeStartBuffer,eventDuration):
+    def _gather_detection_tables(self,cam,ccd,timeStartBuffer,eventDuration,significanceCut):
         """
         timeBuffer is in minutes
         """
@@ -870,7 +870,12 @@ class TessTransient():
             cut += 1
             tables.append(self._cut_events_intersecting_ellipse(cam,ccd,cut,ellipse,timeStart,timeEnd,eventDuration))
 
-        return pd.concat(tables)
+        tables = pd.concat(tables)
+
+        if significanceCut is None:
+            significanceCut = 0
+
+        return tables[tables['lc_sig']>significanceCut]
     
     def plot_candidate(self,event):
 
@@ -968,7 +973,7 @@ class TessTransient():
         ax.plot(ellipse[0],ellipse[1],color='black',linewidth=3)#,marker='.')
 
 
-    def candidate_events(self,timeStartBuffer=120,eventDuration=12,num_plot=10):
+    def candidate_events(self,timeStartBuffer=120,eventDuration=12,significanceCut=None,num_plot=10):
         """
         timeStartBuffer in minutes, eventDuration in hours
         """
@@ -983,7 +988,7 @@ class TessTransient():
         table = []
         for cam,ccd in all_ccds:
             try:
-                table.append(self._gather_detection_tables(cam,ccd,timeStartBuffer,eventDuration/24))
+                table.append(self._gather_detection_tables(cam,ccd,timeStartBuffer,eventDuration/24,significanceCut))
             except:
                 print(f'Something failed in Cam {cam} Ccd {ccd}. Check if all TESSELLATE steps are completed.')
 
@@ -993,11 +998,14 @@ class TessTransient():
 
         done = []
         skip=1
-        for i in range(num_plot):     
+        for i in range(min(num_plot,len(table))):     
             event = table.iloc[i]
             if event['objid'] in done:
-                event = table.iloc[i+skip]
-                skip+=1
+                try:
+                    event = table.iloc[i+skip]
+                    skip+=1
+                except:
+                    break
             self.plot_candidate(event)    
             done.append(event['objid'])
 
