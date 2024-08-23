@@ -69,7 +69,6 @@ class TessTransient():
         self.job_output_path = job_output_path
         self.working_path = working_path
 
-        print('\n')
         self._location_observed()
         #_ = self._sector_suggestions()
 
