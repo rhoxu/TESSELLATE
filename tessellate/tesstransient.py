@@ -71,7 +71,7 @@ class TessTransient():
 
         print('\n')
         self._location_observed()
-        _ = self._sector_suggestions()
+        #_ = self._sector_suggestions()
 
         self.ErrorEllipse = None
         self.neighbours = None
@@ -702,6 +702,7 @@ class TessTransient():
         secondary_mission = range(28,56)    # ~3600 FFIs , 10 min cadence
         tertiary_mission = range(56,100)    # ~12000 FFIs , 200 sec cadence
 
+        self.part = False
         if self.sector in primary_mission:
             self._interval = 1/48
             cube_time_sug = '45:00'
@@ -737,6 +738,7 @@ class TessTransient():
             plot_cpu_sug = 32
 
         elif self.sector in tertiary_mission:
+            self.part = True
             self._interval = 200/86400
             cube_time_sug = '6:00:00'
             cube_mem_sug = 20
@@ -805,9 +807,9 @@ class TessTransient():
             for cam,ccd in self.neighbours:
                 self._run_tessellate(cam,ccd)
 
-    def _cut_events_inside_ellipse(self,cam,ccd,cut,timestart,timeend,eventduration):
+    def _cut_events_inside_ellipse(self,cam,ccd,cut,timestart,timeend,eventduration,part):
         
-        detector = Detector(sector=self.sector,cam=cam,ccd=ccd,n=self.n,data_path=self.data_path)
+        detector = Detector(sector=self.sector,cam=cam,ccd=ccd,n=self.n,data_path=self.data_path,part=part)
         detector._gather_results(cut)
 
         events = detector.events
@@ -819,9 +821,9 @@ class TessTransient():
 
         return events
 
-    def _cut_events_intersecting_ellipse(self,cam,ccd,cut,ellipse,timestart,timeend,eventduration):
+    def _cut_events_intersecting_ellipse(self,cam,ccd,cut,ellipse,timestart,timeend,eventduration,part):
         
-        detector = Detector(sector=self.sector,cam=cam,ccd=ccd,n=self.n,data_path=self.data_path)
+        detector = Detector(sector=self.sector,cam=cam,ccd=ccd,n=self.n,data_path=self.data_path,part=part)
         detector._gather_results(cut)
 
         events = detector.events
@@ -844,7 +846,7 @@ class TessTransient():
 
         return events
 
-    def _gather_detection_tables(self,cam,ccd,timeStartBuffer,eventDuration,significanceCut):
+    def _gather_detection_tables(self,cam,ccd,timeStartBuffer,eventDuration,significanceCut,part):
         """
         timeBuffer is in minutes
         """
@@ -863,11 +865,11 @@ class TessTransient():
         tables = []
         for cut in inside:
             cut += 1
-            tables.append(self._cut_events_inside_ellipse(cam,ccd,cut,timeStart,timeEnd,eventDuration))
+            tables.append(self._cut_events_inside_ellipse(cam,ccd,cut,timeStart,timeEnd,eventDuration,part))
         
         for cut in intersects:
             cut += 1
-            tables.append(self._cut_events_intersecting_ellipse(cam,ccd,cut,ellipse,timeStart,timeEnd,eventDuration))
+            tables.append(self._cut_events_intersecting_ellipse(cam,ccd,cut,ellipse,timeStart,timeEnd,eventDuration,part))
 
         tables = pd.concat(tables)
 
@@ -1000,6 +1002,14 @@ class TessTransient():
         cutout_image = d.flux[:,ymin:y+10,xmin:x+10]
         ax2.imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
 
+    def _find_which_part(self):
+
+        d = Detector(sector=self.sector,cam=self.cam,ccd=self.ccd,data_path=self.data_path,n=self.n,part=1)
+        d._gather_data(cut=1)
+        if d.time[0] < self.eventtime < d.time[1]:
+            return 1
+        else:
+            return 2
 
     def candidate_events(self,timeStartBuffer=120,eventDuration=12,significanceCut=None,num_plot=10):
         """
@@ -1013,10 +1023,14 @@ class TessTransient():
         else:
             all_ccds = [(self.cam,self.ccd)]
 
+        part = None
+        if self.part:
+            part = self._find_which_part()
+
         table = []
         for cam,ccd in all_ccds:
             try:
-                table.append(self._gather_detection_tables(cam,ccd,timeStartBuffer,eventDuration/24,significanceCut))
+                table.append(self._gather_detection_tables(cam,ccd,timeStartBuffer,eventDuration/24,significanceCut,part))
             except:
                 print(f'Something failed in Cam {cam} Ccd {ccd}. Check if all TESSELLATE steps are completed.')
 
