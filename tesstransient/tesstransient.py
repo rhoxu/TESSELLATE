@@ -896,11 +896,11 @@ class TessTransient():
 
         wcsItem = _get_wcs(f"{self.data_path}/Sector{self.sector}/Cam{event['camera']}/Ccd{event['ccd']}/image_files",f"{self.data_path}/sector{self.sector}_cam{event['camera']}_ccd{event['ccd']}_wcs.fits")
 
-        fig = plt.figure(figsize=(9,4),constrained_layout=True)
+        fig = plt.figure(figsize=(12,4),constrained_layout=True)
         fig.suptitle(f"Cam {event['camera']} CCD {event['ccd']} Cut {event['Cut']} Object {event['objid']}", fontsize=16)
         fig.subplots_adjust(wspace=0.1)
-        ax1 = fig.add_subplot(121)
-        ax = fig.add_subplot(122,aspect='equal',projection=wcsItem)
+        ax1 = fig.add_subplot(131)
+        ax = fig.add_subplot(132,aspect='equal',projection=wcsItem)
         ax.set_xlabel(' ')
         ax.set_ylabel(' ')
 
@@ -972,6 +972,34 @@ class TessTransient():
         ax.plot(ellipse[0],ellipse[1],color='black',linewidth=3)#,marker='.')
         ax.scatter(event['xccd'],event['yccd'],s=40,c='r',marker='*')
 
+        ax2 = fig.add_subplot(133,aspect='equal')
+        ax2.set_xlabel(' ')
+        ax2.set_ylabel(' ')
+
+        if frameEnd - frameStart >= 2:
+            brightestframe = frameStart + np.where(abs(f[frameStart:frameEnd]) == np.nanmax(abs(f[frameStart:frameEnd])))[0][0]
+        else:
+            brightestframe = frameStart
+        try:
+            brightestframe = int(brightestframe)
+        except:
+            brightestframe = int(brightestframe[0])
+        if brightestframe >= len(d.flux):
+            brightestframe -= 1
+
+        ymin = y - 9
+        if ymin < 0:
+            ymin = 0 
+        xmin = x -9
+        if xmin < 0:
+            xmin = 0
+        bright_frame = d.flux[brightestframe,y-1:y+2,x-1:x+2]
+        vmin = np.percentile(d.flux[brightestframe],16)
+        vmax = np.percentile(bright_frame,80)
+        if vmin >= vmax:
+            vmin = vmax - 5
+        cutout_image = d.flux[:,ymin:y+10,xmin:x+10]
+        ax2.imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
 
 
     def candidate_events(self,timeStartBuffer=120,eventDuration=12,significanceCut=None,num_plot=10):
