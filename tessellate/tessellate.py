@@ -1534,13 +1534,13 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
                         reduced_check1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}/reduced.txt'
                         reduced_check2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/reduced.txt'
                         if (os.path.exists(reduced_check1))&(os.path.exists(reduced_check2)):
-                            print(f'Cam {cam} Chip {ccd} cut {cut} already reduced!')
+                            print(f'Cam {cam} CCD {ccd} Cut {cut} already reduced!')
                             print('\n')
                             go = False
                     else:
                         reduced_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reduced.txt'
                         if os.path.exists(reduced_check):
-                            print(f'Cam {cam} Chip {ccd} cut {cut} already reduced!')
+                            print(f'Cam {cam} CCD {ccd} Cut {cut} already reduced!')
                             print('\n')
                             go = False
                     
@@ -1660,7 +1660,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                             save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
                             save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
                             if (os.path.exists(f'{save_path1}/detected_events.csv')) & (os.path.exists(f'{save_path2}/detected_events.csv')):
-                                print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
+                                print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
                                 print('\n')
                             elif (os.path.exists(f'{save_path1}/reduced.txt')) & (os.path.exists(f'{save_path2}/reduced.txt')):
                                 self._cut_transient_search(cam,ccd,cut)
@@ -1673,7 +1673,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                         else:
                             save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
                             if os.path.exists(f'{save_path}/detected_events.csv'):
-                                print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
+                                print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
                                 print('\n')
                             elif os.path.exists(f'{save_path}/reduced.txt'):
                                 self._cut_transient_search(cam,ccd,cut)
@@ -1710,7 +1710,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                                         save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
                                         save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
                                         if (os.path.exists(f'{save_path1}/detected_events.csv')) & (os.path.exists(f'{save_path2}/detected_events.csv')):
-                                            print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
+                                            print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
                                             print('\n')
                                         elif (os.path.exists(f'{save_path1}/reduced.txt')) & (os.path.exists(f'{save_path2}/reduced.txt')):
                                             self._cut_transient_search(cam,ccd,cut)
@@ -1719,7 +1719,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                                         save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
                                         if os.path.exists(f'{save_path}/detected_events.csv'):
                                             completed.append(cut)
-                                            print(f'Cam {cam} Chip {ccd} cut {cut} already searched!')
+                                            print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
                                             print('\n')
                                         elif os.path.exists(f'{save_path}/reduced.txt'):
                                             self._cut_transient_search(cam,ccd,cut)
@@ -1795,7 +1795,7 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                             save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
                             save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
                             if (os.path.exists(f'{save_path1}/figs')) & (os.path.exists(f'{save_path2}/figs')):
-                                print(f'Cam {cam} Chip {ccd} cut {cut} plots already made!')
+                                print(f'Cam {cam} CCD {ccd} Cut {cut} plots already made!')
                                 print('\n')
                             elif (os.path.exists(f'{save_path1}/detected_events.csv'))&(os.path.exists(f'{save_path2}/detected_events.csv')):
                                 self._cut_transient_plot(cam,ccd,cut)
@@ -1808,7 +1808,7 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                         else:
                             save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
                             if os.path.exists(f'{save_path}/figs'):
-                                print(f'Cam {cam} Chip {ccd} cut {cut} plots already made!')
+                                print(f'Cam {cam} CCD {ccd} Cut {cut} plots already made!')
                                 print('\n')
                             elif os.path.exists(f'{save_path}/detected_events.csv'):
                                 self._cut_transient_plot(cam,ccd,cut)
@@ -1846,7 +1846,7 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                                         save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
                                         save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
                                         if (os.path.exists(f'{save_path1}/figs')) & (os.path.exists(f'{save_path2}/figs')):
-                                            print(f'Cam {cam} Chip {ccd} cut {cut} plots already made!')
+                                            print(f'Cam {cam} CCD {ccd} Cut {cut} plots already made!')
                                             print('\n')
                                         elif (os.path.exists(f'{save_path1}/detected_events.csv'))&(os.path.exists(f'{save_path2}/detected_events.csv')):
                                             self._cut_transient_plot(cam,ccd,cut)
@@ -1855,7 +1855,7 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                                         save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
                                         if os.path.exists(f'{save_path}/figs'):
                                             completed.append(cut)
-                                            print(f'Cam {cam} Chip {ccd} cut {cut} already plotted!')
+                                            print(f'Cam {cam} CCD {ccd} Cut {cut} already plotted!')
                                             print('\n')
                                         elif os.path.exists(f'{save_path}/detected_events.csv'):
                                             self._cut_transient_plot(cam,ccd,cut)
