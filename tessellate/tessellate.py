@@ -1257,8 +1257,8 @@ class Tessellate():
 
         _Save_space(f'{self.working_path}/cubing_scripts')
 
-        # -- Delete old scripts -- #
-        os.system(f'rm -f {self.working_path}/cubing_scripts/S{self.sector}C*')
+        # # -- Delete old scripts -- #
+        # os.system(f'rm -f {self.working_path}/cubing_scripts/S{self.sector}C*')
 
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('cube' in self.overwrite):
@@ -1279,7 +1279,7 @@ class Tessellate():
                     # -- Create python file for cubing-- # 
                     print(f'Creating Cubing Python File for Sector{self.sector} Cam{cam}Ccd{ccd}')
                     python_text = f"\
-from tessellate.dataprocessor import DataProcessor\n\
+from tessellate import DataProcessor\n\
 \n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
 processor.make_cube(cam={cam},ccd={ccd},part={self.part})\n\
@@ -1382,8 +1382,8 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 
         _Save_space(f'{self.working_path}/cutting_scripts')
 
-        # -- Delete old scripts -- #
-        os.system(f'rm -f {self.working_path}/cutting_scripts/S{self.sector}C*')
+        # # -- Delete old scripts -- #
+        # os.system(f'rm -f {self.working_path}/cutting_scripts/S{self.sector}C*')
 
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('cut' in self.overwrite):
@@ -1445,7 +1445,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                         # -- Create python file for cubing, cutting, reducing a cut-- # 
                         print(f'Creating Cutting Python File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
                         python_text = f"\
-from tessellate.dataprocessor import DataProcessor\n\
+from tessellate import DataProcessor\n\
 \n\
 part = {self.part}\n\
 processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
@@ -1502,8 +1502,8 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
 
         _Save_space(f'{self.working_path}/reduction_scripts')
 
-        # -- Delete old scripts -- #
-        os.system(f'rm -f {self.working_path}/reduction_scripts/S{self.sector}C*')
+        # # -- Delete old scripts -- #
+        # os.system(f'rm -f {self.working_path}/reduction_scripts/S{self.sector}C*')
 
         if (overwrite) & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('reduce' in self.overwrite):
@@ -1548,7 +1548,7 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
                         # -- Create python file for reducing a cut-- # 
                         print(f'Creating Reduction Python File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
                         python_text = f"\
-from tessellate.dataprocessor import DataProcessor\n\
+from tessellate import DataProcessor\n\
 import os\n\
 \n\
 part={self.part}\n\
@@ -1591,7 +1591,7 @@ python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
         # -- Create python file for reducing a cut-- # 
         print(f'Creating Transient Search File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
         python_text = f"\
-from tessellate.detector import Detector\n\
+from tessellate import Detector\n\
 import os\n\
 \n\
 part = {self.part}\n\
@@ -1643,8 +1643,8 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
 
         _Save_space(f'{self.working_path}/detection_scripts')
 
-        # -- Delete old scripts -- #
-        os.system(f'rm -f {self.working_path}/detection_scripts/S{self.sector}C*')
+        # # -- Delete old scripts -- #
+        # os.system(f'rm -f {self.working_path}/detection_scripts/S{self.sector}C*')
 
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('search' in self.overwrite):
@@ -1732,7 +1732,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
         # -- Create python file for reducing a cut-- # 
         print(f'Creating Transient Plotting File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
         python_text = f"\
-from tessellate.detector import Detector\n\
+from tessellate import Detector\n\
 \n\
 part = {self.part}\n\
 if part:\n\
@@ -1778,8 +1778,8 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
 
         _Save_space(f'{self.working_path}/plotting_scripts')
 
-        # -- Delete old scripts -- #
-        os.system(f'rm -f {self.working_path}/plotting_scripts/S{self.sector}C*')
+        # # -- Delete old scripts -- #
+        # os.system(f'rm -f {self.working_path}/plotting_scripts/S{self.sector}C*')
         
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('plot' in self.overwrite):
