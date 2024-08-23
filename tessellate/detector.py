@@ -7,7 +7,7 @@ import pandas as pd
 from PRF import TESS_PRF
 from copy import deepcopy
 from photutils.detection import StarFinder
-from photutils.aperture import RectangularAperture, RectangularAnnulus
+from photutils.aperture import RectangularAperture, RectangularAnnulus,CircularAperture
 from photutils.aperture import ApertureStats, aperture_photometry
 
 from astropy.stats import sigma_clipped_stats
@@ -72,8 +72,8 @@ def _correlation_check(res,data,prf,corlim=0.8,psfdifflim=0.5,position=False):
                             r = r[0,1]
                             cors += [r]
                             diff += [np.nansum(abs(cut-localpsf))]
-                            xcentroids += [x+cm[1]]
-                            ycentroids += [y+cm[0]]
+                            xcentroids += [x+cm[1]-2]
+                            ycentroids += [y+cm[0]-2]
                         else:
                             cors += [0]
                             diff += [2]
@@ -167,18 +167,16 @@ def _star_finding_procedure(data,prf,sig_limit = 2):
     return res
 
 
-def find_stars(data,prf,fwhmlim=6,siglim=2,bkgstd_lim=50,negative=False):
-    if negative:
-        data = data * -1
-    star = _star_finding_procedure(data,prf,sig_limit=1)
-    ind = star['fwhm'].values < fwhmlim
+def _process_detection(star,parallel=False):
     pos_ind = ((star.xcentroid.values >=3) & (star.xcentroid.values < data.shape[1]-3) & 
                 (star.ycentroid.values >=3) & (star.ycentroid.values < data.shape[0]-3))
     star = star.iloc[ind & pos_ind]
 
-    x = (star.xcentroid.values + 0.5).astype(int); y = (star.ycentroid.values + 0.5).astype(int)
+    #x = (star.xcentroid.values + 0.5).astype(int); y = (star.ycentroid.values + 0.5).astype(int)
+    x = star.xcentroid.values; y = star.ycentroid.values
     pos = list(zip(x, y))
-    aperture = RectangularAperture(pos, 3.0, 3.0)
+    #aperture = RectangularAperture(pos, 3.0, 3.0)
+    aperture = CircularAperture(pos, 1.5, 1.5)
     annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=15,h_out=15)
     m = sigma_clip(data,masked=True,sigma=5).mask
     mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
@@ -192,6 +190,40 @@ def find_stars(data,prf,fwhmlim=6,siglim=2,bkgstd_lim=50,negative=False):
     star['flux'] = phot_table['aperture_sum'].values
     star['mag'] = -2.5*np.log10(phot_table['aperture_sum'].values)
     star['bkgstd'] = 9 * aperstats_sky.std
+    star = star.iloc[negative_ind]
+    star = star.loc[(star['sig'] > siglim) & (star['bkgstd'] < bkgstd_lim)]
+    ind, psfcor, psfdiff, ypos ,xpos = _correlation_check(star,data,prf,corlim=0,psfdifflim=1,position=True)
+    star['ycentroid_com'] = ypos; star['xcentroid_com'] = xpos
+    star['psflike'] = psfcor
+    star['psfdiff'] = psfdiff
+    return star
+
+def find_stars(data,prf,fwhmlim=7,siglim=2,bkgstd_lim=50,negative=False):
+    if negative:
+        data = data * -1
+    star = _star_finding_procedure(data,prf,sig_limit=1)
+    ind = star['fwhm'].values < fwhmlim
+    pos_ind = ((star.xcentroid.values >=3) & (star.xcentroid.values < data.shape[1]-3) & 
+                (star.ycentroid.values >=3) & (star.ycentroid.values < data.shape[0]-3))
+    star = star.iloc[ind & pos_ind]
+
+    x = star.xcentroid.values; y = star.ycentroid.values
+    pos = list(zip(x, y))
+    #aperture = RectangularAperture(pos, 3.0, 3.0)
+    aperture = CircularAperture(pos, 1.5, 1.5)
+    annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=15,h_out=15)
+    m = sigma_clip(data,masked=True,sigma=5).mask
+    mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
+    aperstats_sky = ApertureStats(data, annulus_aperture,mask = mask)
+    aperstats_source = ApertureStats(data, aperture)
+    phot_table = aperture_photometry(data, aperture)
+    phot_table = phot_table.to_pandas()
+
+    negative_ind = aperstats_source.min >= aperstats_sky.median - 3* aperstats_sky.std
+    star['sig'] = phot_table['aperture_sum'].values / (aperture.area * aperstats_sky.std)
+    star['flux'] = phot_table['aperture_sum'].values
+    star['mag'] = -2.5*np.log10(phot_table['aperture_sum'].values)
+    star['bkgstd'] = aperture.area * aperstats_sky.std
     star = star.iloc[negative_ind]
     star = star.loc[(star['sig'] > siglim) & (star['bkgstd'] < bkgstd_lim)]
     ind, psfcor, psfdiff, ypos ,xpos = _correlation_check(star,data,prf,corlim=0,psfdifflim=1,position=True)
@@ -553,7 +585,7 @@ class Detector():
         self.flux = flux
         self.bkg = bkg
     
-    def _check_lc_significance(self,event,buffer = 10,base_range=20):
+    def _check_lc_significance(self,event,buffer = 20,base_range=40):
         ap = np.zeros_like(self.flux[0])
         y = event.yint.values.astype(int)[0]
         x = event.xint.values.astype(int)[0]
@@ -574,11 +606,14 @@ class Detector():
         frames = np.arange(0,len(lc))
         ind = ((frames > bs) & (frames < fs)) | ((frames < be) & (frames > fe))
         mean,med, std = sigma_clipped_stats(lc[ind])
+        lcevent = lc[event['frame_start'].values[0]:event['frame_end'].values[0]]
         if event['flux_sign'].values >= 0:
-            lc_max = np.nanmax(lc[event['frame_start'].values[0]:event['frame_end'].values[0]])
+            lc_max = np.nanmax(lcevent)
+            
         else:
-            lc_max = np.nanmin(lc[event['frame_start'].values[0]:event['frame_end'].values[0]])
+            lc_max = np.nanmin(lcevent)
         significance = (lc_max - med) / std
+        
         return significance 
     
     def _asteroid_checker(self,asteroid_distance=3,asteroid_correlation=0.9,asteroid_duration=1):
@@ -624,10 +659,13 @@ class Detector():
         self.events = events
         
     def fit_period(self,source,significance=3):
-        x = (source['xint']+0.5).astype(int)
-        y = (source['yint']+0.5).astype(int)
+        #x = (source['xint']+0.5).astype(int)
+        #y = (source['yint']+0.5).astype(int)
 
-        f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
+        #f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
+        #ap = CircularAperture([source.xcentroid,source.ycentroid],1.5)
+        #phot_table = aperture_photometry(data, aperture)
+        #phot_table = phot_table.to_pandas()
         unit = u.electron / u.s
         t = self.time
         finite = np.isfinite(f) & np.isfinite(t)
@@ -745,10 +783,12 @@ class Detector():
             event['flux'] = np.nanmax(detections['flux'].values)
             event['mag'] = np.nanmin(detections['mag'].values)
             event['sig'] = np.nanmax(detections['sig'].values)
+            event['sig_av'] = np.nanmean(detections['sig'].values)
             event['eventID'] = counter
             event['frame_start'] = e[0]
             event['frame_end'] = e[1]
-            event['n_detections'] = e[1]-e[0]
+            event['duration'] = e[1]-e[0]
+            event['n_detections'] = len(detections)
             event['mjd_start'] = self.time[e[0]]
             event['mjd_end'] = self.time[e[1]]
             event['yint'] = event['yint'].values.astype(int)
@@ -1027,7 +1067,7 @@ class Detector():
         return extension
 
 
-    def plot_ALL(self,cut,save_path=None,lower=3,starkiller=False,sig_thresh=2,save_lc=True,time_bin=None):
+    def plot_ALL(self,cut,save_path=None,lower=3,starkiller=False,sig_thresh=2.5,save_lc=True,time_bin=None):
         if time_bin is not None:
             self.time_bin = time_bin
         detections = self.count_detections(cut=cut,lower=lower,starkiller=starkiller,sig_thresh=sig_thresh)
