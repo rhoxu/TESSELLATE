@@ -211,7 +211,7 @@ class Tessellate():
             self.transient_plot(searching=search)
 
         if delete:
-            delete_files(filetype='ffis',sector=self.sector,n=self.n,part=False)  
+            delete_files(filetype='ffis',data_path=self.data_path,sector=self.sector,n=self.n,part=False)  
 
     def _sector_suggestions(self):
         """
@@ -675,7 +675,7 @@ class Tessellate():
         elif self.cuts in range(1,self.n**2+1):
             print(f'   - Cut = {self.cuts}')
             message += f'   - Cut = {self.cuts}\n'
-            self.cuts = [self.cut]  
+            self.cuts = [self.cuts]  
         else:
             e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
             raise ValueError(e)
@@ -811,7 +811,7 @@ class Tessellate():
             elif self.cuts in range(1,self.n**2+1):
                 print(f'   - Cut = {self.cuts}')
                 message += f'   - Cut = {self.cuts}\n'
-                self.cuts = [self.cut]  
+                self.cuts = [self.cuts]  
             else:
                 e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
                 raise ValueError(e)
@@ -942,7 +942,7 @@ class Tessellate():
             elif self.cuts in range(1,self.n**2+1):
                 print(f'   - Cut = {self.cuts}')
                 message += f'   - Cut = {self.cuts}\n'
-                self.cuts = [self.cut]  
+                self.cuts = [self.cuts]  
             else:
                 e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
                 raise ValueError(e)
@@ -1073,7 +1073,7 @@ class Tessellate():
             elif self.cuts in range(1,self.n**2+1):
                 print(f'   - Cut = {self.cuts}')
                 message += f'   - Cut = {self.cuts}\n'
-                self.cuts = [self.cut]  
+                self.cuts = [self.cuts]  
             else:
                 e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
                 raise ValueError(e)

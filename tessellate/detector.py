@@ -172,11 +172,11 @@ def _process_detection(star,parallel=False):
                 (star.ycentroid.values >=3) & (star.ycentroid.values < data.shape[0]-3))
     star = star.iloc[ind & pos_ind]
 
-    #x = (star.xcentroid.values + 0.5).astype(int); y = (star.ycentroid.values + 0.5).astype(int)
-    x = star.xcentroid.values; y = star.ycentroid.values
+    x = (star.xcentroid.values + 0.5).astype(int); y = (star.ycentroid.values + 0.5).astype(int)
+    #x = star.xcentroid.values; y = star.ycentroid.values
     pos = list(zip(x, y))
-    #aperture = RectangularAperture(pos, 3.0, 3.0)
-    aperture = CircularAperture(pos, 1.5)
+    aperture = RectangularAperture(pos, 3.0, 3.0)
+    #aperture = CircularAperture(pos, 1.5)
     annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=15,h_out=15)
     m = sigma_clip(data,masked=True,sigma=5).mask
     mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
@@ -198,7 +198,7 @@ def _process_detection(star,parallel=False):
     star['psfdiff'] = psfdiff
     return star
 
-def find_stars(data,prf,fwhmlim=7,siglim=2,bkgstd_lim=50,negative=False):
+def find_stars(data,prf,fwhmlim=6,siglim=2,bkgstd_lim=50,negative=False):
     if negative:
         data = data * -1
     star = _star_finding_procedure(data,prf,sig_limit=1)
@@ -207,10 +207,10 @@ def find_stars(data,prf,fwhmlim=7,siglim=2,bkgstd_lim=50,negative=False):
                 (star.ycentroid.values >=3) & (star.ycentroid.values < data.shape[0]-3))
     star = star.iloc[ind & pos_ind]
 
-    x = star.xcentroid.values; y = star.ycentroid.values
+    x = (star.xcentroid.values + 0.5).astype(int); y = (star.ycentroid.values + 0.5).astype(int)
     pos = list(zip(x, y))
-    #aperture = RectangularAperture(pos, 3.0, 3.0)
-    aperture = CircularAperture(pos, 1.5)
+    aperture = RectangularAperture(pos, 3.0, 3.0)
+    #aperture = CircularAperture(pos, 1.5)
     annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=15,h_out=15)
     m = sigma_clip(data,masked=True,sigma=5).mask
     mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
@@ -585,7 +585,10 @@ class Detector():
         self.flux = flux
         self.bkg = bkg
     
-    def _check_lc_significance(self,event,buffer = 20,base_range=40):
+    def _check_lc_significance(self,event,buffer = 0.5,base_range=1):
+        time_per_frame = self.time[1] - self.time[0]
+        buffer = int(buffer/time_per_frame)
+        base_range = int(base_range/time_per_frame)
         ap = np.zeros_like(self.flux[0])
         y = event.yint.values.astype(int)[0]
         x = event.xint.values.astype(int)[0]
@@ -605,16 +608,21 @@ class Detector():
             be = len(lc) - 1 
         frames = np.arange(0,len(lc))
         ind = ((frames > bs) & (frames < fs)) | ((frames < be) & (frames > fe))
-        mean,med, std = sigma_clipped_stats(lc[ind])
+        #mean,med, std = sigma_clipped_stats(lc[ind])
+        med = np.nanmedian(lc[ind])
+        std = np.nanstd(lc[ind])
         lcevent = lc[event['frame_start'].values[0]:event['frame_end'].values[0]]
+        lc_sig = (lcevent - med) / std
         if event['flux_sign'].values >= 0:
-            lc_max = np.nanmax(lcevent)
+            sig_max = np.nanmax(lc_sig)
+            sig_med = np.nanmean(lc_sig)
             
         else:
-            lc_max = np.nanmin(lcevent)
-        significance = (lc_max - med) / std
+            sig_max = np.nanmin(lc_sig)
+            sig_med = np.nanmean(lc_sig)
         
-        return significance 
+        
+        return sig_max, sig_med
     
     def _asteroid_checker(self,asteroid_distance=3,asteroid_correlation=0.9,asteroid_duration=1):
 
@@ -702,112 +710,127 @@ class Detector():
             peak_freq = [np.nan]
         return peak_freq, peak_power
     
-    def isolate_events(self,objid,frame_buffer=20,duration=1):
+    def isolate_events(self,objid,buffer=0.5,base_range=1):
+        """_summary_
+
+        Args:
+            objid (int): ID for source to isolate individual events.
+            frame_buffer (float, optional): Space between event and baseline in days. Defaults to 0.5.
+            duration (int, optional): Duration of time either side of event to create baseline in days. Defaults to 1.
+
+        Returns:
+            events
+        """
         obj_ind = self.sources['objid'].values == objid
-        obj = self.sources.iloc[obj_ind]
-        variable = abs(np.nanmean(obj['flux_sign'].values)) <= 0.7
-        frames = obj.frame.values
-        if len(frames) > 1:
-            triggers = np.zeros_like(self.time)
-            triggers[frames] = 1
-            tarr = triggers>0
-            temp = np.insert(tarr,0,False)
-            temp = np.insert(temp,-1,False)
-            detections = np.where(temp)[0]
-            if len(detections) > 1:
-                testf = np.diff(np.where(temp)[0])
-                testf = np.insert(testf,-1,0)
-            else:
-                testf = np.array([0,0])
-            indf = np.where(temp)[0]
-            
-            min_length = frame_buffer
-            testind = (testf<=min_length) & (testf>1)
-            if sum(testind) > 0:
-                for j in range(len(indf[testind])):
-                    start = indf[testind][j]
-                    end = (indf[testind][j] + testf[testind][j])
-                    temp[start:end] = True
-            temp[0] = False
-            temp[-1] = False
-            testf = np.diff(np.where(~temp)[0] -1 )
-            indf = np.where(~temp)[0] - 1
-            testf[testf == 1] = 0
-            testf = np.append(testf,0)
-
-            event_time = []
-            min_length = duration
-            if len(indf[testf>=min_length]) > 0:
-                for j in range(len(indf[testf>min_length])):
-                    start = indf[testf>min_length][j]
-                    if start <0:
-                            start = 0
-                    end = indf[testf>min_length][j] + testf[testf>min_length][j]
-                    if end >= len(self.time):
-                        end = len(self.time) -1 
-                    event_time += [[start,end]]
-            event_time = np.array(event_time)
-        else:
-            try:
-                start = frames-1 
-                if start < 0:
-                    start = 0
-                end = frames +1 
-                if end >= len(self.time):
-                    end = len(self.time) - 1 
-                event_time = np.array([[start,end]])
-            except:
-                start = frames[0]-1 
-                if start < 0:
-                    start = 0
-                end = frames[-1] +1 
-                if end >= len(self.time):
-                    end = len(self.time) - 1 
-                event_time = np.array([[start,end]])
-        events = []
-        peak_freq, peak_power = self.fit_period(obj.iloc[0])
+        source = self.sources.iloc[obj_ind]
+        variable = abs(np.nanmean(source['flux_sign'].values)) <= 0.7
         counter = 1
-        obj['eventID'] = 0
-        for e in event_time:
-            ind = (obj['frame'].values >= e[0]) & (obj['frame'].values <= e[1])
-            obj.loc[ind,'eventID'] = counter
-            detections = deepcopy(obj.iloc[ind])
-            detections = detections.drop(columns='Type')
+        events = []
+        for sign in source['flux_sign'].unique():
+            obj = source.loc[source['flux_sign'] == sign]
+            frames = obj.frame.values
+            obj['eventID'] = 0
+        
+            if len(frames) > 1:
+                triggers = np.zeros_like(self.time)
+                triggers[frames] = 1
+                tarr = triggers>0
+                temp = np.insert(tarr,0,False)
+                temp = np.insert(temp,-1,False)
+                detections = np.where(temp)[0]
+                if len(detections) > 1:
+                    testf = np.diff(np.where(temp)[0])
+                    testf = np.insert(testf,-1,0)
+                else:
+                    testf = np.array([0,0])
+                indf = np.where(temp)[0]
+                
+                min_length = frame_buffer
+                testind = (testf<=min_length) & (testf>1)
+                if sum(testind) > 0:
+                    for j in range(len(indf[testind])):
+                        start = indf[testind][j]
+                        end = (indf[testind][j] + testf[testind][j])
+                        temp[start:end] = True
+                temp[0] = False
+                temp[-1] = False
+                testf = np.diff(np.where(~temp)[0] -1 )
+                indf = np.where(~temp)[0] - 1
+                testf[testf == 1] = 0
+                testf = np.append(testf,0)
 
+                event_time = []
+                min_length = duration
+                if len(indf[testf>=min_length]) > 0:
+                    for j in range(len(indf[testf>min_length])):
+                        start = indf[testf>min_length][j]
+                        if start <0:
+                                start = 0
+                        end = indf[testf>min_length][j] + testf[testf>min_length][j]
+                        if end >= len(self.time):
+                            end = len(self.time) -1 
+                        event_time += [[start,end]]
+                event_time = np.array(event_time)
+            else:
+                try:
+                    start = frames-1 
+                    if start < 0:
+                        start = 0
+                    end = frames +1 
+                    if end >= len(self.time):
+                        end = len(self.time) - 1 
+                    event_time = np.array([[start,end]])
+                except:
+                    start = frames[0]-1 
+                    if start < 0:
+                        start = 0
+                    end = frames[-1] +1 
+                    if end >= len(self.time):
+                        end = len(self.time) - 1 
+                    event_time = np.array([[start,end]])
+            peak_freq, peak_power = self.fit_period(obj.iloc[0])
             
-            event = deepcopy(detections.mean().to_frame().T)
-            prfs = detections['psflike'].values
-            psfdiff = detections['psfdiff'].values
-            event['max_psflike'] = np.nanmax(prfs)
-            event['min_psfdiff'] = np.nanmin(psfdiff)
-            event['flux'] = np.nanmax(detections['flux'].values)
-            event['mag'] = np.nanmin(detections['mag'].values)
-            event['sig'] = np.nanmax(detections['sig'].values)
-            event['sig_av'] = np.nanmean(detections['sig'].values)
-            event['eventID'] = counter
-            event['frame_start'] = e[0]
-            event['frame_end'] = e[1]
-            event['duration'] = e[1]-e[0]
-            event['n_detections'] = len(detections)
-            event['mjd_start'] = self.time[e[0]]
-            event['mjd_end'] = self.time[e[1]]
-            event['yint'] = event['yint'].values.astype(int)
-            event['xint'] = event['xint'].values.astype(int)
-            event['yccd'] = event['yccd'].values.astype(int)
-            event['xccd'] = event['xccd'].values.astype(int)
-            event['sector'] = self.sector 
-            event['camera'] = self.cam
-            event['ccd'] = self.ccd
-            
-            event['Type'] = obj['Type'].iloc[0]
-            event['peak_freq'] = peak_freq[0]
-            event['peak_power'] = peak_power[0]
-            event['variable'] = variable | np.isfinite(peak_power[0])
-            sig = self._check_lc_significance(event)
-            event['lc_sig'] = sig
-            
-            events += [event]
-            counter += 1
+            for e in event_time:
+                ind = (obj['frame'].values >= e[0]) & (obj['frame'].values <= e[1])
+                obj.loc[ind,'eventID'] = counter
+                detections = deepcopy(obj.iloc[ind])
+                detections = detections.drop(columns='Type')
+
+                
+                event = deepcopy(detections.mean().to_frame().T)
+                prfs = detections['psflike'].values
+                psfdiff = detections['psfdiff'].values
+                event['max_psflike'] = np.nanmax(prfs)
+                event['min_psfdiff'] = np.nanmin(psfdiff)
+                event['flux'] = np.nanmax(detections['flux'].values)
+                event['mag'] = np.nanmin(detections['mag'].values)
+                event['sig'] = np.nanmax(detections['sig'].values)
+                event['sig_av'] = np.nanmean(detections['sig'].values)
+                event['eventID'] = counter
+                event['frame_start'] = e[0]
+                event['frame_end'] = e[1]
+                event['duration'] = e[1]-e[0]
+                event['n_detections'] = len(detections)
+                event['mjd_start'] = self.time[e[0]]
+                event['mjd_end'] = self.time[e[1]]
+                event['yint'] = event['yint'].values.astype(int)
+                event['xint'] = event['xint'].values.astype(int)
+                event['yccd'] = event['yccd'].values.astype(int)
+                event['xccd'] = event['xccd'].values.astype(int)
+                event['sector'] = self.sector 
+                event['camera'] = self.cam
+                event['ccd'] = self.ccd
+                
+                event['Type'] = obj['Type'].iloc[0]
+                event['peak_freq'] = peak_freq[0]
+                event['peak_power'] = peak_power[0]
+                event['variable'] = variable | np.isfinite(peak_power[0])
+                sig_max, sig_med = self._check_lc_significance(event,buffer=buffer,base_range=base_range)
+                event['lc_sig'] = sig
+                event['lc_sig_med'] = sig
+                
+                events += [event]
+                counter += 1
             
         events = pd.concat(events,ignore_index=True)
         events['total_events'] = len(events)
@@ -995,7 +1018,9 @@ class Detector():
         ax[1].scatter(self.sources['xcentroid'],self.sources['ycentroid'],c=self.sources['source_mask'],s=5,cmap='Reds')
         ax[1].set_xlabel('Source Mask')
 
-    def count_detections(self,cut,starkiller=False,asteroidkiller=False,lower=None,upper=None,sig_thresh=None):
+    def count_detections(self,cut,starkiller=False,asteroidkiller=False,
+                            lower=None,upper=None,sig_image=None,sig_lc=None,
+                            max_events=None):
 
         if cut != self.cut:
             self._gather_data(cut)
@@ -1008,27 +1033,33 @@ class Detector():
             r = self.events
 
         if asteroidkiller:
-            r = r[~(r['Type']=='Asteroid')]
+            r = r.loc[~(r['Type']=='Asteroid')]
 
-        if sig_thresh is not None:
-            r = r[r['lc_sig']>=sig_thresh]
-
-        array = r['objid'].values
-        counts = []
-        ids = np.unique(array)
-        for id in ids:
-            counts.append(np.nansum(self.events[self.events['objid']==id]['n_detections'].values))
-        dictionary = dict(zip(ids, counts))
+        if sig_lc is not None:
+            r = r.loc[r['lc_sig']>=sig_lc]
+        if sig_image is not None:
+            r = r.loc[r['sig'] >= sig_image]
+        if max_events is not None:
+            r = r.loc[r['total_events'] <= max_events]
+        #array = r['objid'].values
+        #counts = []
+        #ids = np.unique(array)
+       #for id in ids:
+        #    counts.append(np.nansum(self.events[self.events['objid']==id]['n_detections'].values))
+        #dictionary = dict(zip(ids, counts))
 
         if upper is not None:
             if lower is not None:
-                dictionary = dict((k, v) for k, v in dictionary.items() if lower < v < upper)
+                #dictionary = dict((k, v) for k, v in dictionary.items() if lower < v < upper)
+                r = r.loc[(r['n_detections'] < upper) & (r['n_detections'] > lower)]
             else:
-                dictionary = dict((k, v) for k, v in dictionary.items() if v < upper)
+                #dictionary = dict((k, v) for k, v in dictionary.items() if v < upper)
+                r = r.loc[(r['n_detections'] < upper)]
         elif lower is not None:
-            dictionary = dict((k, v) for k, v in dictionary.items() if lower < v)
+            #dictionary = dict((k, v) for k, v in dictionary.items() if lower < v)
+            r = r.loc[(r['n_detections'] > lower)]
 
-        return dictionary
+        return r
 
     def _check_dirs(self,save_path):
         """
@@ -1067,17 +1098,19 @@ class Detector():
         return extension
 
 
-    def plot_ALL(self,cut,save_path=None,lower=2,starkiller=False,sig_thresh=2.5,save_lc=True,time_bin=None):
+    def plot_ALL(self,cut,save_path=None,lower=3,starkiller=False,sig_image=2,sig_lc=2.5,save_lc=True,time_bin=None):
         if time_bin is not None:
             self.time_bin = time_bin
-        detections = self.count_detections(cut=cut,lower=lower,starkiller=starkiller,sig_thresh=sig_thresh)
+        detections = self.count_detections(cut=cut,lower=lower,starkiller=starkiller,sig_lc=sig_lc,sig_image=sig_image)
         if save_path is None:
             save_path = self.path + f'/Cut{cut}of{self.n**2}/figs/'
             print('Figure path: ',save_path)
             self._check_dirs(save_path)
-        inds = list(detections.keys())
-        
+        self.events = detections
+        inds = detections['objid'].unique()
+        print('Total events to plot: ', len(detections))
         events = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path) for ind in inds)
+        print('Plot complete!')
         
 
 
@@ -1085,7 +1118,7 @@ class Detector():
     def plot_source(self,cut,id,event='seperate',savename=None,save_path='.',
                     star_bin=True,period_bin=True,type_bin=True,objectid_bin='auto',
                     include_periodogram=False,latex=True,period_power_limit=10,
-                    asteroid_check=True,zoo_mode=True,save_lc=True):
+                    asteroid_check=False,zoo_mode=True,save_lc=True):
         if latex:
             plt.rc('text', usetex=True)
             plt.rc('font', family='serif')
@@ -1097,7 +1130,7 @@ class Detector():
             self._gather_results(cut)
             self.cut = cut
         sources =  self.events[self.events['objid']==id]
-        total_events = len(sources)
+        total_events = int(np.nanmean(sources['total_events'].values))
         if type(objectid_bin) == str:
             if total_events > 5:
                 objectid_bin = True
@@ -1124,6 +1157,7 @@ class Detector():
         #source = self.result[self.result['objid']==id]
         time = self.time - self.time[0]
         for i in range(len(sources)):
+            event_id = sources['eventID'].iloc[i]
             #if type(sources) == list:
             #   source = sources[0]
             #else:
@@ -1268,25 +1302,6 @@ class Detector():
                 unit = u.electron / u.s
                 light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
                 period = light.to_periodogram()
-
-            if asteroid_check:
-                s = self.sources.iloc[self.sources.objid.values == id]
-                e = s.iloc[(s.frame.values >= frameStart) & (s.frame.values <= frameEnd)]
-                x = e.xcentroid.values
-                y = e.ycentroid.values
-                dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
-                dist = np.nanmax(dist,axis=1)
-                dist = np.nanmean(dist)
-                if len(x)>= 2:
-                    cor = np.round(abs(pearsonr(x,y)[0]),1)
-                else:
-                    cor = 0
-                dpass = dist - 0.8
-                cpass = cor - 0.8
-                asteroid = dpass + cpass > 0 
-                if asteroid & (duration < 1):
-                    source['Type'] = 'Asteroid'
-                    source['Prob'] = 1
                 
                 
             if savename is not None:
@@ -1325,7 +1340,7 @@ class Detector():
                 if event == 'all':
                     plt.savefig(sp+'/'+savename+'_all_events.png', bbox_inches = "tight")
                 else:
-                    plt.savefig(sp+'/'+savename+f'_event{i+1}of{total_events}.png', 
+                    plt.savefig(sp+'/'+savename+f'_event{event_id}of{total_events}.png', 
                                 bbox_inches = "tight")
                 if save_lc:
                     headers = ['mjd','counts','event']
@@ -1337,9 +1352,9 @@ class Detector():
                             lc.to_csv(splc+'/'+savename+f'_all_events_tbin{self.time_bin_name}d.csv', index=False)
                     else:
                         if self.time_bin is None:
-                            lc.to_csv(splc+'/'+savename+f'_event{i+1}of{total_events}.csv', index=False)
+                            lc.to_csv(splc+'/'+savename+f'_event{event_id}of{total_events}.csv', index=False)
                         else:
-                            lc.to_csv(splc+'/'+savename+f'_event{i+1}of{total_events}_tbin{str(self.time_bin)}d.csv', index=False)
+                            lc.to_csv(splc+'/'+savename+f'_event{event_id}of{total_events}_tbin{str(self.time_bin)}d.csv', index=False)
                 #np.save(save_path+'/'+savename+'_lc.npy',[time,f])
                 #np.save(save_path+'/'+savename+'_cutout.npy',cutout_image)
                 self.save_base = sp+'/'+savename
