@@ -198,7 +198,7 @@ def _process_detection(star,parallel=False):
     star['psfdiff'] = psfdiff
     return star
 
-def find_stars(data,prf,fwhmlim=6,siglim=2,bkgstd_lim=50,negative=False):
+def find_stars(data,prf,fwhmlim=7,siglim=2,bkgstd_lim=50,negative=False):
     if negative:
         data = data * -1
     star = _star_finding_procedure(data,prf,sig_limit=1)
@@ -618,8 +618,8 @@ class Detector():
             sig_med = np.nanmean(lc_sig)
             
         else:
-            sig_max = np.nanmin(lc_sig)
-            sig_med = np.nanmean(lc_sig)
+            sig_max = abs(np.nanmin(lc_sig))
+            sig_med = abs(np.nanmean(lc_sig))
         
         
         return sig_max, sig_med
@@ -656,7 +656,7 @@ class Detector():
                 cor = 0
             dpass = dist - asteroid_distance
             cpass = cor - asteroid_correlation
-            asteroid = dpass + cpass > 0 
+            asteroid = dpass + cpass > 0
             asteroid_check = asteroid & (duration < asteroid_duration)
         
             if asteroid_check:
@@ -700,17 +700,20 @@ class Detector():
             peak_freq = peak_freq[peak_power>1] 
             peak_power = peak_power[peak_power>1] 
             if peak_power is None:
-                peak_power = [np.nan]
-                peak_freq = [np.nan]
+                peak_power = [0]
+                peak_freq = [0]
             elif len(peak_power) < 1:
-                peak_power = [np.nan]
-                peak_freq = [np.nan]
+                peak_power = [0]
+                peak_freq = [0]
         except:
-            peak_power = [np.nan]
-            peak_freq = [np.nan]
+            peak_power = [0]
+            peak_freq = [0]
+        if peak_power is None:
+                peak_power = [0]
+                peak_freq = [0]
         return peak_freq, peak_power
     
-    def isolate_events(self,objid,buffer=0.5,base_range=1):
+    def isolate_events(self,objid,frame_buffer=20,duration=1,buffer=0.5,base_range=1):
         """_summary_
 
         Args:
@@ -820,14 +823,15 @@ class Detector():
                 event['sector'] = self.sector 
                 event['camera'] = self.cam
                 event['ccd'] = self.ccd
+                event['cut'] = self.cut
                 
                 event['Type'] = obj['Type'].iloc[0]
                 event['peak_freq'] = peak_freq[0]
                 event['peak_power'] = peak_power[0]
                 event['variable'] = variable | np.isfinite(peak_power[0])
                 sig_max, sig_med = self._check_lc_significance(event,buffer=buffer,base_range=base_range)
-                event['lc_sig'] = sig
-                event['lc_sig_med'] = sig
+                event['lc_sig'] = sig_max
+                event['lc_sig_med'] = sig_med
                 
                 events += [event]
                 counter += 1
@@ -841,11 +845,11 @@ class Detector():
             pass
         return events 
 
-    def _get_all_independent_events(self,frame_buffer=20):
+    def _get_all_independent_events(self,buffer=0.5,base_range=1):
         ids = np.unique(self.sources['objid'].values).astype(int)
         events = []
         for id in ids:
-            e = self.isolate_events(id,frame_buffer=frame_buffer)
+            e = self.isolate_events(id,buffer=buffer,base_range=base_range)
             events += [e]
         events = pd.concat(events,ignore_index=True)
         self.events = events 
@@ -1028,12 +1032,12 @@ class Detector():
             self.cut = cut
 
         if starkiller:
-            r = self.events[self.events['source_mask']==0]
+            r = self.events.loc[self.events['source_mask']==0]
         else:
             r = self.events
 
         if asteroidkiller:
-            r = r.loc[~(r['Type']=='Asteroid')]
+            r = r.loc[~(r['Type'] == 'Asteroid')]
 
         if sig_lc is not None:
             r = r.loc[r['lc_sig']>=sig_lc]
@@ -1044,7 +1048,7 @@ class Detector():
         #array = r['objid'].values
         #counts = []
         #ids = np.unique(array)
-       #for id in ids:
+        #for id in ids:
         #    counts.append(np.nansum(self.events[self.events['objid']==id]['n_detections'].values))
         #dictionary = dict(zip(ids, counts))
 
@@ -1098,7 +1102,7 @@ class Detector():
         return extension
 
 
-    def plot_ALL(self,cut,save_path=None,lower=3,starkiller=False,sig_image=2,sig_lc=2.5,save_lc=True,time_bin=None):
+    def plot_ALL(self,cut,save_path=None,lower=3,starkiller=False,sig_image=2.5,sig_lc=2.5,save_lc=True,time_bin=None):
         if time_bin is not None:
             self.time_bin = time_bin
         detections = self.count_detections(cut=cut,lower=lower,starkiller=starkiller,sig_lc=sig_lc,sig_image=sig_image)
@@ -1156,6 +1160,14 @@ class Detector():
             raise ValueError(m)
         #source = self.result[self.result['objid']==id]
         time = self.time - self.time[0]
+        med = np.nanmedian(np.diff(time))
+        std = np.nanstd(np.diff(time))
+
+        break_ind = np.where(np.diff(time) > med+1*std)[0]
+        break_ind = np.append(break_ind,len(time)) 
+        break_ind += 1
+        break_ind = np.insert(break_ind,0,0)
+
         for i in range(len(sources)):
             event_id = sources['eventID'].iloc[i]
             #if type(sources) == list:
@@ -1178,6 +1190,7 @@ class Detector():
             frameEnd = int(source['frame_end']) #max(source['frame'].values)
 
             f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
+            
             if frameEnd - frameStart >= 2:
                 #brightestframe = source['frame'].values[np.where(f[source['frame'].values] == np.nanmax(f[source['frame'].values]))[0][0]]
                 brightestframe = frameStart + np.where(abs(f[frameStart:frameEnd]) == np.nanmax(abs(f[frameStart:frameEnd])))[0][0]
@@ -1210,14 +1223,11 @@ class Detector():
             else:
                 ax[1].set_title('Lightcurve',fontsize=15)   
             
+            
             ax[1].plot(time[fstart:frameEnd+20],zoom,'k',alpha=0)
             insert_ylims = ax[1].get_ylim()
-            tn = deepcopy(time)
-            fn = deepcopy(f)
-            b = np.where(np.diff(tn) > 0.5)[0]
-            timen = np.insert(tn,b,np.nan)
-            fn = np.insert(fn,b,np.nan)
-            ax[1].plot(timen,fn,'k',alpha=0.8)
+            for i in range(len(break_ind)-1):
+                ax[1].plot(time[break_ind[i]:break_ind[i+1]],f[break_ind[i]:break_ind[i+1]],'k',alpha=0.8)
             ax[1].set_ylabel('Brightness',fontsize=15,labelpad=10)
             ax[1].set_xlabel('Time (days)',fontsize=15)
             ylims = ax[1].get_ylim()
@@ -1229,7 +1239,8 @@ class Detector():
                 axins = ax[1].inset_axes([0.1, 0.55, 0.86, 0.43])
                 
             axins.axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
-            axins.plot(timen,fn,'k',alpha=0.8)
+            for i in range(len(break_ind)-1):
+                axins.plot(time[break_ind[i]:break_ind[i+1]],f[break_ind[i]:break_ind[i+1]],'k',alpha=0.8)
             fe = frameEnd + 20
             if fe >= len(time):
                 fe = len(time) - 1
