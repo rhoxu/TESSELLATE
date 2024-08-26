@@ -1206,7 +1206,7 @@ class Detector():
                 frameEnd -= 1
             frames = np.arange(0,len(self.time))
             frames = (frames >= frameStart) & (frames <= frameEnd)
-            lc = np.array([time,f,frames]).T
+            lc = np.array([self.time,f,frames]).T
             fstart = frameStart-20
             if fstart < 0:
                 fstart = 0
