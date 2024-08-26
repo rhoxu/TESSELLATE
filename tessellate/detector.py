@@ -185,8 +185,8 @@ def _process_detection(star,parallel=False):
     phot_table = aperture_photometry(data, aperture)
     phot_table = phot_table.to_pandas()
 
-    negative_ind = aperstats_source.min >= aperstats_sky.median - 3* aperstats_sky.std
-    star['sig'] = phot_table['aperture_sum'].values / (9 * aperstats_sky.std)
+    negative_ind = aperstats_source.min >= aperstats_sky.median - aperture.area * aperstats_sky.std
+    star['sig'] = phot_table['aperture_sum'].values / (aperture.area * aperstats_sky.std)
     star['flux'] = phot_table['aperture_sum'].values
     star['mag'] = -2.5*np.log10(phot_table['aperture_sum'].values)
     star['bkgstd'] = 9 * aperstats_sky.std
@@ -302,34 +302,44 @@ def _count_detections(result):
     return result
 
 def _parallel_correlation_check(source,data,prf,corlim,psfdifflim):
-    ind, cors,diff = _correlation_check(source,data,prf,corlim=corlim,psfdifflim=psfdifflim)
-    return ind,cors,diff
+    ind, cors,diff, ypos, xpos = _correlation_check(source,data,prf,corlim=corlim,psfdifflim=psfdifflim)
+    return ind,cors,diff,ypos,xpos
 
-def _source_detect(flux,inputNum,prf,corlim,psfdifflim,cpu):
+def _do_photometry(stars,data,siglim=2,bkgstd=50):
+    x = (star.xcentroid.values + 0.5).astype(int); y = (star.ycentroid.values + 0.5).astype(int)
+    pos = list(zip(x, y))
+    aperture = RectangularAperture(pos, 3.0, 3.0)
+    annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=15,h_out=15)
+    m = sigma_clip(data,masked=True,sigma=5).mask
+    mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
+    aperstats_sky = ApertureStats(data, annulus_aperture,mask = mask)
+    aperstats_source = ApertureStats(data, aperture)
+    phot_table = aperture_photometry(data, aperture)
+    phot_table = phot_table.to_pandas()
+    #negative_ind = aperstats_source.min >= aperstats_sky.median - 3* aperstats_sky.std
+    star['sig'] = abs(phot_table['aperture_sum'].values) / (aperture.area * aperstats_sky.std)
+    star['flux'] = phot_table['aperture_sum'].values
+    star['mag'] = -2.5*np.log10(abs(phot_table['aperture_sum'].values))
+    star['bkgstd'] = aperture.area * aperstats_sky.std
+    star = star.loc[(star['sig'] > siglim) & (star['bkgstd'] < bkgstd_lim)]
+    #star = star.iloc[negative_ind]
+
+    return star 
+
+
+def _source_detect(flux,inputNum,prf,fwhm,psfdifflim,cpu,siglim=2,bkgstd=50):
     res = SourceDetect(flux,run=True,train=False).result
-    res['psfdiff'] = 0
-    res['xint'] = deepcopy(np.round(res['xcentroid'].values)).astype(int)
-    res['yint'] = deepcopy(np.round(res['ycentroid'].values)).astype(int)
-    ind = (res['xint'].values >3) & (res['xint'].values < flux.shape[2]-3) & (res['yint'].values >3) & (res['yint'].values < flux.shape[1]-3)
-    res = res[ind]
     frames = res['frame'].unique()
-    ind,cors,diff = zip(*Parallel(n_jobs=cpu)(delayed(_parallel_correlation_check)(res.loc[res['frame'] == frame],flux[frame],prf,corlim,psfdifflim) for frame in frames))
-    res['good'] = False
-    for i in range(len(frames)):
-        index = np.where(res['frame'].values == frames[i])[0]
-        res['good'].iloc[index[ind[i]]] = True
-        res['psfdiff'].iloc[index] = diff[i]
-        res['psflike'].iloc[index] = cors[i]
-    res = res.loc[res['good']]
-    res = res.drop(columns='good')
-    #length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
-    #for i in tqdm(length):
-    #   if np.nansum(flux[i]) != 0.0:
-    #      obj = SourceDetect(flux[i],run=True,train=False).result
-    #      obj['frame'] = inputNum + i
-    #      obj['psfdiff'] = 0
-    #      res += [obj]
-    #res = _make_dataframe(res,flux[0])
+    stars = Parallel(n_jobs=cpu)(delayed(_do_photometry)(res.loc[res['frame'] == frame],flux[frame]) for frame in frames)
+    res = pd.concat(stars)
+
+    ind = (res['xint'].values > 3) & (res['xint'].values < flux.shape[2]-3) & (res['yint'].values >3) & (res['yint'].values < flux.shape[1]-3)
+    res = res[ind]
+    ind,cors,diff,ypos, xpos = zip(*Parallel(n_jobs=cpu)(delayed(_parallel_correlation_check)(res.loc[res['frame'] == frame],flux[frame],prf,corlim,psfdifflim) for frame in frames))
+
+    star['ycentroid_com'] = ypos; star['xcentroid_com'] = xpos
+    star['psflike'] = psfcor
+    star['psfdiff'] = psfdiff
     return res
 
 def _make_dataframe(results,data):

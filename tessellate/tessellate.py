@@ -21,7 +21,7 @@ class Tessellate():
                  reduce_time=None,reduce_cpu=None,search_time=None,search_cpu=None,
                  plot_time=None,plot_cpu=None,
                  download=None,make_cube=None,make_cuts=None,reduce=None,search=None,
-                 plot=None,delete=None,overwrite=None,reset_logs=None,detect_mode='starfind',time_bin=None):
+                 plot=None,delete=None,overwrite=None,reset_logs=None,detect_mode='both',time_bin=None):
         
         """
         Initialise.
