@@ -178,7 +178,7 @@ def get_variable_cats(coords,radius):
                                           'Gaia': 'ID'})
             asasn = pd.DataFrame(asasn, columns=['ra','dec','Type','Prob','ID'])
             asasn['Catalog'] = 'II/366/catalog'
-            asasn.loc[asasn['Type'] == 'ROT:', asasn['Type']] = 'ROT'
+            asasn.loc[asasn['Type'] == 'ROT:', 'Type'] = 'ROT'
         else:
             asasn = None
  
@@ -203,9 +203,6 @@ def create_external_var_cat(center,size,save_path):
     varcat = get_variable_cats(center,size)
     varcat.to_csv(save_path+'/variable_catalog.csv',index=False)
 
-#def create_external_gaia_cat(center,size,save_path):
-#    varcat = get_variable_cats(center,size)
-#    varcat.to_csv(save_path+'/local_gaia_cat.csv',index=False)
 
 def join_cats(obs_cat, viz_cat,rad = 2):
     if obs_cat is not None:
