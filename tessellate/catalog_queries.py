@@ -218,7 +218,7 @@ def join_cats(obs_cat, viz_cat,rad = 2):
             # Get entries in cat_ref with a match
             viz_matched = viz_cat[~sep_constraint]
             # Get matched entries in cat_sci
-            joined = pd.concat([obs_cat,viz_matched])
+            joined = pd.concat([obs_cat,viz_matched],ignore_index=True)
             # re-index to match two dfs
             joined = joined.reset_index(drop=True)
         else:
