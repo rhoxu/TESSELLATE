@@ -178,6 +178,7 @@ def get_variable_cats(coords,radius):
                                           'Gaia': 'ID'})
             asasn = pd.DataFrame(asasn, columns=['ra','dec','Type','Prob','ID'])
             asasn['Catalog'] = 'II/366/catalog'
+            asasn.loc[asasn['Type'] == 'ROT:', asasn['Type']] = 'ROT'
         else:
             asasn = None
  
@@ -216,7 +217,6 @@ def join_cats(obs_cat, viz_cat,rad = 2):
             sep_constraint = d2d <= radius_threshold
             # Get entries in cat_ref with a match
             viz_matched = viz_cat[~sep_constraint]
-            print('!!!!!!',sum(sep_constraint))
             # Get matched entries in cat_sci
             joined = pd.concat([obs_cat,viz_matched])
             # re-index to match two dfs
