@@ -190,7 +190,7 @@ def get_variable_cats(coords,radius):
             des_var['Catalog'] = 'DES'
         else:
             des_var = None
-        tables = [varisum,atlas,asasn,des_var]
+        tables = [varisum,asasn,des_var,atlas]
         variables = None
         for tab in tables:
             variables = join_cats(variables,tab)
@@ -208,18 +208,21 @@ def create_external_var_cat(center,size,save_path):
 
 def join_cats(obs_cat, viz_cat,rad = 2):
     if obs_cat is not None:
-        radius_threshold = rad*u.arcsec
-        coords_viz = SkyCoord(ra=viz_cat.ra, dec=viz_cat.dec, unit='deg')
-        coords_obs = SkyCoord(ra=obs_cat.ra, dec=obs_cat.dec, unit='deg')
-        idx, d2d, d3d = coords_viz.match_to_catalog_3d(coords_obs)
-        sep_constraint = d2d <= radius_threshold
-        # Get entries in cat_ref with a match
-        viz_matched = viz_cat[~sep_constraint]
-        print('!!!!!!',sum(sep_constraint))
-        # Get matched entries in cat_sci
-        joined = pd.concat([obs_cat,viz_matched])
-        # re-index to match two dfs
-        joined = joined.reset_index(drop=True)
+        if viz_cat is not None:
+            radius_threshold = rad*u.arcsec
+            coords_viz = SkyCoord(ra=viz_cat.ra, dec=viz_cat.dec, unit='deg')
+            coords_obs = SkyCoord(ra=obs_cat.ra, dec=obs_cat.dec, unit='deg')
+            idx, d2d, d3d = coords_viz.match_to_catalog_3d(coords_obs)
+            sep_constraint = d2d <= radius_threshold
+            # Get entries in cat_ref with a match
+            viz_matched = viz_cat[~sep_constraint]
+            print('!!!!!!',sum(sep_constraint))
+            # Get matched entries in cat_sci
+            joined = pd.concat([obs_cat,viz_matched])
+            # re-index to match two dfs
+            joined = joined.reset_index(drop=True)
+        else:
+            joined = obs_cat
     else:
         joined = viz_cat
     return joined
