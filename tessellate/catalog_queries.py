@@ -8,7 +8,25 @@ from astropy.wcs import WCS
 from sklearn.cluster import DBSCAN
 from time import time as t
 from sklearn.neighbors import KDTree
- 
+import mastcasjobs
+import os
+
+def search_atlas_var(coords, radius):
+    query = """select o.ATO_ID, o.ra, o.dec, o.CLASS
+               from fGetNearbyObjEq("""+str(coords[0])+','+str(coords[1])+","+str(radius)+""") as nb
+               inner join object as o on o.objid = nb.ObjID
+               order by o.objid
+            """
+    try:
+        jobs = mastcasjobs.MastCasJobs(context="HLSP_ATLAS_VAR")
+        results = jobs.quick(query, task_name="TESSELLATE Atlas var cat")
+        results = results.to_pandas()
+    except:
+        results = None
+    return results
+
+
+
 def cross_match(obs_cat, viz_cat,tol=2*21,variable=True):
     dist = np.sqrt((obs_cat.ra[:,np.newaxis] - viz_cat.ra[np.newaxis,:])**2 + (obs_cat.dec[:,np.newaxis] - viz_cat.dec[np.newaxis,:])**2)
     closest = np.argmin(dist,axis=1)
@@ -46,12 +64,17 @@ def find_variables(coords,viz_cat,radius):
     # Gaia Variable Catalog
     varisum = get_catalog("I/358/varisum",coords,radius)
     t.sleep(10)
+    try:
+        atlas = search_atlas_var(coords,radius)
+    except:
+        atlas = None
+    t.sleep(10)
     # ASASN Variable Catalog
     asasn = get_catalog("II/366/catalog",coords,radius)
     t.sleep(10)
     # DES RRLyrae Catalog
     des_var = get_catalog("J/AJ/158/16/table11",coords,radius)
-    if (varisum is None) & (asasn is None) & (des_var is None):
+    if (varisum is None) & (asasn is None) & (des_var is None) & (atlas is None):
         print("No known variables found ...")
         variables = pd.DataFrame(columns=['ra','dec','Type','Prob'])
     else:
@@ -66,11 +89,16 @@ def find_variables(coords,viz_cat,radius):
             varisum = varisum.rename(columns={'RA_ICRS': 'ra',
                                               'DE_ICRS': 'dec'})
             varisum = pd.DataFrame(varisum, columns=['ra','dec','Type','Prob'])
- 
+            varisum['Catalog'] = 'I/358/varisum'
+        if atlas is not None:
+            atlas = atlas.rename(columns={'CLASS':'Type'})
+            atlas['Prob'] = 1
+            atlas['Catalog'] = 'HLSP_ATLAS_VAR'
         if asasn is not None:
             asasn = asasn.rename(columns={'RAJ2000': 'ra',
                                           'DEJ2000': 'dec'})
             asasn = pd.DataFrame(asasn, columns=['ra','dec','Type','Prob'])
+            asasn['Catalog'] = 'II/366/catalog'
         else:
             asasn = None
  
@@ -78,8 +106,9 @@ def find_variables(coords,viz_cat,radius):
             des_var = des_var.rename(columns={'RAJ2000': 'ra',
                                               'DEJ2000': 'dec'})
             des_var = pd.DataFrame(des_var, columns=['ra','dec'])
-            des_var['Type'] = 'DES_var'
+            des_var['Type'] = 'RRLyrae'
             des_var['Prob'] = 1
+            des_var['Catalog'] = 'DES'
         else:
             des_var = None
  
@@ -115,13 +144,16 @@ def _Extract_fits(pixelfile):
 
 def get_variable_cats(coords,radius):
     varisum = get_catalog("I/358/varisum",coords,radius)
+    atlas = search_atlas_var(coords,radius)
+
     # ASASN Variable Catalog
     asasn = get_catalog("II/366/catalog",coords,radius)
     # DES RRLyrae Catalog
     des_var = get_catalog("J/AJ/158/16/table11",coords,radius)
-    if (varisum is None) & (asasn is None) & (des_var is None):
+    if (varisum is None) & (asasn is None) & (des_var is None) & (atlas is None):
         print("No known variables found ...")
         variables = pd.DataFrame(columns=['ra','dec','Type','Prob'])
+        return variables
     else:
         if varisum is not None:
             varisum['Type'] = 'None'
@@ -129,41 +161,71 @@ def get_variable_cats(coords,radius):
             keys = list(varisum.keys())[12:-2]
             for key in keys:
                 t = varisum[key].values > 0
-                varisum['Type'].iloc[t] = key
-                varisum['Prob'].iloc[t] = varisum[key].values[t]
+                varisum.loc[t,'Type'] = key
+                varisum.loc[t, 'Prob'] = varisum[key].values[t]
             varisum = varisum.rename(columns={'RA_ICRS': 'ra',
-                                              'DE_ICRS': 'dec'})
-            varisum = pd.DataFrame(varisum, columns=['ra','dec','Type','Prob'])
-            varisum.loc[varisum['Type'] == 'Rot:','Type'] = 'Rot'
- 
+                                              'DE_ICRS': 'dec',
+                                              'Source': 'ID'})
+            varisum = pd.DataFrame(varisum, columns=['ra','dec','Type','Prob','ID'])
+            varisum['Catalog'] = 'I/358/varisum'
+        if atlas is not None:
+            atlas = atlas.rename(columns={'CLASS':'Type','ATO_ID':'ID'})
+            atlas['Prob'] = 1
+            atlas['Catalog'] = 'HLSP_ATLAS_VAR'
         if asasn is not None:
             asasn = asasn.rename(columns={'RAJ2000': 'ra',
-                                          'DEJ2000': 'dec'})
-            asasn = pd.DataFrame(asasn, columns=['ra','dec','Type','Prob'])
-            asasn.loc[asasn['Type'] == 'Rot:','Type'] = 'Rot'
+                                          'DEJ2000': 'dec',
+                                          'Gaia': 'ID'})
+            asasn = pd.DataFrame(asasn, columns=['ra','dec','Type','Prob','ID'])
+            asasn['Catalog'] = 'II/366/catalog'
         else:
             asasn = None
  
         if des_var is not None:
             des_var = des_var.rename(columns={'RAJ2000': 'ra',
                                               'DEJ2000': 'dec'})
-            des_var = pd.DataFrame(des_var, columns=['ra','dec'])
+            des_var = pd.DataFrame(des_var, columns=['ra','dec','ID'])
             des_var['Type'] = 'RRLyrae'
             des_var['Prob'] = 1
+            des_var['Catalog'] = 'DES'
         else:
             des_var = None
- 
-        variables = pd.concat([varisum, asasn, des_var])
+        tables = [varisum,atlas,asasn,des_var]
+        variables = None
+        for tab in tables:
+            variables = join_cats(variables,tab)
+
     return variables
 
-#def create_external_var_cat(image_path,save_path):
+
 def create_external_var_cat(center,size,save_path):
     varcat = get_variable_cats(center,size)
     varcat.to_csv(save_path+'/variable_catalog.csv',index=False)
 
-def create_external_gaia_cat(center,size,save_path):
-    varcat = get_variable_cats(center,size)
-    varcat.to_csv(save_path+'/local_gaia_cat.csv',index=False)
+#def create_external_gaia_cat(center,size,save_path):
+#    varcat = get_variable_cats(center,size)
+#    varcat.to_csv(save_path+'/local_gaia_cat.csv',index=False)
+
+def join_cats(obs_cat, viz_cat,rad = 2):
+    if obs_cat is not None:
+        radius_threshold = rad*u.arcsec
+        coords_viz = SkyCoord(ra=viz_cat.ra, dec=viz_cat.dec, unit='deg')
+        coords_obs = SkyCoord(ra=obs_cat.ra, dec=obs_cat.dec, unit='deg')
+        idx, d2d, d3d = coords_viz.match_to_catalog_3d(coords_obs)
+        sep_constraint = d2d <= radius_threshold
+        # Get entries in cat_ref with a match
+        viz_matched = viz_cat[~sep_constraint]
+        print('!!!!!!',sum(sep_constraint))
+        # Get matched entries in cat_sci
+        joined = pd.concat([obs_cat,viz_matched])
+        # re-index to match two dfs
+        joined = joined.reset_index(drop=True)
+    else:
+        joined = viz_cat
+    return joined
+
+
+
 
 
 def cross_match_DB(cat1,cat2,distance=2*21,njobs=-1):
