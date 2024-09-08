@@ -204,7 +204,19 @@ def weighted_avg_var(group, weight_col):
     miss = ['Prob','n_detections','GaiaID','flux_sign',
             'ra_source','x_source','y_source','dec_source',
             'e_ra_source','e_x_source','e_y_source','e_dec_source',
-            'source_mask']
+            'source_mask','eventID','xccd_source','yccd_source',
+            'e_xccd_source','e_yccd_source']
+    if len(group) == 1:  # If group has only one entry, return the row but with the same column structure
+        original_row = group.iloc[0].copy()
+        result = {}
+        for col in numeric_cols:
+            if (col != 'objid') & (col not in miss):
+                result[col] = original_row[col]  # Original value
+                result[f'e_{col}'] = np.nan  # No variance
+            else:
+                result[col] = group[col].iloc[0]
+        return pd.Series(result)
+    
     for col in numeric_cols:
         if (col != 'objid') & (col not in miss):  # Exclude the weight column itself
             # Compute the weighted average using nansum
