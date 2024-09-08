@@ -36,17 +36,18 @@ from scipy.ndimage import convolve
 from sourcedetect import SourceDetect
 
 from .catalog_queries import find_variables, gaia_stars, match_result_to_cat
+from .tools import pandas_weighted_avg
 
 # -- Primary Detection Functions -- #
 
-def _correlation_check(res,data,prf,corlim=0.8,psfdifflim=0.5,position=False):
+def _correlation_check(res,data,prf,corlim=0.8,psfdifflim=0.5,position=True):
     """
     Iterates over sources picked up by StarFinder in parent function.
     Cuts around the coordinates (currently size is 5x5).
     Finds CoM of cut to generate PSF.
     Compares cut with generated PSF, uses np.corrcoef (pearsonr) to judge similarity.
     """
-
+    ind = []
     cors = []
     diff = []
     xcentroids = []
@@ -177,14 +178,17 @@ def _process_detection(star,parallel=False):
     pos = list(zip(x, y))
     aperture = RectangularAperture(pos, 3.0, 3.0)
     #aperture = CircularAperture(pos, 1.5)
-    annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=15,h_out=15)
+    annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=20,h_out=20)
     m = sigma_clip(data,masked=True,sigma=5).mask
     mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
     aperstats_sky = ApertureStats(data, annulus_aperture,mask = mask)
+    annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=40,h_out=40)
+    aperstats_sky_no_mask = ApertureStats(data, annulus_aperture)
     aperstats_source = ApertureStats(data, aperture)
     phot_table = aperture_photometry(data, aperture)
     phot_table = phot_table.to_pandas()
-
+    bkg_std = aperstats_sky.std
+    bkg_std[bkg_std==0] = aperstats_sky_no_mask.std # assign a value without mask using a larger area of sky
     negative_ind = aperstats_source.min >= aperstats_sky.median - aperture.area * aperstats_sky.std
     star['sig'] = phot_table['aperture_sum'].values / (aperture.area * aperstats_sky.std)
     star['flux'] = phot_table['aperture_sum'].values
@@ -198,10 +202,10 @@ def _process_detection(star,parallel=False):
     star['psfdiff'] = psfdiff
     return star
 
-def find_stars(data,prf,fwhmlim=7,siglim=2,bkgstd_lim=50,negative=False):
+def find_stars(data,prf,fwhmlim=7,siglim=2.5,bkgstd_lim=50,negative=False):
     if negative:
         data = data * -1
-    star = _star_finding_procedure(data,prf,sig_limit=1)
+    star = _star_finding_procedure(data,prf,sig_limit=2)
     ind = star['fwhm'].values < fwhmlim
     pos_ind = ((star.xcentroid.values >=3) & (star.xcentroid.values < data.shape[1]-3) & 
                 (star.ycentroid.values >=3) & (star.ycentroid.values < data.shape[0]-3))
@@ -209,8 +213,8 @@ def find_stars(data,prf,fwhmlim=7,siglim=2,bkgstd_lim=50,negative=False):
 
     x = (star.xcentroid.values + 0.5).astype(int); y = (star.ycentroid.values + 0.5).astype(int)
     pos = list(zip(x, y))
-    aperture = RectangularAperture(pos, 3.0, 3.0)
-    #aperture = CircularAperture(pos, 1.5)
+    #aperture = RectangularAperture(pos, 3.0, 3.0)
+    aperture = CircularAperture(pos, 1.5)
     annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=15,h_out=15)
     m = sigma_clip(data,masked=True,sigma=5).mask
     mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
@@ -236,6 +240,7 @@ def find_stars(data,prf,fwhmlim=7,siglim=2,bkgstd_lim=50,negative=False):
         star['max_value'] = star['max_value'].values * -1
     else:
         star['flux_sign'] = 1
+    #star['method'] = 'starfind'
     return star
 
 
@@ -305,7 +310,7 @@ def _parallel_correlation_check(source,data,prf,corlim,psfdifflim):
     ind, cors,diff, ypos, xpos = _correlation_check(source,data,prf,corlim=corlim,psfdifflim=psfdifflim)
     return ind,cors,diff,ypos,xpos
 
-def _do_photometry(stars,data,siglim=2,bkgstd=50):
+def _do_photometry(star,data,siglim=3,bkgstd_lim=50):
     x = (star.xcentroid.values + 0.5).astype(int); y = (star.ycentroid.values + 0.5).astype(int)
     pos = list(zip(x, y))
     aperture = RectangularAperture(pos, 3.0, 3.0)
@@ -321,14 +326,16 @@ def _do_photometry(stars,data,siglim=2,bkgstd=50):
     star['flux'] = phot_table['aperture_sum'].values
     star['mag'] = -2.5*np.log10(abs(phot_table['aperture_sum'].values))
     star['bkgstd'] = aperture.area * aperstats_sky.std
-    star = star.loc[(star['sig'] > siglim) & (star['bkgstd'] < bkgstd_lim)]
+    
+    star = star.loc[(star['sig'] >= siglim) & (star['bkgstd'] <= bkgstd_lim)]
     #star = star.iloc[negative_ind]
 
     return star 
 
 
-def _source_detect(flux,inputNum,prf,fwhm,psfdifflim,cpu,siglim=2,bkgstd=50):
+def _source_detect(flux,inputNum,prf,corlim,psfdifflim,cpu,siglim=3,bkgstd=50):
     res = SourceDetect(flux,run=True,train=False).result
+    #res = _spatial_group(res,2)
     frames = res['frame'].unique()
     stars = Parallel(n_jobs=cpu)(delayed(_do_photometry)(res.loc[res['frame'] == frame],flux[frame]) for frame in frames)
     res = pd.concat(stars)
@@ -337,9 +344,13 @@ def _source_detect(flux,inputNum,prf,fwhm,psfdifflim,cpu,siglim=2,bkgstd=50):
     res = res[ind]
     ind,cors,diff,ypos, xpos = zip(*Parallel(n_jobs=cpu)(delayed(_parallel_correlation_check)(res.loc[res['frame'] == frame],flux[frame],prf,corlim,psfdifflim) for frame in frames))
 
-    star['ycentroid_com'] = ypos; star['xcentroid_com'] = xpos
-    star['psflike'] = psfcor
-    star['psfdiff'] = psfdiff
+    res['psfdiff'] = 0; res['psflike'] = 0
+    res['ycentroid_com'] = 0; res['xcentroid_com'] = 0
+    for i in range(len(frames)):
+        index = np.where(res['frame'].values == frames[i])[0]
+        res['psfdiff'].iloc[index] = diff[i]; res['psflike'].iloc[index] = cors[i]
+        res['ycentroid_com'].iloc[index] = ypos[i]; res['xcentroid_com'].iloc[index] = xpos[i]
+    #res['method'] = 'sourcedetect'
     return res
 
 def _make_dataframe(results,data):
@@ -363,24 +374,19 @@ def _main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
     if mode == 'starfind':
         results = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
         results = _make_dataframe(results,flux[0])
+        results['method'] = 'starfind'
     elif mode == 'sourcedetect':
         results = _source_detect(flux,inputNum,prf,corlim,psfdifflim,int(multiprocessing.cpu_count()/2))
+        results['method'] = 'sourcedetect'
     elif mode == 'both':
-        results = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
+        results = Parallel(n_jobs=int(multiprocessing.cpu_count()*2/3))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
         star = _make_dataframe(results,flux[0])
-        machine = _source_detect(flux,inputNum,prf,corlim,psfdifflim,int(multiprocessing.cpu_count()/2))
+        star['method'] = 'starfind'
+        machine = _source_detect(flux,inputNum,prf,corlim,psfdifflim,int(multiprocessing.cpu_count()*2/3))
+        machine['method'] = 'sourcedetect'
         total = [star,machine]
         total = pd.concat(total)
-        total = total[~pd.isna(total['xcentroid'])]
-        grouped = _spatial_group(total,distance=2)
-        drop = []
-        for obj in grouped['objid'].unique():
-            sub = grouped[grouped['objid'] == obj]
-            for frame in sub['frame'].unique():
-                s2 = sub[sub['frame'] == frame]
-                if len(s2) == 2:
-                    drop += [s2.index[1]]
-        results = grouped.drop(drop)
+        results = total[~pd.isna(total['xcentroid'])]
 
     return results
 
@@ -405,22 +411,10 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdiff
     frame = _main_detection(flux,prf,corlim,psfdifflim,inputNum,mode=mode)
     print(f'Main Correlation: {(t()-t1):.1f} sec')
 
-    # if len(frame) > 25_000:
-    #    print(len(frame))
-    #    print('Increasing Correlation Limit to 0.9')
-    #    del(frame)
-    #    frame = _main_correlation(flux,prf,0.9,psfdifflim,inputNum)
-    #    print(f'Main Correlation: {(t()-t1):.1f} sec')
-    #    print(len(frame))
-    #    if len(frame) > 25_000:
-    #       print('Reducing PSF Difference Limit to 0.4')
-    #       del(frame)
-    #       frame = _main_correlation(flux,prf,0.9,0.4,inputNum)
-    #       print(f'Main Correlation: {(t()-t1):.1f} sec')
-    #       print(len(frame))
         
     t1 = t()
     frame = _spatial_group(frame,distance=1.5)
+    frame = frame[~frame.duplicated(subset=['objid', 'frame'], keep='first')]
     print(f'Spatial Group: {(t()-t1):.1f} sec')
 
     t1 = t()
@@ -728,7 +722,8 @@ class Detector():
 
         Args:
             objid (int): ID for source to isolate individual events.
-            frame_buffer (float, optional): Space between event and baseline in days. Defaults to 0.5.
+            frame_buffer: number of break frames permitted for continous events.
+            buffer (float, optional): Space between event and baseline in days. Defaults to 0.5.
             duration (int, optional): Duration of time either side of event to create baseline in days. Defaults to 1.
 
         Returns:
@@ -809,16 +804,16 @@ class Detector():
                 detections = deepcopy(obj.iloc[ind])
                 detections = detections.drop(columns='Type')
 
-                
-                event = deepcopy(detections.mean().to_frame().T)
+                #av = np.average(detections.values,axis=0,weights=detections['sig'].values)
+                event = pandas_weighted_avg(detections)
+                #event = pd.DataFrame(data = [av],columns=detections.keys())#deepcopy(detections.mean().to_frame().T)
                 prfs = detections['psflike'].values
                 psfdiff = detections['psfdiff'].values
                 event['max_psflike'] = np.nanmax(prfs)
                 event['min_psfdiff'] = np.nanmin(psfdiff)
                 event['flux'] = np.nanmax(detections['flux'].values)
                 event['mag'] = np.nanmin(detections['mag'].values)
-                event['sig'] = np.nanmax(detections['sig'].values)
-                event['sig_av'] = np.nanmean(detections['sig'].values)
+                event['max_sig'] = np.nanmax(detections['sig'].values)
                 event['eventID'] = counter
                 event['frame_start'] = e[0]
                 event['frame_end'] = e[1]
@@ -828,8 +823,6 @@ class Detector():
                 event['mjd_end'] = self.time[e[1]]
                 event['yint'] = event['yint'].values.astype(int)
                 event['xint'] = event['xint'].values.astype(int)
-                event['yccd'] = event['yccd'].values.astype(int)
-                event['xccd'] = event['xccd'].values.astype(int)
                 event['sector'] = self.sector 
                 event['camera'] = self.cam
                 event['ccd'] = self.ccd
@@ -960,6 +953,11 @@ class Detector():
         results = detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,
                          row=row,mask=self.mask,inputNums=None,mode=mode,datadir=prf_path)
         results = self._wcs_time_info(results,cut)
+        av_var = pandas_weighted_avg(results[['objid','sig','xcentroid','ycentroid','ra','dec']])
+        results['x_source'] = av_var['xcentroid']; results['y_source'] = av_var['ycentroid']
+        results['e_x_source'] = av_var['e_xcentroid']; results['e_y_source'] = av_var['e_ycentroid']
+        results['ra_source'] = av_var['ra']; results['dec_source'] = av_var['dec']
+        results['e_ra_source'] = av_var['e_ra']; results['e_dec_source'] = av_var['e_dec']
         #try:
         gaia = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv')
         results = match_result_to_cat(deepcopy(results),gaia,columns=['Source'])
@@ -1001,7 +999,7 @@ class Detector():
 
         self.sources = results
         self._get_all_independent_events()
-        self._asteroid_checker()
+        #self._asteroid_checker()
         self.events['objid'] = self.events['objid'].astype(int)
         if self.time_bin is None:
             self.events.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_events.csv',index=False)
@@ -1112,7 +1110,7 @@ class Detector():
         return extension
 
 
-    def plot_ALL(self,cut,save_path=None,lower=3,starkiller=False,sig_image=2.5,sig_lc=2.5,save_lc=True,time_bin=None):
+    def plot_ALL(self,cut,save_path=None,lower=2,starkiller=False,sig_image=2.5,sig_lc=2.5,save_lc=True,time_bin=None):
         if time_bin is not None:
             self.time_bin = time_bin
         detections = self.count_detections(cut=cut,lower=lower,starkiller=starkiller,sig_lc=sig_lc,sig_image=sig_image)

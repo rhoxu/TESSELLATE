@@ -225,36 +225,14 @@ def join_cats(obs_cat, viz_cat,rad = 2):
     return joined
 
 
+def cross_match_DB(cat1,cat2,radius):
+    coords1 = SkyCoord(ra=cat1['ra'].values, dec=cat1['dec'].values, unit='deg')
+    coords1 = SkyCoord(ra=cat2['ra'].values, dec=cat2['dec'].values, unit='deg')
+    idx, d2d, d3d = cat1.match_to_catalog_3d(cat2)
+    sep_constraint = d2d <= radius_threshold
 
-
-
-def cross_match_DB(cat1,cat2,distance=2*21,njobs=-1):
-    all_ra = np.append(cat1['ra'].values,cat2['ra'].values)
-    all_dec = np.append(cat1['dec'].values,cat2['dec'].values)
-    cat2_ind = len(cat1)
-
-    p = np.array([all_ra,all_dec]).T
-    cluster = DBSCAN(eps=distance/60**2,min_samples=2,n_jobs=njobs).fit(p)
-    labels = cluster.labels_
-    unique_labels = set(labels)
-    cat1_id = []
-    cat2_id = []
-
-    for label in unique_labels:
-        if label > -1:
-            inds = np.where(labels == label)[0]
-            if (inds < cat2_ind).any() & (inds > cat2_ind).any():
-                if len(inds) > 2:
-                    dra = all_ra[np.where(labels == label)[0]]
-                    ddec = all_dec[np.where(labels == label)[0]]
-                    d = (dra - dra[0])**2 + (ddec - ddec[0])**2
-                    args = np.argsort(d)
-                    good = inds[args] - cat2_ind > 0
-                    good[0] = True
-                    args = args[good]
-                    inds = inds[args[:2]]
-                cat1_id += [inds[0]]
-                cat2_id += [inds[1] - cat2_ind]
+    cat1_id = sep_constraint
+    cat2_id = idx[sep_constraint]
     return cat1_id,cat2_id
 
 def cross_match_tree(cat1,cat2,distance=2,ax1='ra',ax2='dec'):
@@ -282,8 +260,10 @@ def match_result_to_cat(result,cat,columns=['Type','Prob'],distance=2*21,min_ent
     for id in ids:
         if len(result.iloc[result['objid'].values == id]) >=min_entry:
             Id += [id]
-            ra += [result.loc[result['objid'] == id, 'ra'].mean()]
-            dec += [result.loc[result['objid'] == id, 'dec'].mean()]
+            ra += [result.ra_source] #[result.loc[result['objid'] == id, 'ra'].mean()]
+            dec += [result.dec_source] #[result.loc[result['objid'] == id, 'dec'].mean()]
+    radius = np.nanmax([result['e_ra_source'].values,result['e_dec_source'].values])
+    distance = radius*u.deg
     pos = {'objid':Id,'ra':ra,'dec':dec}
     pos = pd.DataFrame(pos)
     id_ind, cat_ind = cross_match_DB(pos,cat,distance) #cross_match_tree(pos,cat,distance/60**2)
@@ -298,3 +278,36 @@ def match_result_to_cat(result,cat,columns=['Type','Prob'],distance=2*21,min_ent
         for column in columns:
             result.loc[result['objid']==obj_id[i],column] = cat[column].values[cat_ind[i]]
     return result 
+
+
+def serious_source_joining(sf,sd,radius=21*1.5):
+    """
+    Takes 2 dataframes sf and sd which need to contain the following columns:
+    objid, sig, method, frane
+    """
+    
+    avg_sf = weighted_average(sf)
+    avg_sf = avg_sf[np.isfinite(avg_sf.ra)]
+
+    avg_sd = weighted_average(sd)
+    avg_sd = avg_sd[np.isfinite(avg_sd.ra)]
+    # do the matching 
+    radius_threshold = radius*u.arcsec
+    coords_sf = SkyCoord(ra=avg_sf.ra.values, dec=avg_sf.dec.values, unit='deg')
+    coords_sd = SkyCoord(ra=avg_sd.ra.values, dec=avg_sd.dec.values, unit='deg')
+    idx, d2d, d3d = coords_sf.match_to_catalog_3d(coords_sd)
+    sep_constraint = d2d <= radius_threshold
+    # sort out indicies
+
+    matched_ids = zip(avg_sd.loc[idx[sep_constraint],'objid'].values,avg_sf.loc[sep_constraint,'objid'].values)
+    unmatched_ids = avg_sd.loc[idx[~sep_constraint],'objid'].values
+    replace_dict = dict(matched_ids)
+    sd['objid'] = sd['objid'].replace(replace_dict)
+    new_ids = np.arange(1,len(unmatched_ids)) + sf['objid'].max()
+    replace_dict = dict(zip(unmatched_ids,new_ids))
+    sd['objid'] = sd['objid'].replace(replace_dict)
+    b = pd.concat([sf,sd])    
+    b_cleaned = b[~b.duplicated(subset=['objid', 'frame'], keep='first')]
+    b_cleaned
+    
+    return b_cleaned

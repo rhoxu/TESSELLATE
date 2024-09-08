@@ -1,6 +1,7 @@
 import numpy as np
 import os
 from astropy.io import fits
+import pandas as pd
 
 def _Save_space(Save,delete=False):
     """
@@ -195,3 +196,29 @@ def delete_files(filetype,data_path,sector,n=4,cams='all',ccds='all',cuts='all',
     else:
         e = 'Invalid filetype! Valid types: "ffis" , "cubes" , "cuts" , "reductions" , "search", "plot". '
         raise AttributeError(e)
+    
+    
+def weighted_avg_var(group, weight_col):
+    weighted_stats = {}
+    numeric_cols = group.select_dtypes(include='number').columns  # Select only numeric columns
+    miss = ['Prob','n_detections','GaiaID','flux_sign',
+            'ra_source','x_source','y_source','dec_source',
+            'e_ra_source','e_x_source','e_y_source','e_dec_source',
+            'source_mask']
+    for col in numeric_cols:
+        if (col != 'objid') & (col not in miss):  # Exclude the weight column itself
+            # Compute the weighted average using nansum
+            weighted_avg = np.nansum(group[col] * group[weight_col]) / np.nansum(group[weight_col])
+            # Compute the weighted variance using nansum
+            variance = np.nansum(group[weight_col] * (group[col] - weighted_avg) ** 2) / np.nansum(group[weight_col])
+            # Store both weighted average and variance
+            weighted_stats[col] = weighted_avg
+            weighted_stats[f'e_{col}'] = variance
+        else:
+            weighted_stats[col] = group[col].iloc[0]
+    return pd.Series(weighted_stats)
+
+
+def pandas_weighted_avg(df,weight_col='sig'):
+    df = df.groupby('objid').apply(weighted_avg_var, weight_col=weight_col,include_groups=False).reset_index()
+    return df
