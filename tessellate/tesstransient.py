@@ -70,7 +70,7 @@ class TessTransient():
         self.working_path = working_path
 
         self._location_observed()
-        #_ = self._sector_suggestions()
+        _ = self._sector_suggestions()
 
         self.ErrorEllipse = None
         self.neighbours = None
