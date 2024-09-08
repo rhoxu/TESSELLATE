@@ -202,32 +202,36 @@ def _process_detection(star,parallel=False):
     star['psfdiff'] = psfdiff
     return star
 
-def find_stars(data,prf,fwhmlim=7,siglim=2.5,bkgstd_lim=50,negative=False):
+def find_stars(data,prf,fwhmlim=7,siglim=2,bkgstd_lim=50,negative=False):
     if negative:
         data = data * -1
-    star = _star_finding_procedure(data,prf,sig_limit=2)
-    ind = star['fwhm'].values < fwhmlim
+    star = _star_finding_procedure(data,prf,sig_limit=1)
+    ind = (star['fwhm'].values < fwhmlim) & (star['fwhm'].values > 0.8)
     pos_ind = ((star.xcentroid.values >=3) & (star.xcentroid.values < data.shape[1]-3) & 
                 (star.ycentroid.values >=3) & (star.ycentroid.values < data.shape[0]-3))
     star = star.iloc[ind & pos_ind]
 
     x = (star.xcentroid.values + 0.5).astype(int); y = (star.ycentroid.values + 0.5).astype(int)
     pos = list(zip(x, y))
-    #aperture = RectangularAperture(pos, 3.0, 3.0)
-    aperture = CircularAperture(pos, 1.5)
-    annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=15,h_out=15)
+    aperture = RectangularAperture(pos, 3.0, 3.0)
+    #aperture = CircularAperture(pos, 1.5)
+    annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=20,h_out=20)
     m = sigma_clip(data,masked=True,sigma=5).mask
     mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
     aperstats_sky = ApertureStats(data, annulus_aperture,mask = mask)
+    annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=40,h_out=40)
+    aperstats_sky_no_mask = ApertureStats(data, annulus_aperture)
     aperstats_source = ApertureStats(data, aperture)
     phot_table = aperture_photometry(data, aperture)
     phot_table = phot_table.to_pandas()
 
-    negative_ind = aperstats_source.min >= aperstats_sky.median - 3* aperstats_sky.std
-    star['sig'] = phot_table['aperture_sum'].values / (aperture.area * aperstats_sky.std)
+    bkg_std = aperstats_sky.std
+    bkg_std[bkg_std==0] = aperstats_sky_no_mask.std # assign a value without mask using a larger area of sky
+    negative_ind = aperstats_source.min >= aperstats_sky.median - 3* bkg_std
+    star['sig'] = phot_table['aperture_sum'].values / (aperture.area * bkg_std)
     star['flux'] = phot_table['aperture_sum'].values
     star['mag'] = -2.5*np.log10(phot_table['aperture_sum'].values)
-    star['bkgstd'] = aperture.area * aperstats_sky.std
+    star['bkgstd'] = aperture.area * bkg_std
     star = star.iloc[negative_ind]
     star = star.loc[(star['sig'] > siglim) & (star['bkgstd'] < bkgstd_lim)]
     ind, psfcor, psfdiff, ypos ,xpos = _correlation_check(star,data,prf,corlim=0,psfdifflim=1,position=True)
@@ -333,7 +337,7 @@ def _do_photometry(star,data,siglim=3,bkgstd_lim=50):
     return star 
 
 
-def _source_detect(flux,inputNum,prf,corlim,psfdifflim,cpu,siglim=5,bkgstd=50):
+def _source_detect(flux,inputNum,prf,corlim,psfdifflim,cpu,siglim=2.5,bkgstd=50):
     res = SourceDetect(flux,run=True,train=False).result
     #res = _spatial_group(res,2)
     frames = res['frame'].unique()
@@ -369,20 +373,21 @@ def _make_dataframe(results,data):
     
 
 def _main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
-
+    print('Starting source detection')
     length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
     if mode == 'starfind':
-        results = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
+        results = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
+        print('found sources')
         results = _make_dataframe(results,flux[0])
         results['method'] = 'starfind'
     elif mode == 'sourcedetect':
-        results = _source_detect(flux,inputNum,prf,corlim,psfdifflim,int(multiprocessing.cpu_count()))
+        results = _source_detect(flux,inputNum,prf,corlim,psfdifflim,int(multiprocessing.cpu_count()/2))
         results['method'] = 'sourcedetect'
     elif mode == 'both':
-        results = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
+        results = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
         star = _make_dataframe(results,flux[0])
         star['method'] = 'starfind'
-        machine = _source_detect(flux,inputNum,prf,corlim,psfdifflim,int(multiprocessing.cpu_count()))
+        machine = _source_detect(flux,inputNum,prf,corlim,psfdifflim,int(multiprocessing.cpu_count()/2))
         machine['method'] = 'sourcedetect'
         total = [star,machine]
         total = pd.concat(total)
