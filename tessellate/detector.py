@@ -333,11 +333,11 @@ def _do_photometry(star,data,siglim=3,bkgstd_lim=50):
     return star 
 
 
-def _source_detect(flux,inputNum,prf,corlim,psfdifflim,cpu,siglim=3,bkgstd=50):
+def _source_detect(flux,inputNum,prf,corlim,psfdifflim,cpu,siglim=5,bkgstd=50):
     res = SourceDetect(flux,run=True,train=False).result
     #res = _spatial_group(res,2)
     frames = res['frame'].unique()
-    stars = Parallel(n_jobs=cpu)(delayed(_do_photometry)(res.loc[res['frame'] == frame],flux[frame]) for frame in frames)
+    stars = Parallel(n_jobs=cpu)(delayed(_do_photometry)(res.loc[res['frame'] == frame],flux[frame],siglim,bkgstd) for frame in frames)
     res = pd.concat(stars)
 
     ind = (res['xint'].values > 3) & (res['xint'].values < flux.shape[2]-3) & (res['yint'].values >3) & (res['yint'].values < flux.shape[1]-3)
@@ -372,17 +372,17 @@ def _main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
 
     length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
     if mode == 'starfind':
-        results = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
+        results = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
         results = _make_dataframe(results,flux[0])
         results['method'] = 'starfind'
     elif mode == 'sourcedetect':
-        results = _source_detect(flux,inputNum,prf,corlim,psfdifflim,int(multiprocessing.cpu_count()/2))
+        results = _source_detect(flux,inputNum,prf,corlim,psfdifflim,int(multiprocessing.cpu_count()))
         results['method'] = 'sourcedetect'
     elif mode == 'both':
-        results = Parallel(n_jobs=int(multiprocessing.cpu_count()*2/3))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
+        results = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
         star = _make_dataframe(results,flux[0])
         star['method'] = 'starfind'
-        machine = _source_detect(flux,inputNum,prf,corlim,psfdifflim,int(multiprocessing.cpu_count()*2/3))
+        machine = _source_detect(flux,inputNum,prf,corlim,psfdifflim,int(multiprocessing.cpu_count()))
         machine['method'] = 'sourcedetect'
         total = [star,machine]
         total = pd.concat(total)
@@ -978,10 +978,7 @@ class Detector():
         wcs_save[0].header['NAXIS1'] = self.wcs._naxis[0]
         wcs_save[0].header['NAXIS2'] = self.wcs._naxis[1]
         wcs_save.writeto(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits',overwrite=True)
-        if self.time_bin is None:
-            results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv',index=False)
-        else:
-            results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources_tbin{self.time_bin_name}d.csv',index=False)
+        
         results['bkg_level'] = 0
         if self.bkg is not None:
             f = results['frame'].values
@@ -1005,6 +1002,11 @@ class Detector():
             self.events.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_events.csv',index=False)
         else:
             self.events.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_events_tbin{self.time_bin_name}d.csv',index=False)
+        # Save detected sources out last in the event it is massive. 
+        if self.time_bin is None:
+            results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv',index=False)
+        else:
+            results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources_tbin{self.time_bin_name}d.csv',index=False)
 
     def plot_results(self,cut):
 
