@@ -36,7 +36,7 @@ from scipy.ndimage import convolve
 from sourcedetect import SourceDetect
 
 from .catalog_queries import find_variables, gaia_stars, match_result_to_cat
-from .tools import pandas_weighted_avg
+from .tools import pandas_weighted_avg, consecutive_points
 
 # -- Primary Detection Functions -- #
 
@@ -202,7 +202,7 @@ def _process_detection(star,parallel=False):
     star['psfdiff'] = psfdiff
     return star
 
-def find_stars(data,prf,fwhmlim=7,siglim=2,bkgstd_lim=50,negative=False):
+def find_stars(data,prf,fwhmlim=7,siglim=2.5,bkgstd_lim=50,negative=False):
     if negative:
         data = data * -1
     star = _star_finding_procedure(data,prf,sig_limit=2)
@@ -320,7 +320,7 @@ def _parallel_correlation_check(source,data,prf,corlim,psfdifflim):
 
 
 
-def _do_photometry(star,data,siglim=2,bkgstd_lim=50):
+def _do_photometry(star,data,siglim=3,bkgstd_lim=50):
     x = (star.xcentroid.values + 0.5).astype(int); y = (star.ycentroid.values + 0.5).astype(int)
     pos = list(zip(x, y))
     aperture = CircularAperture(pos, 1.5)
@@ -432,7 +432,7 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdiff
         
     t1 = t()
     print(len(frame))
-    frame = _spatial_group(frame,distance=1.5)
+    frame = _spatial_group(frame,distance=1)
     frame = frame[~frame.duplicated(subset=['objid', 'frame'], keep='first')]
     print(len(frame))
     print(f'Spatial Group: {(t()-t1):.1f} sec')
@@ -610,7 +610,7 @@ class Detector():
         self.flux = flux
         self.bkg = bkg
     
-    def _check_lc_significance(self,event,buffer = 0.5,base_range=1):
+    def _check_lc_significance(self,event,buffer = 0.5,base_range=1,sig_lc=False):
         time_per_frame = self.time[1] - self.time[0]
         buffer = int(buffer/time_per_frame)
         base_range = int(base_range/time_per_frame)
@@ -638,6 +638,8 @@ class Detector():
         std = np.nanstd(lc[ind])
         lcevent = lc[event['frame_start'].values[0]:event['frame_end'].values[0]]
         lc_sig = (lcevent - med) / std
+        if sig_lc:
+            return lc_sig * event['flux_sign'].values[0]
         if event['flux_sign'].values >= 0:
             sig_max = np.nanmax(lc_sig)
             sig_med = np.nanmean(lc_sig)
@@ -824,7 +826,7 @@ class Detector():
                 obj.loc[ind,'eventID'] = counter
                 detections = deepcopy(obj.iloc[ind])
                 detections = detections.drop(columns='Type')
-
+                triggers = detections['frame'].values
                 #av = np.average(detections.values,axis=0,weights=detections['sig'].values)
                 event = pandas_weighted_avg(detections)
                 #event = pd.DataFrame(data = [av],columns=detections.keys())#deepcopy(detections.mean().to_frame().T)
@@ -856,7 +858,7 @@ class Detector():
                 sig_max, sig_med = self._check_lc_significance(event,buffer=buffer,base_range=base_range)
                 event['lc_sig'] = sig_max
                 event['lc_sig_med'] = sig_med
-                
+                event = self._lightcurve_event_checker(event.copy(),triggers,siglim=3)
                 events += [event]
                 counter += 1
             
@@ -882,6 +884,62 @@ class Detector():
                 events += [e]
         events = pd.concat(events,ignore_index=True)
         self.events = events 
+    
+
+    
+    def _lightcurve_event_checker(self,event,im_triggers,siglim=3):
+        lc_sig = self._check_lc_significance(sig_lc=True)
+        sig_ind = np.where(lc_sig>= siglim)[0]
+        segments = consecutive_points(sig_ind)
+        triggers = np.zeros_like(lc_sig)
+
+        min_ind = event['frame_start'].values
+        max_ind = event['frame_end'].values
+        triggers[im_triggers] = 1
+        detections = 0
+        for segment in segments:
+            if np.sum(triggers[segment]) > 0:
+                triggers[segment] = 1
+                if np.min(segment) < min_ind:
+                    min_ind = np.min(segment)
+                if np.max(segment) < max_ind:
+                    max_ind = np.min(segment)
+                detections += len(segment)
+        if detections > 0:
+            detections = np.sum(triggers).astype(int)
+            event.loc['frame_start'] = min_ind
+            event.loc['frame_end'] = max_ind
+            event.loc['duration'] = max_ind - min_ind
+            event['mjd_start'] = self.time[min_ind]
+            event['mjd_end'] = self.time[max_ind]
+            event['n_detections'] = detections
+
+            event.loc['lc_sig'] = np.nanmax(lc_sig[min_ind:max_ind])
+            event.loc['lc_sig_med'] = np.nanmedian(lc_sig[min_ind:max_ind])
+        return event
+        
+                
+            
+        
+        
+        
+        
+        tarr = sig_lc >= siglim
+        temp = np.insert(tarr,0,False)
+        temp = np.insert(temp,-1,False)
+        detections = np.where(temp)[0]
+        if len(detections) > 1:
+            testf = np.diff(np.where(temp)[0])
+            testf = np.insert(testf,-1,0)
+        else:
+            testf = np.array([0,0])
+        indf = np.where(temp)[0]
+        
+        testf = np.diff(np.where(~temp)[0] -1 )
+        indf = np.where(~temp)[0] - 1
+        testf[testf == 1] = 0
+        testf = np.append(testf,0)
+        
 
     def _gather_results(self,cut):
         path = f'{self.path}/Cut{cut}of{self.n**2}'
@@ -986,7 +1044,7 @@ class Detector():
         av_var = av_var.rename(columns={'xcentroid':'x_source','ycentroid':'y_source','e_xcentroid':'e_x_source',
                                         'e_ycentroid':'e_y_source','ra':'ra_source','dec':'dec_source',
                                         'e_ra':'e_ra_source','e_dec':'e_dec_source','xccd':'xccd_source',
-                                        'yccd':'yccd_source','e_xcd':'e_xccd_source',
+                                        'yccd':'yccd_source','e_xccd':'e_xccd_source',
                                         'e_yccd':'e_yccd_source'})
         av_var = av_var.drop(['sig','e_sig'],axis=1)
         results = results.merge(av_var, on='objid', how='left')
@@ -1085,7 +1143,7 @@ class Detector():
         if sig_lc is not None:
             r = r.loc[r['lc_sig']>=sig_lc]
         if sig_image is not None:
-            r = r.loc[r['sig'] >= sig_image]
+            r = r.loc[r['max_sig'] >= sig_image]
         if max_events is not None:
             r = r.loc[r['total_events'] <= max_events]
         #array = r['objid'].values
