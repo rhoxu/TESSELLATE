@@ -220,9 +220,9 @@ def weighted_avg_var(group, weight_col):
     for col in numeric_cols:
         if (col != 'objid') & (col not in miss):  # Exclude the weight column itself
             # Compute the weighted average using nansum
-            weighted_avg = np.nansum(group[col] * group[weight_col]) / np.nansum(group[weight_col])
+            weighted_avg = np.ma.masked_invalid(group[col] * group[weight_col]).sum() / np.ma.masked_invalid(group[weight_col]).sum()
             # Compute the weighted variance using nansum
-            variance = np.nansum(group[weight_col] * (group[col] - weighted_avg) ** 2) / np.nansum(group[weight_col])
+            variance = np.ma.masked_invalid(group[weight_col] * (group[col] - weighted_avg) ** 2).sum() / np.ma.masked_invalid(group[weight_col]).sum()
             # Store both weighted average and variance
             weighted_stats[col] = weighted_avg
             weighted_stats[f'e_{col}'] = variance
