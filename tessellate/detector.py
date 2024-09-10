@@ -739,7 +739,7 @@ class Detector():
                 peak_freq = [0]
         return peak_freq, peak_power
     
-    def isolate_events(self,objid,frame_buffer=20,duration=1,buffer=0.5,base_range=1):
+    def isolate_events(self,objid,frame_buffer=20,duration=2,buffer=1,base_range=1):
         """_summary_
 
         Args:
@@ -859,8 +859,10 @@ class Detector():
                 sig_max, sig_med, sig_lc = self._check_lc_significance(event,buffer=buffer,base_range=base_range)
                 event['lc_sig'] = sig_max
                 event['lc_sig_med'] = sig_med
-                event = self._lightcurve_event_checker(event.copy(),sig_lc,triggers,siglim=3)
-                events += [event]
+                print(f'{event['objid'].values} before: ',event['frame_start'].values,event['frame_end'].values)
+                event2 = self._lightcurve_event_checker(event.copy(),sig_lc,triggers,siglim=3)
+                print('after: ',event2['frame_start'].values,event2['frame_end'].values)
+                events += [event2]
                 counter += 1
             
         events = pd.concat(events,ignore_index=True)
@@ -873,6 +875,7 @@ class Detector():
         return events 
 
     def _get_all_independent_events(self,frame_buffer=20,duration=1,buffer=0.5,base_range=1,cpu=1):
+        cpu = 1
         ids = np.unique(self.sources['objid'].values).astype(int)
         if cpu > 1:
             length = np.arange(0,len(ids)).astype(int)
@@ -902,28 +905,29 @@ class Detector():
                 triggers[segment] = 1
                 if np.min(segment) < min_ind:
                     min_ind = np.min(segment)
-                if np.max(segment) < max_ind:
+                if np.max(segment) > max_ind:
                     max_ind = np.max(segment)
                 detections += len(segment)
         if max_ind > len(lc_sig) :
             max_ind = len(lc_sig)
-        if (detections > 0) & (max_ind != min_ind):
-            #if detections > event['n_detections'].values:
-            #    print('Found more points!!')
+        if (detections > 0) & (max_ind > min_ind):
+            if detections > event['n_detections'].values:
+                print('Found more points!!')
+                print(event['n_detections'])
             detections = np.sum(triggers).astype(int)
-            event.loc['frame_start'] = min_ind
-            event.loc['frame_end'] = max_ind
-            event.loc['duration'] = max_ind - min_ind
+            event['frame_start'] = min_ind
+            event['frame_end'] = max_ind
+            event['duration'] = max_ind - min_ind
             event['mjd_start'] = self.time[min_ind]
             event['mjd_end'] = self.time[max_ind]
             event['n_detections'] = detections
-            event.loc['lc_sig'] = np.nanmax(lc_sig[min_ind:max_ind])
-            event.loc['lc_sig_med'] = np.nanmedian(lc_sig[min_ind:max_ind])
+            event['lc_sig'] = np.nanmax(lc_sig[min_ind:max_ind])
+            event['lc_sig_med'] = np.nanmedian(lc_sig[min_ind:max_ind])
+            if detections > event['n_detections'].values:
+                print('Found more points!!')
+                print(event['n_detections'])
         return event
-        
-                
-            
-        
+
         
         
         
@@ -1217,7 +1221,7 @@ class Detector():
         self.events = detections
         inds = detections['objid'].unique()
         print('Total events to plot: ', len(detections))
-        events = Parallel(n_jobs=int(multiprocessing.cpu_count()/2))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path) for ind in inds)
+        events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path) for ind in inds)
         print('Plot complete!')
         
 
@@ -1366,11 +1370,14 @@ class Detector():
             xmin = x -9
             if xmin < 0:
                 xmin = 0
-            bright_frame = self.flux[brightestframe,y-1:y+2,x-1:x+2]
+            bright_frame = self.flux[brightestframe,y-2:y+3,x-2:x+3]
             vmin = np.percentile(self.flux[brightestframe],16)
             #if vmin > -5:
             #   vmin =-5
-            vmax = np.percentile(bright_frame,80)
+            try:
+                vmax = np.percentile(bright_frame,80)
+            except:
+                vmax = vmin + 20
             if vmin >= vmax:
                 vmin = vmax - 5
             #   vmax = 10
@@ -1430,7 +1437,7 @@ class Detector():
                         extension = 'star'
                     else:
                         extension = 'no_star'
-                sp += '/' + extension
+                    sp += '/' + extension
                 #splc += '/' + extension
                 self._check_dirs(sp)
                 #self._check_dirs(splc)
@@ -1441,6 +1448,8 @@ class Detector():
                             extension = source['Type']
                         else:
                             extension = self.period_bin(source['peak_freq'],source['peak_power'])
+                    if type(extension) != str:
+                        extension = 'none'
                     sp += '/' + extension
                     self._check_dirs(sp)
                     #splc += '/' + extension
