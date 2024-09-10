@@ -610,7 +610,7 @@ class Detector():
         self.flux = flux
         self.bkg = bkg
     
-    def _check_lc_significance(self,event,buffer = 0.5,base_range=1):
+    def _check_lc_significance(self,start,end,flux_sign,buffer = 0.5,base_range=1):
         time_per_frame = self.time[1] - self.time[0]
         buffer = int(buffer/time_per_frame)
         base_range = int(base_range/time_per_frame)
@@ -618,8 +618,8 @@ class Detector():
         y = event.yint.values.astype(int)[0]
         x = event.xint.values.astype(int)[0]
         lc = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(1,2))
-        fs = event['frame_start'].values[0] - buffer
-        fe = event['frame_end'].values[0] + buffer
+        fs = start - buffer
+        fe = end + buffer
         if fs < 0:
             fs = 0
         if fe > len(lc):
@@ -636,10 +636,10 @@ class Detector():
         #mean,med, std = sigma_clipped_stats(lc[ind])
         med = np.nanmedian(lc[ind])
         std = np.nanstd(lc[ind])
-        lcevent = lc[event['frame_start'].values[0]:event['frame_end'].values[0]]
+        lcevent = lc[start:end]
         lc_sig = (lcevent - med) / std
 
-        if event['flux_sign'].values >= 0:
+        if flux_sign >= 0:
             sig_max = np.nanmax(lc_sig)
             sig_med = np.nanmean(lc_sig)
             
@@ -648,14 +648,12 @@ class Detector():
             sig_med = abs(np.nanmean(lc_sig))
         
         lc_sig = (lc - med) / std
-        return sig_max, sig_med, lc_sig * event['flux_sign'].values[0]
+        return sig_max, sig_med, lc_sig * flux_sign
     
     def _asteroid_checker(self,asteroid_distance=3,asteroid_correlation=0.9,asteroid_duration=1):
 
         events = deepcopy(self.events)
-
         time = self.time - self.time[0]
-
         for source in self.events.iterrows():
             source = source[1]
             
@@ -826,11 +824,16 @@ class Detector():
                 detections = deepcopy(obj.iloc[ind])
                 detections = detections.drop(columns='Type')
                 triggers = detections['frame'].values
+                
                 #triggers[triggers>=len(self.time)] = len(self.time) -1 
                 #av = np.average(detections.values,axis=0,weights=detections['sig'].values)
                 event = pandas_weighted_avg(detections)
                 event['objid'] = detections['objid'].values[0]
+                sig_max, sig_med, sig_lc = self._check_lc_significance(int(e[0]),int(e[1]),event['flux_sign'].values,
+                                                                       buffer=buffer,base_range=base_range)
+                min_ind,max_ind,detections = self._lightcurve_event_checker(int(e[0]),int(e[1]),sig_lc,triggers,siglim=3)
                 #event = pd.DataFrame(data = [av],columns=detections.keys())#deepcopy(detections.mean().to_frame().T)
+                e[0] = min_ind; e[1] = max_ind
                 prfs = detections['psflike'].values
                 psfdiff = detections['psfdiff'].values
                 event['max_psflike'] = np.nanmax(prfs)
@@ -842,7 +845,7 @@ class Detector():
                 event['frame_start'] = int(e[0])
                 event['frame_end'] = int(e[1])
                 event['duration'] = e[1]-e[0]
-                event['n_detections'] = len(detections)
+                event['n_detections'] = detections#len(detections)
                 event['mjd_start'] = self.time[e[0]]
                 event['mjd_end'] = self.time[e[1]]
                 event['yint'] = event['yint'].values.astype(int)
@@ -856,26 +859,29 @@ class Detector():
                 event['peak_freq'] = peak_freq[0]
                 event['peak_power'] = peak_power[0]
                 event['variable'] = variable | np.isfinite(peak_power[0])
-                sig_max, sig_med, sig_lc = self._check_lc_significance(event,buffer=buffer,base_range=base_range)
+                
                 event['lc_sig'] = sig_max
                 event['lc_sig_med'] = sig_med
-                print(f'{event['objid'].values} before: ',event['frame_start'].values,event['frame_end'].values)
-                event2 = self._lightcurve_event_checker(event.copy(),sig_lc,triggers,siglim=3)
-                print('after: ',event2['frame_start'].values,event2['frame_end'].values)
+                #print(f'{event['objid'].values} before: ',event['frame_start'].values,event['frame_end'].values)
+                
+                #print('after: ',event2['frame_start'].values,event2['frame_end'].values)
+                if len(event2) == 0:
+                    event2 = event
                 events += [event2]
                 counter += 1
-            
-        events = pd.concat(events,ignore_index=True)
+        try:
+            events = pd.concat(events,ignore_index=True)
+        except:
+            print(len(events))
         events['total_events'] = len(events)
         
-        try:
-            events = events.drop('Unnamed: 0',axis=1)
-        except:
-            pass
+        #try:
+        #    events = events.drop('Unnamed: 0',axis=1)
+        #except:
+        #    pass
         return events 
 
     def _get_all_independent_events(self,frame_buffer=20,duration=1,buffer=0.5,base_range=1,cpu=1):
-        cpu = 1
         ids = np.unique(self.sources['objid'].values).astype(int)
         if cpu > 1:
             length = np.arange(0,len(ids)).astype(int)
@@ -890,14 +896,14 @@ class Detector():
     
 
     
-    def _lightcurve_event_checker(self,event,lc_sig,im_triggers,siglim=3):
+    def _lightcurve_event_checker(self,start,stop,lc_sig,im_triggers,siglim=3):
         #lc_sig = self._check_lc_significance(event,sig_lc=True)
         sig_ind = np.where(lc_sig>= siglim)[0]
         segments = consecutive_points(sig_ind)
         triggers = np.zeros_like(lc_sig)
 
-        min_ind = int(event['frame_start'].values)
-        max_ind = int(event['frame_end'].values)
+        min_ind = int(start)
+        max_ind = int(stop)
         triggers[im_triggers] = 1
         detections = 0
         for segment in segments:
@@ -908,25 +914,28 @@ class Detector():
                 if np.max(segment) > max_ind:
                     max_ind = np.max(segment)
                 detections += len(segment)
-        if max_ind > len(lc_sig) :
+        if max_ind > len(lc_sig):
             max_ind = len(lc_sig)
         if (detections > 0) & (max_ind > min_ind):
-            if detections > event['n_detections'].values:
-                print('Found more points!!')
-                print(event['n_detections'])
+            #if detections > event['n_detections'].values:
+            #    print('Found more points!!')
+            #    print(event['n_detections'].values)
             detections = np.sum(triggers).astype(int)
-            event['frame_start'] = min_ind
-            event['frame_end'] = max_ind
-            event['duration'] = max_ind - min_ind
-            event['mjd_start'] = self.time[min_ind]
-            event['mjd_end'] = self.time[max_ind]
-            event['n_detections'] = detections
-            event['lc_sig'] = np.nanmax(lc_sig[min_ind:max_ind])
-            event['lc_sig_med'] = np.nanmedian(lc_sig[min_ind:max_ind])
-            if detections > event['n_detections'].values:
-                print('Found more points!!')
-                print(event['n_detections'])
-        return event
+            #event['frame_start'] = min_ind
+            #event['frame_end'] = max_ind
+            #event['duration'] = max_ind - min_ind
+            #event['mjd_start'] = self.time[min_ind]
+            #event['mjd_end'] = self.time[max_ind]
+            #event['n_detections'] = detections
+            #event['lc_sig'] = np.nanmax(lc_sig[min_ind:max_ind])
+            #event['lc_sig_med'] = np.nanmedian(lc_sig[min_ind:max_ind])
+            #if detections > event['n_detections'].values:
+            #    print('Found more points!!')
+            #    print(event['n_detections'])
+        else:
+            max_ind = stop; min_ind = start
+            detections = np.sum(im_triggers).astype(int)
+        return min_ind,max_ind,detections#event
 
         
         
