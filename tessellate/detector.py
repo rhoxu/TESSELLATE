@@ -378,7 +378,8 @@ def _make_dataframe(results,data):
     
     frame['xint'] = deepcopy(np.round(frame['xcentroid'].values)).astype(int)
     frame['yint'] = deepcopy(np.round(frame['ycentroid'].values)).astype(int)
-    ind = (frame['xint'].values >3) & (frame['xint'].values < data.shape[1]-3) & (frame['yint'].values >3) & (frame['yint'].values < data.shape[0]-3)
+    ind = ((frame['xint'].values >3) & (frame['xint'].values < data.shape[1]-3) & 
+           (frame['yint'].values >3) & (frame['yint'].values < data.shape[0]-3))
     frame = frame[ind]
     return frame
     
@@ -387,21 +388,24 @@ def _main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
     print('Starting source detection')
     length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
     if mode == 'starfind':
-        results = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
+        results = Parallel(n_jobs=int(multiprocessing.cpu_count()*3/4))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
         print('found sources')
         results = _make_dataframe(results,flux[0])
         results['method'] = 'starfind'
     elif mode == 'sourcedetect':
-        results = _source_detect(flux,inputNum,prf,corlim,psfdifflim,int(multiprocessing.cpu_count()))
+        results = _source_detect(flux,inputNum,prf,corlim,psfdifflim,int(multiprocessing.cpu_count()*3/4))
         results['method'] = 'sourcedetect'
         results = results[~pd.isna(results['xcentroid'])]
     elif mode == 'both':
-        results = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
+        results = Parallel(n_jobs=int(multiprocessing.cpu_count()*2/3))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
+        print('boop')
         star = _make_dataframe(results,flux[0])
         star['method'] = 'starfind'
-        machine = _source_detect(flux,inputNum,prf,corlim,psfdifflim,int(multiprocessing.cpu_count()))
+        print('Done Starfind')
+        machine = _source_detect(flux,inputNum,prf,corlim,psfdifflim,int(multiprocessing.cpu_count()*3/4))
         machine = machine[~pd.isna(machine['xcentroid'])]
         machine['method'] = 'sourcedetect'
+        print('Done Sourcedetect')
         total = [star,machine]
         results = pd.concat(total)
 
@@ -610,13 +614,13 @@ class Detector():
         self.flux = flux
         self.bkg = bkg
     
-    def _check_lc_significance(self,start,end,flux_sign,buffer = 0.5,base_range=1):
+    def _check_lc_significance(self,start,end,pos,flux_sign,buffer = 0.5,base_range=1):
         time_per_frame = self.time[1] - self.time[0]
         buffer = int(buffer/time_per_frame)
         base_range = int(base_range/time_per_frame)
         ap = np.zeros_like(self.flux[0])
-        y = event.yint.values.astype(int)[0]
-        x = event.xint.values.astype(int)[0]
+        y = pos[1]#event.yint.values.astype(int)[0]
+        x = pos[0]#event.xint.values.astype(int)[0]
         lc = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(1,2))
         fs = start - buffer
         fe = end + buffer
@@ -754,6 +758,7 @@ class Detector():
         variable = abs(np.nanmean(source['flux_sign'].values)) <= 0.7
         counter = 1
         events = []
+        times = []
         for sign in source['flux_sign'].unique():
             obj = source.loc[source['flux_sign'] == sign]
             frames = obj.frame.values
@@ -829,46 +834,51 @@ class Detector():
                 #av = np.average(detections.values,axis=0,weights=detections['sig'].values)
                 event = pandas_weighted_avg(detections)
                 event['objid'] = detections['objid'].values[0]
-                sig_max, sig_med, sig_lc = self._check_lc_significance(int(e[0]),int(e[1]),event['flux_sign'].values,
+                pos = [int(event.xint.values),int(event.yint.values)]
+                sig_max, sig_med, sig_lc = self._check_lc_significance(int(e[0]),int(e[1]),pos,event['flux_sign'].values,
                                                                        buffer=buffer,base_range=base_range)
-                min_ind,max_ind,detections = self._lightcurve_event_checker(int(e[0]),int(e[1]),sig_lc,triggers,siglim=3)
+                min_ind,max_ind,n_detections = self._lightcurve_event_checker(int(e[0]),int(e[1]),sig_lc,triggers,siglim=3)
+                indo = [min_ind,max_ind]
                 #event = pd.DataFrame(data = [av],columns=detections.keys())#deepcopy(detections.mean().to_frame().T)
-                e[0] = min_ind; e[1] = max_ind
-                prfs = detections['psflike'].values
-                psfdiff = detections['psfdiff'].values
-                event['max_psflike'] = np.nanmax(prfs)
-                event['min_psfdiff'] = np.nanmin(psfdiff)
-                event['flux'] = np.nanmax(detections['flux'].values)
-                event['mag'] = np.nanmin(detections['mag'].values)
-                event['max_sig'] = np.nanmax(detections['sig'].values)
-                event['eventID'] = counter
-                event['frame_start'] = int(e[0])
-                event['frame_end'] = int(e[1])
-                event['duration'] = e[1]-e[0]
-                event['n_detections'] = detections#len(detections)
-                event['mjd_start'] = self.time[e[0]]
-                event['mjd_end'] = self.time[e[1]]
-                event['yint'] = event['yint'].values.astype(int)
-                event['xint'] = event['xint'].values.astype(int)
-                event['sector'] = self.sector 
-                event['camera'] = self.cam
-                event['ccd'] = self.ccd
-                event['cut'] = self.cut
-                
-                event['Type'] = obj['Type'].iloc[0]
-                event['peak_freq'] = peak_freq[0]
-                event['peak_power'] = peak_power[0]
-                event['variable'] = variable | np.isfinite(peak_power[0])
-                
-                event['lc_sig'] = sig_max
-                event['lc_sig_med'] = sig_med
-                #print(f'{event['objid'].values} before: ',event['frame_start'].values,event['frame_end'].values)
-                
-                #print('after: ',event2['frame_start'].values,event2['frame_end'].values)
-                if len(event2) == 0:
-                    event2 = event
-                events += [event2]
-                counter += 1
+                if indo not in times:
+                    times += [indo]
+                    e[0] = min_ind; e[1] = max_ind
+                    prfs = detections['psflike'].values
+                    psfdiff = detections['psfdiff'].values
+                    event['max_psflike'] = np.nanmax(prfs)
+                    event['min_psfdiff'] = np.nanmin(psfdiff)
+                    event['flux'] = np.nanmax(detections['flux'].values)
+                    event['mag'] = np.nanmin(detections['mag'].values)
+                    event['max_sig'] = np.nanmax(detections['sig'].values)
+                    event['eventID'] = counter
+                    event['frame_start'] = int(e[0])
+                    event['frame_end'] = int(e[1])
+                    event['duration'] = e[1]-e[0]
+                    event['n_detections'] = n_detections#len(detections)
+                    event['mjd_start'] = self.time[e[0]]
+                    event['mjd_end'] = self.time[e[1]]
+                    event['yint'] = event['yint'].values.astype(int)
+                    event['xint'] = event['xint'].values.astype(int)
+                    event['sector'] = self.sector 
+                    event['camera'] = self.cam
+                    event['ccd'] = self.ccd
+                    event['cut'] = self.cut
+                    
+                    event['Type'] = obj['Type'].iloc[0]
+                    event['peak_freq'] = peak_freq[0]
+                    event['peak_power'] = peak_power[0]
+                    event['variable'] = variable | np.isfinite(peak_power[0])
+                    
+                    event['lc_sig'] = sig_max
+                    event['lc_sig_med'] = sig_med
+                    #print(f'{event['objid'].values} before: ',event['frame_start'].values,event['frame_end'].values)
+                    
+                    #print('after: ',event2['frame_start'].values,event2['frame_end'].values)
+                    #if len(event2) == 0:
+                    #    event2 = event
+                    events += [event]
+                    counter += 1
+                    
         try:
             events = pd.concat(events,ignore_index=True)
         except:
