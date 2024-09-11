@@ -238,7 +238,7 @@ class Tessellate():
 
             search_time_sug = '20:00'
             search_cpu_sug = '32'
-            search_mem_req = 32
+            search_mem_req = 50
             
             plot_time_sug = '20:00'
             plot_cpu_sug = '32'
@@ -1387,7 +1387,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('cut' in self.overwrite):
-                delete_files('cuts',self.data_path,self.sector,self.n,self.cam,self.ccd,part=self.part)
+                delete_files('cuts',self.data_path,self.sector,self.n,self.cam,self.ccd,self.cuts,part=self.part)
 
         for cam in self.cam:
             for ccd in self.ccd: 
@@ -1507,7 +1507,7 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
 
         if (overwrite) & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('reduce' in self.overwrite):
-                delete_files('reductions',self.data_path,self.sector,self.n,self.cam,self.ccd,part=self.part)
+                delete_files('reductions',self.data_path,self.sector,self.n,self.cam,self.ccd,self.cuts,part=self.part)
 
         for cam in self.cam:
             for ccd in self.ccd: 
@@ -1648,7 +1648,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
 
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('search' in self.overwrite):
-                delete_files('search',self.data_path,self.sector,self.n,self.cam,self.ccd,part=self.part)
+                delete_files('search',self.data_path,self.sector,self.n,self.cam,self.ccd,self.cuts,part=self.part)
 
         for cam in self.cam:
             for ccd in self.ccd:
@@ -1783,7 +1783,7 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
         
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('plot' in self.overwrite):
-                delete_files('plot',self.data_path,self.sector,self.n,self.cam,self.ccd)
+                delete_files('plot',self.data_path,self.sector,self.n,self.cam,self.ccd,self.cuts,part=self.part)
 
         for cam in self.cam:
             for ccd in self.ccd:
