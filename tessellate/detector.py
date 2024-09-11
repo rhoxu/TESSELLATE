@@ -33,7 +33,7 @@ from scipy.optimize import curve_fit
 from scipy.stats import pearsonr
 from scipy.ndimage import convolve
 
-from sourcedetect import SourceDetect
+from sourcedetect import SourceDetect, PrfModel
 
 from .catalog_queries import find_variables, gaia_stars, match_result_to_cat
 from .tools import pandas_weighted_avg, consecutive_points
@@ -349,6 +349,8 @@ def _do_photometry(star,data,siglim=3,bkgstd_lim=50):
 
 
 def _source_detect(flux,inputNum,prf,corlim,psfdifflim,cpu,siglim=2,bkgstd=50):
+    #model = PrfModel(save_model=False)
+    #res = SourceDetect(flux,run=True,train=False,model=model).result
     res = SourceDetect(flux,run=True,train=False).result
     #res = _spatial_group(res,2)
     frames = res['frame'].unique()
@@ -755,7 +757,7 @@ class Detector():
         """
         obj_ind = self.sources['objid'].values == objid
         source = self.sources.iloc[obj_ind]
-        variable = abs(np.nanmean(source['flux_sign'].values)) <= 0.7
+        variable = abs(np.nanmean(source['flux_sign'].values)) <= 0.3
         counter = 1
         events = []
         times = []
@@ -1303,8 +1305,8 @@ class Detector():
             source = deepcopy(sources.iloc[i])
             #x = source.iloc[0]['xint'].astype(int)
             #y = source.iloc[0]['yint'].astype(int)
-            x = (source['xint']+0.5).astype(int)
-            y = (source['yint']+0.5).astype(int)
+            x = (source['xcentroid']+0.5).astype(int)
+            y = (source['ycentroid']+0.5).astype(int)
 
             #frames = source['frame'].values
             if include_periodogram:
