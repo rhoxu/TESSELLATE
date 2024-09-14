@@ -1346,7 +1346,7 @@ class Detector():
                 duration = time[frameEnd] - time[frameStart]
             else:
             #   ax[1].axvline(time[(frameEnd + frameStart)//2],color='C1')
-                duration = 0
+                duration = 2
             if zoo_mode:
                 ax[1].set_title('Is there a transient in the orange region?',fontsize=15)   
             else:
@@ -1357,8 +1357,12 @@ class Detector():
             insert_ylims = ax[1].get_ylim()
             for i in range(len(break_ind)-1):
                 ax[1].plot(time[break_ind[i]:break_ind[i+1]],f[break_ind[i]:break_ind[i+1]],'k',alpha=0.8)
-            ax[1].set_ylabel('Brightness',fontsize=15,labelpad=10)
-            ax[1].set_xlabel('Time (days)',fontsize=15)
+            if zoo_mode:
+                ax[1].set_ylabel('Brightness',fontsize=15,labelpad=10)
+                ax[1].set_xlabel('Time (days)',fontsize=15)
+            else:
+                ax[1].set_ylabel('Counts (e/s)',fontsize=15,labelpad=10)
+                ax[1].set_xlabel(f'Time (MJD - {np.round(self.time[0],3)})',fontsize=15)
             ylims = ax[1].get_ylim()
             ax[1].set_ylim(ylims[0],ylims[1]+(abs(ylims[0]-ylims[1])))
             ax[1].set_xlim(np.min(time),np.max(time))
@@ -1373,7 +1377,19 @@ class Detector():
             fe = frameEnd + 20
             if fe >= len(time):
                 fe = len(time) - 1
-            axins.set_xlim(time[fstart],time[fe])
+            duration = int(source['duration'])
+            if duration < 4:
+                duration = 4
+            xmin = frameStart - 3*duration
+            xmax = frameEnd + 3*duration
+            if xmin < 0:
+                xmin = 0
+            if xmax >= len(time):
+                xmax = len(time) - 1
+            xmin = time[xmin]
+            xmax = time[xmax]
+            #axins.set_xlim(time[fstart],time[fe])
+            axins.set_xlim(xmin,xmax)
             axins.set_ylim(insert_ylims[0],insert_ylims[1])
             mark_inset(ax[1], axins, loc1=3, loc2=4, fc="none", ec="r",lw=2)
             plt.setp(axins.spines.values(), color='r',lw=2)
