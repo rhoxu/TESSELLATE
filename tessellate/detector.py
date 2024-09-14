@@ -549,6 +549,7 @@ class Detector():
         self.time_bin = time_bin
 
         self.flux = None
+        self.ref = None
         self.time = None
         self.mask = None
         self.sources = None  #raw detection results
@@ -588,6 +589,7 @@ class Detector():
         base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'
         self.base_name = base
         self.flux = np.load(base + '_ReducedFlux.npy')
+        self.ref = np.load(base + '_Ref.npy')
         try:
             self.bkg = np.load(base + '_Background.npy')
         except:
@@ -761,6 +763,12 @@ class Detector():
         counter = 1
         events = []
         times = []
+        xx = (source['x_source'].values + .5); yy = (source['y'] + 0.5)
+        if len(xx) > 1:
+            xx = int(xx[0]); yy = int(yy[0])
+        else:
+            xx = int(xx); yy = int(yy)
+        ref_counts = np.nansum(self.ref[yy-1:yy+2,xx-1:xx+2])
         for sign in source['flux_sign'].unique():
             obj = source.loc[source['flux_sign'] == sign]
             frames = obj.frame.values
@@ -873,6 +881,7 @@ class Detector():
                     
                     event['lc_sig'] = sig_max
                     event['lc_sig_med'] = sig_med
+                    event['ref_counts'] = ref_counts
                     #print(f'{event['objid'].values} before: ',event['frame_start'].values,event['frame_end'].values)
                     
                     #print('after: ',event2['frame_start'].values,event2['frame_end'].values)
