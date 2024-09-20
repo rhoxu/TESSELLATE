@@ -763,7 +763,7 @@ class Detector():
         counter = 1
         events = []
         times = []
-        xx = (source['x_source'].values + .5); yy = (source['y_source'] + 0.5)
+        xx = (source['x_source'].values + .5); yy = (source['y_source'].values + 0.5)
         if len(xx) > 1:
             xx = int(xx[0]); yy = int(yy[0])
         else:
