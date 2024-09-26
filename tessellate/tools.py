@@ -51,8 +51,7 @@ def _remove_ffis(data_path,sector,n,cams,ccds,cuts,part):
     home_path = os.getcwd()
     for cam in cams:
         for ccd in ccds:
-            os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}')
-            os.system('rm -r -f image_files')
+            os.system(f'rm -r -f {data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/image_files')
 
     os.chdir(home_path)
 
@@ -63,15 +62,21 @@ def _remove_cubes(data_path,sector,n,cams,ccds,cuts,part):
         for ccd in ccds:
             if part:
                 for i in range(1,3):
-                    os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Part{i}')
+                    try:
+                        os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Part{i}')
+                        os.system(f'rm -f sector{sector}_cam{cam}_ccd{ccd}_cube.fits')
+                        os.system(f'rm -f sector{sector}_cam{cam}_ccd{ccd}_wcs.fits')
+                        os.system(f'rm -f cubed.txt')
+                    except:
+                        pass
+            else:
+                try:
+                    os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}')
                     os.system(f'rm -f sector{sector}_cam{cam}_ccd{ccd}_cube.fits')
                     os.system(f'rm -f sector{sector}_cam{cam}_ccd{ccd}_wcs.fits')
                     os.system(f'rm -f cubed.txt')
-            else:
-                os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}')
-                os.system(f'rm -f sector{sector}_cam{cam}_ccd{ccd}_cube.fits')
-                os.system(f'rm -f sector{sector}_cam{cam}_ccd{ccd}_wcs.fits')
-                os.system(f'rm -f cubed.txt')
+                except:
+                    pass
 
     os.chdir(home_path)
 
