@@ -21,7 +21,8 @@ class Tessellate():
                  reduce_time=None,reduce_cpu=None,search_time=None,search_cpu=None,
                  plot_time=None,plot_cpu=None,
                  download=None,make_cube=None,make_cuts=None,reduce=None,search=None,
-                 plot=None,delete=None,overwrite=None,reset_logs=None,detect_mode='both',time_bin=None):
+                 plot=None,delete=None,overwrite=None,reset_logs=None,detect_mode='both',time_bin=None,
+                 go=True):
         
         """
         Initialise.
@@ -147,71 +148,73 @@ class Tessellate():
 
         self.skip = []
 
-        # -- Confirm Run Properties -- #
-        message = self._run_properties() 
+        # -- Allows for no actual initialisation (TessTransient) -- #
+        if go:
+            # -- Confirm Run Properties -- #
+            message = self._run_properties() 
 
-        # -- Get time/cpu/memory suggestions depending on sector -- #
-        suggestions = self._sector_suggestions()  
+            # -- Get time/cpu/memory suggestions depending on sector -- #
+            suggestions = self._sector_suggestions()  
 
-        # -- Ask for which tessellation steps to perform -- #
-        message, download, make_cube, make_cuts, reduce, search, plot, delete = self._which_processes(message,download, make_cube, make_cuts, reduce, search, plot, delete)
+            # -- Ask for which tessellation steps to perform -- #
+            message, download, make_cube, make_cuts, reduce, search, plot, delete = self._which_processes(message,download, make_cube, make_cuts, reduce, search, plot, delete)
 
-        # -- Ask for inputs -- #
-        if download:
-            message = self._download_properties(message)
+            # -- Ask for inputs -- #
+            if download:
+                message = self._download_properties(message)
 
-        if make_cube:
-            message = self._cube_properties(message,suggestions[0])
-            _Save_space(f'{job_output_path}/tessellate_cubing_logs')
+            if make_cube:
+                message = self._cube_properties(message,suggestions[0])
+                _Save_space(f'{job_output_path}/tessellate_cubing_logs')
 
-        if make_cuts:
-            message = self._cut_properties(message,suggestions[1])
-            _Save_space(f'{job_output_path}/tessellate_cutting_logs')
+            if make_cuts:
+                message = self._cut_properties(message,suggestions[1])
+                _Save_space(f'{job_output_path}/tessellate_cutting_logs')
 
-        if reduce:
-            message = self._reduce_properties(message,make_cuts,suggestions[2])
-            _Save_space(f'{job_output_path}/tessellate_reduction_logs')
+            if reduce:
+                message = self._reduce_properties(message,make_cuts,suggestions[2])
+                _Save_space(f'{job_output_path}/tessellate_reduction_logs')
 
-        if search:
-            cutting_reducing = make_cuts | reduce
-            message = self._search_properties(message,cutting_reducing,suggestions[3])
-            _Save_space(f'{job_output_path}/tessellate_search_logs')
+            if search:
+                cutting_reducing = make_cuts | reduce
+                message = self._search_properties(message,cutting_reducing,suggestions[3])
+                _Save_space(f'{job_output_path}/tessellate_search_logs')
 
-        if plot:
-            message = self._plotting_properties(message,search,suggestions[4])
-            _Save_space(f'{job_output_path}/tessellate_plotting_logs')
+            if plot:
+                message = self._plotting_properties(message,search,suggestions[4])
+                _Save_space(f'{job_output_path}/tessellate_plotting_logs')
 
-        # -- Check for overwriting -- #
-        if overwrite != False:
-            message = self._overwrite_suggestions(message, make_cube, make_cuts, reduce, search,plot)
-        else:
-            self.overwrite = None
+            # -- Check for overwriting -- #
+            if overwrite != False:
+                message = self._overwrite_suggestions(message, make_cube, make_cuts, reduce, search,plot)
+            else:
+                self.overwrite = None
 
-        # -- Reset Job Logs -- #
-        if reset_logs != False:
-            message = self._reset_logs(message,make_cube,make_cuts,reduce,search,plot)
+            # -- Reset Job Logs -- #
+            if reset_logs != False:
+                message = self._reset_logs(message,make_cube,make_cuts,reduce,search,plot)
 
-        # -- Run Processes -- #
-        if download:
-            self.download(message)
+            # -- Run Processes -- #
+            if download:
+                self.download(message)
 
-        if make_cube:
-            self.make_cube()
-        
-        if make_cuts:
-            self.make_cuts(cubing=make_cube)
+            if make_cube:
+                self.make_cube()
+            
+            if make_cuts:
+                self.make_cuts(cubing=make_cube)
 
-        if reduce:
-            self.reduce()    
+            if reduce:
+                self.reduce()    
 
-        if search:
-            self.transient_search(reducing=reduce) 
-        
-        if plot:
-            self.transient_plot(searching=search)
+            if search:
+                self.transient_search(reducing=reduce) 
+            
+            if plot:
+                self.transient_plot(searching=search)
 
-        if delete:
-            delete_files(filetype='ffis',data_path=self.data_path,sector=self.sector,n=self.n,part=False)  
+            if delete:
+                delete_files(filetype='ffis',data_path=self.data_path,sector=self.sector,n=self.n,part=False)  
 
     def _sector_suggestions(self):
         """
