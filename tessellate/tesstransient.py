@@ -27,7 +27,7 @@ from shapely.geometry.point import Point
     
 class TessTransient():
     
-    def __init__(self,ra,dec,eventtime,data_path,job_output_path,working_path,error=0,n=4,verbose=1,run=False):
+    def __init__(self,ra,dec,eventtime,data_path,job_output_path,working_path,error=0,n=4,verbose=1,run=False,download=True):
         """
         Transient Localisation for TESS!
 
@@ -68,6 +68,8 @@ class TessTransient():
         self.data_path = data_path
         self.job_output_path = job_output_path
         self.working_path = working_path
+
+        self.download = download
 
         self._location_observed()
         _ = self._sector_suggestions()
@@ -781,7 +783,7 @@ class TessTransient():
 
         run = Tessellate(data_path=self.data_path,working_path=self.working_path,job_output_path=self.job_output_path,
                         sector=self.sector,cam=cam,ccd=ccd,n=self.n,cuts='all',
-                        download=True,download_number='all',
+                        download=self.download,download_number='all',
                         make_cube=True,cube_time=cubing[0],cube_mem=cubing[1],
                         make_cuts=True,cut_time=cutting[0],cut_mem=cutting[1],
                         reduce=True,reduce_time=reducing[0],reduce_cpu=reducing[1],
