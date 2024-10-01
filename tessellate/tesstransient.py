@@ -780,7 +780,7 @@ class TessTransient():
         self.part = t.part
 
         suggestions = np.array(suggestions)
-        suggestions = suggestions[:,:1]
+        suggestions = suggestions[:,:2]
 
         return suggestions
         
