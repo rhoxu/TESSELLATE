@@ -700,72 +700,89 @@ class TessTransient():
                 if type(item) == tuple:
                     self.neighbours.append(item[:-1])
 
+    # def _sector_suggestions(self):
+
+    #     primary_mission = range(1,28)       # ~1200 FFIs , 30 min cadence
+    #     secondary_mission = range(28,56)    # ~3600 FFIs , 10 min cadence
+    #     tertiary_mission = range(56,100)    # ~12000 FFIs , 200 sec cadence
+
+    #     self.part = False
+    #     if self.sector in primary_mission:
+    #         self._interval = 1/48
+    #         cube_time_sug = '45:00'
+    #         cube_mem_sug = 20
+
+    #         cut_time_sug = '20:00'
+    #         cut_mem_sug = 20
+
+    #         reduce_time_sug = '1:00:00'
+    #         reduce_cpu_sug = 32
+
+    #         search_time_sug = '20:00'
+    #         search_cpu_sug = 32
+            
+    #         plot_time_sug = '20:00'
+    #         plot_cpu_sug = 32
+
+    #     elif self.sector in secondary_mission:
+    #         self._interval = 1/(144)
+    #         cube_time_sug = '1:45:00'
+    #         cube_mem_sug = 20
+
+    #         cut_time_sug = '2:00:00'
+    #         cut_mem_sug = 20
+
+    #         reduce_time_sug = '1:15:00'
+    #         reduce_cpu_sug = 32
+
+    #         search_time_sug = '20:00'
+    #         search_cpu_sug = 32
+            
+    #         plot_time_sug = '20:00'
+    #         plot_cpu_sug = 32
+
+    #     elif self.sector in tertiary_mission:
+    #         self.part = True
+    #         self._interval = 200/86400
+    #         cube_time_sug = '6:00:00'
+    #         cube_mem_sug = 20
+
+    #         cut_time_sug = '3:00:00'
+    #         cut_mem_sug = 20
+
+    #         reduce_time_sug = '3:00:00'
+    #         reduce_cpu_sug = 32
+
+    #         search_time_sug = '1:00:00'
+    #         search_cpu_sug = 32
+            
+    #         plot_time_sug = '20:00'
+    #         plot_cpu_sug = 32
+
+    #     suggestions = [[cube_time_sug,cube_mem_sug],
+    #                    [cut_time_sug,cut_mem_sug],
+    #                    [reduce_time_sug,reduce_cpu_sug],
+    #                    [search_time_sug,search_cpu_sug],
+    #                    [plot_time_sug,plot_cpu_sug]]
+        
+    #     return suggestions
+    
+
     def _sector_suggestions(self):
 
-        primary_mission = range(1,28)       # ~1200 FFIs , 30 min cadence
-        secondary_mission = range(28,56)    # ~3600 FFIs , 10 min cadence
-        tertiary_mission = range(56,100)    # ~12000 FFIs , 200 sec cadence
-
-        self.part = False
-        if self.sector in primary_mission:
-            self._interval = 1/48
-            cube_time_sug = '45:00'
-            cube_mem_sug = 20
-
-            cut_time_sug = '20:00'
-            cut_mem_sug = 20
-
-            reduce_time_sug = '1:00:00'
-            reduce_cpu_sug = 32
-
-            search_time_sug = '20:00'
-            search_cpu_sug = 32
-            
-            plot_time_sug = '20:00'
-            plot_cpu_sug = 32
-
-        elif self.sector in secondary_mission:
-            self._interval = 1/(144)
-            cube_time_sug = '1:45:00'
-            cube_mem_sug = 20
-
-            cut_time_sug = '2:00:00'
-            cut_mem_sug = 20
-
-            reduce_time_sug = '1:15:00'
-            reduce_cpu_sug = 32
-
-            search_time_sug = '20:00'
-            search_cpu_sug = 32
-            
-            plot_time_sug = '20:00'
-            plot_cpu_sug = 32
-
-        elif self.sector in tertiary_mission:
-            self.part = True
-            self._interval = 200/86400
-            cube_time_sug = '6:00:00'
-            cube_mem_sug = 20
-
-            cut_time_sug = '3:00:00'
-            cut_mem_sug = 20
-
-            reduce_time_sug = '3:00:00'
-            reduce_cpu_sug = 32
-
-            search_time_sug = '1:00:00'
-            search_cpu_sug = 32
-            
-            plot_time_sug = '20:00'
-            plot_cpu_sug = 32
-
-        suggestions = [[cube_time_sug,cube_mem_sug],
-                       [cut_time_sug,cut_mem_sug],
-                       [reduce_time_sug,reduce_cpu_sug],
-                       [search_time_sug,search_cpu_sug],
-                       [plot_time_sug,plot_cpu_sug]]
+        t = Tessellate(data_path=self.data_path,sector=self.sector,cam=1,ccd=1,
+                       download=False,make_cube=False,make_cuts=False,reduce=False,
+                       search=False,plot=False,overwrite=False,reset_logs=False,delete=False)
         
+        suggestions = t._sector_suggestions()
+
+        self.part = t.part
+
+        suggestions = np.array(suggestions)
+        suggestions = suggestions[:,:1]
+
         return suggestions
+        
 
     def _run_tessellate(self,cam=None,ccd=None):
 
