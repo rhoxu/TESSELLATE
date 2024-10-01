@@ -805,11 +805,11 @@ class TessTransient():
         run = Tessellate(data_path=self.data_path,working_path=self.working_path,job_output_path=self.job_output_path,
                         sector=self.sector,cam=cam,ccd=ccd,n=self.n,cuts='all',
                         download=self.download,download_number='all',
-                        make_cube=True,cube_time=cubing[0],cube_mem=cubing[1],
-                        make_cuts=True,cut_time=cutting[0],cut_mem=cutting[1],
-                        reduce=True,reduce_time=reducing[0],reduce_cpu=reducing[1],
-                        search=True,search_time=searching[0],search_cpu=searching[1],
-                        plot=True,plot_time=plotting[0],plot_cpu=plotting[1],
+                        make_cube=True,cube_time=cubing[0],cube_mem=int(cubing[1][:-1]),
+                        make_cuts=True,cut_time=cutting[0],cut_mem=int(cutting[1][:-1]),
+                        reduce=True,reduce_time=reducing[0],reduce_cpu=int(reducing[1]),
+                        search=True,search_time=searching[0],search_cpu=int(searching[1]),
+                        plot=True,plot_time=plotting[0],plot_cpu=int(plotting[1]),
                         delete=False,reset_logs=False,overwrite=False)
         
     def run(self):
