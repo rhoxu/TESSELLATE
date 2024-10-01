@@ -206,6 +206,8 @@ def find_stars(data,prf,fwhmlim=7,siglim=2.5,bkgstd_lim=50,negative=False):
     if negative:
         data = data * -1
     star = _star_finding_procedure(data,prf,sig_limit=2)
+    if star is None:
+        return None
     ind = (star['fwhm'].values < fwhmlim) & (star['fwhm'].values > 0.8)
     pos_ind = ((star.xcentroid.values >=3) & (star.xcentroid.values < data.shape[1]-3) & 
                 (star.ycentroid.values >=3) & (star.ycentroid.values < data.shape[0]-3))
@@ -259,8 +261,8 @@ def _frame_detection(data,prf,corlim,psfdifflim,frameNum):
         #star = _star_finding_procedure(data,prf)
         p = find_stars(data,prf)
         n = find_stars(deepcopy(data),prf,negative=True)
-        star = pd.concat([p,n])
-        if star is not None:
+        if (p is not None) | (n is not None):
+            star = pd.concat([p,n])
             star['frame'] = frameNum
             #t2 = t()   
             #ind, cors,diff = _correlation_check(star,data,prf,corlim=corlim,psfdifflim=psfdifflim)
@@ -269,6 +271,8 @@ def _frame_detection(data,prf,corlim,psfdifflim,frameNum):
             #star['psfdiff'] = diff
             #star['flux_sign'] = 1
             #star = star[ind]
+        else:
+            star = None
     return star
 
 def _source_mask(res,mask):
