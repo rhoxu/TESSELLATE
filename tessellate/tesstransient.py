@@ -770,7 +770,8 @@ class TessTransient():
 
     def _sector_suggestions(self):
 
-        t = Tessellate(data_path=self.data_path,sector=self.sector,cam=1,ccd=1,
+        t = Tessellate(data_path=self.data_path,job_output_path='',working_path='',
+                       sector=self.sector,cam=1,ccd=1,
                        download=False,make_cube=False,make_cuts=False,reduce=False,
                        search=False,plot=False,overwrite=False,reset_logs=False,delete=False)
         
