@@ -256,9 +256,12 @@ class TessTransient():
             ccd = self.ccd
 
         data_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}'
-        if len(glob(f'{data_path}/image_files/*ffic.fits')) == 0:
-            data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=0)
-            data_processor.download(cam=cam,ccd=ccd,number=1)
+        
+        if not os.path.exists(f'{data_path}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits'):
+            if len(glob(f'{data_path}/image_files/*ffic.fits')) == 0:
+                data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=0)
+                data_processor.download(cam=cam,ccd=ccd,number=1)
+            
             
         wcsItem = _get_wcs(f'{data_path}/image_files',f'{data_path}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits')
         
