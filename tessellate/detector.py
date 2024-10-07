@@ -1551,7 +1551,7 @@ class Detector():
         return self.events[(self.events['ycentroid'].values < ycentroid+threshold) & (self.events['ycentroid'].values > ycentroid-threshold) & (self.events['xcentroid'].values < xcentroid+threshold) & (self.events['xcentroid'].values > xcentroid-threshold)]
 
     def full_ccd(self,psflike_lim=0,psfdiff_lim=1,savename=None):
-
+        from .dataprocessor import DataProcessor
         p = DataProcessor(sector=self.sector,path=self.data_path)
         lb,_,_,_ = p.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
 
