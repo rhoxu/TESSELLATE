@@ -260,13 +260,13 @@ class Tessellate():
             reduce_cpu_sug = '32'
             reduce_mem_req = 160
 
-            search_time_sug = '60:00'
+            search_time_sug = '30:00'
             search_cpu_sug = '32'
             search_mem_req = 70
             
             plot_time_sug = '20:00'
             plot_cpu_sug = '32'
-            plot_mem_req = 50
+            plot_mem_req = 70
 
         elif self.sector in tertiary_mission:
             self.part = True
