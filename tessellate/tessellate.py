@@ -1695,6 +1695,10 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                         seconds += 3600 * int(l[-3])
                     else:
                         l.insert(0,0)
+
+                    if (len(self.cam)>1) | (len(self.ccd)>1): 
+                        seconds = 42300
+
                     i = 0
                     while len(completed) < len(self.cuts):
                         if t()-tStart > seconds + 600:
@@ -1831,6 +1835,10 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                         seconds += 3600 * int(l[-3])
                     else:
                         l.insert(0,0)
+
+                    if (len(self.cam)>1) | (len(self.ccd)>1): 
+                        seconds = 42300
+                        
                     i = 0
                     while len(completed) < len(self.cuts):
                         if t()-tStart > seconds + 600:
