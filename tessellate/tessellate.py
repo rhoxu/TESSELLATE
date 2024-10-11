@@ -1334,6 +1334,9 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
         if len(l) == 3:
             seconds += 3600 * int(l[-3])
 
+        if (len(self.cam)>1) | (len(self.ccd)>1): 
+            seconds = 42300
+
         # -- Waits for cuts to be completed. If max time exceeded , return not done so cut process is restarted -- #
         completed = []
         message = 'Waiting for Cuts'
@@ -1407,6 +1410,10 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                         seconds = 1 * int(l[-1]) + 60 * int(l[-2])
                         if len(l) == 3:
                             seconds += 3600 * int(l[-3])
+
+                        if (len(self.cam)>1) | (len(self.ccd)>1): 
+                            seconds = 42300
+
                         go = False
                         message = 'Waiting for Cube'
                         i = 0
