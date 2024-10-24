@@ -49,10 +49,10 @@ def get_catalog(catalog, centre, radius,gaia=False):
     if gaia:
         t_result = v.query_region(coords, radius=radius*u.deg,
                                   catalog=catalog,
-                                  column_filters={'Gmag':'<19.5'})
+                                  column_filters={'Gmag':'<19.5'},cache=False)
     else:
         t_result = v.query_region(coords, radius=radius*u.deg,
-                                  catalog=catalog)
+                                  catalog=catalog,cache=False)
  
     if len(t_result) > 0:
         return t_result[catalog].to_pandas()
@@ -122,7 +122,7 @@ def gaia_stars(obs_cat,size=2*21,mag_limit=19.5):
                       dec=obs_cat.dec.values*u.deg)
     v = Vizier(row_limit=-1)
     gaia = v.query_region(coords, catalog=["I/355/gaiadr3"],
-                                 radius=Angle(size, "arcsec"),column_filters={'Gmag':f'<{mag_limit}'})
+                                 radius=Angle(size, "arcsec"),column_filters={'Gmag':f'<{mag_limit}'},cache=False)
     gaia = gaia['I/355/gaiadr3'].to_pandas()
     gaia = gaia.rename(columns={'RA_ICRS': 'ra',
                                 'DE_ICRS': 'dec'})
