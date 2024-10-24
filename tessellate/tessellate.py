@@ -1369,10 +1369,6 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                             rad2 = rad*21/60**2
                             create_external_var_cat(center=cutCentreCoords[cut-1],size=rad2,save_path=save_path) # This one queries in degrees!!!!
                             completed.append(cut)
-                            try:
-                                os.system('rm -r ~/.astropy/cache/astroquery/Vizier/*.pickle')
-                            except:
-                                pass
 
                 i += 1
 
