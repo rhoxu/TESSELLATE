@@ -1540,7 +1540,11 @@ class Detector():
         self.lc = [time,f]
         self.cutout = cutout_image
 
-        source.figure = event_cutout((source.ra,source.dec))
+        try:
+            source.figure = event_cutout((source.ra,source.dec))
+        except:
+            print('Weird Jupyter error for trying to display photometry of the region.')
+            print('Try "from tessellate.tools import event_cutout" , restart kernel.')
         
         #self.periodogram = period
         #self.frequencies = frequencies
@@ -1590,3 +1594,4 @@ class Detector():
                 pass
 
 
+    
