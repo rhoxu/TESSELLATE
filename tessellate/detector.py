@@ -1559,6 +1559,7 @@ class Detector():
             lines.append(line)
 
         for i,ax in enumerate(axes):
+            ax.scatter(source.x_centroid,source.y_centroid,color='green',marker='o',s=5)
             for j,line in enumerate(lines):
                 if j in [0,5,6,11]:
                     color = 'red'
