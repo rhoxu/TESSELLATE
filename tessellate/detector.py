@@ -1,3 +1,7 @@
+from time import time 
+
+ts = time()
+
 import lightkurve as lk
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -16,6 +20,8 @@ from scipy.signal import fftconvolve
 from scipy.ndimage import center_of_mass
 from sklearn.cluster import DBSCAN
 
+print((time()-ts))
+ts = time()
 
 import multiprocessing
 from joblib import Parallel, delayed 
@@ -33,10 +39,18 @@ from scipy.optimize import curve_fit
 from scipy.stats import pearsonr
 from scipy.ndimage import convolve
 
+print((time()-ts))
+ts = time()
+
 from sourcedetect import SourceDetect, PrfModel
+
+print((time()-ts))
+ts = time()
 
 from .catalog_queries import find_variables, gaia_stars, match_result_to_cat
 from .tools import pandas_weighted_avg, consecutive_points
+
+print((time()-ts))
 
 # -- Primary Detection Functions -- #
 
