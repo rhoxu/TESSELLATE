@@ -1545,7 +1545,7 @@ class Detector():
         except:
             print('Weird Jupyter error for trying to display photometry of the region.')
             print('Try "from tessellate.tools import event_cutout" , restart kernel.')
-        
+            print('\n')
         #self.periodogram = period
         #self.frequencies = frequencies
         return source
