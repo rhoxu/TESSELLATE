@@ -9,6 +9,8 @@ import requests
 from PIL import Image
 from io import BytesIO
 from astropy.wcs import WCS
+from astropy.visualization import PercentileInterval, AsinhStretch
+
 
 fig_width_pt = 240.0  # Get this from LaTeX using \showthe\columnwidth
 inches_per_pt = 1.0/72.27			   # Convert pt to inches
@@ -271,7 +273,7 @@ def _Get_url_wcs(ra, dec, size, filters, color=False):
 
     table = _Get_images(ra,dec,filters=filters)
     url = (f"https://ps1images.stsci.edu/cgi-bin/fitscut.cgi?"
-            f"ra={ra}&dec={dec}&size={size}&format=jpg")
+            f"ra={ra}&dec={dec}&size={size}&format=fits")
 
     # sort filters from red to blue
     flist = ["yzirg".find(x) for x in table['filter']]
@@ -288,45 +290,70 @@ def _Get_url_wcs(ra, dec, size, filters, color=False):
         for filename in table['filename']:
             url.append(urlbase+filename)
 
-    return url,table
+    return url
 
 def _Get_im(ra, dec, size,color):
 
     """Get color image at a sky position"""
 
     if color:
-        url,wcs = _Get_url_wcs(ra,dec,size=size,filters='grz',color=True)
-        r = requests.get(url)
+        url = _Get_url_wcs(ra,dec,size=size,filters='grz',color=True)
+        fh = fits.open(url)
+        wcs = WCS(fh[0])
+        # r = requests.get(url)
+        # im = Image.open(BytesIO(r.content))
+
+        fim = fh[0].data
+
+        fim[np.isnan(fim)] = 0.0
+        # set contrast to something reasonable
+        transform = AsinhStretch() + PercentileInterval(99.5)
+        bfim = transform(fim)
+
+        # transform = AsinhStretch() + PercentileInterval(99.5)
+        # bfim = transform(im)
+        im = bfim
+        
     else:
-        url,wcs = _Get_url_wcs(ra,dec,size=size,filters='i')
-        r = requests.get(url[0])
-    im = Image.open(BytesIO(r.content))
+        url = _Get_url_wcs(ra,dec,size=size,filters='i')
+        fh = fits.open(url[0])
+        wcs = WCS(fh[0])
+
+        fim = fh[0].data
+        # replace NaN values with zero for display
+        fim[np.isnan(fim)] = 0.0
+        # set contrast to something reasonable
+        transform = AsinhStretch() + PercentileInterval(99.5)
+        bfim = transform(fim)
+        im = bfim
+
     return im,wcs
 
 def _Panstarrs_phot(ra,dec,size):
 
-    grey_im,wcs = _Get_im(ra,dec,size=size*6,color=False)
-    colour_im,wcs = _Get_im(ra,dec,size=size*6,color=True)
+    grey_im,wcsI = _Get_im(ra,dec,size=size,color=False)
+    colour_im,wcsGRZ = _Get_im(ra,dec,size=size,color=True)
+
+    wcsList = [wcsGRZ,wcsGRZ,wcsGRZ,wcsI]
 
     plt.rcParams.update({'font.size':12})
-    fig,ax = plt.subplots(ncols=2,figsize=(3*fig_width,1*fig_width))
+    fig,ax = plt.subplots(ncols=4,figsize=(3*fig_width,1*fig_width))
 
-    ax[0].imshow(grey_im,origin="lower",cmap="gray")
-    ax[0].set_title('PS1 i')
-    ax[0].set_xlabel('px (0.25")')
-    ax[0].set_ylabel('px (0.25")')
-    ax[1].set_title('PS1 grz')
-    ax[1].imshow(colour_im,origin="lower")
+    ax[3].imshow(grey_im,origin="lower",cmap="gray")
+    ax[3].set_title('PS1 i')
+    ax[3].set_xlabel('px (0.25")')
+    ax[2].imshow(colour_im[0],origin="lower",cmap="gray")
+    ax[2].set_title('PS1 z')
+    ax[2].set_xlabel('px (0.25")')
+    ax[1].imshow(colour_im[1],origin="lower",cmap="gray")
+    ax[1].set_title('PS1 r')
     ax[1].set_xlabel('px (0.25")')
-    ax[1].set_ylabel('px (0.25")')
+   
+    ax[0].set_title('PS1 g')
+    ax[0].imshow(colour_im[2],origin="lower",cmap="gray")
+    ax[0].set_xlabel('px (0.25")')
 
-    for i in range(-1,3):
-        ax[0].axvline(size*3+i*21/0.25-21/0.5,color='white',alpha=0.5)
-        ax[0].axhline(size*3+i*21/0.25-21/0.5,color='white',alpha=0.5)
-        ax[1].axvline(size*3+i*21/0.25-21/0.5,color='white',alpha=0.5)
-        ax[1].axhline(size*3+i*21/0.25-21/0.5,color='white',alpha=0.5)
-
-    return fig,wcs
+    return fig,wcsList
 
 
 def _Skymapper_phot(ra,dec,size):
@@ -383,14 +410,6 @@ def _Skymapper_phot(ra,dec,size):
     ax[2].set_title('SkyMapper i')
     ax[2].imshow(im,origin="upper",cmap="gray")
     ax[2].set_xlabel('px (1.1")')
-
-    # for i in range(-2,4):
-    #     ax[0].axvline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
-    #     ax[0].axhline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
-    #     ax[1].axvline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
-    #     ax[1].axhline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
-    #     ax[2].axvline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
-    #     ax[2].axhline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
 
     return fig,wcsList
 
