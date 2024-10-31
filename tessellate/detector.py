@@ -1540,6 +1540,9 @@ class Detector():
         self.lc = [time,f]
         self.cutout = cutout_image
 
+        plt.show()
+        plt.close()
+
         try:
             source.photometry = event_cutout((source.ra,source.dec))
         except:
