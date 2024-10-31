@@ -38,7 +38,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 # Now importing this only in the source_detect function
 
 from .catalog_queries import find_variables, gaia_stars, match_result_to_cat
-from .tools import pandas_weighted_avg, consecutive_points
+from .tools import pandas_weighted_avg, consecutive_points, event_cutout
 
 # -- Primary Detection Functions -- #
 
@@ -1539,11 +1539,12 @@ class Detector():
                 self.save_base = sp+'/'+savename
         self.lc = [time,f]
         self.cutout = cutout_image
+
+        source.figure = event_cutout((source.ra,source.dec))
         
         #self.periodogram = period
         #self.frequencies = frequencies
         return source
-
 
 
     def locate_transient(self,cut,xcentroid,ycentroid,threshold=3):
@@ -1587,4 +1588,5 @@ class Detector():
                     plt.savefig(savename)
             except:
                 pass
+
 
