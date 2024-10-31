@@ -303,8 +303,8 @@ def _Get_im(ra, dec, size,color):
 
 def _Panstarrs_phot(ra,dec,size):
 
-    grey_im = _Get_im(ra,dec,size=size*4,color=False)
-    colour_im = _Get_im(ra,dec,size=size*4,color=True)
+    grey_im = _Get_im(ra,dec,size=size*6,color=False)
+    colour_im = _Get_im(ra,dec,size=size*6,color=True)
 
     plt.rcParams.update({'font.size':12})
     fig,ax = plt.subplots(ncols=2,figsize=(3*fig_width,1*fig_width))
@@ -318,6 +318,12 @@ def _Panstarrs_phot(ra,dec,size):
     ax[1].set_xlabel('px (0.25")')
     ax[1].set_ylabel('px (0.25")')
 
+    for i in range(-2,4):
+        ax[0].axvline(size*3+i*21/0.25-21/0.5,color='white')
+        ax[0].axhline(size*3+i*21/0.25-21/0.5,color='white')
+        ax[1].axvline(size*3+i*21/0.25-21/0.5,color='white')
+        ax[1].axhline(size*3+i*21/0.25-21/0.5,color='white')
+
     return fig
 
 
@@ -325,7 +331,7 @@ def _Skymapper_phot(ra,dec,size):
     """
     Gets g,r,i from skymapper.
     """
-
+    og_size = size
     size /= 3600
 
     url = f"https://api.skymapper.nci.org.au/public/siap/dr2/query?POS={ra},{dec}&SIZE={size}&BAND=g,r,i&FORMAT=GRAPHIC&VERB=3"
@@ -363,12 +369,12 @@ def _Skymapper_phot(ra,dec,size):
     ax[2].set_xlabel('px (1.1")')
 
     for i in range(-2,4):
-        ax[0].axvline(50+i*21/1.1-21/2.2,color='white')
-        ax[0].axhline(50+i*21/1.1-21/2.2,color='white')
-        ax[1].axvline(50+i*21/1.1-21/2.2,color='white')
-        ax[1].axhline(50+i*21/1.1-21/2.2,color='white')
-        ax[2].axvline(50+i*21/1.1-21/2.2,color='white')
-        ax[2].axhline(50+i*21/1.1-21/2.2,color='white')
+        ax[0].axvline(og_size+i*21/1.1-21/2.2,color='white')
+        ax[0].axhline(og_size+i*21/1.1-21/2.2,color='white')
+        ax[1].axvline(og_size+i*21/1.1-21/2.2,color='white')
+        ax[1].axhline(og_size+i*21/1.1-21/2.2,color='white')
+        ax[2].axvline(og_size+i*21/1.1-21/2.2,color='white')
+        ax[2].axhline(og_size+i*21/1.1-21/2.2,color='white')
 
 
     return fig
