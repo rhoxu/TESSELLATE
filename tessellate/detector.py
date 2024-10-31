@@ -1566,6 +1566,8 @@ class Detector():
                     x,y = wcs[i].all_world2pix(ra,dec,0)
                     ax.plot(x,y,color='red')
 
+            source.photometry = fig
+
         except:
             print('Weird Jupyter error for trying to display photometry of the region.')
             print('Try restaring kernel and run "from tessellate.tools import event_cutout"')
