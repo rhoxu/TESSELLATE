@@ -1543,29 +1543,28 @@ class Detector():
         # plt.show()
         # plt.close()
 
-        
-        xRange = np.arange(source.xint-3,source.xint+4)
-        yRange = np.arange(source.yint-3,source.yint+4)
-
-        lines = []
-        for x in xRange:
-            line = np.linspace((x,yRange[0]),(x,yRange[-1]),10)
-            lines.append(line)
-
-        for y in yRange:
-            line = np.linspace((xRange[0],y),(xRange[-1],y),10)
-            lines.append(line)
-
         fig, wcs = event_cutout((source.ra,source.dec))
+        
+        # xRange = np.arange(source.xint-3,source.xint+4)
+        # yRange = np.arange(source.yint-3,source.yint+4)
 
-        axes = fig.get_axes()
-        for i,ax in enumerate(axes):
-            for line in lines:
-                tessWCS = WCS(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits')
-                ra,dec = tessWCS.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
-                x,y = wcs[i].all_world2pix(ra,dec,0)
-                ax.plot(x,y,color='red')
-        fig.show()
+        # lines = []
+        # for x in xRange:
+        #     line = np.linspace((x,yRange[0]),(x,yRange[-1]),10)
+        #     lines.append(line)
+
+        # for y in yRange:
+        #     line = np.linspace((xRange[0],y),(xRange[-1],y),10)
+        #     lines.append(line)
+
+        # axes = fig.get_axes()
+        # for i,ax in enumerate(axes):
+        #     for line in lines:
+        #         tessWCS = WCS(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits')
+        #         ra,dec = tessWCS.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
+        #         x,y = wcs[i].all_world2pix(ra,dec,0)
+        #         ax.plot(x,y,color='red')
+        # fig.show()
 
         source.photometry = fig
 
