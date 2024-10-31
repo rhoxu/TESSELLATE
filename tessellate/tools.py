@@ -345,6 +345,20 @@ def _Skymapper_phot(ra,dec,size):
         # pick 3 filters
         table = table[[0,len(table)//2,len(table)-1]]
 
+    wcsList = []
+    for i in range(len(e.table)):
+        crpix = np.array(e.table['col23'][i].split(' ')).astype(float)
+        crval = np.array(e.table['col24'][i].split(' ')).astype(float)
+        cdmatrix = np.array(e.table['col25'][i].split(' ')).astype(float).reshape(2,2)
+        
+        wcs = WCS(naxis=2)
+        wcs.wcs.crpix = crpix
+        wcs.wcs.crval = crval
+        wcs.wcs.cd = cdmatrix
+        wcs.wcs.ctype = ["RA---TAN", "DEC--TAN"]  # Common projection type for celestial coordinates
+
+        wcsList.append(wcs)
+
     plt.rcParams.update({'font.size':12})
     fig,ax = plt.subplots(ncols=3,figsize=(3*fig_width,1*fig_width))
     url = table[2][3]
@@ -376,7 +390,7 @@ def _Skymapper_phot(ra,dec,size):
         ax[2].axvline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
         ax[2].axhline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
 
-    return fig,table
+    return fig,wcsList
 
 def event_cutout(coords,size=50,phot=None):
 
@@ -390,13 +404,13 @@ def event_cutout(coords,size=50,phot=None):
         fig = _Panstarrs_phot(coords[0],coords[1],size)
 
     elif phot.lower() == 'skymapper':
-        fig,table = _Skymapper_phot(coords[0],coords[1],size)
+        fig,wcs = _Skymapper_phot(coords[0],coords[1],size)
 
     else:
         print('Photometry name invalid.')
         fig = None
-        table = None
+        wcs = None
 
     plt.close()
 
-    return fig,table
+    return fig,wcs
