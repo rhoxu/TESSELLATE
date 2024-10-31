@@ -1565,6 +1565,7 @@ class Detector():
                 ra,dec = tessWCS.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
                 x,y = wcs[i].all_world2pix(ra,dec,0)
                 ax.plot(x,y,color='red')
+        fig.show()
 
         source.photometry = fig
 
