@@ -1560,7 +1560,7 @@ class Detector():
 
         tessWCS = WCS(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits')
         for i,ax in enumerate(axes):
-            ra,dec = tessWCS.all_pix2world(source.x_centroid,source.y_centroid,0)    
+            ra,dec = tessWCS.all_pix2world(source.xcentroid,source.ycentroid,0)    
             x,y = wcs[i].all_world2pix(ra,dec,0)
             ax.scatter(x,y,color='green',marker='o',s=5)
             for j,line in enumerate(lines):
