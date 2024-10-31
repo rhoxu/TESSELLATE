@@ -1559,7 +1559,11 @@ class Detector():
             lines.append(line)
 
         for i,ax in enumerate(axes):
-            for line in lines:
+            for j,line in enumerate(lines):
+                if j in [0,6,7,13]:
+                    color = 'red'
+                else:
+                    color='white'
                 tessWCS = WCS(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits')
                 ra,dec = tessWCS.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)    
                 x,y = wcs[i].all_world2pix(ra,dec,0)
@@ -1567,9 +1571,11 @@ class Detector():
                 x = x[good]
                 y = y[good]
                 if len(x) > 0:
-                    ax.plot(x,y,color='red')
+                    ax.plot(x,y,color=color,alpha=0.5)
                     ax.set_xlim(0,200)
                     ax.set_ylim(0,200) 
+
+        
 
         source.photometry = fig
         # source.phot_wcs = wcs
