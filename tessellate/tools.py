@@ -383,13 +383,13 @@ def _Skymapper_phot(ra,dec,size):
     ax[2].imshow(im,origin="upper",cmap="gray")
     ax[2].set_xlabel('px (1.1")')
 
-    for i in range(-2,4):
-        ax[0].axvline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
-        ax[0].axhline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
-        ax[1].axvline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
-        ax[1].axhline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
-        ax[2].axvline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
-        ax[2].axhline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
+    # for i in range(-2,4):
+    #     ax[0].axvline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
+    #     ax[0].axhline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
+    #     ax[1].axvline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
+    #     ax[1].axhline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
+    #     ax[2].axvline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
+    #     ax[2].axhline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
 
     return fig,wcsList
 

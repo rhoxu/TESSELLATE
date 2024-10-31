@@ -1567,6 +1567,7 @@ class Detector():
         # fig.show()
 
         source.photometry = fig
+        source.phot_wcs = wcs
 
         # except:
         #     print('Weird Jupyter error for trying to display photometry of the region.')
