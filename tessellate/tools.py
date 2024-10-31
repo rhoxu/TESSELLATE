@@ -318,11 +318,11 @@ def _Panstarrs_phot(ra,dec,size):
     ax[1].set_xlabel('px (0.25")')
     ax[1].set_ylabel('px (0.25")')
 
-    for i in range(-1,2):
-        ax[0].axvline(size*3+i*21/0.25-21/0.5,color='white')
-        ax[0].axhline(size*3+i*21/0.25-21/0.5,color='white')
-        ax[1].axvline(size*3+i*21/0.25-21/0.5,color='white')
-        ax[1].axhline(size*3+i*21/0.25-21/0.5,color='white')
+    for i in range(-1,3):
+        ax[0].axvline(size*3+i*21/0.25-21/0.5,color='white',alpha=0.5)
+        ax[0].axhline(size*3+i*21/0.25-21/0.5,color='white',alpha=0.5)
+        ax[1].axvline(size*3+i*21/0.25-21/0.5,color='white',alpha=0.5)
+        ax[1].axhline(size*3+i*21/0.25-21/0.5,color='white',alpha=0.5)
 
     return fig
 
