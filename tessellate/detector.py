@@ -1558,8 +1558,11 @@ class Detector():
             line = np.linspace((xRange[0],y),(xRange[-1],y),100)
             lines.append(line)
 
+        tessWCS = WCS(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits')
         for i,ax in enumerate(axes):
-            ax.scatter(source.x_centroid,source.y_centroid,color='green',marker='o',s=5)
+            ra,dec = tessWCS.all_pix2world(source.x_centroid,source.y_centroid,0)    
+            x,y = wcs[i].all_world2pix(ra,dec,0)
+            ax.scatter(x,y,color='green',marker='o',s=5)
             for j,line in enumerate(lines):
                 if j in [0,5,6,11]:
                     color = 'red'
@@ -1567,7 +1570,6 @@ class Detector():
                 else:
                     color='white'
                     lw = 2
-                tessWCS = WCS(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits')
                 ra,dec = tessWCS.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)    
                 x,y = wcs[i].all_world2pix(ra,dec,0)
                 good = (x>0)&(y>0)
