@@ -1560,7 +1560,7 @@ class Detector():
 
         for i,ax in enumerate(axes):
             for j,line in enumerate(lines):
-                if j in [0,6,7,13]:
+                if j in [0,5,6,11]:
                     color = 'red'
                     lw = 5
                 else:
