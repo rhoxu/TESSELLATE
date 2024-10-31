@@ -288,8 +288,7 @@ def _Get_url_wcs(ra, dec, size, filters, color=False):
         for filename in table['filename']:
             url.append(urlbase+filename)
 
-    print(table)
-    return url,None
+    return url,table
 
 def _Get_im(ra, dec, size,color):
 
@@ -302,12 +301,12 @@ def _Get_im(ra, dec, size,color):
         url,wcs = _Get_url_wcs(ra,dec,size=size,filters='i')
         r = requests.get(url[0])
     im = Image.open(BytesIO(r.content))
-    return im
+    return im,wcs
 
 def _Panstarrs_phot(ra,dec,size):
 
-    grey_im = _Get_im(ra,dec,size=size*6,color=False)
-    colour_im = _Get_im(ra,dec,size=size*6,color=True)
+    grey_im,wcs = _Get_im(ra,dec,size=size*6,color=False)
+    colour_im,wcs = _Get_im(ra,dec,size=size*6,color=True)
 
     plt.rcParams.update({'font.size':12})
     fig,ax = plt.subplots(ncols=2,figsize=(3*fig_width,1*fig_width))
@@ -327,7 +326,7 @@ def _Panstarrs_phot(ra,dec,size):
         ax[1].axvline(size*3+i*21/0.25-21/0.5,color='white',alpha=0.5)
         ax[1].axhline(size*3+i*21/0.25-21/0.5,color='white',alpha=0.5)
 
-    return fig,None
+    return fig,wcs
 
 
 def _Skymapper_phot(ra,dec,size):
