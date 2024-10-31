@@ -1,56 +1,44 @@
-from time import time 
-
-ts = time()
-
-import lightkurve as lk
+import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from mpl_toolkits.axes_grid1.inset_locator import mark_inset
-import numpy as np
-import pandas as pd
-from PRF import TESS_PRF
-from copy import deepcopy
-from photutils.detection import StarFinder
-from photutils.aperture import RectangularAperture, RectangularAnnulus,CircularAperture
-from photutils.aperture import ApertureStats, aperture_photometry
-
-from astropy.stats import sigma_clipped_stats
-from astropy.stats import sigma_clip
-from scipy.signal import fftconvolve
-from scipy.ndimage import center_of_mass
-from sklearn.cluster import DBSCAN
-
-print((time()-ts))
-ts = time()
-
-import multiprocessing
-from joblib import Parallel, delayed 
-import warnings
-warnings.filterwarnings("ignore")
-warnings.filterwarnings("ignore", category=RuntimeWarning) 
-from tqdm import tqdm
 from time import time as t
-import astropy.units as u
-from astropy.time import Time
-from astropy.wcs import WCS
-import os
+
 from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
 from scipy.stats import pearsonr
-from scipy.ndimage import convolve
+from scipy.signal import fftconvolve
+from scipy.ndimage import center_of_mass
 
-print((time()-ts))
-ts = time()
+from copy import deepcopy
+import multiprocessing
+from joblib import Parallel, delayed 
+from tqdm import tqdm
+import os
 
-from sourcedetect import SourceDetect, PrfModel
+import lightkurve as lk
+from PRF import TESS_PRF
+from photutils.detection import StarFinder
+from photutils.aperture import RectangularAperture, RectangularAnnulus,CircularAperture
+from photutils.aperture import ApertureStats, aperture_photometry
+from sklearn.cluster import DBSCAN
 
-print((time()-ts))
-ts = time()
+from astropy.stats import sigma_clipped_stats
+from astropy.stats import sigma_clip
+import astropy.units as u
+from astropy.time import Time
+from astropy.wcs import WCS
+
+import warnings
+warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", category=RuntimeWarning) 
+
+# from sourcedetect import SourceDetect, PrfModel
+# Now importing this only in the source_detect function
 
 from .catalog_queries import find_variables, gaia_stars, match_result_to_cat
 from .tools import pandas_weighted_avg, consecutive_points
-
-print((time()-ts))
 
 # -- Primary Detection Functions -- #
 
@@ -367,6 +355,9 @@ def _do_photometry(star,data,siglim=3,bkgstd_lim=50):
 
 
 def _source_detect(flux,inputNum,prf,corlim,psfdifflim,cpu,siglim=2,bkgstd=50):
+    
+    from sourcedetect import SourceDetect, PrfModel
+
     #model = PrfModel(save_model=False)
     #res = SourceDetect(flux,run=True,train=False,model=model).result
     res = SourceDetect(flux,run=True,train=False).result
