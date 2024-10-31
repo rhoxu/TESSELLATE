@@ -344,7 +344,8 @@ def _Skymapper_phot(ra,dec,size):
     url = table[2][3]
     r = requests.get(url)
     im = Image.open(BytesIO(r.content))
-    ax[0].imshow(im,origin="upper",cmap="gray")
+    returned = ax[0].imshow(im,origin="upper",cmap="gray")
+    print(returned)
     ax[0].title('SkyMapper g')
     ax[0].xlabel('px (1.1")')
 
