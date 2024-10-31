@@ -362,6 +362,15 @@ def _Skymapper_phot(ra,dec,size):
     ax[2].imshow(im,origin="upper",cmap="gray")
     ax[2].set_xlabel('px (1.1")')
 
+    for i in range(-2,4):
+        ax[0].axvline(50+i*21/1.1-21/2.2,color='white')
+        ax[0].axhline(50+i*21/1.1-21/2.2,color='white')
+        ax[1].axvline(50+i*21/1.1-21/2.2,color='white')
+        ax[1].axhline(50+i*21/1.1-21/2.2,color='white')
+        ax[2].axvline(50+i*21/1.1-21/2.2,color='white')
+        ax[2].axhline(50+i*21/1.1-21/2.2,color='white')
+
+
     return fig
 
 def event_cutout(coords,size=50,phot=None):
