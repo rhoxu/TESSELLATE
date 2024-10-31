@@ -376,7 +376,6 @@ def _Skymapper_phot(ra,dec,size):
         ax[2].axvline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
         ax[2].axhline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
 
-
     return fig
 
 def event_cutout(coords,size=50,phot=None):
