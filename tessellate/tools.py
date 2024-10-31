@@ -265,7 +265,7 @@ def _Get_images(ra,dec,filters):
     table = Table.read(url, format='ascii')
     return table
 
-def _Get_url(ra, dec, size, filters, color=False):
+def _Get_url_wcs(ra, dec, size, filters, color=False):
 
     """Get URL for images in the table"""
 
@@ -287,20 +287,20 @@ def _Get_url(ra, dec, size, filters, color=False):
         url = []
         for filename in table['filename']:
             url.append(urlbase+filename)
-    return url
+
+    print(table)
+    return url,None
 
 def _Get_im(ra, dec, size,color):
 
     """Get color image at a sky position"""
 
     if color:
-        url = _Get_url(ra,dec,size=size,filters='grz',color=True)
+        url,wcs = _Get_url_wcs(ra,dec,size=size,filters='grz',color=True)
         r = requests.get(url)
-        print(r)
     else:
-        url = _Get_url(ra,dec,size=size,filters='i')
+        url,wcs = _Get_url_wcs(ra,dec,size=size,filters='i')
         r = requests.get(url[0])
-        print(r)
     im = Image.open(BytesIO(r.content))
     return im
 
