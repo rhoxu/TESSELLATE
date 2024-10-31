@@ -310,13 +310,13 @@ def _Panstarrs_phot(ra,dec,size):
     fig,ax = plt.subplots(ncols=2,figsize=(3*fig_width,1*fig_width))
 
     ax[0].imshow(grey_im,origin="lower",cmap="gray")
-    ax[0].title('PS1 i')
-    ax[0].xlabel('px (0.25")')
-    ax[0].ylabel('px (0.25")')
-    ax[1].title('PS1 grz')
+    ax[0].set_title('PS1 i')
+    ax[0].set_xlabel('px (0.25")')
+    ax[0].set_ylabel('px (0.25")')
+    ax[1].set_title('PS1 grz')
     ax[1].imshow(colour_im,origin="lower")
-    ax[1].xlabel('px (0.25")')
-    ax[1].ylabel('px (0.25")')
+    ax[1].set_xlabel('px (0.25")')
+    ax[1].set_ylabel('px (0.25")')
 
     return fig
 
@@ -345,22 +345,22 @@ def _Skymapper_phot(ra,dec,size):
     r = requests.get(url)
     im = Image.open(BytesIO(r.content))
     ax[0].imshow(im,origin="upper",cmap="gray")
-    ax[0].title('SkyMapper g')
-    ax[0].xlabel('px (1.1")')
+    ax[0].set_title('SkyMapper g')
+    ax[0].set_xlabel('px (1.1")')
 
     url = table[1][3]
     r = requests.get(url)
     im = Image.open(BytesIO(r.content))
-    ax[1].title('SkyMapper r')
+    ax[1].set_title('SkyMapper r')
     ax[1].imshow(im,origin="upper",cmap="gray")
-    ax[1].xlabel('px (1.1")')
+    ax[1].set_xlabel('px (1.1")')
 
     url = table[0][3]
     r = requests.get(url)
     im = Image.open(BytesIO(r.content))
-    ax[2].title('SkyMapper i')
+    ax[2].set_title('SkyMapper i')
     ax[2].imshow(im,origin="upper",cmap="gray")
-    ax[2].xlabel('px (1.1")')
+    ax[2].set_xlabel('px (1.1")')
 
     return fig
 
