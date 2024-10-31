@@ -396,4 +396,6 @@ def event_cutout(coords,size=50,phot=None):
         print('Photometry name invalid.')
         fig = None
 
+    plt.close()
+
     return fig
