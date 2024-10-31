@@ -327,7 +327,7 @@ def _Panstarrs_phot(ra,dec,size):
         ax[1].axvline(size*3+i*21/0.25-21/0.5,color='white',alpha=0.5)
         ax[1].axhline(size*3+i*21/0.25-21/0.5,color='white',alpha=0.5)
 
-    return fig
+    return fig,None
 
 
 def _Skymapper_phot(ra,dec,size):
@@ -404,7 +404,7 @@ def event_cutout(coords,size=50,phot=None):
             phot = 'SkyMapper'
         
     if phot == 'PS1':
-        fig = _Panstarrs_phot(coords[0],coords[1],size)
+        fig,wcs = _Panstarrs_phot(coords[0],coords[1],size)
 
     elif phot.lower() == 'skymapper':
         fig,wcs = _Skymapper_phot(coords[0],coords[1],size)
