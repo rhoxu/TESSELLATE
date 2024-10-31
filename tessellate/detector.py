@@ -1559,7 +1559,7 @@ class Detector():
         fig, wcs = event_cutout((source.ra,source.dec))
 
         axes = fig.get_axes()
-        for i,ax in axes:
+        for i,ax in enumerate(axes):
             for line in lines:
                 tessWCS = WCS(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits')
                 ra,dec = tessWCS.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
