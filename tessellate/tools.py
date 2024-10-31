@@ -296,9 +296,11 @@ def _Get_im(ra, dec, size,color):
     if color:
         url = _Get_url(ra,dec,size=size,filters='grz',color=True)
         r = requests.get(url)
+        print(r)
     else:
         url = _Get_url(ra,dec,size=size,filters='i')
         r = requests.get(url[0])
+        print(r)
     im = Image.open(BytesIO(r.content))
     return im
 
