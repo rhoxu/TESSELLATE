@@ -369,15 +369,15 @@ def _Skymapper_phot(ra,dec,size):
     ax[2].set_xlabel('px (1.1")')
 
     for i in range(-2,4):
-        ax[0].axvline(og_size+i*21/1.1-21/2.2,color='white')
-        ax[0].axhline(og_size+i*21/1.1-21/2.2,color='white')
-        ax[1].axvline(og_size+i*21/1.1-21/2.2,color='white')
-        ax[1].axhline(og_size+i*21/1.1-21/2.2,color='white')
-        ax[2].axvline(og_size+i*21/1.1-21/2.2,color='white')
-        ax[2].axhline(og_size+i*21/1.1-21/2.2,color='white')
+        ax[0].axvline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
+        ax[0].axhline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
+        ax[1].axvline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
+        ax[1].axhline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
+        ax[2].axvline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
+        ax[2].axhline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
 
 
-    return fig
+    return table
 
 def event_cutout(coords,size=50,phot=None):
 
