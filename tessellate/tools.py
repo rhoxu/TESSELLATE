@@ -8,6 +8,7 @@ from astropy.table import Table
 import requests
 from PIL import Image
 from io import BytesIO
+from astropy.wcs import WCS
 
 fig_width_pt = 240.0  # Get this from LaTeX using \showthe\columnwidth
 inches_per_pt = 1.0/72.27			   # Convert pt to inches
@@ -346,10 +347,10 @@ def _Skymapper_phot(ra,dec,size):
         table = table[[0,len(table)//2,len(table)-1]]
 
     wcsList = []
-    for i in range(len(e.table)):
-        crpix = np.array(e.table['col23'][i].split(' ')).astype(float)
-        crval = np.array(e.table['col24'][i].split(' ')).astype(float)
-        cdmatrix = np.array(e.table['col25'][i].split(' ')).astype(float).reshape(2,2)
+    for i in range(len(table)):
+        crpix = np.array(table['col23'][i].split(' ')).astype(float)
+        crval = np.array(table['col24'][i].split(' ')).astype(float)
+        cdmatrix = np.array(table['col25'][i].split(' ')).astype(float).reshape(2,2)
         
         wcs = WCS(naxis=2)
         wcs.wcs.crpix = crpix
