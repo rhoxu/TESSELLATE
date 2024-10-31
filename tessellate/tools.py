@@ -376,7 +376,7 @@ def _Skymapper_phot(ra,dec,size):
         ax[2].axvline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
         ax[2].axhline(og_size+i*21/1.1-21/2.2,color='white',alpha=0.5)
 
-    return fig
+    return fig,table
 
 def event_cutout(coords,size=50,phot=None):
 
@@ -390,12 +390,13 @@ def event_cutout(coords,size=50,phot=None):
         fig = _Panstarrs_phot(coords[0],coords[1],size)
 
     elif phot.lower() == 'skymapper':
-        fig = _Skymapper_phot(coords[0],coords[1],size)
+        fig,table = _Skymapper_phot(coords[0],coords[1],size)
 
     else:
         print('Photometry name invalid.')
         fig = None
+        table = None
 
     plt.close()
 
-    return fig
+    return fig,table

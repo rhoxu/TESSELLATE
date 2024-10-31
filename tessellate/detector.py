@@ -1544,7 +1544,7 @@ class Detector():
         # plt.close()
 
         try:
-            source.photometry = event_cutout((source.ra,source.dec))
+            source.photometry, source.table = event_cutout((source.ra,source.dec))
         except:
             print('Weird Jupyter error for trying to display photometry of the region.')
             print('Try restaring kernel and run "from tessellate.tools import event_cutout"')
