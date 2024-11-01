@@ -360,6 +360,8 @@ def _Skymapper_phot(ra,dec,size):
     """
     Gets g,r,i from skymapper.
     """
+    size*=2
+    og_size = size
     size /= 3600
 
     url = f"https://api.skymapper.nci.org.au/public/siap/dr2/query?POS={ra},{dec}&SIZE={size}&BAND=g,r,i&FORMAT=GRAPHIC&VERB=3"
@@ -410,7 +412,7 @@ def _Skymapper_phot(ra,dec,size):
     ax[2].imshow(im,origin="upper",cmap="gray")
     ax[2].set_xlabel('px (1.1")')
 
-    return fig,wcsList,im.shape[0]
+    return fig,wcsList,og_size*2
 
 def event_cutout(coords,size=50,phot=None):
 
