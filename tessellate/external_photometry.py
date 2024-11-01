@@ -202,7 +202,7 @@ def _DESI_phot(ra,dec,size):
 def event_cutout(coords,size=50,phot=None):
 
     if phot is None:
-        fig,wcs,size = _DESI_phot(coords[0],coords[1],size)
+        fig,wcs,outsize = _DESI_phot(coords[0],coords[1],size)
         if fig is None:
             if coords[1] > -10:
                 phot = 'PS1'
@@ -213,10 +213,10 @@ def event_cutout(coords,size=50,phot=None):
 
 
     if phot == 'PS1':
-        fig,wcs,size = _Panstarrs_phot(coords[0],coords[1],size)
+        fig,wcs,outsize = _Panstarrs_phot(coords[0],coords[1],size)
 
     elif phot.lower() == 'skymapper':
-        fig,wcs,size = _Skymapper_phot(coords[0],coords[1],size)
+        fig,wcs,outsize = _Skymapper_phot(coords[0],coords[1],size)
 
     elif phot is None:
         print('Photometry name invalid.')
@@ -225,4 +225,4 @@ def event_cutout(coords,size=50,phot=None):
 
     plt.close()
 
-    return fig,wcs,size
+    return fig,wcs,outsize
