@@ -1547,6 +1547,8 @@ class Detector():
         if externel_phot:
             fig, wcs, size = event_cutout((source.ra,source.dec),100)
             axes = fig.get_axes()
+            if len(axes) == 1:
+                wcs = [wcs]
             
             xRange = np.arange(source.xint-3,source.xint+3)
             yRange = np.arange(source.yint-3,source.yint+3)
