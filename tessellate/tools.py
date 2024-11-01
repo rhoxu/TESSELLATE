@@ -339,12 +339,12 @@ def _Panstarrs_phot(ra,dec,size):
     plt.rcParams.update({'font.size':12})
     fig,ax = plt.subplots(ncols=4,figsize=(3*fig_width,1*fig_width))
 
-    ax[3].imshow(grey_im,origin="lower",cmap="gray")
-    ax[3].set_title('PS1 i')
-    ax[3].set_xlabel('px (0.25")')
-    ax[2].imshow(colour_im[0],origin="lower",cmap="gray")
-    ax[2].set_title('PS1 z')
+    ax[2].imshow(grey_im,origin="lower",cmap="gray")
+    ax[2].set_title('PS1 i')
     ax[2].set_xlabel('px (0.25")')
+    ax[3].imshow(colour_im[0],origin="lower",cmap="gray")
+    ax[3].set_title('PS1 z')
+    ax[3].set_xlabel('px (0.25")')
     ax[1].imshow(colour_im[1],origin="lower",cmap="gray")
     ax[1].set_title('PS1 r')
     ax[1].set_xlabel('px (0.25")')
@@ -360,7 +360,7 @@ def _Skymapper_phot(ra,dec,size):
     """
     Gets g,r,i from skymapper.
     """
-    size*=2
+    size*=1.5
     og_size = size
     size /= 3600
 
