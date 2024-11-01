@@ -182,16 +182,19 @@ def _DESI_phot(ra,dec,size):
     if response.status_code == 200:
         image = Image.open(BytesIO(requests.get(urlIM).content))
         
-        hdulist = fits.open(BytesIO(requests.get(urlFITS).content))
-        hdu = hdulist[0]
-        wcs = WCS(hdu.header)
+        try:
+            hdulist = fits.open(BytesIO(requests.get(urlFITS).content))
+            hdu = hdulist[0]
+            wcs = WCS(hdu.header)
 
-        plt.rcParams.update({'font.size':12})
-        fig,ax = plt.subplots(ncols=1,figsize=(3*fig_width,1*fig_width))
-        ax.imshow(image,origin="upper",cmap="gray")
-        ax.set_title('DESI grz')
-        
-        return fig,wcs,size
+            plt.rcParams.update({'font.size':12})
+            fig,ax = plt.subplots(ncols=1,figsize=(3*fig_width,1*fig_width))
+            ax.imshow(image,origin="upper",cmap="gray")
+            ax.set_title('DESI grz')
+            
+            return fig,wcs,size
+        except:
+            return None,None,None
     else:
         return None,None,None
 
