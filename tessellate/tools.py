@@ -331,8 +331,8 @@ def _Get_im(ra, dec, size,color):
 
 def _Panstarrs_phot(ra,dec,size):
 
-    grey_im,wcsI = _Get_im(ra,dec,size=size,color=False)
-    colour_im,wcsGRZ = _Get_im(ra,dec,size=size,color=True)
+    grey_im,wcsI = _Get_im(ra,dec,size=size*8,color=False)
+    colour_im,wcsGRZ = _Get_im(ra,dec,size=size*8,color=True)
 
     wcsList = [wcsGRZ,wcsGRZ,wcsGRZ,wcsI]
 
