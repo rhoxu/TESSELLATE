@@ -38,7 +38,8 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 # Now importing this only in the source_detect function
 
 from .catalog_queries import find_variables, gaia_stars, match_result_to_cat
-from .tools import pandas_weighted_avg, consecutive_points, event_cutout
+from .tools import pandas_weighted_avg, consecutive_points
+from .external_photometry import event_cutout
 
 # -- Primary Detection Functions -- #
 
