@@ -1260,7 +1260,7 @@ class Detector():
         self.events = detections
         inds = detections['objid'].unique()
         print('Total events to plot: ', len(detections))
-        events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path) for ind in inds)
+        events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path,externel_phot=False) for ind in inds)
         print('Plot complete!')
         
 
@@ -1269,7 +1269,7 @@ class Detector():
     def plot_source(self,cut,id,event='seperate',savename=None,save_path='.',
                     star_bin=True,period_bin=True,type_bin=True,objectid_bin='auto',
                     include_periodogram=False,latex=True,period_power_limit=10,
-                    asteroid_check=False,zoo_mode=True,save_lc=True):
+                    asteroid_check=False,zoo_mode=True,save_lc=True,externel_phot=True):
         if latex:
             plt.rc('text', usetex=True)
             plt.rc('font', family='serif')
@@ -1543,55 +1543,49 @@ class Detector():
         # plt.show()
         # plt.close()
 
-        fig, wcs = event_cutout((source.ra,source.dec),100)
-        axes = fig.get_axes()
+        if externel_phot:
+            fig, wcs = event_cutout((source.ra,source.dec),100)
+            axes = fig.get_axes()
+            
+            xRange = np.arange(source.xint-3,source.xint+3)
+            yRange = np.arange(source.yint-3,source.yint+3)
+
+            lines = []
+            for x in xRange:
+                line = np.linspace((x,yRange[0]),(x,yRange[-1]),100)
+                lines.append(line)
+
+            for y in yRange:
+                line = np.linspace((xRange[0],y),(xRange[-1],y),100)
+                lines.append(line)
+
+            tessWCS = WCS(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits')
+            for i,ax in enumerate(axes):
+                # ra,dec = tessWCS.all_pix2world(source.xcentroid,source.ycentroid,0)    
+                # x,y = wcs[i].all_world2pix(ra,dec,0)
+                # ax.scatter(x,y,color='green',marker='o',s=5)
+                for j,line in enumerate(lines):
+                    if j in [0,5,6,11]:
+                        color = 'red'
+                        lw = 5
+                    else:
+                        color='white'
+                        lw = 2
+                    ra,dec = tessWCS.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
+                    if wcs[i].naxis == 3:
+                        x,y,_ = wcs[i].all_world2pix(ra,dec,0,0)
+                    else:
+                        x,y = wcs[i].all_world2pix(ra,dec,0)
+                    good = (x>0)&(y>0)
+                    x = x[good]
+                    y = y[good]
+                    if len(x) > 0:
+                        ax.plot(x,y,color=color,alpha=0.5,lw=lw)
+                        ax.set_xlim(0,200)
+                        ax.set_ylim(0,200) 
+
+            source.photometry = fig
         
-        xRange = np.arange(source.xint-3,source.xint+3)
-        yRange = np.arange(source.yint-3,source.yint+3)
-
-        lines = []
-        for x in xRange:
-            line = np.linspace((x,yRange[0]),(x,yRange[-1]),100)
-            lines.append(line)
-
-        for y in yRange:
-            line = np.linspace((xRange[0],y),(xRange[-1],y),100)
-            lines.append(line)
-
-        tessWCS = WCS(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits')
-        for i,ax in enumerate(axes):
-            # ra,dec = tessWCS.all_pix2world(source.xcentroid,source.ycentroid,0)    
-            # x,y = wcs[i].all_world2pix(ra,dec,0)
-            # ax.scatter(x,y,color='green',marker='o',s=5)
-            for j,line in enumerate(lines):
-                if j in [0,5,6,11]:
-                    color = 'red'
-                    lw = 5
-                else:
-                    color='white'
-                    lw = 2
-                ra,dec = tessWCS.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
-                if wcs[i].naxis == 3:
-                     x,y = wcs[i].all_world2pix(ra,dec,0,0)
-                else:
-                    x,y = wcs[i].all_world2pix(ra,dec,0)
-                good = (x>0)&(y>0)
-                x = x[good]
-                y = y[good]
-                if len(x) > 0:
-                    ax.plot(x,y,color=color,alpha=0.5,lw=lw)
-                    ax.set_xlim(0,200)
-                    ax.set_ylim(0,200) 
-
-        source.photometry = fig
-        # source.phot_wcs = wcs
-
-        # except:
-        #     print('Weird Jupyter error for trying to display photometry of the region.')
-        #     print('Try restaring kernel and run "from tessellate.tools import event_cutout"')
-        #     print('\n')
-        #self.periodogram = period
-        #self.frequencies = frequencies
         return source
 
 
