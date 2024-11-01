@@ -331,8 +331,8 @@ def _Get_im(ra, dec, size,color):
 
 def _Panstarrs_phot(ra,dec,size):
 
-    grey_im,wcsI = _Get_im(ra,dec,size=size*8,color=False)
-    colour_im,wcsGRZ = _Get_im(ra,dec,size=size*8,color=True)
+    grey_im,wcsI = _Get_im(ra,dec,size=size*6,color=False)
+    colour_im,wcsGRZ = _Get_im(ra,dec,size=size*6,color=True)
 
     wcsList = [wcsGRZ,wcsGRZ,wcsGRZ,wcsI]
 
@@ -353,14 +353,13 @@ def _Panstarrs_phot(ra,dec,size):
     ax[0].imshow(colour_im[2],origin="lower",cmap="gray")
     ax[0].set_xlabel('px (0.25")')
 
-    return fig,wcsList
+    return fig,wcsList,grey_im.shape[0]
 
 
 def _Skymapper_phot(ra,dec,size):
     """
     Gets g,r,i from skymapper.
     """
-    og_size = size
     size /= 3600
 
     url = f"https://api.skymapper.nci.org.au/public/siap/dr2/query?POS={ra},{dec}&SIZE={size}&BAND=g,r,i&FORMAT=GRAPHIC&VERB=3"
@@ -411,7 +410,7 @@ def _Skymapper_phot(ra,dec,size):
     ax[2].imshow(im,origin="upper",cmap="gray")
     ax[2].set_xlabel('px (1.1")')
 
-    return fig,wcsList
+    return fig,wcsList,im.shape[0]
 
 def event_cutout(coords,size=50,phot=None):
 
@@ -422,10 +421,10 @@ def event_cutout(coords,size=50,phot=None):
             phot = 'SkyMapper'
         
     if phot == 'PS1':
-        fig,wcs = _Panstarrs_phot(coords[0],coords[1],size)
+        fig,wcs,size = _Panstarrs_phot(coords[0],coords[1],size)
 
     elif phot.lower() == 'skymapper':
-        fig,wcs = _Skymapper_phot(coords[0],coords[1],size)
+        fig,wcs,size = _Skymapper_phot(coords[0],coords[1],size)
 
     else:
         print('Photometry name invalid.')
@@ -434,4 +433,4 @@ def event_cutout(coords,size=50,phot=None):
 
     plt.close()
 
-    return fig,wcs
+    return fig,wcs,size

@@ -1544,7 +1544,7 @@ class Detector():
         # plt.close()
 
         if externel_phot:
-            fig, wcs = event_cutout((source.ra,source.dec),100)
+            fig, wcs, size = event_cutout((source.ra,source.dec),100)
             axes = fig.get_axes()
             
             xRange = np.arange(source.xint-3,source.xint+3)
@@ -1568,9 +1568,11 @@ class Detector():
                     if j in [0,5,6,11]:
                         color = 'red'
                         lw = 5
+                        alpha = 0.7
                     else:
                         color='white'
                         lw = 2
+                        alpha = 0.3
                     ra,dec = tessWCS.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
                     if wcs[i].naxis == 3:
                         x,y,_ = wcs[i].all_world2pix(ra,dec,0,0)
@@ -1580,9 +1582,9 @@ class Detector():
                     x = x[good]
                     y = y[good]
                     if len(x) > 0:
-                        ax.plot(x,y,color=color,alpha=0.5,lw=lw)
-                        ax.set_xlim(0,200)
-                        ax.set_ylim(0,200) 
+                        ax.plot(x,y,color=color,alpha=alpha,lw=lw)
+                        ax.set_xlim(0,size)
+                        ax.set_ylim(0,size) 
 
             source.photometry = fig
         
