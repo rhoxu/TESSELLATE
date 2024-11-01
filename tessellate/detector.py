@@ -1570,8 +1570,11 @@ class Detector():
                 else:
                     color='white'
                     lw = 2
-                ra,dec = tessWCS.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)    
-                x,y = wcs[i].all_world2pix(ra,dec,0)
+                ra,dec = tessWCS.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
+                if wcs[i].naxis == 3:
+                     x,y = wcs[i].all_world2pix(ra,dec,0,0)
+                else:
+                    x,y = wcs[i].all_world2pix(ra,dec,0)
                 good = (x>0)&(y>0)
                 x = x[good]
                 y = y[good]
@@ -1579,8 +1582,6 @@ class Detector():
                     ax.plot(x,y,color=color,alpha=0.5,lw=lw)
                     ax.set_xlim(0,200)
                     ax.set_ylim(0,200) 
-
-        
 
         source.photometry = fig
         # source.phot_wcs = wcs
