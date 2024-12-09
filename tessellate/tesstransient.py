@@ -942,7 +942,7 @@ class TessTransient():
             ax.add_patch(rectangle)
 
         ax.plot(ellipse[0],ellipse[1],color='black',linewidth=3)#,marker='.')
-        ax.scatter(event['xccd'],event['yccd'],s=40,c='cyan',marker='*')
+        ax.scatter(event['xccd'],event['yccd'],s=100,c='darkorchid',marker='*')
 
         ax2 = fig.add_subplot(133,aspect='equal')
         ax2.set_xlabel(' ')
