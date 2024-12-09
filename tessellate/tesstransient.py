@@ -994,10 +994,10 @@ class TessTransient():
 
         table = []
         for cam,ccd in all_ccds:
-            # try:
-            table.append(self._gather_detection_tables(cam,ccd,timeStartBuffer,eventDuration/24,significanceCut,part))
-            # except:
-            #     print(f'Something failed in Cam {cam} Ccd {ccd}. Check if all TESSELLATE steps are completed.')
+            try:
+                table.append(self._gather_detection_tables(cam,ccd,timeStartBuffer,eventDuration/24,significanceCut,part))
+            except:
+                print(f'Something failed in Cam {cam} Ccd {ccd}. Check if all TESSELLATE steps are completed.')
 
 
         table = pd.concat(table)
