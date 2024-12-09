@@ -973,7 +973,7 @@ class TessTransient():
         cutout_image = d.flux[:,ymin:y+10,xmin:x+10]
         ax2.imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
         if save:
-            fig.savefig(f'TessTransientS{self.sector}C{event['camera']}C{event['ccd']}C{event['Cut']}O{event['objid']}.pdf',dpi=200,bbox_inches='tight')
+            fig.savefig(f"TessTransientS{self.sector}C{event['camera']}C{event['ccd']}C{event['Cut']}O{event['objid']}.pdf",dpi=200,bbox_inches='tight')
 
     def _find_which_part(self):
 
