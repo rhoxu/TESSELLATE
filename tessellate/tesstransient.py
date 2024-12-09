@@ -935,14 +935,14 @@ class TessTransient():
                 c2 = np.copy(c)
                 c2[-1] = 0.3
                 rectangle = patches.Rectangle(corner,2*cutSize,2*cutSize,edgecolor='r',
-                                                facecolor=np.array([1,0,0,0.3]),lw=2)
+                                                facecolor=np.array([1,0,0,0.2]),lw=1)
             else:
                 rectangle = patches.Rectangle(corner,2*cutSize,2*cutSize,edgecolor='r',
                                                 facecolor='none',alpha=1,lw=2)
             ax.add_patch(rectangle)
 
         ax.plot(ellipse[0],ellipse[1],color='black',linewidth=3)#,marker='.')
-        ax.scatter(event['xccd'],event['yccd'],s=100,c='darkorchid',marker='*')
+        ax.scatter(event['xccd'],event['yccd'],s=75,c='green',marker='*')
 
         ax2 = fig.add_subplot(133,aspect='equal')
         ax2.set_xlabel(' ')
