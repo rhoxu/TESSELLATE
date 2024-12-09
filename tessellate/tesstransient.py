@@ -767,7 +767,11 @@ class TessTransient():
     def _cut_events_inside_ellipse(self,cam,ccd,cut,timestart,timeend,eventduration,part):
         
         detector = Detector(sector=self.sector,cam=cam,ccd=ccd,n=self.n,data_path=self.data_path,part=part)
-        detector._gather_results(cut)
+        try:
+            detector._gather_results(cut)
+        except:
+            print(f'No detection tables for Cam {cam} CCD {ccd} Cut {cut}!')
+            return None
 
         events = detector.events
 
@@ -781,7 +785,11 @@ class TessTransient():
     def _cut_events_intersecting_ellipse(self,cam,ccd,cut,ellipse,timestart,timeend,eventduration,part):
         
         detector = Detector(sector=self.sector,cam=cam,ccd=ccd,n=self.n,data_path=self.data_path,part=part)
-        detector._gather_results(cut)
+        try:
+            detector._gather_results(cut)
+        except:
+            print(f'No detection tables for Cam {cam} CCD {ccd} Cut {cut}!')
+            return None
 
         events = detector.events
 
