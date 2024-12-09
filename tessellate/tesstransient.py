@@ -901,7 +901,7 @@ class TessTransient():
         mark_inset(ax1, axins, loc1=3, loc2=4, fc="none", ec="r",lw=2)
         plt.setp(axins.spines.values(), color='r',lw=2)
         plt.setp([axins.get_xticklines(), axins.get_yticklines()], color='C3')
-        axins.axvline(self.eventtime,linestyle='--',lw=2,color='magenta')
+        axins.axvline(self.eventtime,linestyle='--',lw=2,color='dodgerblue')
 
         ellipse = self.find_error_ellipse(cam=event['camera'],ccd=event['ccd'],plot=False)
         dp = DataProcessor(sector=self.sector,path=self.data_path)
@@ -942,7 +942,7 @@ class TessTransient():
             ax.add_patch(rectangle)
 
         ax.plot(ellipse[0],ellipse[1],color='black',linewidth=3)#,marker='.')
-        ax.scatter(event['xccd'],event['yccd'],s=75,c='green',marker='*')
+        ax.scatter(event['xccd'],event['yccd'],s=75,c='dodgerblue',marker='*')
 
         ax2 = fig.add_subplot(133,aspect='equal')
         ax2.set_xlabel(' ')
