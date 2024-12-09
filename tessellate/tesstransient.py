@@ -748,7 +748,7 @@ class TessTransient():
                         make_cuts=True,cut_time=cutting[0],cut_mem=int(cutting[1][:-1]),
                         reduce=True,reduce_time=reducing[0],reduce_cpu=int(reducing[1]),
                         search=True,search_time=searching[0],search_cpu=int(searching[1]),
-                        plot=True,plot_time=plotting[0],plot_cpu=int(plotting[1]),
+                        plot=False,plot_time=plotting[0],plot_cpu=int(plotting[1]),
                         delete=False,reset_logs=False,overwrite=False)
         
     def run(self):
@@ -849,7 +849,7 @@ class TessTransient():
 
         return tables[tables['lc_sig']>significanceCut]
     
-    def plot_candidate(self,event):
+    def plot_candidate(self,event,save=False):
 
         d = Detector(sector=self.sector,cam=event['camera'],ccd=event['ccd'],data_path=self.data_path,n=self.n)
         d._gather_data(cut=event['Cut'])
@@ -972,6 +972,8 @@ class TessTransient():
             vmin = vmax - 5
         cutout_image = d.flux[:,ymin:y+10,xmin:x+10]
         ax2.imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
+        if save:
+            fig.savefig(f'TessTransientS{self.sector}C{event['camera']}C{event['ccd']}C{event['Cut']}O{event['objid']}.pdf',dpi=200,bbox_inches='tight')
 
     def _find_which_part(self):
 
@@ -982,7 +984,7 @@ class TessTransient():
         else:
             return 2
 
-    def candidate_events(self,timeStartBuffer=120,eventDuration=12,significanceCut=None,num_plot=10):
+    def candidate_events(self,timeStartBuffer=120,eventDuration=12,significanceCut=None,num_plot=10,save=False):
         """
         timeStartBuffer in minutes, eventDuration in hours
         """
@@ -1019,7 +1021,7 @@ class TessTransient():
                     skip+=1
                 except:
                     break
-            self.plot_candidate(event)    
+            self.plot_candidate(event,save=save)    
             done.append(event['objid'])
 
         return table
