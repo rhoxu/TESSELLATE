@@ -934,10 +934,10 @@ class TessTransient():
             if i in interesting:
                 c2 = np.copy(c)
                 c2[-1] = 0.3
-                rectangle = patches.Rectangle(corner,2*cutSize,2*cutSize,edgecolor=c,
-                                                facecolor=c2,lw=2)
+                rectangle = patches.Rectangle(corner,2*cutSize,2*cutSize,edgecolor='r',
+                                                facecolor='r',lw=2)
             else:
-                rectangle = patches.Rectangle(corner,2*cutSize,2*cutSize,edgecolor=c,
+                rectangle = patches.Rectangle(corner,2*cutSize,2*cutSize,edgecolor='r',
                                                 facecolor='none',alpha=1,lw=2)
             ax.add_patch(rectangle)
 
