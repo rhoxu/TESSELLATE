@@ -265,14 +265,14 @@ class TessTransient():
                 data_processor.download(cam=cam,ccd=ccd,number=1)
             
             
-        wcsItem = _get_wcs(f'{data_path}/image_files',f'{data_path}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits')
+        wcsItem = _get_wcs(f'{data_path}/image_files',f'{data_path}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits',verbose=0)
         
         ellipse = self._gen_ellipse(wcsItem)
         
         if plot:
 
             d = DataProcessor(sector=self.sector,path=self.data_path)
-            cutCorners, cutCentrePx, cutCentreCoords, cutSize = d.find_cuts(cam,ccd,self.n,plot=False)
+            cutCorners, cutCentrePx, cutCentreCoords, cutSize = d.find_cuts(cam,ccd,self.n,plot=False,verbose=False)
 
             intersects,inside = self._find_impacted_cuts(ellipse,cutCorners,cutSize,cutCentrePx)
             interesting = np.union1d(intersects,inside)
@@ -710,6 +710,13 @@ class TessTransient():
         t = Tessellate(data_path=self.data_path,job_output_path='',working_path='',
                        sector=self.sector,go=False)
         
+        if self.sector in range(1, 28):      # Primary mission: ~1200 FFIs, 30 min cadence
+            self.cadence = 1 / 48
+        elif self.sector in range(28, 56):  # Secondary mission: ~3600 FFIs, 10 min cadence
+            self.cadence = 1 / (3 * 48)
+        else:                               # Tertiary mission
+            self.cadence = 200 / (24 * 60 * 60)
+
         suggestions = t._sector_suggestions()
 
         self.part = t.part
@@ -817,14 +824,13 @@ class TessTransient():
         """
 
         data_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}'
-        wcsItem = _get_wcs(f'{data_path}/image_files',f'{data_path}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits')
+        wcsItem = _get_wcs(f'{data_path}/image_files',f'{data_path}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits',verbose=0)
         ellipse = self._gen_ellipse(wcsItem)
         d = DataProcessor(sector=self.sector,path=self.data_path)
-        cutCorners, cutCentrePx, cutCentreCoords, cutSize = d.find_cuts(cam,ccd,self.n,plot=False)
+        cutCorners, cutCentrePx, cutCentreCoords, cutSize = d.find_cuts(cam,ccd,self.n,plot=False,verbose=0)
         intersects,inside = self._find_impacted_cuts(ellipse,cutCorners,cutSize,cutCentrePx)
 
-
-        timeStart = self.eventtime
+        timeStart = self.eventtime - self.cadence
         timeEnd = self.eventtime + timeStartBuffer/1440
 
         tables = []
@@ -860,7 +866,7 @@ class TessTransient():
             fstart = 0
         zoom = f[fstart:frameEnd+20]
 
-        wcsItem = _get_wcs(f"{self.data_path}/Sector{self.sector}/Cam{event['camera']}/Ccd{event['ccd']}/image_files",f"{self.data_path}/sector{self.sector}_cam{event['camera']}_ccd{event['ccd']}_wcs.fits")
+        wcsItem = _get_wcs(f"{self.data_path}/Sector{self.sector}/Cam{event['camera']}/Ccd{event['ccd']}/image_files",f"{self.data_path}/sector{self.sector}_cam{event['camera']}_ccd{event['ccd']}_wcs.fits",verbose=0)
 
         fig = plt.figure(figsize=(12,4),constrained_layout=True)
         fig.suptitle(f"Cam {event['camera']} CCD {event['ccd']} Cut {event['Cut']} Object {event['objid']}", fontsize=16)
@@ -899,7 +905,7 @@ class TessTransient():
 
         ellipse = self.find_error_ellipse(cam=event['camera'],ccd=event['ccd'],plot=False)
         dp = DataProcessor(sector=self.sector,path=self.data_path)
-        cutCorners, cutCentrePx, cutCentreCoords, cutSize = dp.find_cuts(event['camera'],event['ccd'],self.n,plot=False)
+        cutCorners, cutCentrePx, cutCentreCoords, cutSize = dp.find_cuts(event['camera'],event['ccd'],self.n,plot=False,verbose=False)
 
         intersects,inside = self._find_impacted_cuts(ellipse,cutCorners,cutSize,cutCentrePx)
         interesting = np.union1d(intersects,inside)

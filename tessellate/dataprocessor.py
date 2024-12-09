@@ -19,7 +19,7 @@ from astropy.time import Time
 from .downloader import Download_cam_ccd_FFIs
 from .tools import _Save_space, _Remove_emptys, _Extract_fits, _Print_buff
     
-def _get_wcs(path,wcs_path_check):
+def _get_wcs(path,wcs_path_check,verbose=1):
     """
     Get WCS data from a file in the path
     """
@@ -42,7 +42,8 @@ def _get_wcs(path,wcs_path_check):
                 else:
                     i += 1
         else:
-            print('No Data!')
+            if verbose>0:
+                print('No Data!')
             return
 
     return wcsItem
@@ -141,7 +142,7 @@ class DataProcessor():
             print(_Print_buff(50,f'Downloading Sector {self.sector} Cam {cam} CCD {ccd}'))
         Download_cam_ccd_FFIs(self.path,self.sector,cam,ccd,time,None,None,number=number) 
     
-    def find_cuts(self,cam,ccd,n,plot=True,proj=True,coord=None):
+    def find_cuts(self,cam,ccd,n,plot=True,proj=True,coord=None,verbose=1):
         """
         Function for finding cuts.
 
@@ -174,7 +175,8 @@ class DataProcessor():
         #     wcs_save.writeto(f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits')
 
         if wcsItem is None:
-            print('WCS Extraction Failed')
+            if verbose > 0:
+                print('WCS Extraction Failed')
             return
 
         cutCorners, cutCentrePx, cutCentreCoords, cutSize = _cut_properties(wcsItem,n)
