@@ -178,30 +178,28 @@ def _DESI_phot(ra,dec,size):
     urlFITS = f"http://legacysurvey.org/viewer/cutout.fits?ra={ra}&dec={dec}&size={size}"
     urlIM = f"http://legacysurvey.org/viewer/cutout.jpg?ra={ra}&dec={dec}&size={size}"
 
-    print(urlFITS)
-
     response = requests.get(urlIM)
     if response.status_code == 200:
         image = Image.open(BytesIO(requests.get(urlIM).content))
         
-        # try:
-        hdulist = fits.open(BytesIO(requests.get(urlFITS).content))
-        hdu = hdulist[0]
-        wcs = WCS(hdu.header)
-        wcs = wcs.dropaxis(2)
+        try:
+            hdulist = fits.open(BytesIO(requests.get(urlFITS).content))
+            hdu = hdulist[0]
+            wcs = WCS(hdu.header)
+            wcs = wcs.dropaxis(2)
 
-        plt.rcParams.update({'font.size':12})
-        fig = plt.figure(figsize=(3*fig_width,1*fig_width))
-        ax = plt.subplot(111,projection=wcs)
-        ax.imshow(image,cmap="gray")
-        ax.set_title('DESI grz')
-        ax.grid(alpha=0.2)
-        ax.set_xlabel('Right Ascension')
-        ax.set_ylabel('Declination')
-        ax.invert_xaxis()
-        return fig,wcs,size
-        # except:
-        #     return None,None,None
+            plt.rcParams.update({'font.size':12})
+            fig = plt.figure(figsize=(3*fig_width,1*fig_width))
+            ax = plt.subplot(111,projection=wcs)
+            ax.imshow(image,cmap="gray")
+            ax.set_title('DESI grz')
+            ax.grid(alpha=0.2)
+            ax.set_xlabel('Right Ascension')
+            ax.set_ylabel('Declination')
+            ax.invert_xaxis()
+            return fig,wcs,size
+        except:
+            return None,None,None
     else:
         return None,None,None
 
