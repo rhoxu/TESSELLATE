@@ -1602,8 +1602,8 @@ class Detector():
                     y = y[good]
                     if len(x) > 0:
                         ax.plot(x,y,color=color,alpha=alpha,lw=lw)
-                        # ax.set_xlim(0,size)
-                        # ax.set_ylim(0,size) 
+                        ax.set_xlim(0,size)
+                        ax.set_ylim(0,size) 
 
             source.photometry = fig
         
