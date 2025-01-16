@@ -186,6 +186,7 @@ def _DESI_phot(ra,dec,size):
         hdulist = fits.open(BytesIO(requests.get(urlFITS).content))
         hdu = hdulist[0]
         wcs = WCS(hdu.header)
+        wcs = wcs.dropaxis(2)
 
         plt.rcParams.update({'font.size':12})
         fig = plt.figure(figsize=(3*fig_width,1*fig_width))

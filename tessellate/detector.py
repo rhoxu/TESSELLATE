@@ -1546,13 +1546,20 @@ class Detector():
         # plt.close()
 
         if externel_phot:
-            fig, wcs, size = event_cutout((source.ra,source.dec),100)
+
+            file = f'{self.path}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_wcs.fits'
+            hdu = fits.open(file)
+            tessWCS = WCS(hdu[1].header)
+
+            xint = source.xint + int(source.xccd-source.xcentroid)
+            yint = source.yint + int(source.yccd-source.ycentroid)
+
+            RA,DEC = tessWCS.all_pix2world(xint,yint,0)
+
+            fig, wcs, size = event_cutout((RA,DEC),100)
             axes = fig.get_axes()
             if len(axes) == 1:
                 wcs = [wcs]
-            
-            xint = source.xint + int(source.xccd-source.xcentroid)
-            yint = source.yint + int(source.yccd-source.ycentroid)
 
             xRange = np.arange(xint-3,xint+3)
             yRange = np.arange(yint-3,yint+3)
@@ -1567,10 +1574,6 @@ class Detector():
                 lines.append(line)
 
             # tessWCS = WCS(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits')
-
-            file = f'{self.path}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_wcs.fits'
-            hdu = fits.open(file)
-            tessWCS = WCS(hdu[1].header)
 
             for i,ax in enumerate(axes):
                 # ra,dec = tessWCS.all_pix2world(source.xcentroid,source.ycentroid,0)    
