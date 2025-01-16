@@ -1576,9 +1576,11 @@ class Detector():
             # tessWCS = WCS(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits')
 
             for i,ax in enumerate(axes):
-                # ra,dec = tessWCS.all_pix2world(source.xcentroid,source.ycentroid,0)    
-                # x,y = wcs[i].all_world2pix(ra,dec,0)
-                # ax.scatter(x,y,color='green',marker='o',s=5)
+                
+                if np.mean(lines[5][:,1]) < np.mean(lines[0][:,1]):
+                    ax.invert_xaxis()
+                    ax.invert_yaxis()
+
                 for j,line in enumerate(lines):
                     if j in [0,6]:
                         color = 'red'
