@@ -1271,7 +1271,7 @@ class Detector():
     def plot_source(self,cut,id,event='seperate',savename=None,save_path='.',
                     star_bin=True,period_bin=True,type_bin=True,objectid_bin='auto',
                     include_periodogram=False,latex=True,period_power_limit=10,
-                    asteroid_check=False,zoo_mode=True,save_lc=True,externel_phot=True):
+                    asteroid_check=False,zoo_mode=True,save_lc=True,external_phot=True):
         if latex:
             plt.rc('text', usetex=True)
             plt.rc('font', family='serif')
@@ -1545,14 +1545,14 @@ class Detector():
         # plt.show()
         # plt.close()
 
-        if externel_phot:
+        if external_phot:
 
             file = f'{self.path}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_wcs.fits'
             hdu = fits.open(file)
             tessWCS = WCS(hdu[1].header)
 
-            xint = source.xint + np.round(source.xccd-source.xcentroid)
-            yint = source.yint + np.round(source.yccd-source.ycentroid)
+            xint = np.round(source.xccd).astype(int)
+            yint = np.round(source.yccd).astype(int)
 
             RA,DEC = tessWCS.all_pix2world(xint,yint,0)
 
