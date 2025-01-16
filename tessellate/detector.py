@@ -1551,8 +1551,8 @@ class Detector():
             hdu = fits.open(file)
             tessWCS = WCS(hdu[1].header)
 
-            xint = source.xint + int(source.xccd-source.xcentroid)
-            yint = source.yint + int(source.yccd-source.ycentroid)
+            xint = source.xint + np.round(source.xccd-source.xcentroid)
+            yint = source.yint + np.round(source.yccd-source.ycentroid)
 
             RA,DEC = tessWCS.all_pix2world(xint,yint,0)
 
