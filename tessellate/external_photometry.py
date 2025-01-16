@@ -198,7 +198,8 @@ def _DESI_phot(ra,dec,size):
             ax.set_ylabel('Declination')
             ax.invert_xaxis()
             return fig,wcs,size
-        except:
+        except Exception as error:
+            print("DESI Photometry failed:", error)
             return None,None,None
     else:
         return None,None,None
