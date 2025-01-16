@@ -1597,13 +1597,13 @@ class Detector():
                         x,y,_ = wcs[i].all_world2pix(ra,dec,0,0)
                     else:
                         x,y = wcs[i].all_world2pix(ra,dec,0)
-                    good = (x>0)&(y>0)
+                    good = (x>0)&(y>0)&(x<size)&(y<size)
                     x = x[good]
                     y = y[good]
                     if len(x) > 0:
                         ax.plot(x,y,color=color,alpha=alpha,lw=lw)
-                        ax.set_xlim(0,size)
-                        ax.set_ylim(0,size) 
+                        # ax.set_xlim(0,size)
+                        # ax.set_ylim(0,size) 
 
             source.photometry = fig
         
