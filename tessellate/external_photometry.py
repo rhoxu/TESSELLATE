@@ -199,7 +199,7 @@ def _DESI_phot(ra,dec,size):
             ax.invert_xaxis()
             return fig,wcs,size
         except Exception as error:
-            print("DESI Photometry failed:", error)
+            print("DESI Photometry failed: ", error)
             return None,None,None
     else:
         return None,None,None
@@ -209,6 +209,8 @@ def event_cutout(coords,size=50,phot=None):
 
     if phot is None:
         fig,wcs,outsize = _DESI_phot(coords[0],coords[1],size)
+        print(f'WCS = {fig}')
+        print('\n')
         if fig is None:
             if coords[1] > -10:
                 phot = 'PS1'
@@ -217,12 +219,15 @@ def event_cutout(coords,size=50,phot=None):
         else:
             phot = 'DESI'
 
+    print(phot)
+    print('\n')
 
     if phot == 'PS1':
         fig,wcs,outsize = _Panstarrs_phot(coords[0],coords[1],size)
 
     elif phot.lower() == 'skymapper':
         fig,wcs,outsize = _Skymapper_phot(coords[0],coords[1],size)
+        print(wcs)
 
     elif phot is None:
         print('Photometry name invalid.')
