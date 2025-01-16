@@ -29,6 +29,7 @@ from astropy.stats import sigma_clip
 import astropy.units as u
 from astropy.time import Time
 from astropy.wcs import WCS
+from astropy.io import fits
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -1261,7 +1262,7 @@ class Detector():
         self.events = detections
         inds = detections['objid'].unique()
         print('Total events to plot: ', len(detections))
-        events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path,externel_phot=False) for ind in inds)
+        events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path,external_phot=False) for ind in inds)
         print('Plot complete!')
         
 
@@ -1550,8 +1551,11 @@ class Detector():
             if len(axes) == 1:
                 wcs = [wcs]
             
-            xRange = np.arange(source.xint-3,source.xint+3)
-            yRange = np.arange(source.yint-3,source.yint+3)
+            xint = source.xint + int(source.xccd-source.xcentroid)
+            yint = source.yint + int(source.yccd-source.ycentroid)
+
+            xRange = np.arange(xint-3,xint+3)
+            yRange = np.arange(yint-3,yint+3)
 
             lines = []
             for x in xRange:
@@ -1562,14 +1566,23 @@ class Detector():
                 line = np.linspace((xRange[0],y),(xRange[-1],y),100)
                 lines.append(line)
 
-            tessWCS = WCS(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits')
+            # tessWCS = WCS(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits')
+
+            file = f'{self.path}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_wcs.fits'
+            hdu = fits.open(file)
+            tessWCS = WCS(hdu[1].header)
+
             for i,ax in enumerate(axes):
                 # ra,dec = tessWCS.all_pix2world(source.xcentroid,source.ycentroid,0)    
                 # x,y = wcs[i].all_world2pix(ra,dec,0)
                 # ax.scatter(x,y,color='green',marker='o',s=5)
                 for j,line in enumerate(lines):
-                    if j in [0,5,6,11]:
+                    if j in [0,6]:
                         color = 'red'
+                        lw = 5
+                        alpha = 0.7
+                    elif j in [5,11]:
+                        color = 'cyan'
                         lw = 5
                         alpha = 0.7
                     else:
@@ -1586,8 +1599,8 @@ class Detector():
                     y = y[good]
                     if len(x) > 0:
                         ax.plot(x,y,color=color,alpha=alpha,lw=lw)
-                        ax.set_xlim(0,size)
-                        ax.set_ylim(0,size) 
+                        # ax.set_xlim(0,size)
+                        # ax.set_ylim(0,size) 
 
             source.photometry = fig
         

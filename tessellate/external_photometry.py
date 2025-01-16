@@ -174,7 +174,7 @@ def _Skymapper_phot(ra,dec,size):
 
 def _DESI_phot(ra,dec,size):
 
-    size = size *4
+    size = size *5
     urlFITS = f"http://legacysurvey.org/viewer/cutout.fits?ra={ra}&dec={dec}&size={size}"
     urlIM = f"http://legacysurvey.org/viewer/cutout.jpg?ra={ra}&dec={dec}&size={size}"
 
@@ -188,10 +188,14 @@ def _DESI_phot(ra,dec,size):
             wcs = WCS(hdu.header)
 
             plt.rcParams.update({'font.size':12})
-            fig,ax = plt.subplots(ncols=1,figsize=(3*fig_width,1*fig_width))
-            ax.imshow(image,origin="upper",cmap="gray")
+            fig = plt.figure(figsize=(3*fig_width,1*fig_width))
+            ax = plt.subplot(111,projection=wcs)
+            ax.imshow(image,cmap="gray")
             ax.set_title('DESI grz')
-            
+            ax.grid(alpha=0.2)
+            ax.set_xlabel('Right Ascension')
+            ax.set_ylabel('Declination')
+            ax.invert_xaxis()
             return fig,wcs,size
         except:
             return None,None,None
