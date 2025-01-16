@@ -178,6 +178,8 @@ def _DESI_phot(ra,dec,size):
     urlFITS = f"http://legacysurvey.org/viewer/cutout.fits?ra={ra}&dec={dec}&size={size}"
     urlIM = f"http://legacysurvey.org/viewer/cutout.jpg?ra={ra}&dec={dec}&size={size}"
 
+    print(urlFITS)
+
     response = requests.get(urlIM)
     if response.status_code == 200:
         image = Image.open(BytesIO(requests.get(urlIM).content))
