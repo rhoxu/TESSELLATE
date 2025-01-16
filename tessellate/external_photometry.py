@@ -152,7 +152,7 @@ def _Skymapper_phot(ra,dec,size):
     url = table[2][3]
     r = requests.get(url)
     im = Image.open(BytesIO(r.content))
-    ax[0].imshow(im,origin="upper",cmap="gray")
+    ax[0].imshow(im,origin="lower",cmap="gray")
     ax[0].set_title('SkyMapper g')
     ax[0].set_xlabel('px (1.1")')
 
@@ -160,14 +160,14 @@ def _Skymapper_phot(ra,dec,size):
     r = requests.get(url)
     im = Image.open(BytesIO(r.content))
     ax[1].set_title('SkyMapper r')
-    ax[1].imshow(im,origin="upper",cmap="gray")
+    ax[1].imshow(im,origin="lower",cmap="gray")
     ax[1].set_xlabel('px (1.1")')
 
     url = table[0][3]
     r = requests.get(url)
     im = Image.open(BytesIO(r.content))
     ax[2].set_title('SkyMapper i')
-    ax[2].imshow(im,origin="upper",cmap="gray")
+    ax[2].imshow(im,origin="lower",cmap="gray")
     ax[2].set_xlabel('px (1.1")')
 
     return fig,wcsList,og_size*2
