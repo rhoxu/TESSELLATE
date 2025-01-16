@@ -1555,8 +1555,6 @@ class Detector():
             yint = np.round(source.yccd).astype(int)
 
             RA,DEC = tessWCS.all_pix2world(xint,yint,0)
-            print(RA)
-            print(DEC)
 
             fig, wcs, size = event_cutout((RA,DEC),100)
             axes = fig.get_axes()
