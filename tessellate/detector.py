@@ -1592,7 +1592,7 @@ class Detector():
                         color='white'
                         lw = 2
                         alpha = 0.3
-                    ra,dec = tessWCS.all_pix2world(line[:,0]+1,line[:,1]+1,0)
+                    ra,dec = tessWCS.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
                     if wcs[i].naxis == 3:
                         x,y,_ = wcs[i].all_world2pix(ra,dec,0,0)
                     else:
