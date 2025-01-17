@@ -1607,8 +1607,8 @@ class Detector():
                     ax.invert_xaxis()
                     ax.invert_yaxis()
 
-                ax.set_ylim(0,size)
-                ax.set_xlim(0,size)
+                # ax.set_ylim(0,size)
+                # ax.set_xlim(0,size)
 
             source.photometry = fig
         
