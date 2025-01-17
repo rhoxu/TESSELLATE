@@ -222,7 +222,6 @@ def event_cutout(coords,size=50,phot=None):
 
     elif phot.lower() == 'skymapper':
         fig,wcs,outsize = _Skymapper_phot(coords[0],coords[1],size)
-        print(wcs)
 
     elif phot is None:
         print('Photometry name invalid.')
