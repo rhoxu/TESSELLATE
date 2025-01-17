@@ -189,7 +189,7 @@ def _DESI_phot(ra,dec,size):
             wcs = wcs.dropaxis(2)
 
             plt.rcParams.update({'font.size':12})
-            fig = plt.figure(figsize=(3*fig_width,1*fig_width))
+            fig = plt.figure(figsize=(8,8))#3*fig_width,1*fig_width))
             ax = plt.subplot(111,projection=wcs)
             ax.imshow(image,cmap="gray")
             ax.set_title('DESI grz')
