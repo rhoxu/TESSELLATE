@@ -1623,9 +1623,11 @@ class Detector():
                     if len(x) > 0:
                         ax.plot(x,y,color=color,alpha=alpha,lw=lw)
 
-                if (ys[0] > ys[1]) & (photometry == 'DESI'):
-                    ax.invert_xaxis()
+                if (ys[0] > ys[1]):
                     ax.invert_yaxis()
+                    if (photometry == 'DESI'):
+                        ax.invert_xaxis()
+                        
 
                 # ax.set_ylim(0,size)
                 # ax.set_xlim(0,size)
