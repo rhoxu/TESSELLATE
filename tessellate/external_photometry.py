@@ -152,7 +152,7 @@ def _Skymapper_phot(ra,dec,size):
     url = table[2][3]
     r = requests.get(url)
     im = Image.open(BytesIO(r.content))
-    ax[0].imshow(im,origin="upper",cmap="gray")
+    ax[0].imshow(im,origin="lower",cmap="gray")
     ax[0].set_title('SkyMapper g')
     ax[0].set_xlabel('px (1.1")')
 
@@ -160,21 +160,21 @@ def _Skymapper_phot(ra,dec,size):
     r = requests.get(url)
     im = Image.open(BytesIO(r.content))
     ax[1].set_title('SkyMapper r')
-    ax[1].imshow(im,origin="upper",cmap="gray")
+    ax[1].imshow(im,origin="lower",cmap="gray")
     ax[1].set_xlabel('px (1.1")')
 
     url = table[0][3]
     r = requests.get(url)
     im = Image.open(BytesIO(r.content))
     ax[2].set_title('SkyMapper i')
-    ax[2].imshow(im,origin="upper",cmap="gray")
+    ax[2].imshow(im,origin="lower",cmap="gray")
     ax[2].set_xlabel('px (1.1")')
 
     return fig,wcsList,og_size*2
 
 def _DESI_phot(ra,dec,size):
 
-    size = size *4
+    size = size *5
     urlFITS = f"http://legacysurvey.org/viewer/cutout.fits?ra={ra}&dec={dec}&size={size}"
     urlIM = f"http://legacysurvey.org/viewer/cutout.jpg?ra={ra}&dec={dec}&size={size}"
 
@@ -186,14 +186,20 @@ def _DESI_phot(ra,dec,size):
             hdulist = fits.open(BytesIO(requests.get(urlFITS).content))
             hdu = hdulist[0]
             wcs = WCS(hdu.header)
+            wcs = wcs.dropaxis(2)
 
             plt.rcParams.update({'font.size':12})
-            fig,ax = plt.subplots(ncols=1,figsize=(3*fig_width,1*fig_width))
-            ax.imshow(image,origin="upper",cmap="gray")
+            fig = plt.figure(figsize=(3*fig_width,1*fig_width))
+            ax = plt.subplot(111,projection=wcs)
+            ax.imshow(image,cmap="gray")
             ax.set_title('DESI grz')
-            
+            ax.grid(alpha=0.2)
+            ax.set_xlabel('Right Ascension')
+            ax.set_ylabel('Declination')
+            ax.invert_xaxis()
             return fig,wcs,size
-        except:
+        except Exception as error:
+            print("DESI Photometry failed: ", error)
             return None,None,None
     else:
         return None,None,None
@@ -210,7 +216,6 @@ def event_cutout(coords,size=50,phot=None):
                 phot = 'SkyMapper'
         else:
             phot = 'DESI'
-
 
     if phot == 'PS1':
         fig,wcs,outsize = _Panstarrs_phot(coords[0],coords[1],size)

@@ -29,6 +29,7 @@ from astropy.stats import sigma_clip
 import astropy.units as u
 from astropy.time import Time
 from astropy.wcs import WCS
+from astropy.io import fits
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -1259,6 +1260,7 @@ class Detector():
                  save_lc=True,time_bin=None):
         if time_bin is not None:
             self.time_bin = time_bin
+
         try:
             detections = self.count_detections(cut=cut,lower=lower,max_events=max_events,
                                             sign=sign,starkiller=starkiller,sig_lc=sig_lc,sig_image=sig_image)
@@ -1273,6 +1275,7 @@ class Detector():
             print('Plot complete!')
         except:
             print('plotting failed!')
+
         
 
 
@@ -1281,8 +1284,9 @@ class Detector():
                     star_bin=True,period_bin=True,type_bin=True,objectid_bin='auto',
                     include_periodogram=False,latex=True,period_power_limit=10,
                     asteroid_check=False,zoo_mode=True,save_lc=True,externel_phot=False):
+
         if latex:
-            plt.rc('text', usetex=True)
+            plt.rc('text', usetex=latex)
             plt.rc('font', family='serif')
         #else:
             #plt.rc('text', usetex=False)
@@ -1561,14 +1565,24 @@ class Detector():
         # plt.show()
         # plt.close()
 
-        if externel_phot:
-            fig, wcs, size = event_cutout((source.ra,source.dec),100)
+        if external_phot:
+
+            file = f'{self.path}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_wcs.fits'
+            hdu = fits.open(file)
+            tessWCS = WCS(hdu[1].header)
+
+            xint = np.round(source.xccd).astype(int)
+            yint = np.round(source.yccd).astype(int)
+
+            RA,DEC = tessWCS.all_pix2world(xint,yint,0)
+
+            fig, wcs, size = event_cutout((RA,DEC),100)
             axes = fig.get_axes()
             if len(axes) == 1:
                 wcs = [wcs]
-            
-            xRange = np.arange(source.xint-3,source.xint+3)
-            yRange = np.arange(source.yint-3,source.yint+3)
+
+            xRange = np.arange(xint-3,xint+3)
+            yRange = np.arange(yint-3,yint+3)
 
             lines = []
             for x in xRange:
@@ -1579,14 +1593,17 @@ class Detector():
                 line = np.linspace((xRange[0],y),(xRange[-1],y),100)
                 lines.append(line)
 
-            tessWCS = WCS(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits')
-            for i,ax in enumerate(axes):
-                # ra,dec = tessWCS.all_pix2world(source.xcentroid,source.ycentroid,0)    
-                # x,y = wcs[i].all_world2pix(ra,dec,0)
-                # ax.scatter(x,y,color='green',marker='o',s=5)
+            # tessWCS = WCS(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits')
+
+            for i,ax in enumerate(axes):                    
+                ys = []
                 for j,line in enumerate(lines):
-                    if j in [0,5,6,11]:
+                    if j in [0,6]:
                         color = 'red'
+                        lw = 5
+                        alpha = 0.7
+                    elif j in [5,11]:
+                        color = 'cyan'
                         lw = 5
                         alpha = 0.7
                     else:
@@ -1598,13 +1615,20 @@ class Detector():
                         x,y,_ = wcs[i].all_world2pix(ra,dec,0,0)
                     else:
                         x,y = wcs[i].all_world2pix(ra,dec,0)
-                    good = (x>0)&(y>0)
+                    if j in [0,5]:
+                        ys.append(np.mean(y))
+                    good = (x>0)&(y>0)&(x<size)&(y<size)
                     x = x[good]
                     y = y[good]
                     if len(x) > 0:
                         ax.plot(x,y,color=color,alpha=alpha,lw=lw)
-                        ax.set_xlim(0,size)
-                        ax.set_ylim(0,size) 
+
+                if ys[0] > ys[1]:
+                    ax.invert_xaxis()
+                    ax.invert_yaxis()
+
+                # ax.set_ylim(0,size)
+                # ax.set_xlim(0,size)
 
             source.photometry = fig
         
