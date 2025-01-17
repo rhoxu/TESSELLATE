@@ -209,8 +209,6 @@ def event_cutout(coords,size=50,phot=None):
 
     if phot is None:
         fig,wcs,outsize = _DESI_phot(coords[0],coords[1],size)
-        print(f'WCS = {fig}')
-        print('\n')
         if fig is None:
             if coords[1] > -10:
                 phot = 'PS1'
@@ -218,9 +216,6 @@ def event_cutout(coords,size=50,phot=None):
                 phot = 'SkyMapper'
         else:
             phot = 'DESI'
-
-    print(phot)
-    print('\n')
 
     if phot == 'PS1':
         fig,wcs,outsize = _Panstarrs_phot(coords[0],coords[1],size)
