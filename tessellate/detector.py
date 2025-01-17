@@ -1283,7 +1283,7 @@ class Detector():
     def plot_source(self,cut,id,event='seperate',savename=None,save_path='.',
                     star_bin=True,period_bin=True,type_bin=True,objectid_bin='auto',
                     include_periodogram=False,latex=True,period_power_limit=10,
-                    asteroid_check=False,zoo_mode=True,save_lc=True,externel_phot=False):
+                    asteroid_check=False,zoo_mode=True,save_lc=True,external_phot=False):
 
         if latex:
             plt.rc('text', usetex=latex)
