@@ -1824,7 +1824,8 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                                 self._cut_transient_plot(cam,ccd,cut)
                             else:
                                 e = f'No Event File Detected for Plotting of Cut {cut}!\n'
-                                raise ValueError(e)
+                                print(e)
+                                #raise ValueError(e)
                             
                         
                 else:
