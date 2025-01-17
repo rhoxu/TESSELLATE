@@ -230,4 +230,4 @@ def event_cutout(coords,size=50,phot=None):
 
     plt.close()
 
-    return fig,wcs,outsize
+    return fig,wcs,outsize, phot
