@@ -208,7 +208,7 @@ def _process_detection(star,parallel=False):
 def find_stars(data,prf,fwhmlim=7,siglim=2.5,bkgstd_lim=50,negative=False):
     if negative:
         data = data * -1
-    star = _star_finding_procedure(data,prf,sig_limit=2)
+    star = _star_finding_procedure(data,prf,sig_limit=siglim)
     if star is None:
         return None
     ind = (star['fwhm'].values < fwhmlim) & (star['fwhm'].values > 0.8)
@@ -1254,22 +1254,25 @@ class Detector():
         return extension
 
 
-    def plot_ALL(self,cut,save_path=None,lower=3,max_events=10,starkiller=False,
-                 sig_image=2.5,sig_lc=2.5,bkgstd_lim=50,sign=1,
+    def plot_ALL(self,cut,save_path=None,lower=3,max_events=30,starkiller=False,
+                 sig_image=3,sig_lc=2.5,bkgstd_lim=100,sign=1,
                  save_lc=True,time_bin=None):
         if time_bin is not None:
             self.time_bin = time_bin
-        detections = self.count_detections(cut=cut,lower=lower,max_events=max_events,
-                                           sign=sign,starkiller=starkiller,sig_lc=sig_lc,sig_image=sig_image)
-        if save_path is None:
-            save_path = self.path + f'/Cut{cut}of{self.n**2}/figs/'
-            print('Figure path: ',save_path)
-            self._check_dirs(save_path)
-        self.events = detections
-        inds = detections['objid'].unique()
-        print('Total events to plot: ', len(detections))
-        events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path,externel_phot=False) for ind in inds)
-        print('Plot complete!')
+        try:
+            detections = self.count_detections(cut=cut,lower=lower,max_events=max_events,
+                                            sign=sign,starkiller=starkiller,sig_lc=sig_lc,sig_image=sig_image)
+            if save_path is None:
+                save_path = self.path + f'/Cut{cut}of{self.n**2}/figs/'
+                print('Figure path: ',save_path)
+                self._check_dirs(save_path)
+            self.events = detections
+            inds = detections['objid'].unique()
+            print('Total events to plot: ', len(detections))
+            events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path,externel_phot=False) for ind in inds)
+            print('Plot complete!')
+        except:
+            print('plotting failed!')
         
 
 
@@ -1277,7 +1280,7 @@ class Detector():
     def plot_source(self,cut,id,event='seperate',savename=None,save_path='.',
                     star_bin=True,period_bin=True,type_bin=True,objectid_bin='auto',
                     include_periodogram=False,latex=True,period_power_limit=10,
-                    asteroid_check=False,zoo_mode=True,save_lc=True,externel_phot=True):
+                    asteroid_check=False,zoo_mode=True,save_lc=True,externel_phot=False):
         if latex:
             plt.rc('text', usetex=True)
             plt.rc('font', family='serif')
@@ -1412,8 +1415,15 @@ class Detector():
                 xmin = 0
             if xmax >= len(time):
                 xmax = len(time) - 1
-            xmin = time[xmin]
-            xmax = time[xmax]
+            cadence = np.mean(np.diff(time))
+            xmin = time[frameStart] - (3*duration * cadence)
+            xmax = time[frameEnd] + (3*duration * cadence)
+            if xmin <= 0:
+                xmin = 0
+            if xmax >= np.nanmax(time):
+                xmax = np.nanmax(time)
+            #xmin = time[xmin]
+            #xmax = time[xmax]
             #axins.set_xlim(time[fstart],time[fe])
             axins.set_xlim(xmin,xmax)
             axins.set_ylim(insert_ylims[0],insert_ylims[1])
