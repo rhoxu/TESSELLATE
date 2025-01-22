@@ -9,7 +9,10 @@ from astropy.visualization import PercentileInterval, AsinhStretch
 import requests
 from PIL import Image
 from io import BytesIO
+import time as Time 
 
+import pandas as pd
+from matplotlib.patches import Ellipse
 
 fig_width_pt = 240.0  # Get this from LaTeX using \showthe\columnwidth
 inches_per_pt = 1.0/72.27			   # Convert pt to inches
@@ -114,76 +117,158 @@ def _Panstarrs_phot(ra,dec,size):
     return fig,wcsList,grey_im.shape[0]
 
 
+def _skymapper_objects(ra,dec,rad=30/60**2):
+    """
+    radius in degrees
+    """
+    query = f'https://skymapper.anu.edu.au/sm-cone/public/query?RA={ra}&DEC={dec}&SR={np.round(rad,3)}&RESPONSEFORMAT=CSV'
+    sm = pd.read_csv(query)
+    if len(sm) > 0:
+        keep = ['object_id','raj2000','dej2000','u_psf', 'e_u_psf',
+                'v_psf', 'e_v_psf','g_psf', 'e_g_psf','r_psf', 
+                'e_r_psf','i_psf', 'e_i_psf','z_psf', 'e_z_psf','class_star']
+        sm = sm[keep]
+        sm = sm.rename(columns={'raj2000':'ra','dej2000':'dec','u_psf':'umag',
+                                'v_psf':'vmag','g_psf':'gmag','r_psf':'rmag',
+                                'i_psf':'imag','z_psf':'zmag',
+                                'e_u_psf':'e_umag','e_v_psf':'e_vmag','e_g_psf':'e_gmag',
+                                'e_r_psf':'e_rmag','e_i_psf':'e_imag','e_z_psf':'e_zmag'})
+        sm['star'] = 0
+        sm['star'].loc[sm['class_star'] >= 0.9] = 1
+        sm['star'].loc[sm['class_star'] <= 0.7] = 0
+        sm['star'].loc[(sm['class_star'] > 0.7) & (sm['class_star'] < 0.9)] = 2
+    else:
+        sm = None
+    return sm
+    
+
 def _Skymapper_phot(ra,dec,size):
     """
     Gets g,r,i from skymapper.
     """
-    size*=1.5
+    size*=1.1
     og_size = size
     size /= 3600
 
-    url = f"https://api.skymapper.nci.org.au/public/siap/dr2/query?POS={ra},{dec}&SIZE={size}&BAND=g,r,i&FORMAT=GRAPHIC&VERB=3"
-    table = Table.read(url, format='ascii')
+    url = f"https://api.skymapper.nci.org.au/public/siap/dr4/query?POS={ra},{dec}&SIZE={size}&BAND=g,r,i&FORMAT=GRAPHIC&VERB=3&INTERSET=COVERS"
+    max_attempts = 5
 
-    # sort filters from red to blue
-    flist = ["irg".find(x) for x in table['col3']]
-    table = table[np.argsort(flist)]
+    complete = False
+    attempt = 0
+    while (not complete) & (attempt < max_attempts):
+        try:
+            table = Table.read(url, format='ascii').to_pandas()
+            complete = True
+        except:
+            attempt += 1
+            print('failed')
+            Time.sleep(1)
 
-    if len(table) > 3:
-        # pick 3 filters
-        table = table[[0,len(table)//2,len(table)-1]]
+    t = table[(table['col16'] == 'main')]
+    t_unique = t[~t.duplicated(subset='col3', keep='first')]
 
-    wcsList = []
-    for i in range(len(table)):
-        crpix = np.array(table['col23'][i].split(' ')).astype(float)
-        crval = np.array(table['col24'][i].split(' ')).astype(float)
-        cdmatrix = np.array(table['col25'][i].split(' ')).astype(float).reshape(2,2)
-        
-        wcs = WCS(naxis=2)
-        wcs.wcs.crpix = crpix
-        wcs.wcs.crval = crval
-        wcs.wcs.cd = cdmatrix
-        wcs.wcs.ctype = ["RA---TAN", "DEC--TAN"]  # Common projection type for celestial coordinates
+    wcsList = []        
+    images = []
+    filts = ['g','r','i']
+    max_attempts = 5
+    for i in range(len(filts)):
+        complete = False
+        attempt = 0
+        while (not complete) & (attempt < max_attempts):
+            try:
+                f = t_unique.loc[t_unique['col3'] == filts[i]].iloc[0]
+                url = f['col4']
+                r = requests.get(url)
 
-        wcsList.append(wcs)
+                im = (Image.open(BytesIO(r.content)))* 10**((f['col22'] - 25)/-2.5)
+                im[im==0] = np.nan
+                im -= np.nanmedian(im)
+                im[np.isnan(im)] = 0
+                images += [im]
+                
+                crpix = np.array(f['col23'].split(' ')).astype(float)
+                crval = np.array(f['col24'].split(' ')).astype(float)
+                cdmatrix = np.array(f['col25'].split(' ')).astype(float).reshape(2,2)
 
-    plt.rcParams.update({'font.size':12})
-    fig,ax = plt.subplots(ncols=3,figsize=(3*fig_width,1*fig_width))
-    url = table[2][3]
-    r = requests.get(url)
-    im = Image.open(BytesIO(r.content))
-    ax[0].imshow(im,origin="lower",cmap="gray")
-    ax[0].set_title('SkyMapper g')
-    ax[0].set_xlabel('px (1.1")')
+                wcs = WCS(naxis=2)
+                wcs.wcs.crpix = crpix
+                wcs.wcs.crval = crval
+                wcs.wcs.cd = cdmatrix
+                wcs.wcs.ctype = ["RA---TAN", "DEC--TAN"]  # Common projection type for celestial coordinates
 
-    url = table[1][3]
-    r = requests.get(url)
-    im = Image.open(BytesIO(r.content))
-    ax[1].set_title('SkyMapper r')
-    ax[1].imshow(im,origin="lower",cmap="gray")
-    ax[1].set_xlabel('px (1.1")')
+                wcsList.append(wcs)
+                
+                complete = True
+            except:
+                attempt += 1
+                Time.sleep(1)
+    #images = np.array(images)
 
-    url = table[0][3]
-    r = requests.get(url)
-    im = Image.open(BytesIO(r.content))
-    ax[2].set_title('SkyMapper i')
-    ax[2].imshow(im,origin="lower",cmap="gray")
-    ax[2].set_xlabel('px (1.1")')
+    fig = plt.figure(figsize=(3*fig_width,1*fig_width))
+
+    plt.rcParams.update({'font.size':11})
+    titles = ['SkyMapper g','SkyMapper r','SkyMapper i']
+    for i in range(3):
+        ax = plt.subplot(1,3,i+1,projection=wcsList[i])
+        ax.imshow(images[i],cmap="gray_r")
+        ax.grid(alpha=0.5,color='w')
+        ax.set_title(titles[i])
+        if i == 1:
+            ax.set_xlabel('Right Ascension')
+        else:
+            ax.set_xlabel(' ')
+        if i == 0:
+            ax.set_ylabel('Declination')
+        else:
+            #
+            ax.set_ylabel(' ')
+            ax.coords['dec'].set_ticklabel_visible(False)
+    plt.tight_layout()
 
     return fig,wcsList,og_size*2
+
+def _delve_objects(ra,dec,size=60/60**2):
+    from dl import queryClient as qc
+    query = f"""
+        SELECT o.quick_object_id,o.ra, o.dec,
+        o.mag_psf_g,o.mag_psf_r,o.mag_psf_i,o.mag_psf_z,
+        o.mag_auto_g,o.mag_auto_r,o.mag_auto_i,o.mag_auto_z,
+        o.magerr_psf_g,o.magerr_psf_r,o.magerr_psf_i,o.magerr_psf_z,
+        o.magerr_auto_g,o.magerr_auto_r,o.magerr_auto_i,o.magerr_auto_z,
+        o.extended_class_g, o.extended_class_r,o.extended_class_i,o.extended_class_z
+        FROM delve_dr2.objects AS o
+        WHERE q3c_radial_query(ra,dec,{ra},{dec},{size})
+        """
+    try:
+        result = qc.query(sql=query,fmt='pandas')
+        result.replace(99.0,np.nan,inplace=True)
+        result['star'] = 0
+        ty = []
+        val = result[['extended_class_g','extended_class_r','extended_class_i','extended_class_z']].values
+        for v in val:
+            if 3 in v:
+                ty += [0]
+            elif 1 in v:
+                ty += [1]
+            else:
+                ty += [2]
+        result['star'] = ty
+        return result
+    except:
+        return
 
 def _DESI_phot(ra,dec,size):
 
     size = size *5
-    urlFITS = f"http://legacysurvey.org/viewer/cutout.fits?ra={ra}&dec={dec}&size={size}"
-    urlIM = f"http://legacysurvey.org/viewer/cutout.jpg?ra={ra}&dec={dec}&size={size}"
+    urlFITS = f"http://legacysurvey.org/viewer/cutout.fits?ra={ra}&dec={dec}&size={size}&layer=ls-dr10"
+    urlIM = f"http://legacysurvey.org/viewer/cutout.jpg?ra={ra}&dec={dec}&size={size}&layer=ls-dr10"
 
     response = requests.get(urlIM)
     if response.status_code == 200:
         image = Image.open(BytesIO(requests.get(urlIM).content))
-        
+        #if np.nansum(image) == 0:
         try:
-            hdulist = fits.open(BytesIO(requests.get(urlFITS).content))
+            hdulist = fits.open(BytesIO(requests.get(urlFITS).content),ignore_missing_simple=True)
             hdu = hdulist[0]
             wcs = WCS(hdu.header)
             wcs = wcs.dropaxis(2)
@@ -192,21 +277,66 @@ def _DESI_phot(ra,dec,size):
             fig = plt.figure(figsize=(8,8))#3*fig_width,1*fig_width))
             ax = plt.subplot(111,projection=wcs)
             ax.imshow(image,cmap="gray")
-            ax.set_title('DESI grz')
+            ax.set_title('DES gri')
             ax.grid(alpha=0.2)
             ax.set_xlabel('Right Ascension')
             ax.set_ylabel('Declination')
             ax.invert_xaxis()
             return fig,wcs,size
         except Exception as error:
-            print("DESI Photometry failed: ", error)
+            print("DES Photometry failed: ", error)
+            print(urlFITS)
+            print(urlIM)
             return None,None,None
+        #else:
+          #  return None,None,None
     else:
         return None,None,None
 
 
-def event_cutout(coords,size=50,phot=None):
+def _add_sources(fig,coords,cat,error=None):
+    axs = fig.get_axes()
+    count = 0
+    for ax in axs:
+        ax.scatter(coords[0],coords[1], transform=ax.get_transform('fk5'),
+                    edgecolors='w',marker='x',s=30,facecolors="w",linewidths=1,label='Target')
+        if error is not None:
+            if len(error) > 1:
+                xerr,yerr = error
+            else:
+                xerr = yerr = error
+            ellipse = Ellipse(xy=(coords[0],coords[1]),  
+                              width=error[0],height=error[1],     
+                              edgecolor='white',facecolor='none',
+                              linestyle=':', linewidth=2,
+                              transform=ax.get_transform('fk5'))
+            ax.add_patch(ellipse)
+        
+        # scatter stars 
+        stars = cat.loc[cat['star'] ==1]
+        ax.scatter(stars.ra,stars.dec, transform=ax.get_transform('fk5'),
+                    edgecolors='w',marker='^',s=80,facecolors="None",linewidths=1,label='Star')
 
+        # scatter galaxies
+        gal = cat.loc[cat['star'] == 0]
+        ax.scatter(gal.ra,gal.dec, transform=ax.get_transform('fk5'),
+                    edgecolors='w',marker='o',s=80,facecolors="None",label='Galaxy')
+        
+        # scatter other
+        gal = cat.loc[cat['star'] == 2]
+        ax.scatter(gal.ra,gal.dec, transform=ax.get_transform('fk5'),
+                    edgecolors='w',marker='D',s=80,facecolors="None",label='Possible galaxy')
+        if count == 0:
+            legend = ax.legend(loc=2,facecolor="black",fontsize=10)
+            for text in legend.get_texts():
+                text.set_color("white")
+        count += 1
+    return fig
+
+
+def event_cutout(coords,real_loc=None,error=None,size=50,phot=None):
+    if real_loc is None:
+        real_loc = coords
     if phot is None:
         fig,wcs,outsize = _DESI_phot(coords[0],coords[1],size)
         if fig is None:
@@ -216,13 +346,19 @@ def event_cutout(coords,size=50,phot=None):
                 phot = 'SkyMapper'
         else:
             phot = 'DESI'
+            cat = _delve_objects(real_loc[0],real_loc[1])
+            fig = _add_sources(fig,real_loc,cat,error)
 
     if phot == 'PS1':
         fig,wcs,outsize = _Panstarrs_phot(coords[0],coords[1],size)
+        cat = None
+        #fig = _add_sources(fig,cat)
 
     elif phot.lower() == 'skymapper':
         fig,wcs,outsize = _Skymapper_phot(coords[0],coords[1],size)
-
+        cat = _skymapper_objects(real_loc[0],real_loc[1])
+        fig = _add_sources(fig,real_loc,cat,error)
+        
     elif phot is None:
         print('Photometry name invalid.')
         fig = None
@@ -230,4 +366,4 @@ def event_cutout(coords,size=50,phot=None):
 
     plt.close()
 
-    return fig,wcs,outsize, phot
+    return fig,wcs,outsize, phot, cat

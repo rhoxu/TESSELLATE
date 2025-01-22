@@ -1571,12 +1571,16 @@ class Detector():
             hdu = fits.open(file)
             tessWCS = WCS(hdu[1].header)
 
-            xint = np.round(source.xccd).astype(int)
-            yint = np.round(source.yccd).astype(int)
+            xint = source.xccd#np.round(source.xccd).astype(int)
+            yint = source.yccd#np.round(source.yccd).astype(int)
 
-            RA,DEC = tessWCS.all_pix2world(xint,yint,0)
-
-            fig, wcs, size, photometry = event_cutout((RA,DEC),100)
+            RA,DEC = tessWCS.all_pix2world(np.round(xint).astype(int),np.round(yint).astype(int),0)
+            ra_obj,dec_obj = tessWCS.all_pix2world(xint,yint,0)
+            #error = (source.e_xccd * 21 /60**2,source.e_yccd * 21/60**2) # convert to deg
+            #error = np.nanmax([source.e_xccd,source.e_yccd])
+            error = [10 / 60**2,10 / 60**2] # just set error to 10 arcsec. The calculated values are unrealistically small.
+            
+            fig, wcs, size, photometry,cat = event_cutout((RA,DEC),(ra_obj,dec_obj),error,100)
             axes = fig.get_axes()
             if len(axes) == 1:
                 wcs = [wcs]
@@ -1623,16 +1627,17 @@ class Detector():
                     if len(x) > 0:
                         ax.plot(x,y,color=color,alpha=alpha,lw=lw)
 
-                if (ys[0] > ys[1]):
-                    ax.invert_yaxis()
-                    if (photometry == 'DESI'):
-                        ax.invert_xaxis()
+                #if (ys[0] > ys[1]):
+                #    ax.invert_yaxis()
+                #    if (photometry == 'DESI'):
+                #        ax.invert_xaxis()
                         
 
                 # ax.set_ylim(0,size)
                 # ax.set_xlim(0,size)
 
             source.photometry = fig
+            source.cat = cat
         
         return source
 
