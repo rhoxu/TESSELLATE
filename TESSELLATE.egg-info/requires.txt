@@ -1,3 +1,7 @@
 astrocut
 photutils>=1.4
-tessreduce@ git+https://github.com/rhoxu/TESSreduce.git
+tessreduce@ git+https://github.com/CheerfulUser/TESSreduce.git
+sourcedetect@ git+https://github.com/andrewmoore73/SourceDetect.git
+shapely
+mastcasjobs
+astro-datalab
