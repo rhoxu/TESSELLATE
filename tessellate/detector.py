@@ -1571,11 +1571,14 @@ class Detector():
             hdu = fits.open(file)
             tessWCS = WCS(hdu[1].header)
 
-            xint = source.xccd#np.round(source.xccd).astype(int)
-            yint = source.yccd#np.round(source.yccd).astype(int)
+            xccd = source.xccd#np.round(source.xccd).astype(int)
+            yccd = source.yccd#np.round(source.yccd).astype(int)
 
-            RA,DEC = tessWCS.all_pix2world(np.round(xint).astype(int),np.round(yint).astype(int),0)
-            ra_obj,dec_obj = tessWCS.all_pix2world(xint,yint,0)
+            xint = np.round(xccd).astype(int)
+            yint = np.round(yccd).astype(int)
+
+            RA,DEC = tessWCS.all_pix2world(xint,yint,0)
+            ra_obj,dec_obj = tessWCS.all_pix2world(xccd,yccd,0)
             #error = (source.e_xccd * 21 /60**2,source.e_yccd * 21/60**2) # convert to deg
             #error = np.nanmax([source.e_xccd,source.e_yccd])
             error = [10 / 60**2,10 / 60**2] # just set error to 10 arcsec. The calculated values are unrealistically small.
