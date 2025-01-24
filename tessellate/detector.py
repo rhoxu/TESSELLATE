@@ -1565,12 +1565,15 @@ class Detector():
         # plt.show()
         # plt.close()
 
+        brightest = np.where(sources['lc_sig']==np.nanmax(sources['lc_sig']))
+        source = sources.iloc[brightest]
+
         if external_phot:
 
             file = f'{self.path}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_wcs.fits'
             hdu = fits.open(file)
             tessWCS = WCS(hdu[1].header)
-
+            
             xccd = source.xccd#np.round(source.xccd).astype(int)
             yccd = source.yccd#np.round(source.yccd).astype(int)
 
