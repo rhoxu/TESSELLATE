@@ -1638,6 +1638,7 @@ class Detector():
 
             source.photometry = fig
             source.cat = cat
+            source.coord = (ra_obj,dec_obj)
         
         return source
 

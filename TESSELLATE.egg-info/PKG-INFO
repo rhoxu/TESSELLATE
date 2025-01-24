@@ -9,4 +9,7 @@ License: MIT
 License-File: LICENSE
 Requires-Dist: astrocut
 Requires-Dist: photutils>=1.4
-Requires-Dist: tessreduce@ git+https://github.com/rhoxu/TESSreduce.git
+Requires-Dist: tessreduce@ git+https://github.com/CheerfulUser/TESSreduce.git
+Requires-Dist: sourcedetect@ git+https://github.com/andrewmoore73/SourceDetect.git
+Requires-Dist: shapely
+Requires-Dist: mastcasjobs

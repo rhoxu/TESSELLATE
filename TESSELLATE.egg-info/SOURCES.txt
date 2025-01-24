@@ -11,4 +11,7 @@ tessellate/catalog_queries.py
 tessellate/dataprocessor.py
 tessellate/detector.py
 tessellate/downloader.py
+tessellate/external_photometry.py
 tessellate/tessellate.py
+tessellate/tesstransient.py
+tessellate/tools.py
