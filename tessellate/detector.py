@@ -1306,7 +1306,9 @@ class Detector():
             if event.lower() == 'seperate':
                 pass
             elif event.lower() == 'all':
-                e = deepcopy(sources.iloc[0])
+
+                brightest = np.where(sources['lc_sig']==np.nanmax(sources['lc_sig']))
+                e = deepcopy(sources.iloc[brightest])
                 e['frame_end'] = sources['frame_end'].iloc[-1]
                 e['mjd_end'] = sources['mjd_end'].iloc[-1]
                 e['mjd_duration'] = e['mjd_end'] - e['mjd_start']
@@ -1565,8 +1567,8 @@ class Detector():
         # plt.show()
         # plt.close()
 
-        brightest = np.where(sources['lc_sig']==np.nanmax(sources['lc_sig']))
-        source = sources.iloc[brightest]
+        # brightest = np.where(sources['lc_sig']==np.nanmax(sources['lc_sig']))
+        # source = sources.iloc[brightest]
 
         if external_phot:
 
