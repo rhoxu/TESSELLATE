@@ -1306,8 +1306,7 @@ class Detector():
             if event.lower() == 'seperate':
                 pass
             elif event.lower() == 'all':
-
-                brightest = np.where(sources['lc_sig']==np.nanmax(sources['lc_sig']))
+                brightest = np.where(sources['lc_sig']==np.nanmax(sources['lc_sig']))[0][0]
                 e = deepcopy(sources.iloc[brightest])
                 e['frame_end'] = sources['frame_end'].iloc[-1]
                 e['mjd_end'] = sources['mjd_end'].iloc[-1]
