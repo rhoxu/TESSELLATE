@@ -1306,14 +1306,24 @@ class Detector():
             if event.lower() == 'seperate':
                 pass
             elif event.lower() == 'all':
-                brightest = np.where(sources['lc_sig']==np.nanmax(sources['lc_sig']))[0][0]
-                e = deepcopy(sources.iloc[brightest])
+                e = deepcopy(sources.iloc[0])
                 e['frame_end'] = sources['frame_end'].iloc[-1]
                 e['mjd_end'] = sources['mjd_end'].iloc[-1]
                 e['mjd_duration'] = e['mjd_end'] - e['mjd_start']
                 e['frame'] = (e['frame_end'] + e['frame_start']) / 2 
                 e['mjd'] = (e['mjd_end'] + e['mjd_start']) / 2 
+
+                brightest = np.where(sources['lc_sig']==np.nanmax(sources['lc_sig']))[0][0]
+                brightest = deepcopy(sources.iloc[brightest])
+                e['xccd'] = brightest['xccd']
+                e['yccd'] = brightest['yccd']
+                e['xint'] = brightest['xint']
+                e['yint'] = brightest['yint']
+                e['xcentroid'] = brightest['xcentroid']
+                e['ycentroid'] = brightest['ycentroid']
+
                 sources = e.to_frame().T
+                
         elif type(event) == int:
             sources = deepcopy(sources.iloc[sources['eventID'].values == event])
         elif type(event) == list:
