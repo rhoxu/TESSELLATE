@@ -1136,6 +1136,7 @@ class Detector():
         self._get_all_independent_events(cpu = int(multiprocessing.cpu_count()))
         print(f'Isolate Events: {(t()-t2):.1f} sec')
         #self._asteroid_checker()
+        
         self.events['objid'] = self.events['objid'].astype(int)
         if self.time_bin is None:
             self.events.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_events.csv',index=False)
@@ -1255,6 +1256,23 @@ class Detector():
         return extension
 
 
+    def lc_ALL(self,cut,save_path=None,lower=2,max_events=None,starkiller=False,
+                 sig_image=3,sig_lc=2.5,bkgstd_lim=100,sign=None):
+        #try:
+        detections = self.count_detections(cut=cut,lower=lower,max_events=max_events,
+                                        sign=sign,starkiller=starkiller,sig_lc=sig_lc,sig_image=sig_image)
+        if save_path is None:
+            save_path = self.path + f'/Cut{cut}of{self.n**2}/object_lcs/'
+            print('lc path: ',save_path)
+            self._check_dirs(save_path)
+        inds = detections['objid'].unique()
+        self.events = detections
+        print('Total lcs to create: ', len(detections))
+        events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(self.save_lc)(cut,ind,event='seperate',save_path=save_path) for ind in inds)
+        print('LCs complete!')
+        #except:
+        #    print('plotting failed!')
+    
     def plot_ALL(self,cut,save_path=None,lower=3,max_events=30,starkiller=False,
                  sig_image=3,sig_lc=2.5,bkgstd_lim=100,sign=1,
                  save_lc=True,time_bin=None):
@@ -1276,6 +1294,31 @@ class Detector():
         except:
             print('plotting failed!')
 
+    def save_lc(self,cut,id,savepath='.'):
+        if cut != self.cut:
+            self._gather_data(cut)
+            self._gather_results(cut)
+            self.cut = cut
+        sources =  self.events[self.events['objid']==id]
+        total_events = int(np.nanmean(sources['total_events'].values))
+        frames = np.arange(0,len(self.time),dtype=int)
+        for i in range(len(sources)):
+            s = sources.iloc[i]
+            frameStart = int(s['frame_start']) #min(source['frame'].values)
+            frameEnd = int(s['frame_end']) #max(source['frame'].values)
+            frames[(frames >= frameStart) & (frames <= frameEnd)] = int(i + 1)
+        
+        x = int(np.round(np.nanmedian(source['xcentroid'])))
+        y = int(np.round(np.nanmedian(source['ycentroid'])))
+
+        f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
+        
+        lc = np.array([self.time,f,frames]).T
+        
+        savename = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_object{id}_lc.csv'
+        
+        lc.to_csv(savepath+savename,index = False)
+        
         
 
 

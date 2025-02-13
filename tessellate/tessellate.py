@@ -1747,12 +1747,14 @@ from tessellate import Detector\n\
 part = {self.part}\n\
 if part:\n\
     detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},part=1)\n\
-    detector.plot_ALL(cut={cut},lower=2)\n\
+    detector.plot_ALL(cut={cut},lower=3)\n\
+    detector.lc_ALL(cut={cut},lower=3)\n\
     detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},part=2)\n\
-    detector.plot_ALL(cut={cut},lower=2)\n\
+    detector.lc_ALL(cut={cut},lower=3)\n\
 else:\n\
     detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
-    detector.plot_ALL(cut={cut},lower=2)"
+    detector.plot_ALL(cut={cut},lower=3)\n\
+    detector.lc_ALL(cut={cut},lower=3)"
                     
         with open(f"{self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
             python_file.write(python_text)
