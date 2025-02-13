@@ -1355,7 +1355,18 @@ class Detector():
                 e['mjd_duration'] = e['mjd_end'] - e['mjd_start']
                 e['frame'] = (e['frame_end'] + e['frame_start']) / 2 
                 e['mjd'] = (e['mjd_end'] + e['mjd_start']) / 2 
+
+                brightest = np.where(sources['lc_sig']==np.nanmax(sources['lc_sig']))[0][0]
+                brightest = deepcopy(sources.iloc[brightest])
+                e['xccd'] = brightest['xccd']
+                e['yccd'] = brightest['yccd']
+                e['xint'] = brightest['xint']
+                e['yint'] = brightest['yint']
+                e['xcentroid'] = brightest['xcentroid']
+                e['ycentroid'] = brightest['ycentroid']
+
                 sources = e.to_frame().T
+                
         elif type(event) == int:
             sources = deepcopy(sources.iloc[sources['eventID'].values == event])
         elif type(event) == list:
@@ -1608,12 +1619,15 @@ class Detector():
         # plt.show()
         # plt.close()
 
+        # brightest = np.where(sources['lc_sig']==np.nanmax(sources['lc_sig']))
+        # source = sources.iloc[brightest]
+
         if external_phot:
 
             file = f'{self.path}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_wcs.fits'
             hdu = fits.open(file)
             tessWCS = WCS(hdu[1].header)
-
+            
             xccd = source.xccd#np.round(source.xccd).astype(int)
             yccd = source.yccd#np.round(source.yccd).astype(int)
 
