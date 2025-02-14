@@ -167,7 +167,8 @@ def _remove_plots(data_path,sector,n,cams,ccds,cuts,part):
                         try:
                             os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Part{i}/Cut{cut}of{n**2}')
                             os.system('rm -r -f figs')
-                            os.system('rm -r -f lcs') 
+                            os.system('rm -r -f lcs')
+                            os.system('rm -r -f object_lcs') 
                         except:
                             pass
                 else:
@@ -175,6 +176,7 @@ def _remove_plots(data_path,sector,n,cams,ccds,cuts,part):
                         os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}')
                         os.system('rm -r -f figs')
                         os.system('rm -r -f lcs')  
+                        os.system('rm -r -f object_lcs') 
                     except:
                         pass 
     os.chdir(home_path)

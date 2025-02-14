@@ -1268,7 +1268,7 @@ class Detector():
         inds = detections['objid'].unique()
         self.events = detections
         print('Total lcs to create: ', len(detections))
-        events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(self.save_lc)(cut,ind,event='seperate',save_path=save_path) for ind in inds)
+        events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(self.save_lc)(cut,ind,save_path=save_path) for ind in inds)
         print('LCs complete!')
         #except:
         #    print('plotting failed!')
@@ -1279,22 +1279,22 @@ class Detector():
         if time_bin is not None:
             self.time_bin = time_bin
 
-        try:
-            detections = self.count_detections(cut=cut,lower=lower,max_events=max_events,
-                                            sign=sign,starkiller=starkiller,sig_lc=sig_lc,sig_image=sig_image)
-            if save_path is None:
-                save_path = self.path + f'/Cut{cut}of{self.n**2}/figs/'
-                print('Figure path: ',save_path)
-                self._check_dirs(save_path)
-            self.events = detections
-            inds = detections['objid'].unique()
-            print('Total events to plot: ', len(detections))
-            events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path,externel_phot=False) for ind in inds)
-            print('Plot complete!')
-        except:
-            print('plotting failed!')
+        #try:
+        detections = self.count_detections(cut=cut,lower=lower,max_events=max_events,
+                                        sign=sign,starkiller=starkiller,sig_lc=sig_lc,sig_image=sig_image)
+        if save_path is None:
+            save_path = self.path + f'/Cut{cut}of{self.n**2}/figs/'
+            print('Figure path: ',save_path)
+            self._check_dirs(save_path)
+        self.events = detections
+        inds = detections['objid'].unique()
+        print('Total events to plot: ', len(detections))
+        events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path,external_phot=False) for ind in inds)
+        print('Plot complete!')
+        #except:
+         #   print('plotting failed!')
 
-    def save_lc(self,cut,id,savepath='.'):
+    def save_lc(self,cut,id,save_path='.'):
         if cut != self.cut:
             self._gather_data(cut)
             self._gather_results(cut)
@@ -1302,22 +1302,25 @@ class Detector():
         sources =  self.events[self.events['objid']==id]
         total_events = int(np.nanmean(sources['total_events'].values))
         frames = np.arange(0,len(self.time),dtype=int)
+        sign = np.zeros_like(self.time,dtype=int)
         for i in range(len(sources)):
             s = sources.iloc[i]
             frameStart = int(s['frame_start']) #min(source['frame'].values)
             frameEnd = int(s['frame_end']) #max(source['frame'].values)
             frames[(frames >= frameStart) & (frames <= frameEnd)] = int(i + 1)
+            sign[(frames >= frameStart) & (frames <= frameEnd)] = int(s['flux_sign'])
         
-        x = int(np.round(np.nanmedian(source['xcentroid'])))
-        y = int(np.round(np.nanmedian(source['ycentroid'])))
+        x = int(np.round(np.nanmedian(sources['xcentroid'])))
+        y = int(np.round(np.nanmedian(sources['ycentroid'])))
 
         f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
         
-        lc = np.array([self.time,f,frames]).T
-        
+        lc = np.array([self.time,f,frames,sign]).T
+        headers = ['mjd','counts','event','sign']
+        lc = pd.DataFrame(data=lc,columns=headers)
         savename = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_object{id}_lc.csv'
         
-        lc.to_csv(savepath+savename,index = False)
+        lc.to_csv(save_path+savename,index = False)
         
         
 
