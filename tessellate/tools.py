@@ -246,7 +246,8 @@ def weighted_avg_var(group, weight_col):
 
 def pandas_weighted_avg(df,weight_col='sig'):
     # df = df.groupby('objid').apply(weighted_avg_var, weight_col=weight_col,include_groups=False).reset_index()
-    df = df.groupby('objid').apply(weighted_avg_var, weight_col=weight_col).reset_index()
+    print(df.groupby('objid').apply(weighted_avg_var, weight_col=weight_col).head())
+    df = df.groupby('objid').apply(weighted_avg_var, weight_col=weight_col).reset_index(drop=True)
     return df
 
 def consecutive_points(data, stepsize=2):
