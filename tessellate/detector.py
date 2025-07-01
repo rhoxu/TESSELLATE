@@ -1,29 +1,29 @@
+# -- A good number of functions are imported only in the functions they get utilised -- #
+print('First Import')
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 from time import time as t
 
+print('Second Import')
 from scipy.signal import find_peaks
-from scipy.optimize import curve_fit
 from scipy.stats import pearsonr
 from scipy.signal import fftconvolve
-from scipy.ndimage import center_of_mass
 
+print('Third Import')
 from copy import deepcopy
 import multiprocessing
 from joblib import Parallel, delayed 
 from tqdm import tqdm
 import os
 
+print('4th Import')
 import lightkurve as lk
-from PRF import TESS_PRF
 from photutils.detection import StarFinder
 from photutils.aperture import RectangularAperture, RectangularAnnulus,CircularAperture
 from photutils.aperture import ApertureStats, aperture_photometry
-from sklearn.cluster import DBSCAN
 
+print('5th Import')
 from astropy.stats import sigma_clipped_stats
 from astropy.stats import sigma_clip
 import astropy.units as u
@@ -38,9 +38,10 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 # from sourcedetect import SourceDetect, PrfModel
 # Now importing this only in the source_detect function
 
-from .catalog_queries import find_variables, gaia_stars, match_result_to_cat
+print('6th Import')
+from .catalog_queries import match_result_to_cat #,find_variables, gaia_stars,
 from .tools import pandas_weighted_avg, consecutive_points
-from .external_photometry import event_cutout
+print('7th Import')
 
 # -- Primary Detection Functions -- #
 
@@ -51,6 +52,9 @@ def _correlation_check(res,data,prf,corlim=0.8,psfdifflim=0.5,position=True):
     Finds CoM of cut to generate PSF.
     Compares cut with generated PSF, uses np.corrcoef (pearsonr) to judge similarity.
     """
+
+    from scipy.ndimage import center_of_mass
+
     ind = []
     cors = []
     diff = []
@@ -120,6 +124,8 @@ def _spatial_group(result,distance=0.5,njobs=-1):
     """
     Groups events based on proximity.
     """
+
+    from sklearn.cluster import DBSCAN
 
     pos = np.array([result.xcentroid,result.ycentroid]).T
     cluster = DBSCAN(eps=distance,min_samples=1,n_jobs=njobs).fit(pos)
@@ -431,6 +437,8 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdiff
     Main Function.
     """
 
+    from PRF import TESS_PRF
+
     if inputNums is not None:
         flux = flux[inputNums]
         inputNum = inputNums[-1]
@@ -710,6 +718,9 @@ class Detector():
         self.events = events
         
     def fit_period(self,source,significance=3):
+
+        from scipy.optimize import curve_fit
+
         x = (source['xint']+0.5).astype(int)
         y = (source['yint']+0.5).astype(int)
 
@@ -1330,6 +1341,11 @@ class Detector():
                     star_bin=True,period_bin=True,type_bin=True,objectid_bin='auto',
                     include_periodogram=False,latex=True,period_power_limit=10,
                     asteroid_check=False,zoo_mode=True,save_lc=True,external_phot=False):
+        
+        import matplotlib.patches as patches
+        from mpl_toolkits.axes_grid1.inset_locator import mark_inset
+
+        from .external_photometry import event_cutout
 
         if latex:
             plt.rc('text', usetex=latex)
@@ -1716,7 +1732,10 @@ class Detector():
         return self.events[(self.events['ycentroid'].values < ycentroid+threshold) & (self.events['ycentroid'].values > ycentroid-threshold) & (self.events['xcentroid'].values < xcentroid+threshold) & (self.events['xcentroid'].values > xcentroid-threshold)]
 
     def full_ccd(self,psflike_lim=0,psfdiff_lim=1,savename=None):
+
+        import matplotlib.patches as patches
         from .dataprocessor import DataProcessor
+
         p = DataProcessor(sector=self.sector,path=self.data_path)
         lb,_,_,_ = p.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
 
