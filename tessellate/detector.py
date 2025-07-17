@@ -1,29 +1,29 @@
+# -- A good number of functions are imported only in the functions they get utilised -- #
+print('First Import')
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 from time import time as t
 
+print('Second Import')
 from scipy.signal import find_peaks
-from scipy.optimize import curve_fit
 from scipy.stats import pearsonr
 from scipy.signal import fftconvolve
-from scipy.ndimage import center_of_mass
 
+print('Third Import')
 from copy import deepcopy
 import multiprocessing
 from joblib import Parallel, delayed 
 from tqdm import tqdm
 import os
 
+print('4th Import')
 import lightkurve as lk
-from PRF import TESS_PRF
 from photutils.detection import StarFinder
 from photutils.aperture import RectangularAperture, RectangularAnnulus,CircularAperture
 from photutils.aperture import ApertureStats, aperture_photometry
-from sklearn.cluster import DBSCAN
 
+print('5th Import')
 from astropy.stats import sigma_clipped_stats
 from astropy.stats import sigma_clip
 import astropy.units as u
@@ -38,10 +38,10 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 # from sourcedetect import SourceDetect, PrfModel
 # Now importing this only in the source_detect function
 
-from .catalog_queries import find_variables, gaia_stars, match_result_to_cat
+print('6th Import')
+from .catalog_queries import match_result_to_cat #,find_variables, gaia_stars,
 from .tools import pandas_weighted_avg, consecutive_points
-from .external_photometry import event_cutout
-from .classifind import classifind
+print('7th Import')
 
 # -- Primary Detection Functions -- #
 
@@ -52,6 +52,9 @@ def _correlation_check(res,data,prf,corlim=0.8,psfdifflim=0.5,position=True):
     Finds CoM of cut to generate PSF.
     Compares cut with generated PSF, uses np.corrcoef (pearsonr) to judge similarity.
     """
+
+    from scipy.ndimage import center_of_mass
+
     ind = []
     cors = []
     diff = []
@@ -121,6 +124,8 @@ def _spatial_group(result,distance=0.5,njobs=-1):
     """
     Groups events based on proximity.
     """
+
+    from sklearn.cluster import DBSCAN
 
     pos = np.array([result.xcentroid,result.ycentroid]).T
     cluster = DBSCAN(eps=distance,min_samples=1,n_jobs=njobs).fit(pos)
@@ -433,6 +438,8 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdiff
     """
     Main Function.
     """
+
+    from PRF import TESS_PRF
 
     if inputNums is not None:
         flux = flux[inputNums]
@@ -748,6 +755,9 @@ class Detector():
         return classification, prob
         
     def fit_period(self,source,significance=3):
+
+        from scipy.optimize import curve_fit
+
         x = (source['xint']+0.5).astype(int)
         y = (source['yint']+0.5).astype(int)
         
@@ -1328,22 +1338,34 @@ class Detector():
         if time_bin is not None:
             self.time_bin = time_bin
 
-        try:
-            detections = self.count_detections(cut=cut,lower=lower,max_events=max_events,
-                                            sign=sign,starkiller=starkiller,sig_lc=sig_lc,sig_image=sig_image)
-            if save_path is None:
-                save_path = self.path + f'/Cut{cut}of{self.n**2}/figs/'
-                print('Figure path: ',save_path)
-                self._check_dirs(save_path)
-            backup = deepcopy(self.events)
-            self.events = detections
-            inds = detections['objid'].unique()
-            print('Total events to plot: ', len(detections))
-            events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path,external_phot=False) for ind in inds)
-            self.events = backup
-            print('Plot complete!')
-        except:
-            print('plotting failed!')
+        #try:
+        detections = self.count_detections(cut=cut,lower=lower,max_events=max_events,
+                                        sign=sign,starkiller=starkiller,sig_lc=sig_lc,sig_image=sig_image)
+        if save_path is None:
+            save_path = self.path + f'/Cut{cut}of{self.n**2}/figs/'
+            print('Figure path: ',save_path)
+            self._check_dirs(save_path)
+        self.events = detections
+        inds = detections['objid'].unique()
+        print('Total events to plot: ', len(detections))
+        events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path,external_phot=False) for ind in inds)
+        print('Plot complete!')
+
+        # -- Now zips files and then deletes the directory to save inodes -- #
+        print('Zipping...')
+        cmd = f"find {save_path} -type f -name '*.png' -exec zip {save_path}/../figs.zip -j {{}} + > /dev/null 2>&1"
+        os.system(cmd)
+        splc = deepcopy(save_path).replace('fig','lc')
+        cmd = f"find {splc} -type f -name '*.png' -exec zip {splc}/../lcs.zip -j {{}} + > /dev/null 2>&1"
+        os.system(cmd)
+        print('Zip complete!')
+        print('Deleting...')
+        os.system(f'rm -r {save_path}')
+        os.system(f'rm -r {splc}')
+        print('Delete complete!')
+
+        #except:
+         #   print('plotting failed!')
 
     def save_lc(self,cut,id,save_path='.'):
         if cut != self.cut:
@@ -1387,6 +1409,11 @@ class Detector():
                     star_bin=True,period_bin=True,type_bin=True,objectid_bin='auto',
                     include_periodogram=False,latex=True,period_power_limit=10,
                     asteroid_check=False,zoo_mode=True,save_lc=True,external_phot=False):
+        
+        import matplotlib.patches as patches
+        from mpl_toolkits.axes_grid1.inset_locator import mark_inset
+
+        from .external_photometry import event_cutout
 
         if latex:
             plt.rc('text', usetex=latex)
@@ -1623,33 +1650,33 @@ class Detector():
                 self._check_dirs(splc)
                 if savename.lower() == 'auto':
                     savename = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_object{id}'
-                if star_bin:
-                    if source['GaiaID'] > 0:
-                        extension = 'star'
-                    else:
-                        extension = 'no_star'
-                    sp += '/' + extension
+                # if star_bin:
+                #     if source['GaiaID'] > 0:
+                #         extension = 'star'
+                #     else:
+                #         extension = 'no_star'
+                #     sp += '/' + extension
                 #splc += '/' + extension
                 self._check_dirs(sp)
                 #self._check_dirs(splc)
 
-                if period_bin:
-                    if type_bin:
-                        if source['Prob'] > 0:
-                            extension = source['Type']
-                        else:
-                            extension = self.period_bin(source['peak_freq'],source['peak_power'])
-                    if type(extension) != str:
-                        extension = 'none'
-                    sp += '/' + extension
-                    self._check_dirs(sp)
-                    #splc += '/' + extension
-                    #self._check_dirs(splc)
+                # if period_bin:
+                #     if type_bin:
+                #         if source['Prob'] > 0:
+                #             extension = source['Type']
+                #         else:
+                #             extension = self.period_bin(source['peak_freq'],source['peak_power'])
+                #     if type(extension) != str:
+                #         extension = 'none'
+                #     sp += '/' + extension
+                #     self._check_dirs(sp)
+                #     #splc += '/' + extension
+                #     #self._check_dirs(splc)
                     
-                if objectid_bin:
-                    extension = f'{self.sector}_{self.cam}_{self.ccd}_{self.cut}_{id}'
-                    sp += '/' + extension
-                    self._check_dirs(sp)
+                # if objectid_bin:
+                #     extension = f'{self.sector}_{self.cam}_{self.ccd}_{self.cut}_{id}'
+                #     sp += '/' + extension
+                #     self._check_dirs(sp)
                     #splc += '/' + extension
                     #self._check_dirs(splc)
                 if event == 'all':
@@ -1657,6 +1684,7 @@ class Detector():
                 else:
                     plt.savefig(sp+'/'+savename+f'_event{event_id}of{total_events}.png', 
                                 bbox_inches = "tight")
+                    
                 if save_lc:
                     headers = ['mjd','counts','event']
                     lc = pd.DataFrame(data=lc,columns=headers)
@@ -1773,7 +1801,10 @@ class Detector():
         return self.events[(self.events['ycentroid'].values < ycentroid+threshold) & (self.events['ycentroid'].values > ycentroid-threshold) & (self.events['xcentroid'].values < xcentroid+threshold) & (self.events['xcentroid'].values > xcentroid-threshold)]
 
     def full_ccd(self,psflike_lim=0,psfdiff_lim=1,savename=None):
+
+        import matplotlib.patches as patches
         from .dataprocessor import DataProcessor
+
         p = DataProcessor(sector=self.sector,path=self.data_path)
         lb,_,_,_ = p.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
 

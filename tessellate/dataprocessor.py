@@ -509,35 +509,35 @@ class DataProcessor():
             cutName = f'sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}.fits'
             cutPath = f'{cutFolder}/{cutName}'
 
-            fluxName = f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_ReducedFlux.npy'
+            # fluxName = f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_ReducedFlux.npy'
 
-            if os.path.exists(fluxName):
-                if self.verbose > 0:
-                    print(f'Cam {cam} Chip {ccd} cut {cut} already reduced!')
-            else:
-                ts = t()
-                if self.verbose > 0:
-                    print(f'--Reduction Cam {cam} Chip {ccd} Cut {cut} (of {n**2})--')
+            # if os.path.exists(fluxName):
+            #     if self.verbose > 0:
+            #         print(f'Cam {cam} Chip {ccd} cut {cut} already reduced!')
+            # else:
+            ts = t()
+            if self.verbose > 0:
+                print(f'--Reduction Cam {cam} Chip {ccd} Cut {cut} (of {n**2})--')
                 
-                # -- Defining so can be deleted if failed -- #
-                tessreduce = 0
+            # -- Defining so can be deleted if failed -- #
+            tessreduce = 0
 
-                # -- reduce -- #
-                tessreduce = tr.tessreduce(tpf=cutPath,sector=self.sector,reduce=True,corr_correction=True,
-                                            calibrate=False,catalogue_path=f'{cutFolder}/local_gaia_cat.csv',
-                                            prf_path='/fred/oz335/_local_TESS_PRFs')
-                
-                if self.verbose > 0:
-                    print(f'--Reduction Complete (Time: {((t()-ts)/60):.2f} mins)--')
-                    print('\n')
-                #tw = t()   # write timeStart
-                
-                # -- Saves information out as Numpy Arrays -- #
-                np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Times.npy',tessreduce.lc[0])
-                np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_ReducedFlux.npy',tessreduce.flux)
-                np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Background.npy',tessreduce.bkg)
-                np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Ref.npy',tessreduce.ref)
-                np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Mask.npy',tessreduce.mask)
-                np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Shifts.npy',tessreduce.shift)
+            # -- reduce -- #
+            tessreduce = tr.tessreduce(tpf=cutPath,sector=self.sector,reduce=True,corr_correction=True,
+                                        calibrate=False,catalogue_path=f'{cutFolder}/local_gaia_cat.csv',
+                                        prf_path='/fred/oz335/_local_TESS_PRFs')
+            
+            if self.verbose > 0:
+                print(f'--Reduction Complete (Time: {((t()-ts)/60):.2f} mins)--')
+                print('\n')
+            #tw = t()   # write timeStart
+            
+            # -- Saves information out as Numpy Arrays -- #
+            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Times.npy',tessreduce.lc[0])
+            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_ReducedFlux.npy',tessreduce.flux)
+            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Background.npy',tessreduce.bkg)
+            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Ref.npy',tessreduce.ref)
+            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Mask.npy',tessreduce.mask)
+            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Shifts.npy',tessreduce.shift)
 
-                del (tessreduce)
+            del (tessreduce)

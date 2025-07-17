@@ -1806,7 +1806,7 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                         if self.part:
                             save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
                             save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
-                            if (os.path.exists(f'{save_path1}/figs')) & (os.path.exists(f'{save_path2}/figs')):
+                            if (os.path.exists(f'{save_path1}/lcs.zip')) & (os.path.exists(f'{save_path2}/lcs.zip')):
                                 print(f'Cam {cam} CCD {ccd} Cut {cut} plots already made!')
                                 print('\n')
                             elif (os.path.exists(f'{save_path1}/detected_events.csv'))&(os.path.exists(f'{save_path2}/detected_events.csv')):
@@ -1819,7 +1819,7 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                                 raise ValueError(e)
                         else:
                             save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                            if os.path.exists(f'{save_path}/figs'):
+                            if os.path.exists(f'{save_path}/lcs.zip'):
                                 print(f'Cam {cam} CCD {ccd} Cut {cut} plots already made!')
                                 print('\n')
                             elif os.path.exists(f'{save_path}/detected_events.csv'):
@@ -1862,7 +1862,7 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                                     if self.part:
                                         save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
                                         save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
-                                        if (os.path.exists(f'{save_path1}/figs')) & (os.path.exists(f'{save_path2}/figs')):
+                                        if (os.path.exists(f'{save_path1}/lcs.zip')) & (os.path.exists(f'{save_path2}/lcs.zip')):
                                             print(f'Cam {cam} CCD {ccd} Cut {cut} plots already made!')
                                             print('\n')
                                         elif (os.path.exists(f'{save_path1}/detected_events.csv'))&(os.path.exists(f'{save_path2}/detected_events.csv')):
@@ -1870,7 +1870,7 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                                             completed.append(cut)
                                     else:
                                         save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                                        if os.path.exists(f'{save_path}/figs'):
+                                        if os.path.exists(f'{save_path}/lcs.zip'):
                                             completed.append(cut)
                                             print(f'Cam {cam} CCD {ccd} Cut {cut} already plotted!')
                                             print('\n')
