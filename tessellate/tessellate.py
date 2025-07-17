@@ -1,13 +1,16 @@
-from .tools import delete_files, _Print_buff, _Save_space
-
 from time import time as t
+ts = t()
 from time import sleep
 
 from glob import glob
 import os
 
 import numpy as np
+print(f'Imported easy functions ({ts-t():.0f}s)')
 
+ts = t()
+from .tools import delete_files, _Print_buff, _Save_space
+print(f'Imported .tools functions ({ts-t():.0f}s)')
 
 class Tessellate():
     """
