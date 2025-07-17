@@ -41,6 +41,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 from .catalog_queries import find_variables, gaia_stars, match_result_to_cat
 from .tools import pandas_weighted_avg, consecutive_points
 from .external_photometry import event_cutout
+from .classifind import classifind
 
 # -- Primary Detection Functions -- #
 
@@ -410,15 +411,17 @@ def _main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
         results['method'] = 'sourcedetect'
         results = results[~pd.isna(results['xcentroid'])]
     elif mode == 'both':
+        
         results = Parallel(n_jobs=int(multiprocessing.cpu_count()*2/3))(delayed(_frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
-        print('boop')
+        t1 = t()
         star = _make_dataframe(results,flux[0])
         star['method'] = 'starfind'
-        print('Done Starfind')
+        print(f'Done Starfind: {(t()-t1):.1f} sec')
+        t1 = t()
         machine = _source_detect(flux,inputNum,prf,corlim,psfdifflim,int(multiprocessing.cpu_count()*3/4))
         machine = machine[~pd.isna(machine['xcentroid'])]
         machine['method'] = 'sourcedetect'
-        print('Done Sourcedetect')
+        print(f'Done Sourcedetect: {(t()-t1):.1f} sec')
         total = [star,machine]
         results = pd.concat(total)
 
@@ -669,51 +672,89 @@ class Detector():
         lc_sig = (lc - med) / std
         return sig_max, sig_med, lc_sig * flux_sign
     
-    def _asteroid_checker(self,asteroid_distance=3,asteroid_correlation=0.9,asteroid_duration=1):
+    def _asteroid_checker(self):#,asteroid_distance=3,asteroid_correlation=0.9,asteroid_duration=1):
 
         events = deepcopy(self.events)
-        time = self.time - self.time[0]
-        for source in self.events.iterrows():
-            source = source[1]
+        #time = self.time - self.time[0]
+        for i in range(len(events)):
+            source = events.iloc[i]
             
             frameStart = source['frame_start']
             frameEnd = source['frame_end']
-
-            if (frameEnd - frameStart) > 2:
+            x = source['xint']; y = source['yint']
+            xl = np.max((x - 5,0)); xu = np.min((x + 6,self.flux.shape[2]-1))
+            yl = np.max((y - 5,0)); yu = np.min((y + 6,self.flux.shape[1]-1))
+            fs = np.max((frameStart - 5, 0))
+            fe = np.min((frameEnd + 5, len(self.time)-1))
+            
+            image = self.flux[fs:fe,]
+            image = image / image[(yl+yu)//2,(xl+xu)//2] * 255
+            image[image > 255] = 255
+            mean, med, std = sigma_clipped_stats(image,maxiters=10,sigma_upper=2)
+            edges = cv2.Canny(image.astype('uint8'), med + 5*std, med + 10*std)
+            lines = probabilistic_hough_line(edges, threshold=5, line_length=5, line_gap=1)
+            
+            # if (frameEnd - frameStart) > 2:
             #   ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
-                duration = time[frameEnd] - time[frameStart]
-            else:
-            #   ax[1].axvline(time[(frameEnd + frameStart)//2],color='C1')
-                duration = 0
+            #     duration = time[frameEnd] - time[frameStart]
+            # else:
+            # #   ax[1].axvline(time[(frameEnd + frameStart)//2],color='C1')
+            #     duration = 0
 
-            s = self.sources.iloc[self.sources.objid.values == source['objid']]
-            e = s.iloc[(s.frame.values >= frameStart) & (s.frame.values <= frameEnd)]
-            x = e.xcentroid.values
-            y = e.ycentroid.values
-            dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
-            dist = np.nanmax(dist,axis=1)
-            dist = np.nanmean(dist)
-            if len(x)>= 2:
-                cor = np.round(abs(pearsonr(x,y)[0]),1)
-            else:
-                cor = 0
-            dpass = dist - asteroid_distance
-            cpass = cor - asteroid_correlation
-            asteroid = dpass + cpass > 0
-            asteroid_check = asteroid & (duration < asteroid_duration)
+            # s = self.sources.iloc[self.sources.objid.values == source['objid']]
+            # e = s.iloc[(s.frame.values >= frameStart) & (s.frame.values <= frameEnd)]
+            # x = e.xcentroid.values
+            # y = e.ycentroid.values
+            # dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
+            # dist = np.nanmax(dist,axis=1)
+            # dist = np.nanmean(dist)
+            # if len(x)>= 2:
+            #     cor = np.round(abs(pearsonr(x,y)[0]),1)
+            # else:
+            #     cor = 0
+            # dpass = dist - asteroid_distance
+            # cpass = cor - asteroid_correlation
+            # asteroid = dpass + cpass > 0
+            # asteroid_check = asteroid & (duration < asteroid_duration)
         
-            if asteroid_check:
-                idx = events['objid']==source['objid']
-                events.loc[idx, 'Type'] = 'Asteroid'
-                events.loc[idx, 'Prob'] = 1.0
+            if len(lines) > 0:
+                #idx = events['objid']==source['objid']
+                events.loc[i, 'Type'] = 'Asteroid'
+                events.loc[i, 'Prob'] = 0.8
     
         self.events = events
+
+    def check_classifind(self,source):
+        x = (source['xint']+0.5).astype(int)
+        y = (source['yint']+0.5).astype(int)
+        f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
+        t = self.time
+        finite = np.isfinite(f) & np.isfinite(t)
+        lc = np.array([t[finite],f[finite]])
+        
+        classes = {'Eclipsing Binary':'EB','Delta Scuti':'DSCT','RR Lyrae':'RRLyr','Cepheid':'Cep','Long-Period':'LPV',
+                   'Non-Variable':'Non-V','Non-Variable-B':'Non-V','Non-Variable-N':'Non-V'}
+        try:
+            classifier = joblib.load('RFC_experimental1.joblib')
+            cmodel = cf(lc,model=classifier,classes=list(classes.keys()))
+            classification = classes[cmodel.class_preds[0]]
+            if classification in ['Non-Variable','Non-Variable-B','Non-Variable-N']:
+                prob = np.sum(cmodel.class_probs[0][-3:])
+            else:
+                prob = np.max(cmodel.class_probs)
+        except:
+            classification = 'Non-V'
+            prob = 0.80001
+        return classification, prob
         
     def fit_period(self,source,significance=3):
         x = (source['xint']+0.5).astype(int)
         y = (source['yint']+0.5).astype(int)
-
+        
         f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
+        t = self.time
+        finite = np.isfinite(f) & np.isfinite(t)
+        
         #ap = CircularAperture([source.xcentroid,source.ycentroid],1.5)
         #phot_table = aperture_photometry(data, aperture)
         #phot_table = phot_table.to_pandas()
@@ -756,7 +797,7 @@ class Detector():
                 peak_freq = [0]
         return peak_freq, peak_power
     
-    def isolate_events(self,objid,frame_buffer=20,duration=2,buffer=1,base_range=1):
+    def isolate_events(self,objid,frame_buffer=5,duration=2,buffer=1,base_range=1):
         """_summary_
 
         Args:
@@ -843,6 +884,7 @@ class Detector():
                         end = len(self.time) - 1 
                     event_time = np.array([[start,end]])
             peak_freq, peak_power = self.fit_period(obj.iloc[0])
+            classification, prob = check_classifind(obj.iloc[0])
             
             for e in event_time:
                 ind = (obj['frame'].values >= e[0]) & (obj['frame'].values <= e[1])
@@ -855,6 +897,7 @@ class Detector():
                 #av = np.average(detections.values,axis=0,weights=detections['sig'].values)
                 event = pandas_weighted_avg(detections)
                 event['objid'] = detections['objid'].values[0]
+                event['flux_sign'] = sign
                 pos = [int(event.xint.values),int(event.yint.values)]
                 sig_max, sig_med, sig_lc = self._check_lc_significance(int(e[0]),int(e[1]),pos,event['flux_sign'].values,
                                                                        buffer=buffer,base_range=base_range)
@@ -888,7 +931,8 @@ class Detector():
                     event['Type'] = obj['Type'].iloc[0]
                     event['peak_freq'] = peak_freq[0]
                     event['peak_power'] = peak_power[0]
-                    event['variable'] = variable | np.isfinite(peak_power[0])
+                    event['cf_class'] = classification
+                    event['cf_prob'] = prob
                     
                     event['lc_sig'] = sig_max
                     event['lc_sig_med'] = sig_med
@@ -1135,7 +1179,7 @@ class Detector():
         t2 = t()
         self._get_all_independent_events(cpu = int(multiprocessing.cpu_count()))
         print(f'Isolate Events: {(t()-t2):.1f} sec')
-        #self._asteroid_checker()
+        self._asteroid_checker()
         
         self.events['objid'] = self.events['objid'].astype(int)
         if self.time_bin is None:
@@ -1173,7 +1217,7 @@ class Detector():
         ax[1].set_xlabel('Source Mask')
 
     def count_detections(self,cut,starkiller=False,asteroidkiller=False,
-                            lower=None,upper=None,sig_image=None,sig_lc=None,
+                            lower=None,upper=None,sig_image=None,sig_lc=None,sig_lc_average=None,
                             max_events=None,bkgstd_lim=None,sign=None):
 
         if cut != self.cut:
@@ -1191,6 +1235,8 @@ class Detector():
 
         if sig_lc is not None:
             r = r.loc[r['lc_sig']>=sig_lc]
+        if sig_lc_average is not None:
+            r = r.loc[r['lc_sig_med']>=sig_lc_average]
         if sig_image is not None:
             r = r.loc[r['max_sig'] >= sig_image]
         if max_events is not None:
@@ -1257,21 +1303,24 @@ class Detector():
 
 
     def lc_ALL(self,cut,save_path=None,lower=2,max_events=None,starkiller=False,
-                 sig_image=3,sig_lc=2.5,bkgstd_lim=100,sign=None):
-        #try:
-        detections = self.count_detections(cut=cut,lower=lower,max_events=max_events,
-                                        sign=sign,starkiller=starkiller,sig_lc=sig_lc,sig_image=sig_image)
-        if save_path is None:
-            save_path = self.path + f'/Cut{cut}of{self.n**2}/object_lcs/'
-            print('lc path: ',save_path)
-            self._check_dirs(save_path)
-        inds = detections['objid'].unique()
-        self.events = detections
-        print('Total lcs to create: ', len(detections))
-        events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(self.save_lc)(cut,ind,save_path=save_path) for ind in inds)
-        print('LCs complete!')
-        #except:
-        #    print('plotting failed!')
+                 sig_image=3,sig_lc=None,bkgstd_lim=100,sig_lc_average=None,sign=None):
+        try:
+            detections = self.count_detections(cut=cut,lower=lower,max_events=max_events,
+                                            sign=sign,starkiller=starkiller,sig_lc=sig_lc,
+                                            sig_image=sig_image,sig_lc_average=sig_lc_average)
+            if save_path is None:
+                save_path = self.path + f'/Cut{cut}of{self.n**2}/object_lcs/'
+                print('lc path: ',save_path)
+                self._check_dirs(save_path)
+            inds = detections['objid'].unique()
+            backup = deepcopy(self.events)
+            self.events = detections
+            print('Total lcs to create: ', len(inds))
+            events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(self.save_lc)(cut,ind,save_path=save_path) for ind in inds)
+            self.events = backup
+            print('LCs complete!')
+        except:
+            print('plotting failed!')
     
     def plot_ALL(self,cut,save_path=None,lower=3,max_events=30,starkiller=False,
                  sig_image=3,sig_lc=2.5,bkgstd_lim=100,sign=1,
@@ -1279,20 +1328,22 @@ class Detector():
         if time_bin is not None:
             self.time_bin = time_bin
 
-        #try:
-        detections = self.count_detections(cut=cut,lower=lower,max_events=max_events,
-                                        sign=sign,starkiller=starkiller,sig_lc=sig_lc,sig_image=sig_image)
-        if save_path is None:
-            save_path = self.path + f'/Cut{cut}of{self.n**2}/figs/'
-            print('Figure path: ',save_path)
-            self._check_dirs(save_path)
-        self.events = detections
-        inds = detections['objid'].unique()
-        print('Total events to plot: ', len(detections))
-        events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path,external_phot=False) for ind in inds)
-        print('Plot complete!')
-        #except:
-         #   print('plotting failed!')
+        try:
+            detections = self.count_detections(cut=cut,lower=lower,max_events=max_events,
+                                            sign=sign,starkiller=starkiller,sig_lc=sig_lc,sig_image=sig_image)
+            if save_path is None:
+                save_path = self.path + f'/Cut{cut}of{self.n**2}/figs/'
+                print('Figure path: ',save_path)
+                self._check_dirs(save_path)
+            backup = deepcopy(self.events)
+            self.events = detections
+            inds = detections['objid'].unique()
+            print('Total events to plot: ', len(detections))
+            events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path,external_phot=False) for ind in inds)
+            self.events = backup
+            print('Plot complete!')
+        except:
+            print('plotting failed!')
 
     def save_lc(self,cut,id,save_path='.'):
         if cut != self.cut:
@@ -1301,22 +1352,28 @@ class Detector():
             self.cut = cut
         sources =  self.events[self.events['objid']==id]
         total_events = int(np.nanmean(sources['total_events'].values))
-        frames = np.arange(0,len(self.time),dtype=int)
-        sign = np.zeros_like(self.time,dtype=int)
-        for i in range(len(sources)):
-            s = sources.iloc[i]
-            frameStart = int(s['frame_start']) #min(source['frame'].values)
-            frameEnd = int(s['frame_end']) #max(source['frame'].values)
-            frames[(frames >= frameStart) & (frames <= frameEnd)] = int(i + 1)
-            sign[(frames >= frameStart) & (frames <= frameEnd)] = int(s['flux_sign'])
+        frames = np.zeros_like(self.time,dtype=int)
+        frame_counter = np.arange(len(self.time))
+        pe = np.zeros_like(self.time,dtype=int)
+        ne = np.zeros_like(self.time,dtype=int)
+        for i in range(total_events):
+            s = sources.loc[sources['eventID'] == i+1]
+            if len(s) > 0:
+                frameStart = int(np.nanmean(s['frame_start'].values)) #min(source['frame'].values)
+                frameEnd = int(np.nanmean(s['frame_end'].values)) #max(source['frame'].values)
+                frames[(frame_counter >= frameStart) & (frame_counter <= frameEnd)] = int(i + 1)
+                if s['flux_sign'].values > 0:
+                    pe[(frame_counter >= frameStart) & (frame_counter <= frameEnd)] = int(s['flux_sign'].values)
+                else:
+                    ne[(frame_counter >= frameStart) & (frame_counter <= frameEnd)] = int(s['flux_sign'].values)
         
         x = int(np.round(np.nanmedian(sources['xcentroid'])))
         y = int(np.round(np.nanmedian(sources['ycentroid'])))
 
         f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
         
-        lc = np.array([self.time,f,frames,sign]).T
-        headers = ['mjd','counts','event','sign']
+        lc = np.array([self.time,f,frames,pe,ne]).T
+        headers = ['mjd','counts','event','positive','negative']
         lc = pd.DataFrame(data=lc,columns=headers)
         savename = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_object{id}_lc.csv'
         
