@@ -1351,7 +1351,7 @@ class Detector():
         print('LCs complete!')
 
         print('Zipping...')
-        cmd = f"find {save_path} -type f -name '*.csv' -exec zip {save_path}/../lcs.zip -j {{}} + > /dev/null 2>&1"
+        cmd = f"zip -r {save_path}/../lcs.zip {save_path} > /dev/null 2>&1"
         print('Zip complete!')
 
         print('Deleting...')
