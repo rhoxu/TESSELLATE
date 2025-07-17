@@ -1,8 +1,5 @@
 import numpy as np
 import os
-from astropy.io import fits
-import pandas as pd
-
 
 fig_width_pt = 240.0  # Get this from LaTeX using \showthe\columnwidth
 inches_per_pt = 1.0/72.27			   # Convert pt to inches
@@ -39,6 +36,8 @@ def _Extract_fits(pixelfile):
     """
     Quickly extract fits
     """
+    from astropy.io import fits
+
     try:
         hdu = fits.open(pixelfile)
         return hdu
@@ -212,6 +211,8 @@ def delete_files(filetype,data_path,sector,n=4,cams='all',ccds='all',cuts='all',
     
     
 def weighted_avg_var(group, weight_col):
+    import pandas as pd
+
     weighted_stats = {}
     numeric_cols = group.select_dtypes(include='number').columns  # Select only numeric columns
     miss = ['Prob','n_detections','GaiaID','flux_sign',

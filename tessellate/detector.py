@@ -1,47 +1,14 @@
 # -- A good number of functions are imported only in the functions they get utilised -- #
-print('First Import')
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from time import time as t
-
-print('Second Import')
-from scipy.signal import find_peaks
-from scipy.stats import pearsonr
-from scipy.signal import fftconvolve
-
-print('Third Import')
 from copy import deepcopy
-import multiprocessing
-from joblib import Parallel, delayed 
-from tqdm import tqdm
-import os
-
-print('4th Import')
-import lightkurve as lk
-from photutils.detection import StarFinder
-from photutils.aperture import RectangularAperture, RectangularAnnulus,CircularAperture
-from photutils.aperture import ApertureStats, aperture_photometry
-
-print('5th Import')
-from astropy.stats import sigma_clipped_stats
-from astropy.stats import sigma_clip
-import astropy.units as u
-from astropy.time import Time
-from astropy.wcs import WCS
-from astropy.io import fits
-
 import warnings
 warnings.filterwarnings("ignore")
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
 
 # from sourcedetect import SourceDetect, PrfModel
 # Now importing this only in the source_detect function
-
-print('6th Import')
-from .catalog_queries import match_result_to_cat #,find_variables, gaia_stars,
-from .tools import pandas_weighted_avg, consecutive_points
-print('7th Import')
 
 # -- Primary Detection Functions -- #
 
@@ -138,6 +105,9 @@ def _spatial_group(result,distance=0.5,njobs=-1):
 
 def _star_finding_procedure(data,prf,sig_limit = 2):
 
+    from photutils.detection import StarFinder
+    from astropy.stats import sigma_clipped_stats
+
     mean, med, std = sigma_clipped_stats(data, sigma=5.0)
 
     psfCentre = prf.locate(5,5,(11,11))
@@ -179,6 +149,11 @@ def _star_finding_procedure(data,prf,sig_limit = 2):
 
 
 def _process_detection(star,parallel=False):
+    from scipy.signal import fftconvolve
+    from photutils.aperture import RectangularAnnulus, CircularAperture
+    from astropy.stats import sigma_clip
+    from photutils.aperture import ApertureStats, aperture_photometry
+
     pos_ind = ((star.xcentroid.values >=3) & (star.xcentroid.values < data.shape[1]-3) & 
                 (star.ycentroid.values >=3) & (star.ycentroid.values < data.shape[0]-3))
     star = star.iloc[ind & pos_ind]
@@ -213,6 +188,11 @@ def _process_detection(star,parallel=False):
     return star
 
 def find_stars(data,prf,fwhmlim=7,siglim=2.5,bkgstd_lim=50,negative=False):
+
+    from scipy.signal import fftconvolve
+    from photutils.aperture import RectangularAperture, RectangularAnnulus, ApertureStats, aperture_photometry
+    from astropy.stats import sigma_clip
+
     if negative:
         data = data * -1
     star = _star_finding_procedure(data,prf,sig_limit=siglim)
@@ -335,6 +315,11 @@ def _parallel_correlation_check(source,data,prf,corlim,psfdifflim):
 
 
 def _do_photometry(star,data,siglim=3,bkgstd_lim=50):
+
+    from scipy.signal import fftconvolve
+    from photutils.aperture import RectangularAnnulus, CircularAperture, ApertureStats, aperture_photometry
+    from astropy.stats import sigma_clip
+
     x = (star.xcentroid.values + 0.5).astype(int); y = (star.ycentroid.values + 0.5).astype(int)
     pos = list(zip(x, y))
     aperture = CircularAperture(pos, 1.5)
@@ -365,6 +350,7 @@ def _do_photometry(star,data,siglim=3,bkgstd_lim=50):
 def _source_detect(flux,inputNum,prf,corlim,psfdifflim,cpu,siglim=2,bkgstd=50):
     
     from sourcedetect import SourceDetect, PrfModel
+    from joblib import Parallel, delayed 
 
     #model = PrfModel(save_model=False)
     #res = SourceDetect(flux,run=True,train=False,model=model).result
@@ -404,6 +390,13 @@ def _make_dataframe(results,data):
     
 
 def _main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
+
+    from time import time as t
+    import multiprocessing
+    from joblib import Parallel, delayed 
+    from tqdm import tqdm
+
+    
     print('Starting source detection')
     length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
     if mode == 'starfind':
@@ -440,6 +433,7 @@ def detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdiff
     """
 
     from PRF import TESS_PRF
+    from time import time as t
 
     if inputNums is not None:
         flux = flux[inputNums]
@@ -484,6 +478,8 @@ def exp_func(x,a,b,c):
 # -- Secondary Functions (Just for functionality in testing) -- #
 
 def periodogram(period,plot=True,axis=None):
+    from scipy.signal import find_peaks
+
     p = deepcopy(period)
 
     norm_p = p.power / np.nanmean(p.power)
@@ -593,6 +589,8 @@ class Detector():
 
     def _wcs_time_info(self,result,cut):
         
+        import lightkurve as lk
+
         cut_path = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}.fits'
         times = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}_Times.npy')
 
@@ -606,6 +604,8 @@ class Detector():
         return result
     
     def _gather_data(self,cut):
+
+        from astropy.wcs import WCS
 
         base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'
         self.base_name = base
@@ -680,6 +680,8 @@ class Detector():
         return sig_max, sig_med, lc_sig * flux_sign
     
     def _asteroid_checker(self):#,asteroid_distance=3,asteroid_correlation=0.9,asteroid_duration=1):
+
+        from astropy.stats import sigma_clipped_stats
 
         events = deepcopy(self.events)
         #time = self.time - self.time[0]
@@ -757,6 +759,11 @@ class Detector():
     def fit_period(self,source,significance=3):
 
         from scipy.optimize import curve_fit
+        from scipy.signal import find_peaks
+        import lightkurve as lk
+        from astropy.stats import sigma_clipped_stats
+        import astropy.units as u
+        from astropy.time import Time
 
         x = (source['xint']+0.5).astype(int)
         y = (source['yint']+0.5).astype(int)
@@ -819,6 +826,9 @@ class Detector():
         Returns:
             events
         """
+
+        from .tools import pandas_weighted_avg
+
         obj_ind = self.sources['objid'].values == objid
         source = self.sources.iloc[obj_ind]
         variable = abs(np.nanmean(source['flux_sign'].values)) <= 0.3
@@ -968,6 +978,9 @@ class Detector():
         return events 
 
     def _get_all_independent_events(self,frame_buffer=20,duration=1,buffer=0.5,base_range=1,cpu=1):
+        from joblib import Parallel, delayed 
+        from tqdm import tqdm
+
         ids = np.unique(self.sources['objid'].values).astype(int)
         if cpu > 1:
             length = np.arange(0,len(ids)).astype(int)
@@ -984,6 +997,8 @@ class Detector():
     
     def _lightcurve_event_checker(self,start,stop,lc_sig,im_triggers,siglim=3):
         #lc_sig = self._check_lc_significance(event,sig_lc=True)
+        from .tools import consecutive_points
+
         sig_ind = np.where(lc_sig>= siglim)[0]
         segments = consecutive_points(sig_ind)
         triggers = np.zeros_like(lc_sig)
@@ -1044,6 +1059,9 @@ class Detector():
         
 
     def _gather_results(self,cut):
+
+        import multiprocessing
+
         path = f'{self.path}/Cut{cut}of{self.n**2}'
         self.sources = pd.read_csv(f'{path}/detected_sources.csv')
         try:
@@ -1115,6 +1133,12 @@ class Detector():
     def source_detect(self,cut,mode='starfind',prf_path='/fred/oz335/_local_TESS_PRFs/',time_bin=None):
 
         from .dataprocessor import DataProcessor
+        from .catalog_queries import match_result_to_cat #,find_variables, gaia_stars,
+        from .tools import pandas_weighted_avg
+
+        from time import time as t
+        import multiprocessing
+
 
         if mode is None:
             mode = self.mode
@@ -1284,6 +1308,7 @@ class Detector():
         dirlist : list
             List of directories to check for, if they don't exist, they will be created.
         """
+        import os
         #for d in dirlist:
         if not os.path.isdir(save_path):
             try:
@@ -1314,6 +1339,11 @@ class Detector():
 
     def lc_ALL(self,cut,save_path=None,lower=2,max_events=None,starkiller=False,
                  sig_image=3,sig_lc=2.5,bkgstd_lim=100,sign=None):
+        
+        import multiprocessing
+        from joblib import Parallel, delayed 
+        import os
+
         #try:
         detections = self.count_detections(cut=cut,lower=lower,max_events=max_events,
                                         sign=sign,starkiller=starkiller,sig_lc=sig_lc,sig_image=sig_image)
@@ -1338,6 +1368,10 @@ class Detector():
     def plot_ALL(self,cut,save_path=None,lower=3,max_events=30,starkiller=False,
                  sig_image=3,sig_lc=2.5,bkgstd_lim=100,sign=1,
                  save_lc=True,time_bin=None):
+        
+        import multiprocessing
+        from joblib import Parallel, delayed 
+        import os
 
         if time_bin is not None:
             self.time_bin = time_bin
@@ -1409,7 +1443,7 @@ class Detector():
         
         import matplotlib.patches as patches
         from mpl_toolkits.axes_grid1.inset_locator import mark_inset
-
+        
         from .external_photometry import event_cutout
 
         # -- Use Latex in the plots -- #
@@ -1710,6 +1744,8 @@ class Detector():
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
+            from astropy.wcs import WCS
+            from astropy.io import fits
 
             file = f'{self.path}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_wcs.fits'
             hdu = fits.open(file)
