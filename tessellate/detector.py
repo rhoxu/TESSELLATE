@@ -1302,6 +1302,20 @@ class Detector():
         print('Total events to plot: ', len(detections))
         events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(self.plot_source)(cut,ind,event='seperate',savename='auto',save_path=save_path,external_phot=False) for ind in inds)
         print('Plot complete!')
+
+        # -- Now zips files and then deletes the directory to save inodes -- #
+        print('Zipping...')
+        cmd = f"find {save_path} -type f -name '*.png' -exec zip {save_path}/../figs.zip -j {{}} + > /dev/null 2>&1"
+        os.system(cmd)
+        splc = deepcopy(save_path).replace('fig','lc')
+        cmd = f"find {splc} -type f -name '*.png' -exec zip {splc}/../lcs.zip -j {{}} + > /dev/null 2>&1"
+        os.system(cmd)
+        print('Zip complete!')
+        print('Deleting...')
+        os.system(f'rm -r {save_path}')
+        os.system(f'rm -r {splc}')
+        print('Delete complete!')
+
         #except:
          #   print('plotting failed!')
 
@@ -1582,33 +1596,33 @@ class Detector():
                 self._check_dirs(splc)
                 if savename.lower() == 'auto':
                     savename = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_object{id}'
-                if star_bin:
-                    if source['GaiaID'] > 0:
-                        extension = 'star'
-                    else:
-                        extension = 'no_star'
-                    sp += '/' + extension
+                # if star_bin:
+                #     if source['GaiaID'] > 0:
+                #         extension = 'star'
+                #     else:
+                #         extension = 'no_star'
+                #     sp += '/' + extension
                 #splc += '/' + extension
                 self._check_dirs(sp)
                 #self._check_dirs(splc)
 
-                if period_bin:
-                    if type_bin:
-                        if source['Prob'] > 0:
-                            extension = source['Type']
-                        else:
-                            extension = self.period_bin(source['peak_freq'],source['peak_power'])
-                    if type(extension) != str:
-                        extension = 'none'
-                    sp += '/' + extension
-                    self._check_dirs(sp)
-                    #splc += '/' + extension
-                    #self._check_dirs(splc)
+                # if period_bin:
+                #     if type_bin:
+                #         if source['Prob'] > 0:
+                #             extension = source['Type']
+                #         else:
+                #             extension = self.period_bin(source['peak_freq'],source['peak_power'])
+                #     if type(extension) != str:
+                #         extension = 'none'
+                #     sp += '/' + extension
+                #     self._check_dirs(sp)
+                #     #splc += '/' + extension
+                #     #self._check_dirs(splc)
                     
-                if objectid_bin:
-                    extension = f'{self.sector}_{self.cam}_{self.ccd}_{self.cut}_{id}'
-                    sp += '/' + extension
-                    self._check_dirs(sp)
+                # if objectid_bin:
+                #     extension = f'{self.sector}_{self.cam}_{self.ccd}_{self.cut}_{id}'
+                #     sp += '/' + extension
+                #     self._check_dirs(sp)
                     #splc += '/' + extension
                     #self._check_dirs(splc)
                 if event == 'all':
@@ -1616,6 +1630,7 @@ class Detector():
                 else:
                     plt.savefig(sp+'/'+savename+f'_event{event_id}of{total_events}.png', 
                                 bbox_inches = "tight")
+                    
                 if save_lc:
                     headers = ['mjd','counts','event']
                     lc = pd.DataFrame(data=lc,columns=headers)
