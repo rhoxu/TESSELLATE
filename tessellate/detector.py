@@ -1441,22 +1441,6 @@ class Detector():
         if external_phot:
             print('Getting Photometry...')
 
-            # from astropy.wcs import WCS
-            # from astropy.io import fits
-
-            # file = f'{self.path}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_wcs.fits'
-            # hdu = fits.open(file)
-            # tessWCS = WCS(hdu[1].header)
-            
-            # xccd = source.xccd#np.round(source.xccd).astype(int)
-            # yccd = source.yccd#np.round(source.yccd).astype(int)
-
-            # xint = np.round(xccd).astype(int)
-            # yint = np.round(yccd).astype(int)
-
-            # RA,DEC = tessWCS.all_pix2world(xint,yint,0)
-            # ra_obj,dec_obj = tessWCS.all_pix2world(xccd,yccd,0)
-
             xint = source['xint']
             yint = source['yint']
 
@@ -1500,7 +1484,7 @@ class Detector():
                         color='white'
                         lw = 2
                         alpha = 0.3
-                    # ra,dec = tessWCS.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
+                        
                     ra,dec = self.wcs.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
                     if wcs[i].naxis == 3:
                         x,y,_ = wcs[i].all_world2pix(ra,dec,0,0)
