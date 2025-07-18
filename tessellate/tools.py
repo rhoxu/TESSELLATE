@@ -253,3 +253,59 @@ def pandas_weighted_avg(df,weight_col='sig'):
 
 def consecutive_points(data, stepsize=2):
     return np.split(data, np.where(np.diff(data) > stepsize)[0]+1)
+
+
+class CutWCS():
+
+    def __init__(self,data_path,sector,cam,ccd,cut,n):
+
+        from astropy.io import fits
+        from astropy.wcs import WCS
+
+        self.data_path = data_path
+        self.sector = sector
+        self.cam = cam
+        self.ccd = ccd
+        self.cut = cut
+        self.n = n
+
+        self.wcs_path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_wcs.fits'
+        hdu = fits.open(self.wcs_path)
+        self.wcs = WCS(hdu[1].header)
+
+        self._get_corner()
+
+    def _get_corner(self):
+
+        intervals = 2048/self.n
+        cutCornersX = [44 + i*intervals for i in range(self.n)]
+        cutCornersY = [i*intervals for i in range(self.n)]
+        cutCorners = np.meshgrid(cutCornersX,cutCornersY)
+        cutCorners = np.floor(np.stack((cutCorners[0],cutCorners[1]),axis=2).reshape(self.n**2,2))
+        
+        self.corner = cutCorners[self.cut-1]
+
+    def all_world2pix(self,ra,dec,origin=0):
+
+        """
+        Convert RA and Dec to pixel coordinates for the cut WCS.
+        """
+        x, y = self.wcs.all_world2pix(ra, dec, origin)
+        return x - self.corner[0], y - self.corner[1]
+    
+    def all_pix2world(self, x, y, origin=0):
+        """
+        Convert pixel coordinates to RA and Dec for the cut WCS.
+        """
+        ra, dec = self.wcs.all_pix2world(x + self.corner[0], y + self.corner[1], origin)
+        return ra, dec
+
+    def __str__(self):
+        return (
+            str(self.wcs)
+            + '\n\nNote: this is the WCS information for the full CCD. '
+            + 'The cut WCS results add the cut corner offset to the pixel coordinates.'
+        )
+
+    def __repr__(self):
+        return self.__str__()

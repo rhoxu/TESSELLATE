@@ -601,23 +601,21 @@ class Detector():
 
     def _wcs_time_info(self,result,cut):
         
-        import lightkurve as lk
+        from .tools import CutWCS
 
-        cut_path = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}.fits'
         times = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}_Times.npy')
 
-        tpf = lk.TessTargetPixelFile(cut_path)
-        self.wcs = tpf.wcs
-        coords = tpf.wcs.all_pix2world(result['xcentroid'],result['ycentroid'],0)
+        self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
+        coords = self.wcs.all_pix2world(result['xcentroid'],result['ycentroid'],0)
         result['ra'] = coords[0]
         result['dec'] = coords[1]
         result['mjd'] = times[result['frame']]
-
+ 
         return result
     
     def _gather_data(self,cut):
 
-        from astropy.wcs import WCS
+        from .tools import CutWCS
 
         base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'
         self.base_name = base
@@ -631,10 +629,8 @@ class Detector():
         self.time = np.load(base + '_Times.npy')
         if self.time_bin is not None:
             self._rebin_data()
-        try:
-            self.wcs = WCS(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits')
-        except:
-            print('Could not find a wcs file')
+        self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
+
     
     def _rebin_data(self):
         points = np.arange(self.time[0]+time_bin*.5,self.time[-1],self.time_bin)
@@ -1445,21 +1441,28 @@ class Detector():
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
-            from astropy.wcs import WCS
-            from astropy.io import fits
+            # from astropy.wcs import WCS
+            # from astropy.io import fits
 
-            file = f'{self.path}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_wcs.fits'
-            hdu = fits.open(file)
-            tessWCS = WCS(hdu[1].header)
+            # file = f'{self.path}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_wcs.fits'
+            # hdu = fits.open(file)
+            # tessWCS = WCS(hdu[1].header)
             
-            xccd = source.xccd#np.round(source.xccd).astype(int)
-            yccd = source.yccd#np.round(source.yccd).astype(int)
+            # xccd = source.xccd#np.round(source.xccd).astype(int)
+            # yccd = source.yccd#np.round(source.yccd).astype(int)
 
-            xint = np.round(xccd).astype(int)
-            yint = np.round(yccd).astype(int)
+            # xint = np.round(xccd).astype(int)
+            # yint = np.round(yccd).astype(int)
 
-            RA,DEC = tessWCS.all_pix2world(xint,yint,0)
-            ra_obj,dec_obj = tessWCS.all_pix2world(xccd,yccd,0)
+            # RA,DEC = tessWCS.all_pix2world(xint,yint,0)
+            # ra_obj,dec_obj = tessWCS.all_pix2world(xccd,yccd,0)
+
+            xint = source['xint']
+            yint = source['yint']
+
+            RA,DEC = self.wcs.all_pix2world(xint,yint,0)
+            ra_obj,dec_obj = self.wcs.all_pix2world(source['xcentroid'],source['ycentroid'],0)
+
             #error = (source.e_xccd * 21 /60**2,source.e_yccd * 21/60**2) # convert to deg
             #error = np.nanmax([source.e_xccd,source.e_yccd])
             error = [10 / 60**2,10 / 60**2] # just set error to 10 arcsec. The calculated values are unrealistically small.
@@ -1497,7 +1500,8 @@ class Detector():
                         color='white'
                         lw = 2
                         alpha = 0.3
-                    ra,dec = tessWCS.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
+                    # ra,dec = tessWCS.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
+                    ra,dec = self.wcs.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
                     if wcs[i].naxis == 3:
                         x,y,_ = wcs[i].all_world2pix(ra,dec,0,0)
                     else:
