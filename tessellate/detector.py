@@ -742,6 +742,8 @@ class Detector():
         self.events = events
 
     def check_classifind(self,source):
+        import joblib
+        
         x = (source['xint']+0.5).astype(int)
         y = (source['yint']+0.5).astype(int)
         f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
@@ -1044,96 +1046,51 @@ class Detector():
         return min_ind,max_ind,detections#event
 
         
-        
-        
-        tarr = sig_lc >= siglim
-        temp = np.insert(tarr,0,False)
-        temp = np.insert(temp,-1,False)
-        detections = np.where(temp)[0]
-        if len(detections) > 1:
-            testf = np.diff(np.where(temp)[0])
-            testf = np.insert(testf,-1,0)
-        else:
-            testf = np.array([0,0])
-        indf = np.where(temp)[0]
-        
-        testf = np.diff(np.where(~temp)[0] -1 )
-        indf = np.where(~temp)[0] - 1
-        testf[testf == 1] = 0
-        testf = np.append(testf,0)
+    
+                            # tarr = sig_lc >= siglim
+                            # temp = np.insert(tarr,0,False)
+                            # temp = np.insert(temp,-1,False)
+                            # detections = np.where(temp)[0]
+                            # if len(detections) > 1:
+                            #     testf = np.diff(np.where(temp)[0])
+                            #     testf = np.insert(testf,-1,0)
+                            # else:
+                            #     testf = np.array([0,0])
+                            # indf = np.where(temp)[0]
+                            
+                            # testf = np.diff(np.where(~temp)[0] -1 )
+                            # indf = np.where(~temp)[0] - 1
+                            # testf[testf == 1] = 0
+                            # testf = np.append(testf,0)
         
 
     def _gather_results(self,cut):
+        """
+        Gather the results of the source detection for a given cut.
+        """
 
         import multiprocessing
         from .tools import CutWCS
 
         path = f'{self.path}/Cut{cut}of{self.n**2}'
-        self.sources = pd.read_csv(f'{path}/detected_sources.csv')
+        self.sources = pd.read_csv(f'{path}/detected_sources.csv')   # raw detection results
         try:
-            self.events = pd.read_csv(f'{path}/detected_events.csv')
+            self.events = pd.read_csv(f'{path}/detected_events.csv')    # temporally located with same object id
         except:
             print('No detected events file found')
         
         self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
-        '''try:
-            self.gaia = pd.read_csv(f'{path}/local_gaia_cat.csv')
-            query_gaia = False
-        except:
-            print('No local Gaia cat, will try to query')
 
-        try:
-            self.variables = pd.read_csv(f'{path}/variable_catalog.csv')
-        except:
-            print('No local variable catalog, will try to query.')
-            query_var = False
-        self.result['Prob'] = 0; self.result['Type'] = 0
-        self.result['GaiaID'] = 0
-        if ~query_gaia:
-            self.result = match_result_to_cat(deepcopy(self.result),self.gaia,columns=['Source'])
-            self.result = self.result.rename(columns={'Source': 'GaiaID'})
-        if ~query_var:
-            self.result = match_result_to_cat(deepcopy(self.result),self.variables,columns=['Type','Prob'])
-
-        if query_gaia | query_var:
-            try:
-                ids = np.unique(self.result['objid'].values)
-                ra = []; dec = []
-                Id = []
-                for id in ids:
-                    if len(self.result.iloc[self.result['objid'].values == id]) >=2:
-                        Id += [id]
-                        ra += [self.result.loc[self.result['objid'] == id, 'ra'].mean()]
-                        dec += [self.result.loc[self.result['objid'] == id, 'dec'].mean()]
-                pos = {'objid':Id,'ra':ra,'dec':dec}
-                pos = pd.DataFrame(pos)
-                center = [pos.loc[:,'ra'].mean(),pos.loc[:,'dec'].mean()]
-                rad = np.max(np.sqrt((pos['ra'].values-center[0])**2 +(pos['dec'].values-center[1])**2)) + 1/60
-                var_cat = find_variables(center,pos,rad,rad)
-                ind = np.where(var_cat['Prob'].values > 0)[0]
-                for i in ind:
-                    self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Type'] = var_cat['Type'].iloc[i]
-                    self.result.loc[self.result['objid'] == var_cat['objid'].iloc[i], 'Prob'] = var_cat['Prob'].iloc[i]
-                
-                stars = gaia_stars(pos)
-                ind = np.where(stars['GaiaID'].values > 0)[0]
-                for i in ind:
-                    self.result.loc[self.result['objid'] == stars['objid'].iloc[i], 'GaiaID'] = var_cat['GaiaID'].iloc[i]
-
-            except:
-                print('Could not query variable catalogs')
-        '''
         if self.events is None:
             self.sources['Prob'] = 0; self.sources['Type'] = 0
             self.sources['GaiaID'] = 0
             self._get_all_independent_events(cpu=int(multiprocessing.cpu_count()))
 
 
-    def event_coords(self,objid):
-        self.obj_ra = self.events.loc[self.events['objid'] == objid, 'ra'].mean()
-        self.obj_dec = self.events.loc[self.events['objid'] == objid, 'dec'].mean()
-
     def source_detect(self,cut,mode='starfind',prf_path='/fred/oz335/_local_TESS_PRFs/',time_bin=None):
+        """
+        Run the source detection algorithm on the data for a given cut.
+        """
 
         from .dataprocessor import DataProcessor
         from .catalog_queries import match_result_to_cat #,find_variables, gaia_stars,
@@ -1142,7 +1099,7 @@ class Detector():
         from time import time as t
         import multiprocessing
 
-
+        # -- Check if using starfinder and/or sourcedetect for detection -- #
         if mode is None:
             mode = self.mode
         if (mode == 'both') | (mode == 'starfind') | (mode == 'sourcedetect'):
@@ -1151,24 +1108,31 @@ class Detector():
             m = 'Mode must be one of the following: both, starfind, sourcedetect.'
             raise ValueError(m)
         
+        # -- Gather time/flux data for the cut -- #
         if cut != self.cut:
             self._gather_data(cut)
             self.cut = cut
 
+        
         if time_bin is not None:
             self.time_bin = time_bin
+
+        # -- Access information about the cut with respect to the original ccd -- #        
         processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=2)
         cutCorners, cutCentrePx, _, _ = processor.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
-
         column = cutCentrePx[cut-1][0]
         row = cutCentrePx[cut-1][1]
 
+        # -- Run the detection algorithm, generates dataframe -- #
         results = Detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,
                          row=row,mask=self.mask,inputNums=None,mode=mode,datadir=prf_path)
+        
+        # -- Add wcs, time, ccd info to the results dataframe -- #
         results = self._wcs_time_info(results,cut)
         results['xccd'] = deepcopy(results['xcentroid'] + cutCorners[cut-1][0])#.astype(int)
         results['yccd'] = deepcopy(results['ycentroid'] + cutCorners[cut-1][1])#.astype(int)
         
+        # -- For each source, finds the average position based on the weighted average of the flux -- #
         av_var = pandas_weighted_avg(results[['objid','sig','xcentroid','ycentroid','ra','dec','xccd','yccd']])
         av_var = av_var.rename(columns={'xcentroid':'x_source','ycentroid':'y_source','e_xcentroid':'e_x_source',
                                         'e_ycentroid':'e_y_source','ra':'ra_source','dec':'dec_source',
@@ -1178,25 +1142,16 @@ class Detector():
         av_var = av_var.drop(['sig','e_sig'],axis=1)
         results = results.merge(av_var, on='objid', how='left')
         
+        # -- Cross matches location to Gaia -- #
         gaia = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv')
         results = match_result_to_cat(deepcopy(results),gaia,columns=['Source'])
         results = results.rename(columns={'Source': 'GaiaID'})
-        # except:
-        #    print('No local Gaia catalog, can not cross match.')
-        # try:
+
+        # -- Cross matches location to variable catalog -- #
         variables = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/variable_catalog.csv')
         results = match_result_to_cat(deepcopy(results),variables,columns=['Type','Prob'])
-        # except:
-        #    print('No local variable catalog, can not cross match.')
 
-        
-
-        wcs_save = self.wcs.to_fits()
-        wcs_save[0].header['NAXIS'] = self.wcs.naxis
-        wcs_save[0].header['NAXIS1'] = self.wcs._naxis[0]
-        wcs_save[0].header['NAXIS2'] = self.wcs._naxis[1]
-        wcs_save.writeto(f'{self.path}/Cut{cut}of{self.n**2}/wcs.fits',overwrite=True)
-        
+        # -- Calculates the background level for each source -- #
         results['bkg_level'] = 0
         if self.bkg is not None:
             f = results['frame'].values
@@ -1212,13 +1167,21 @@ class Detector():
             b = np.nansum(b,axis=0)
             results['bkg_level'] = b
         
+        # -- self.sources contains all individual sources found in all frames -- #
         self.sources = results
+
+        # -- Group these sources into unique objects based on the objid -- #
         t2 = t()
         self._get_all_independent_events(cpu = int(multiprocessing.cpu_count()))
         print(f'Isolate Events: {(t()-t2):.1f} sec')
+
+        # -- Tag asteroids -- #
         self._asteroid_checker()
         
+        # -- self.sources contains all individual sources, but also has them grouped by objid -- #  
         self.events['objid'] = self.events['objid'].astype(int)
+
+        # -- Save out results to csv files -- #
         if self.time_bin is None:
             self.events.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_events.csv',index=False)
         else:
@@ -1229,7 +1192,10 @@ class Detector():
         else:
             results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources_tbin{self.time_bin_name}d.csv',index=False)
 
-    def plot_results(self,cut):
+    def display_source_locations(self,cut):
+        """
+        Overlays the source locations on the first frame of the cut.
+        """
 
         if cut != self.cut:
             self._gather_data(cut)
@@ -1253,23 +1219,32 @@ class Detector():
         ax[1].scatter(self.sources['xcentroid'],self.sources['ycentroid'],c=self.sources['source_mask'],s=5,cmap='Reds')
         ax[1].set_xlabel('Source Mask')
 
-    def count_detections(self,cut,starkiller=False,asteroidkiller=False,
+
+    def filter_events(self,cut,starkiller=False,asteroidkiller=False,
                             lower=None,upper=None,sig_image=None,sig_lc=None,sig_lc_average=None,
                             max_events=None,bkgstd_lim=None,sign=None):
+        
+        """
+        Returns a dataframe of the detections in the cut, with options to filter by various parameters.
+        """
 
+        # -- Gather results and data -- #
         if cut != self.cut:
             self._gather_data(cut)
             self._gather_results(cut)
             self.cut = cut
 
+        # -- If true, remove events near sources in reduction source mask (ie. stars) -- #
         if starkiller:
             r = self.events.loc[self.events['source_mask']==0]
         else:
             r = self.events
 
+        # -- If true, remove asteroids from the results -- #
         if asteroidkiller:
             r = r.loc[~(r['Type'] == 'Asteroid')]
 
+        # -- Filter by various parameters -- #
         if sig_lc is not None:
             r = r.loc[r['lc_sig']>=sig_lc]
         if sig_lc_average is not None:
@@ -1282,57 +1257,54 @@ class Detector():
             r = r.loc[r['bkgstd'] <= bkgstd_lim]
         if sign is not None:
             r = r.loc[r['flux_sign'] == sign]
-        #array = r['objid'].values
-        #counts = []
-        #ids = np.unique(array)
-        #for id in ids:
-        #    counts.append(np.nansum(self.events[self.events['objid']==id]['n_detections'].values))
-        #dictionary = dict(zip(ids, counts))
 
+        # -- Filter by upper and lower limits on number of detections within each event -- #
         if upper is not None:
             if lower is not None:
-                #dictionary = dict((k, v) for k, v in dictionary.items() if lower < v < upper)
                 r = r.loc[(r['n_detections'] < upper) & (r['n_detections'] > lower)]
             else:
-                #dictionary = dict((k, v) for k, v in dictionary.items() if v < upper)
                 r = r.loc[(r['n_detections'] < upper)]
         elif lower is not None:
-            #dictionary = dict((k, v) for k, v in dictionary.items() if lower < v)
             r = r.loc[(r['n_detections'] > lower)]
 
         return r
 
-    def period_bin(self,frequency,power,power_limit=1):
-        if np.isfinite(frequency):
-            p = 1/frequency
-            if power > power_limit:
-                if p <= 1/24:
-                    extension = '1hr_below'
-                elif (p > 1/24) & (p <= 10/24):
-                    extension = '1to10hr'
-                elif (p > 10/24) & (p <= 1):
-                    extension = '10hrto1day'
-                elif (p > 1) & (p <= 10):
-                    extension = '1to10day'
-                elif (p >10):
-                    extension = '10day_greater'
-            else:
-                extension = 'none'
-        else:
-            extension = 'none'
-        return extension
+    # def period_bin(self,frequency,power,power_limit=1):
+    #     if np.isfinite(frequency):
+    #         p = 1/frequency
+    #         if power > power_limit:
+    #             if p <= 1/24:
+    #                 extension = '1hr_below'
+    #             elif (p > 1/24) & (p <= 10/24):
+    #                 extension = '1to10hr'
+    #             elif (p > 10/24) & (p <= 1):
+    #                 extension = '10hrto1day'
+    #             elif (p > 1) & (p <= 10):
+    #                 extension = '1to10day'
+    #             elif (p >10):
+    #                 extension = '10day_greater'
+    #         else:
+    #             extension = 'none'
+    #     else:
+    #         extension = 'none'
+    #     return extension
 
 
     def lc_ALL(self,cut,save_path=None,lower=2,max_events=None,starkiller=False,
                  sig_image=3,sig_lc=2.5,bkgstd_lim=100,sign=None):
+        """
+        Generates all light curves for the detections in the cut to a zip file of csvs.
+        """
         
         import multiprocessing
         from joblib import Parallel, delayed 
         import os
 
-        #try:
-        detections = self.count_detections(cut=cut,lower=lower,max_events=max_events,
+        # -- Gather detections to be considered for plotting -- #
+        detections = self.filter_events(cut=cut,lower=lower,max_events=max_events,
                                         sign=sign,starkiller=starkiller,sig_lc=sig_lc,sig_image=sig_image)
+        
+        # -- Generate save path and name -- #
         if save_path is None:
             save_path = self.path + f'/Cut{cut}of{self.n**2}/lcs/'
             print('LC path: ',save_path)
@@ -1340,10 +1312,12 @@ class Detector():
             save_name = save_path + f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}'
         inds = detections['objid'].unique()
 
+        # -- Run the saving in parallel -- #
         print('Total lcs to create: ', len(inds))
         events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(Save_LC)(self.time,self.flux,detections,ind,save_name) for ind in inds)
         print('LCs complete!')
 
+        # -- Now zips files and then deletes the directory to save inodes -- #
         cwd = os.getcwd()
         os.chdir(f'{save_path}/..')
         print('Zipping...')
@@ -1359,26 +1333,33 @@ class Detector():
     
     def plot_ALL(self,cut,save_path=None,lower=3,max_events=30,starkiller=False,
                  sig_image=3,sig_lc=2.5,bkgstd_lim=100,sign=1,time_bin=None):
+        """
+        Generates all source plots for the detections in the cut to a zip file of pngs
+        """
         
         import multiprocessing
         from joblib import Parallel, delayed 
         import os
 
-        if time_bin is not None:
-            self.time_bin = time_bin
+        # if time_bin is not None:
+        #     self.time_bin = time_bin
 
-        #try:
-        detections = self.count_detections(cut=cut,lower=lower,max_events=max_events,
+        # -- Gather detections to be considered for plotting -- #
+        detections = self.filter_events(cut=cut,lower=lower,max_events=max_events,
                                         sign=sign,starkiller=starkiller,sig_lc=sig_lc,sig_image=sig_image)
+        
+        # -- Generate save path and name -- #
         if save_path is None:
             save_path = self.path + f'/Cut{cut}of{self.n**2}/figs/'
             print('Figure path: ',save_path)
             _Check_dirs(save_path)
             save_name = save_path + f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}'
 
+        # -- Count unique object IDs in detections -- #
         inds = detections['objid'].unique()
         print('Total events to plot: ', len(detections))
 
+        # -- Run the plotting in parallel -- #
         events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(Plot_Source)(self.time,self.flux,detections,
                                                                                         ind,event='seperate',latex=True,
                                                                                         save_path=save_name,zoo_mode=True) for ind in inds)
@@ -1409,6 +1390,9 @@ class Detector():
 
     def plot_source(self,cut,id,event='seperate',save_name=None,save_path=None,
                     latex=True,zoo_mode=True,external_phot=False):
+        """
+        Plot a source from the cut data.
+        """
                 
         from .external_photometry import event_cutout
 
@@ -1484,7 +1468,7 @@ class Detector():
                         color='white'
                         lw = 2
                         alpha = 0.3
-                        
+
                     ra,dec = self.wcs.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
                     if wcs[i].naxis == 3:
                         x,y,_ = wcs[i].all_world2pix(ra,dec,0,0)
@@ -1552,6 +1536,9 @@ class Detector():
 
 
 def Plot_Source(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=True):
+    """
+    Plot a source's light curve and image cutout.
+    """
     
     import matplotlib.patches as patches
     from mpl_toolkits.axes_grid1.inset_locator import mark_inset
@@ -1846,6 +1833,9 @@ def Plot_Source(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
 
 
 def Save_LC(times,flux,events,id,save_path):
+    """
+    Save the light curve for a given object id to a csv.
+    """
 
     # -- Get source list for the object id -- #
     sources =  events[events['objid']==id]
