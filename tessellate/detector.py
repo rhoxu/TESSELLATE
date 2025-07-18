@@ -1350,9 +1350,13 @@ class Detector():
         events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(Save_LC)(self.time,self.flux,detections,ind,save_name) for ind in inds)
         print('LCs complete!')
 
+        cwd = os.getcwd()
+        os.chdir(f'{save_path}/..')
         print('Zipping...')
-        cmd = f"zip -r {save_path}/../lcs.zip {save_path} > /dev/null 2>&1"
+        cmd = f"zip -r lcs.zip lcs > /dev/null 2>&1"
+        os.system(cmd)
         print('Zip complete!')
+        os.chdir(cwd)
 
         print('Deleting...')
         os.system(f'rm -r {save_path}')
