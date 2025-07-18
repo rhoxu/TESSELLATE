@@ -1066,6 +1066,7 @@ class Detector():
     def _gather_results(self,cut):
 
         import multiprocessing
+        from .tools import CutWCS
 
         path = f'{self.path}/Cut{cut}of{self.n**2}'
         self.sources = pd.read_csv(f'{path}/detected_sources.csv')
@@ -1073,11 +1074,8 @@ class Detector():
             self.events = pd.read_csv(f'{path}/detected_events.csv')
         except:
             print('No detected events file found')
-        try:
-            self.wcs = f'{path}/wcs.fits'
-        except:
-            print('No wcs found')
-            self.wcs = None
+        
+        self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
         '''try:
             self.gaia = pd.read_csv(f'{path}/local_gaia_cat.csv')
             query_gaia = False
@@ -1437,10 +1435,13 @@ class Detector():
 
         save_path = save_path + save_name
 
+        print('Plotting...',end='r')
         source = Plot_Source(self.time,self.flux,self.events,id,event,save_path,latex,zoo_mode) 
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
+            print('Getting Photometry...')
+
             # from astropy.wcs import WCS
             # from astropy.io import fits
 
