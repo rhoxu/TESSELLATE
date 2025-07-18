@@ -1435,7 +1435,6 @@ class Detector():
 
         save_path = save_path + save_name
 
-        print('Plotting...',end='r')
         source = Plot_Source(self.time,self.flux,self.events,id,event,save_path,latex,zoo_mode) 
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
