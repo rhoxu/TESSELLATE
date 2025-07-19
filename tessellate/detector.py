@@ -743,7 +743,7 @@ class Detector():
 
     def check_classifind(self,source):
         import joblib
-        
+
         x = (source['xint']+0.5).astype(int)
         y = (source['yint']+0.5).astype(int)
         f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
@@ -839,23 +839,33 @@ class Detector():
 
         from .tools import pandas_weighted_avg
 
+
+        # -- Select all sources grouped to this objid -- #
         obj_ind = self.sources['objid'].values == objid
         source = self.sources.iloc[obj_ind]
-        variable = abs(np.nanmean(source['flux_sign'].values)) <= 0.3
+
+                        # variable = abs(np.nanmean(source['flux_sign'].values)) <= 0.3
+
+        # -- Initialise -- #
         counter = 1
         events = []
         times = []
+
+        # -- Finds nearest pixels using first source entry then extracts reference image counts 3x3 -- #
         xx = (source['x_source'].values + .5); yy = (source['y_source'].values + 0.5)
         if len(xx) > 1:
             xx = int(xx[0]); yy = int(yy[0])
         else:
             xx = int(xx); yy = int(yy)
         ref_counts = np.nansum(self.ref[yy-1:yy+2,xx-1:xx+2])
+
+        # -- For this objid, separate positive and negative detections -- #
         for sign in source['flux_sign'].unique():
             obj = source.loc[source['flux_sign'] == sign]
             frames = obj.frame.values
             obj['eventID'] = 0
-        
+
+            # -- This whole thing basically finds detections near in time and groups them -- #
             if len(frames) > 1:
                 triggers = np.zeros_like(self.time)
                 triggers[frames] = 1
@@ -913,27 +923,39 @@ class Detector():
                     if end >= len(self.time):
                         end = len(self.time) - 1 
                     event_time = np.array([[start,end]])
+
+            # -- Look for any regular variability -- #
             peak_freq, peak_power = self.fit_period(obj.iloc[0])
-            classification, prob = check_classifind(obj.iloc[0])
+
+            # -- Run RFC Classification -- #
+            classification, prob = self.check_classifind(obj.iloc[0])
             
-            for e in event_time:
+            # -- For each event in this objid, create an event dataframe row -- #
+            for e in event_time:  # event_time is actually in frames
+
+                # -- Isolate all detections within the frames of this event -- #
                 ind = (obj['frame'].values >= e[0]) & (obj['frame'].values <= e[1])
                 obj.loc[ind,'eventID'] = counter
                 detections = deepcopy(obj.iloc[ind])
                 detections = detections.drop(columns='Type')
-                triggers = detections['frame'].values
+                triggers = detections['frame'].values       
                 
-                #triggers[triggers>=len(self.time)] = len(self.time) -1 
-                #av = np.average(detections.values,axis=0,weights=detections['sig'].values)
+                                    #triggers[triggers>=len(self.time)] = len(self.time) -1 
+                                    #av = np.average(detections.values,axis=0,weights=detections['sig'].values)
+                
+                # -- Find the flux weighted average for things like RA, DEC... of all detections in this event -- #
                 event = pandas_weighted_avg(detections)
                 event['objid'] = detections['objid'].values[0]
                 event['flux_sign'] = sign
                 pos = [int(event.xint.values),int(event.yint.values)]
+
+                # -- Calculate significance of detection above background and local light curve -- #
                 sig_max, sig_med, sig_lc = self._check_lc_significance(int(e[0]),int(e[1]),pos,event['flux_sign'].values,
                                                                        buffer=buffer,base_range=base_range)
+                
+                # -- Determine the rest of the parameters to go into the event dataframe row -- #
                 min_ind,max_ind,n_detections = self._lightcurve_event_checker(int(e[0]),int(e[1]),sig_lc,triggers,siglim=3)
                 indo = [min_ind,max_ind]
-                #event = pd.DataFrame(data = [av],columns=detections.keys())#deepcopy(detections.mean().to_frame().T)
                 if indo not in times:
                     times += [indo]
                     e[0] = min_ind; e[1] = max_ind
@@ -967,11 +989,7 @@ class Detector():
                     event['lc_sig'] = sig_max
                     event['lc_sig_med'] = sig_med
                     event['ref_counts'] = ref_counts
-                    #print(f'{event['objid'].values} before: ',event['frame_start'].values,event['frame_end'].values)
-                    
-                    #print('after: ',event2['frame_start'].values,event2['frame_end'].values)
-                    #if len(event2) == 0:
-                    #    event2 = event
+
                     events += [event]
                     counter += 1
                     
@@ -979,9 +997,10 @@ class Detector():
             events = pd.concat(events,ignore_index=True)
         except:
             print(len(events))
+
+        # -- Add to each dataframe row the number of events in the total object -- #
         events['total_events'] = len(events)
         
-
         return events 
 
     def _get_all_independent_events(self,frame_buffer=20,duration=1,buffer=0.5,base_range=1,cpu=1):
@@ -1062,7 +1081,47 @@ class Detector():
                             # indf = np.where(~temp)[0] - 1
                             # testf[testf == 1] = 0
                             # testf = np.append(testf,0)
-        
+
+    def _get_objects_df(self):
+
+        objids = self.events['objid'].unique()
+
+        columns = [
+            'objid', 'xcentroid', 'ycentroid', 'ra', 'dec', 'maxflux', 'maxlcsig', 'maxmjd',
+            'sector', 'cam', 'ccd', 'cut', 'classification', 'n_events', 'minlength', 'maxlength'
+        ]
+        objects = pd.DataFrame(columns=columns)
+
+        for objid in objids:
+            obj = self.events[self.events['objid'] == objid]
+
+            maxevent = obj.iloc[obj['lc_sig'].argmax()]
+
+            row_data = {
+                'objid': objid,
+                'xcentroid': maxevent['xcentroid'],
+                'ycentroid': maxevent['ycentroid'],
+                'ra': maxevent['ra'],
+                'dec': maxevent['dec'],
+                'max_lcsig': maxevent['lc_sig'],
+                'flux_maxsig': maxevent['flux'],
+                'frame_maxsig': maxevent['frame'],
+                'mjd_maxsig': maxevent['mjd_start'],
+                'psf_maxsig': maxevent['max_psflike'],
+                'sector': maxevent['sector'],
+                'cam': maxevent['camera'],
+                'ccd': maxevent['ccd'],
+                'cut': maxevent['cut'],
+                'classification': obj['Type'].mode()[0],
+                'n_events': len(obj),
+                'minlength': (obj['mjd_end'] - obj['mjd_start']).min(),
+                'maxlength': (obj['mjd_end'] - obj['mjd_start']).max()
+            }
+
+            obj_row = pd.DataFrame([row_data])
+            objects = pd.concat([objects, obj_row], ignore_index=True)
+
+        self.objects = objects
 
     def _gather_results(self,cut):
         """
@@ -1078,6 +1137,10 @@ class Detector():
             self.events = pd.read_csv(f'{path}/detected_events.csv')    # temporally located with same object id
         except:
             print('No detected events file found')
+        try:
+            self.objects = pd.read_csv(f'{path}/detected_objects.csv')    # temporally located with same object id
+        except:
+            print('No detected objects file found')
         
         self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
 
@@ -1085,7 +1148,7 @@ class Detector():
             self.sources['Prob'] = 0; self.sources['Type'] = 0
             self.sources['GaiaID'] = 0
             self._get_all_independent_events(cpu=int(multiprocessing.cpu_count()))
-
+            self._get_objects_df()
 
     def source_detect(self,cut,mode='starfind',prf_path='/fred/oz335/_local_TESS_PRFs/',time_bin=None):
         """
@@ -1181,6 +1244,8 @@ class Detector():
         # -- self.sources contains all individual sources, but also has them grouped by objid -- #  
         self.events['objid'] = self.events['objid'].astype(int)
 
+        self.objects = self._get_objects_df()
+
         # -- Save out results to csv files -- #
         if self.time_bin is None:
             self.events.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_events.csv',index=False)
@@ -1191,6 +1256,12 @@ class Detector():
             results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv',index=False)
         else:
             results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources_tbin{self.time_bin_name}d.csv',index=False)
+
+        if self.time_bin is None:
+            self.objects.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_objects.csv',index=False)
+        else:
+            self.objects.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_objects_tbin{self.time_bin_name}d.csv',index=False)
+
 
     def display_source_locations(self,cut):
         """
@@ -1220,12 +1291,76 @@ class Detector():
         ax[1].set_xlabel('Source Mask')
 
 
+    def filter_objects(self,cut,
+                       ra=None,dec=None,distance=40,
+                       min_events=None,max_events=None,
+                       classification=None,flux_sign=None,
+                       sig_lc=None,psf_like=None):
+        
+        """
+        Filter self.objects based on these main things.
+        """
+        
+        from astropy.coordinates import SkyCoord
+        import astropy.units as u
+        
+        # -- Gather results and data -- #
+        if cut != self.cut:
+            self._gather_data(cut)
+            self._gather_results(cut)
+            self.cut = cut
+
+        objects = deepcopy(self.objects)
+
+        if (ra is not None) & (dec is not None):
+            if type(ra) == float:
+                target_coord = SkyCoord(ra=ra*u.degree,dec=dec*u.degree)
+            elif 'd' in dec:
+                SkyCoord(ra=ra,dec=dec)
+            else:
+                e = 'Please specify coordinates in (deg,deg) or (hms,dms)!'
+                raise ValueError(e)
+            
+            source_coords = SkyCoord(ra=objects['ra'].values*u.degree, 
+                                     dec=objects['dec'].values*u.degree)
+            separations = target_coord.separation(source_coords)
+            objects = objects[separations<distance*u.arcsec]
+
+        if min_events is not None:
+            objects = objects[objects['n_events']>=min_events]
+        if max_events is not None:
+            objects = objects[objects['n_events']<=max_events]
+
+        if classification is not None:
+            is_negation = classification.startswith(('!', '~'))
+            classification_stripped = classification.lstrip('!~').lower()
+            if classification_stripped in ['var', 'variable']:
+                classification = ['class1', 'class2', 'class3']  # Replace with variable classes
+            else:
+                classification = [classification_stripped]
+
+            if is_negation:
+                objects = objects[~objects['classification'].str.lower().isin(classification)]
+            else:
+                objects = objects[objects['classification'].str.lower().isin(classification)]
+
+        if flux_sign is not None:
+            objects = objects[objects['flux_sign']==flux_sign]
+        
+        if sig_lc is not None:
+            objects = objects[objects['max_lcsig']>=sig_lc]
+
+        if psf_like is not None:
+            objects = objects[objects['psf_maxsig']>=psf_like]
+
+        return objects
+
     def filter_events(self,cut,starkiller=False,asteroidkiller=False,
                             lower=None,upper=None,sig_image=None,sig_lc=None,sig_lc_average=None,
                             max_events=None,bkgstd_lim=None,sign=None):
         
         """
-        Returns a dataframe of the detections in the cut, with options to filter by various parameters.
+        Returns a dataframe of the events in the cut, with options to filter by various parameters.
         """
 
         # -- Gather results and data -- #
@@ -1360,7 +1495,7 @@ class Detector():
         print('Total events to plot: ', len(detections))
 
         # -- Run the plotting in parallel -- #
-        events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(Plot_Source)(self.time,self.flux,detections,
+        events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(Plot_Object)(self.time,self.flux,detections,
                                                                                         ind,event='seperate',latex=True,
                                                                                         save_path=save_name,zoo_mode=True) for ind in inds)
         print('Plot complete!')
@@ -1388,7 +1523,7 @@ class Detector():
         Save_LC(self.time,self.flux,self.events,id,save_path=save_name)    
 
 
-    def plot_source(self,cut,id,event='seperate',save_name=None,save_path=None,
+    def plot_object(self,cut,id,event='seperate',save_name=None,save_path=None,
                     latex=True,zoo_mode=True,external_phot=False):
         """
         Plot a source from the cut data.
@@ -1419,7 +1554,7 @@ class Detector():
 
         save_path = save_path + save_name
 
-        source = Plot_Source(self.time,self.flux,self.events,id,event,save_path,latex,zoo_mode) 
+        source = Plot_Object(self.time,self.flux,self.events,id,event,save_path,latex,zoo_mode) 
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
@@ -1452,7 +1587,7 @@ class Detector():
                 line = np.linspace((xRange[0],y),(xRange[-1],y),100)
                 lines.append(line)
 
-            # -- Plot the lines on the axes -- #
+            # -- Plot the TESS pixel edges on the axes -- #
             for i,ax in enumerate(axes):                    
                 ys = []
                 for j,line in enumerate(lines):
@@ -1535,7 +1670,7 @@ class Detector():
                 pass
 
 
-def Plot_Source(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=True):
+def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=True):
     """
     Plot a source's light curve and image cutout.
     """
