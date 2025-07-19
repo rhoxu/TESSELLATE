@@ -583,6 +583,7 @@ class Detector():
         self.mask = None
         self.sources = None  #raw detection results
         self.events = None   #temporally located with same object id
+        self.objects = None   #temporally and spatially combined
         self.cut = None
         self.bkg = None
         
@@ -1973,7 +1974,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
                                             #             lc.to_csv(splc+'/'+savename+f'_event{event_id}of{total_events}_tbin{str(self.time_bin)}d.csv', index=False)
                                             #np.save(save_path+'/'+savename+'_lc.npy',[time,f])
                                             #np.save(save_path+'/'+savename+'_cutout.npy',cutout_image)
-                                            
+
     return [times,f], cutout_image
 
 
