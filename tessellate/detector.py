@@ -1086,9 +1086,12 @@ class Detector():
 
         objids = self.events['objid'].unique()
 
+        objids = self.events['objid'].unique()
+
         columns = [
-            'objid', 'xcentroid', 'ycentroid', 'ra', 'dec', 'maxflux', 'maxlcsig', 'maxmjd',
-            'sector', 'cam', 'ccd', 'cut', 'classification', 'n_events', 'minlength', 'maxlength'
+            'objid', 'xcentroid', 'ycentroid', 'ra', 'dec', 'max_lcsig', 'flux_maxsig', 'frame_maxsig',
+            'mjd_maxsig','psf_maxsig','flux_sign','sector', 'cam', 'ccd', 'cut', 'classification', 
+            'n_events', 'minlength', 'maxlength'
         ]
         objects = pd.DataFrame(columns=columns)
 
@@ -1108,6 +1111,7 @@ class Detector():
                 'frame_maxsig': maxevent['frame'],
                 'mjd_maxsig': maxevent['mjd_start'],
                 'psf_maxsig': maxevent['max_psflike'],
+                'flux_sign': np.sum(obj['flux_sign'].unique()).astype(int),
                 'sector': maxevent['sector'],
                 'cam': maxevent['camera'],
                 'ccd': maxevent['ccd'],
@@ -1523,7 +1527,7 @@ class Detector():
         Save_LC(self.time,self.flux,self.events,id,save_path=save_name)    
 
 
-    def plot_object(self,cut,id,event='seperate',save_name=None,save_path=None,
+    def plot_object(self,cut,objid,event='seperate',save_name=None,save_path=None,
                     latex=True,zoo_mode=True,external_phot=False):
         """
         Plot a source from the cut data.
@@ -1554,7 +1558,7 @@ class Detector():
 
         save_path = save_path + save_name
 
-        source = Plot_Object(self.time,self.flux,self.events,id,event,save_path,latex,zoo_mode) 
+        source = Plot_Object(self.time,self.flux,self.events,objid,event,save_path,latex,zoo_mode) 
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
