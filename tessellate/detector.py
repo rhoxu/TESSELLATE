@@ -1089,9 +1089,10 @@ class Detector():
         objids = self.events['objid'].unique()
 
         columns = [
-            'objid', 'xcentroid', 'ycentroid', 'ra', 'dec', 'max_lcsig', 'flux_maxsig', 'frame_maxsig',
-            'mjd_maxsig','psf_maxsig','flux_sign','sector', 'cam', 'ccd', 'cut', 'classification', 
-            'n_events', 'minlength', 'maxlength'
+            'objid', 'sector', 'cam', 'ccd', 'cut', 'xcentroid', 'ycentroid', 
+            'ra', 'dec', 'max_lcsig', 'flux_maxsig', 'frame_maxsig',
+            'mjd_maxsig','psf_maxsig','flux_sign', 'n_events',
+             'min_eventlength', 'max_eventlength','classification',
         ]
         objects = pd.DataFrame(columns=columns)
 
@@ -1118,8 +1119,8 @@ class Detector():
                 'cut': maxevent['cut'],
                 'classification': obj['Type'].mode()[0],
                 'n_events': len(obj),
-                'minlength': (obj['mjd_end'] - obj['mjd_start']).min(),
-                'maxlength': (obj['mjd_end'] - obj['mjd_start']).max()
+                'min_eventlength': (obj['mjd_end'] - obj['mjd_start']).min(),
+                'max_eventlength': (obj['mjd_end'] - obj['mjd_start']).max()
             }
 
             obj_row = pd.DataFrame([row_data])
@@ -1152,6 +1153,7 @@ class Detector():
             self.sources['Prob'] = 0; self.sources['Type'] = 0
             self.sources['GaiaID'] = 0
             self._get_all_independent_events(cpu=int(multiprocessing.cpu_count()))
+        if self.objects is None:    
             self._get_objects_df()
 
     def source_detect(self,cut,mode='starfind',prf_path='/fred/oz335/_local_TESS_PRFs/',time_bin=None):
@@ -1299,7 +1301,8 @@ class Detector():
                        ra=None,dec=None,distance=40,
                        min_events=None,max_events=None,
                        classification=None,flux_sign=None,
-                       sig_lc=None,psf_like=None):
+                       sig_lc=None,psf_like=None,
+                       min_eventlength=None,max_eventlength=None):
         
         """
         Filter self.objects based on these main things.
@@ -1356,6 +1359,11 @@ class Detector():
 
         if psf_like is not None:
             objects = objects[objects['psf_maxsig']>=psf_like]
+
+        if min_eventlength is not None:
+            objects = objects[objects['min_eventlength']>=min_eventlength]
+        if max_eventlength is not None:
+            objects = objects[objects['max_eventlength']<=max_eventlength]
 
         return objects
 
@@ -1558,17 +1566,18 @@ class Detector():
 
         save_path = save_path + save_name
 
-        source = Plot_Object(self.time,self.flux,self.events,objid,event,save_path,latex,zoo_mode) 
+        obj = self.objects[self.objects['objid']==objid]
+        obj.lc,obj.cutout = Plot_Object(self.time,self.flux,self.events,objid,event,save_path,latex,zoo_mode) 
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
             print('Getting Photometry...')
 
-            xint = source['xint']
-            yint = source['yint']
+            xint = obj['xcentroid'].astype(int)
+            yint = obj['ycentroid'].astype(int)
 
             RA,DEC = self.wcs.all_pix2world(xint,yint,0)
-            ra_obj,dec_obj = self.wcs.all_pix2world(source['xcentroid'],source['ycentroid'],0)
+            ra_obj,dec_obj = self.wcs.all_pix2world(obj['xcentroid'],obj['ycentroid'],0)
 
             #error = (source.e_xccd * 21 /60**2,source.e_yccd * 21/60**2) # convert to deg
             #error = np.nanmax([source.e_xccd,source.e_yccd])
@@ -1621,11 +1630,11 @@ class Detector():
                     if len(x) > 0:
                         ax.plot(x,y,color=color,alpha=alpha,lw=lw)
 
-            source.photometry = fig
-            source.cat = cat
-            source.coord = (ra_obj,dec_obj)
+            obj.photometry = fig
+            obj.cat = cat
+            obj.coord = (ra_obj,dec_obj)
         
-        return source
+        return obj
 
 
     def locate_transient(self,cut,xcentroid,ycentroid,threshold=3):
@@ -1964,11 +1973,8 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
                                             #             lc.to_csv(splc+'/'+savename+f'_event{event_id}of{total_events}_tbin{str(self.time_bin)}d.csv', index=False)
                                             #np.save(save_path+'/'+savename+'_lc.npy',[time,f])
                                             #np.save(save_path+'/'+savename+'_cutout.npy',cutout_image)
-
-    source.lc = [times,f]
-    source.cutout = cutout_image
-
-    return source
+                                            
+    return [times,f], cutout_image
 
 
 def Save_LC(times,flux,events,id,save_path):
