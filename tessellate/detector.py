@@ -1137,6 +1137,7 @@ class Detector():
         import multiprocessing
         from .tools import CutWCS
 
+        self.objects = None
         path = f'{self.path}/Cut{cut}of{self.n**2}'
         self.sources = pd.read_csv(f'{path}/detected_sources.csv')   # raw detection results
         try:
@@ -1567,7 +1568,7 @@ class Detector():
 
         save_path = save_path + save_name
 
-        obj = self.objects[self.objects['objid']==objid]
+        obj = self.objects[self.objects['objid']==objid].iloc[0]
         obj.lc,obj.cutout = Plot_Object(self.time,self.flux,self.events,objid,event,save_path,latex,zoo_mode) 
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
