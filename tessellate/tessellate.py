@@ -246,9 +246,9 @@ class Tessellate():
             search_cpu_sug = '32'
             search_mem_req = 50
             
-            plot_time_sug = '20:00'
+            plot_time_sug = '10:00'
             plot_cpu_sug = '32'
-            plot_mem_req = 50
+            plot_mem_req = 64
 
         elif self.sector in secondary_mission:
             cube_time_sug = '1:45:00'
@@ -267,9 +267,9 @@ class Tessellate():
             search_cpu_sug = '32'
             search_mem_req = 70
             
-            plot_time_sug = '20:00'
+            plot_time_sug = '10:00'
             plot_cpu_sug = '32'
-            plot_mem_req = 70
+            plot_mem_req = 64
 
         elif self.sector in tertiary_mission:
             self.part = True
@@ -290,7 +290,7 @@ class Tessellate():
             search_cpu_sug = '32'
             search_mem_req = 60
             
-            plot_time_sug = '20:00'
+            plot_time_sug = '10:00'
             plot_cpu_sug = '32'
             plot_mem_req = 50
 

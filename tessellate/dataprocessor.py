@@ -1,22 +1,7 @@
 import os
-from glob import glob
-import shutil
-
-
-import tessreduce as tr
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-
 from time import time as t
-import datetime
 
-from astrocut import CubeFactory
-from astrocut import CutoutFactory
-from astropy import wcs
-from astropy.time import Time
-
-from .downloader import Download_cam_ccd_FFIs
 from .tools import _Save_space, _Remove_emptys, _Extract_fits, _Print_buff
     
 def _get_wcs(path,wcs_path_check,verbose=1):
@@ -24,9 +9,13 @@ def _get_wcs(path,wcs_path_check,verbose=1):
     Get WCS data from a file in the path
     """
 
+    import shutil
+    from glob import glob
+    from astropy.wcs import WCS
+
     if os.path.exists(wcs_path_check):
         wcsFile = _Extract_fits(wcs_path_check)
-        wcsItem = wcs.WCS(wcsFile[1].header)
+        wcsItem = WCS(wcsFile[1].header)
     else:
         if glob(f'{path}/*ffic.fits'):
             done = False
@@ -34,7 +23,7 @@ def _get_wcs(path,wcs_path_check,verbose=1):
             while not done:
                 filepath = glob(f'{path}/*ffic.fits')[i]
                 file = _Extract_fits(filepath)
-                wcsItem = wcs.WCS(file[1].header)
+                wcsItem = WCS(file[1].header)
                 file.close()
                 if wcsItem.get_axis_types()[0]['coordinate_type'] == 'celestial':
                     done = True
@@ -66,6 +55,8 @@ def _cut_properties(wcsItem,n):
         return cutCorners,cutCentrePx,cutCentreCoords,rad
 
 def _parallel_cuts(sector,cam,ccd,cut,n,cube_path,file_path,coords,size,verbose):
+
+    from astrocut import CutoutFactory
 
     name = f'sector{sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}.fits'
     if os.path.exists(f'{file_path}/Cut{cut}of{n**2}/{name}'):
@@ -136,7 +127,7 @@ class DataProcessor():
         
         """
 
-        
+        from .downloader import Download_cam_ccd_FFIs
         
         if self.verbose > 0:
             print(_Print_buff(50,f'Downloading Sector {self.sector} Cam {cam} CCD {ccd}'))
@@ -167,6 +158,9 @@ class DataProcessor():
             if not None, plots coord 
         
         """
+
+        import matplotlib.patches as patches
+        import matplotlib.pyplot as plt
 
         newpath = f'{self.path}/Cam{cam}/Ccd{ccd}'
         wcsItem = _get_wcs(f'{newpath}/image_files',f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits') 
@@ -220,6 +214,10 @@ class DataProcessor():
         return cutCorners, cutCentrePx, cutCentreCoords, cutSize
     
     def _make_part_cube(self,cam,ccd,input_files):
+
+        from astrocut import CubeFactory
+        from astropy.time import Time
+        import datetime
 
         # -- Generate Cube Path -- #
         broad_path = f'{self.path}/Cam{cam}/Ccd{ccd}'
@@ -303,6 +301,10 @@ class DataProcessor():
 
         """
 
+        from astrocut import CubeFactory
+        from glob import glob
+
+
         # -- Generate Cube Path -- #
         broad_path = f'{self.path}/Cam{cam}/Ccd{ccd}'
         file_path = f'{broad_path}/image_files'
@@ -345,6 +347,8 @@ class DataProcessor():
             cube_file = cube_maker.make_cube(input_files,cube_file=cube_path,verbose=self.verbose>1,max_memory=500)
 
     def _make_part_cuts(self,cam,ccd,n,cut,file_path,cutCentreCoords, cutSize):
+
+        from astrocut import CutoutFactory
 
         for i in range(2):
 
@@ -394,6 +398,9 @@ class DataProcessor():
         Save files for cut(s) in path.
 
         """
+
+        from astrocut import CutoutFactory
+
         try:
             _, _, cutCentreCoords, cutSize = self.find_cuts(cam=cam,ccd=ccd,n=n,plot=False)
         except:
@@ -499,6 +506,8 @@ class DataProcessor():
         Fits file in path with reduced data.
 
         """
+
+        import tessreduce as tr
         
         filepath = f'{self.path}/Cam{cam}/Ccd{ccd}'
 
