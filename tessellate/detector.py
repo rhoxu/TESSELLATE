@@ -562,7 +562,7 @@ def _Check_dirs(save_path):
             os.mkdir(save_path)
         except:
             pass
-
+    
 
 class Detector():
 
@@ -691,6 +691,8 @@ class Detector():
     def _asteroid_checker(self):#,asteroid_distance=3,asteroid_correlation=0.9,asteroid_duration=1):
 
         from astropy.stats import sigma_clipped_stats
+        import cv2
+        from skimage.transform import probabilistic_hough_line
 
         events = deepcopy(self.events)
         #time = self.time - self.time[0]
@@ -1121,13 +1123,41 @@ class Detector():
                 'classification': obj['Type'].mode()[0],
                 'n_events': len(obj),
                 'min_eventlength': (obj['mjd_end'] - obj['mjd_start']).min(),
-                'max_eventlength': (obj['mjd_end'] - obj['mjd_start']).max()
+                'max_eventlength': (obj['mjd_end'] - obj['mjd_start']).max(),
+                'TSS Catalogue' : maxevent['TSS Catalogue']
             }
 
             obj_row = pd.DataFrame([row_data])
             objects = pd.concat([objects, obj_row], ignore_index=True)
 
         self.objects = objects
+
+    def _TSS_catalogue_names(self):
+
+        from astropy.coordinates import SkyCoord
+        import astropy.units as u
+
+        tss_names = []
+        for event in self.events.iterrows():
+            c = SkyCoord(ra=event['ra'] * u.deg, dec=event['dec'] * u.deg)
+
+            ra_hms = c.ra.hms
+            dec_dms = c.dec.dms
+
+            RAh = f'{int(ra_hms.h):02d}'
+            RAm = f'{int(ra_hms.m):02d}'
+            RAs = f'{ra_hms.s:.2f}'
+
+            sign = '+' if dec_dms.d >= 0 else '-'
+            DECd = abs(int(dec_dms.d))
+            DECm = f'{abs(int(dec_dms.m)):02d}'
+            DECs = f'{abs(dec_dms.s):.2f}'
+
+            tss_name = f'TSS {RAh}{RAm}{RAs}{sign}{DECd}{DECm}{DECs}'
+            if event['total_events']==1:
+                tss_name += f"T{int(event['mjd_start'])}"
+            tss_names.append(tss_name)
+        self.events['TSS Catalogue'] = tss_names
 
     def _gather_results(self,cut):
         """
@@ -1251,6 +1281,8 @@ class Detector():
         
         # -- self.sources contains all individual sources, but also has them grouped by objid -- #  
         self.events['objid'] = self.events['objid'].astype(int)
+
+        self._TSS_catalogue_names()
 
         self.objects = self._get_objects_df()
 
