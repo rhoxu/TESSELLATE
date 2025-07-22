@@ -755,7 +755,7 @@ class Detector():
         classes = {'Eclipsing Binary':'EB','Delta Scuti':'DSCT','RR Lyrae':'RRLyr','Cepheid':'Cep','Long-Period':'LPV',
                    'Non-Variable':'Non-V','Non-Variable-B':'Non-V','Non-Variable-N':'Non-V'}
         try:
-            classifier = joblib.load('RFC_experimental1.joblib')
+            classifier = joblib.load('./rfc_files/RFC_model.joblib')
             cmodel = cf(lc,model=classifier,classes=list(classes.keys()))
             classification = classes[cmodel.class_preds[0]]
             if classification in ['Non-Variable','Non-Variable-B','Non-Variable-N']:
