@@ -313,7 +313,7 @@ def _Do_photometry(star,data,siglim=3,bkgstd_lim=50):
 
     from scipy.signal import fftconvolve
     from photutils.aperture import RectangularAnnulus, CircularAperture, ApertureStats, aperture_photometry
-    from astropy.stats import sigma_clip
+    from astropy.stats import sigma_clip, SigmaClip
 
     x = (star.xcentroid.values + 0.5).astype(int); y = (star.ycentroid.values + 0.5).astype(int)
     pos = list(zip(x, y))
@@ -321,9 +321,9 @@ def _Do_photometry(star,data,siglim=3,bkgstd_lim=50):
     annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=20,h_out=20)
     m = sigma_clip(data,masked=True,sigma=5).mask
     mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
-    aperstats_sky = ApertureStats(data, annulus_aperture,mask = mask)
+    aperstats_sky = ApertureStats(data, annulus_aperture,mask = mask,SigmaClip(sigma=3,cenfunc='median'))
     annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=40,h_out=40)
-    aperstats_sky_no_mask = ApertureStats(data, annulus_aperture)
+    aperstats_sky_no_mask = ApertureStats(data, annulus_aperture,SigmaClip(sigma=3,cenfunc='median'))
     aperstats_source = ApertureStats(data, aperture)
     phot_table = aperture_photometry(data, aperture)
     phot_table = phot_table.to_pandas()
@@ -334,7 +334,7 @@ def _Do_photometry(star,data,siglim=3,bkgstd_lim=50):
     star['sig'] = phot_table['aperture_sum'].values / (aperture.area * aperstats_sky.std)
     star['flux'] = phot_table['aperture_sum'].values
     star['mag'] = -2.5*np.log10(phot_table['aperture_sum'].values)
-    star['bkgstd'] = 9 * aperstats_sky.std
+    star['bkgstd'] = aperture.area * bkg_std #* aperstats_sky.std
     
     star = star.loc[(star['sig'] >= siglim) & (star['bkgstd'] <= bkgstd_lim)]
     #star = star.iloc[negative_ind]
