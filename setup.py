@@ -26,7 +26,8 @@ setup(
     author=AUTHOR,
     license='MIT',
     packages=['tessellate'],
-    install_requires=REQUIRED
+    install_requires=REQUIRED,
+    include_package_data=True
 )
 
 
