@@ -708,7 +708,7 @@ class Detector():
             fs = np.max((frameStart - 5, 0))
             fe = np.min((frameEnd + 5, len(self.time)-1))
             
-            image = self.flux[fs:fe,]
+            image = self.flux[fs:fe,yl:yu,xl:xu]
             image = image / image[(yl+yu)//2,(xl+xu)//2] * 255
             image[image > 255] = 255
             mean, med, std = sigma_clipped_stats(image,maxiters=10,sigma_upper=2)
