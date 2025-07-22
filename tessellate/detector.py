@@ -321,9 +321,9 @@ def _Do_photometry(star,data,siglim=3,bkgstd_lim=50):
     annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=20,h_out=20)
     m = sigma_clip(data,masked=True,sigma=5).mask
     mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
-    aperstats_sky = ApertureStats(data, annulus_aperture,mask = mask,SigmaClip(sigma=3,cenfunc='median'))
+    aperstats_sky = ApertureStats(data, annulus_aperture,mask = mask,sigma_clip=SigmaClip(sigma=3,cenfunc='median'))
     annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=40,h_out=40)
-    aperstats_sky_no_mask = ApertureStats(data, annulus_aperture,SigmaClip(sigma=3,cenfunc='median'))
+    aperstats_sky_no_mask = ApertureStats(data, annulus_aperture,sigma_clip=SigmaClip(sigma=3,cenfunc='median'))
     aperstats_source = ApertureStats(data, aperture)
     phot_table = aperture_photometry(data, aperture)
     phot_table = phot_table.to_pandas()
@@ -746,10 +746,6 @@ class Detector():
 
     def check_classifind(self,source):
         import joblib
-        from .temp_classifind import classifind as cf 
-        import os
-
-        package_directory = os.path.dirname(os.path.abspath(__file__))
 
         x = (source['xint']+0.5).astype(int)
         y = (source['yint']+0.5).astype(int)
@@ -761,8 +757,7 @@ class Detector():
         classes = {'Eclipsing Binary':'EB','Delta Scuti':'DSCT','RR Lyrae':'RRLyr','Cepheid':'Cep','Long-Period':'LPV',
                    'Non-Variable':'Non-V','Non-Variable-B':'Non-V','Non-Variable-N':'Non-V'}
         try:
-            model_path = os.path.join(package_directory,'rfc_files','RFC_model.joblib')
-            classifier = joblib.load(model_path)
+            classifier = joblib.load('./rfc_files/RFC_model.joblib')
             cmodel = cf(lc,model=classifier,classes=list(classes.keys()))
             classification = classes[cmodel.class_preds[0]]
             if classification in ['Non-Variable','Non-Variable-B','Non-Variable-N']:
