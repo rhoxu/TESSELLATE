@@ -1089,8 +1089,6 @@ class Detector():
 
         objids = self.events['objid'].unique()
 
-        objids = self.events['objid'].unique()
-
         columns = [
             'objid', 'sector', 'cam', 'ccd', 'cut', 'xcentroid', 'ycentroid', 
             'ra', 'dec', 'max_lcsig', 'flux_maxsig', 'frame_maxsig',
@@ -1138,7 +1136,7 @@ class Detector():
         import astropy.units as u
 
         tss_names = []
-        for event in self.events.iterrows():
+        for _,event in self.events.iterrows():
             c = SkyCoord(ra=event['ra'] * u.deg, dec=event['dec'] * u.deg)
 
             ra_hms = c.ra.hms
