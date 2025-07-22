@@ -412,7 +412,6 @@ class get_dataset:
         # try:
             if len(df) == 0:
                 df = pd.DataFrame([get_features(time=time,flux=flux,period=period,scaled=scaled).features])
-                print(df)
             else:
                 try:
                     df = pd.concat([df, pd.DataFrame([get_features(time=time,flux=flux,period=period,scaled=scaled).features])], ignore_index=True)
@@ -666,17 +665,5 @@ class classifind:
         if train:
             self.train_and_test()
         self.table = get_dataset(self.lcs,periods=self.periods,scaled=self.scaled).table
-
-        # print('\n')
-        # print(f'LCs: {self.lcs}')
-        # print('\n')
-
-        # print(f'Periods: {self.periods}')
-        # print('\n')
-
-        # print(f'Scaled: {self.scaled}')
-        # print('\n')
-
-        # print(self.table)
         self.predict(self.model,self.table,self.classes)
         # self.classify = (self.predictions, np.max(self.class_probs(axis=1)))

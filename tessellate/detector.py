@@ -752,7 +752,7 @@ class Detector():
         f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
         t = self.time
         finite = np.isfinite(f) & np.isfinite(t)
-        lc = np.array([t[finite],f[finite]])
+        lc = [np.column_stack((t[finite],f[finite]))]
         
         classes = {'Eclipsing Binary':'EB','Delta Scuti':'DSCT','RR Lyrae':'RRLyr','Cepheid':'Cep','Long-Period':'LPV',
                    'Non-Variable':'Non-V','Non-Variable-B':'Non-V','Non-Variable-N':'Non-V'}
