@@ -1326,7 +1326,6 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 
         from .dataprocessor import DataProcessor
         from .catalog_queries import create_external_var_cat
-        import tessreduce as tr
 
         data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
         _,_,cutCentreCoords,rad = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
@@ -1367,6 +1366,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                             if os.path.exists(f'{save_path}/local_gaia_cat.csv'):
                                 print('Gaia catalog already made, skipping.')
                             else:
+                                import tessreduce as tr         # its time to move external_save_cat to tessellate, this import takes ages!!
                                 rad = rad + 2*60/21
                                 cutPath = f'{save_path}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}.fits'
                                 tr.external_save_cat(tpf=cutPath,save_path=save_path,maglim=19) # oversize radius by 2 arcmin in terms of tess pixels
