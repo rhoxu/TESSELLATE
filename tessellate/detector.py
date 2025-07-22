@@ -746,6 +746,10 @@ class Detector():
 
     def check_classifind(self,source):
         import joblib
+        from tessellate.temp_classifind import classifind as cf 
+        import os
+
+        package_directory = os.path.dirname(os.path.abspath(__file__))
 
         x = (source['xint']+0.5).astype(int)
         y = (source['yint']+0.5).astype(int)
@@ -755,18 +759,20 @@ class Detector():
         lc = [np.column_stack((t[finite],f[finite]))]
         
         classes = {'Eclipsing Binary':'EB','Delta Scuti':'DSCT','RR Lyrae':'RRLyr','Cepheid':'Cep','Long-Period':'LPV',
-                   'Non-Variable':'Non-V','Non-Variable-B':'Non-V','Non-Variable-N':'Non-V'}
-        try:
-            classifier = joblib.load('./rfc_files/RFC_model.joblib')
-            cmodel = cf(lc,model=classifier,classes=list(classes.keys()))
-            classification = classes[cmodel.class_preds[0]]
-            if classification in ['Non-Variable','Non-Variable-B','Non-Variable-N']:
-                prob = np.sum(cmodel.class_probs[0][-3:])
-            else:
-                prob = np.max(cmodel.class_probs)
-        except:
-            classification = 'Non-V'
-            prob = 0.80001
+                    'Non-Variable':'Non-V','Non-Variable-B':'Non-V','Non-Variable-N':'Non-V'}
+        # try:
+        model_path = os.path.join(package_directory,'rfc_files','RFC_model.joblib')
+        classifier = joblib.load(model_path)
+        classifier = joblib.load(model_path)
+        cmodel = cf(lc,model=classifier,classes=list(classes.keys()))
+        classification = classes[cmodel.class_preds[0]]
+        if classification in ['Non-Variable','Non-Variable-B','Non-Variable-N']:
+            prob = np.sum(cmodel.class_probs[0][-3:])
+        else:
+            prob = np.max(cmodel.class_probs)
+        # except:
+        #     classification = 'Non-V'
+        #     prob = 0.80001
         return classification, prob
         
     def fit_period(self,source,significance=3):
