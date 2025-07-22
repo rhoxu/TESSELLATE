@@ -665,6 +665,17 @@ class classifind:
         if train:
             self.train_and_test()
         self.table = get_dataset(self.lcs,periods=self.periods,scaled=self.scaled).table
-        print(self.table)
+
+        print('\n')
+        print(f'LCs: {self.lcs}')
+        print('\n')
+
+        print(f'Periods: {self.periods}')
+        print('\n')
+
+        print(f'Scaled: {self.scaled}')
+        print('\n')
+
+        # print(self.table)
         self.predict(self.model,self.table,self.classes)
         # self.classify = (self.predictions, np.max(self.class_probs(axis=1)))
