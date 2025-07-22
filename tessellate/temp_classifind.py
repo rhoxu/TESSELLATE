@@ -554,7 +554,6 @@ class classifind:
             self.lcs = 10 ** (-0.4 * (self.lcs - self.zp))
             print('Lightcurves are in magnitude space')
         self.directory = os.path.dirname(os.path.abspath(__file__)) + '/rfc_files/'
-        print(self.directory)
         if model == 'default':
             if train == True:
                 self.model = model
@@ -666,5 +665,6 @@ class classifind:
         if train:
             self.train_and_test()
         self.table = get_dataset(self.lcs,periods=self.periods,scaled=self.scaled).table
+        print(self.table)
         self.predict(self.model,self.table,self.classes)
         # self.classify = (self.predictions, np.max(self.class_probs(axis=1)))
