@@ -489,7 +489,6 @@ class get_dataset:
     def main(self):
         """Applies the parameter table construction process"""
         if self.periods is None:
-            print('Getting periods')
             self.get_periods(self.lcs)  
         self.build_table(lcs=self.lcs,periods=self.periods,scaled=self.scaled)
 

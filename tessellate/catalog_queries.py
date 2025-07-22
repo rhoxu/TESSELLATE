@@ -294,7 +294,7 @@ def match_result_to_cat(result,cat,columns=['Type','Prob'],distance=2*21,min_ent
     pos = {'objid':Id,'ra':ra,'dec':dec}
     pos = pd.DataFrame(pos)
     id_ind, cat_ind = cross_match_DB(pos,cat,distance) #cross_match_tree(pos,cat,distance/60**2)
-    obj_id = ids[id_ind]
+    obj_id = pos['objid'].values[id_ind]
     for column in columns:
         result[column] = 0
     if isinstance(obj_id,int) | isinstance(obj_id,np.int64):

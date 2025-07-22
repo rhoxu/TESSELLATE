@@ -617,8 +617,9 @@ class Detector():
     def _gather_data(self,cut):
 
         from .tools import CutWCS
-
-        base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'
+        
+        self.cut = cut
+        base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_of{self.n**2}'
         self.base_name = base
         self.flux = np.load(base + '_ReducedFlux.npy')
         self.ref = np.load(base + '_Ref.npy')
@@ -746,7 +747,7 @@ class Detector():
 
     def check_classifind(self,source):
         import joblib
-        from tessellate.temp_classifind import classifind as cf 
+        from .temp_classifind import classifind as cf 
         import os
 
         package_directory = os.path.dirname(os.path.abspath(__file__))
@@ -760,18 +761,18 @@ class Detector():
         
         classes = {'Eclipsing Binary':'EB','Delta Scuti':'DSCT','RR Lyrae':'RRLyr','Cepheid':'Cep','Long-Period':'LPV',
                     'Non-Variable':'Non-V','Non-Variable-B':'Non-V','Non-Variable-N':'Non-V'}
-        # try:
-        model_path = os.path.join(package_directory,'rfc_files','RFC_model.joblib')
-        classifier = joblib.load(model_path)
-        cmodel = cf(lc,model=classifier,classes=list(classes.keys()))
-        classification = classes[cmodel.class_preds[0]]
-        if classification in ['Non-Variable','Non-Variable-B','Non-Variable-N']:
-            prob = np.sum(cmodel.class_probs[0][-3:])
-        else:
-            prob = np.max(cmodel.class_probs)
-        # except:
-        #     classification = 'Non-V'
-        #     prob = 0.80001
+        try:
+            model_path = os.path.join(package_directory,'rfc_files','RFC_model.joblib')
+            classifier = joblib.load(model_path)
+            cmodel = cf(lc,model=classifier,classes=list(classes.keys()))
+            classification = classes[cmodel.class_preds[0]]
+            if classification in ['Non-Variable','Non-Variable-B','Non-Variable-N']:
+                prob = np.sum(cmodel.class_probs[0][-3:])
+            else:
+                prob = np.max(cmodel.class_probs)
+        except:
+            classification = 'Non-V'
+            prob = 0.80001
         return classification, prob
         
     def fit_period(self,source,significance=3):
@@ -1127,7 +1128,8 @@ class Detector():
         from .tools import CutWCS
 
         self.objects = None
-        path = f'{self.path}/Cut{cut}of{self.n**2}'
+        self.cut = cut
+        path = f'{self.path}/Cut{self.cut}of{self.n**2}'
 
         if sources:
             try:
@@ -1150,7 +1152,7 @@ class Detector():
                 print('No detected objects file found')
                 self.objects = None
         
-        self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
+        self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=self.cut,n=self.n)
 
         # if self.events is None:
         #     self.sources['Prob'] = 0; self.sources['Type'] = 0
@@ -1278,8 +1280,8 @@ class Detector():
                 'cam': maxevent['camera'],
                 'ccd': maxevent['ccd'],
                 'cut': maxevent['cut'],
-                'classification': maxevent['cf_class'],
-                'classification_prob': maxevent['cf_prob'],
+                'classification': maxevent['Type'],              #['cf_class'],
+                                                            # 'classification_prob': maxevent['cf_prob'],
                 'n_events': len(obj),
                 'min_eventlength': (obj['mjd_end'] - obj['mjd_start']).min(),
                 'max_eventlength': (obj['mjd_end'] - obj['mjd_start']).max(),
