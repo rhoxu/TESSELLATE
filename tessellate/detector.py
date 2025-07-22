@@ -746,6 +746,7 @@ class Detector():
 
     def check_classifind(self,source):
         import joblib
+        from .temp_classifind import classifind as cf 
 
         x = (source['xint']+0.5).astype(int)
         y = (source['yint']+0.5).astype(int)
