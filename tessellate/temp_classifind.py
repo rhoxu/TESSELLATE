@@ -553,7 +553,7 @@ class classifind:
         if is_mag == True:
             self.lcs = 10 ** (-0.4 * (self.lcs - self.zp))
             print('Lightcurves are in magnitude space')
-        self.directory = os.path.dirname(os.path.abspath(__file__)) + '/'
+        self.directory = os.path.dirname(os.path.abspath(__file__)) + '/rfc_files/'
         print(self.directory)
         if model == 'default':
             if train == True:
