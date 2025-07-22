@@ -763,7 +763,6 @@ class Detector():
         # try:
         model_path = os.path.join(package_directory,'rfc_files','RFC_model.joblib')
         classifier = joblib.load(model_path)
-        classifier = joblib.load(model_path)
         cmodel = cf(lc,model=classifier,classes=list(classes.keys()))
         classification = classes[cmodel.class_preds[0]]
         if classification in ['Non-Variable','Non-Variable-B','Non-Variable-N']:
@@ -1091,7 +1090,162 @@ class Detector():
                             # testf[testf == 1] = 0
                             # testf = np.append(testf,0)
 
-    def _get_objects_df(self):
+
+    def _TSS_catalogue_names(self):
+
+        from astropy.coordinates import SkyCoord
+        import astropy.units as u
+
+        tss_names = []
+        for _,event in self.events.iterrows():
+            c = SkyCoord(ra=event['ra'] * u.deg, dec=event['dec'] * u.deg)
+
+            ra_hms = c.ra.hms
+            dec_dms = c.dec.dms
+
+            RAh = f'{int(ra_hms.h):02d}'
+            RAm = f'{int(ra_hms.m):02d}'
+            RAs = f'{ra_hms.s:.2f}'
+
+            sign = '+' if dec_dms.d >= 0 else '-'
+            DECd = abs(int(dec_dms.d))
+            DECm = f'{abs(int(dec_dms.m)):02d}'
+            DECs = f'{abs(dec_dms.s):.2f}'
+
+            tss_name = f'TSS {RAh}{RAm}{RAs}{sign}{DECd}{DECm}{DECs}'
+            if event['total_events']==1:
+                tss_name += f"T{int(event['mjd_start'])}"
+            tss_names.append(tss_name)
+        self.events['TSS Catalogue'] = tss_names
+
+    def _gather_results(self,cut,sources=True,events=True,objects=True):
+        """
+        Gather the results of the source detection for a given cut.
+        """
+
+        import multiprocessing
+        from .tools import CutWCS
+
+        self.objects = None
+        path = f'{self.path}/Cut{cut}of{self.n**2}'
+
+        if sources:
+            try:
+                self.sources = pd.read_csv(f'{path}/detected_sources.csv')    # raw detection results
+            except:
+                print('No detected events file found')
+                self.sources = None
+
+        if events:
+            try:
+                self.events = pd.read_csv(f'{path}/detected_events.csv')    # temporally located with same object id
+            except:
+                print('No detected events file found')
+                self.events = None
+
+        if objects: 
+            try:
+                self.objects = pd.read_csv(f'{path}/detected_objects.csv')    # temporally and spatially located with same object id
+            except:
+                print('No detected objects file found')
+                self.objects = None
+        
+        self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
+
+        # if self.events is None:
+        #     self.sources['Prob'] = 0; self.sources['Type'] = 0
+        #     self.sources['GaiaID'] = 0
+        #     self._get_all_independent_events(cpu=int(multiprocessing.cpu_count()))
+        # if self.objects is None:    
+        #     self._get_objects_df()
+
+    def _find_sources(self,mode,prf_path):
+
+        from .dataprocessor import DataProcessor
+        from .catalog_queries import match_result_to_cat #,find_variables, gaia_stars,
+        from .tools import pandas_weighted_avg
+        
+        # -- Access information about the cut with respect to the original ccd -- #        
+        processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=2)
+        cutCorners, cutCentrePx, _, _ = processor.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
+        column = cutCentrePx[self.cut-1][0]
+        row = cutCentrePx[self.cut-1][1]
+
+        # -- Run the detection algorithm, generates dataframe -- #
+        results = Detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,
+                         row=row,mask=self.mask,inputNums=None,mode=mode,datadir=prf_path)
+        
+        # -- Add wcs, time, ccd info to the results dataframe -- #
+        results = self._wcs_time_info(results,self.cut)
+        results['xccd'] = deepcopy(results['xcentroid'] + cutCorners[self.cut-1][0])#.astype(int)
+        results['yccd'] = deepcopy(results['ycentroid'] + cutCorners[self.cut-1][1])#.astype(int)
+        
+        # -- For each source, finds the average position based on the weighted average of the flux -- #
+        av_var = pandas_weighted_avg(results[['objid','sig','xcentroid','ycentroid','ra','dec','xccd','yccd']])
+        av_var = av_var.rename(columns={'xcentroid':'x_source','ycentroid':'y_source','e_xcentroid':'e_x_source',
+                                        'e_ycentroid':'e_y_source','ra':'ra_source','dec':'dec_source',
+                                        'e_ra':'e_ra_source','e_dec':'e_dec_source','xccd':'xccd_source',
+                                        'yccd':'yccd_source','e_xccd':'e_xccd_source',
+                                        'e_yccd':'e_yccd_source'})
+        av_var = av_var.drop(['sig','e_sig'],axis=1)
+        results = results.merge(av_var, on='objid', how='left')
+        
+        # -- Cross matches location to Gaia -- #
+        gaia = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/local_gaia_cat.csv')
+        results = match_result_to_cat(deepcopy(results),gaia,columns=['Source'])
+        results = results.rename(columns={'Source': 'GaiaID'})
+
+        # -- Cross matches location to variable catalog -- #
+        variables = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/variable_catalog.csv')
+        results = match_result_to_cat(deepcopy(results),variables,columns=['Type','Prob'])
+
+        # -- Calculates the background level for each source -- #
+        results['bkg_level'] = 0
+        if self.bkg is not None:
+            f = results['frame'].values
+            x = results['xint'].values; y = results['yint'].values
+            bkg = self.bkg
+            b = []
+            for i in range(3):
+                i-=1
+                for j in range(3):
+                    j-=1
+                    b += [bkg[f,y-i,x+j]]
+            b = np.array(b)
+            b = np.nansum(b,axis=0)
+            results['bkg_level'] = b
+
+        # Save detected sources out.
+        if self.time_bin is None:
+            results.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_sources.csv',index=False)
+        else:
+            results.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_sources_tbin{self.time_bin_name}d.csv',index=False)
+
+        self.sources = results
+    
+    def _find_events(self):
+        from time import time as t
+        import multiprocessing
+
+        # -- Group these sources into unique objects based on the objid -- #
+        t2 = t()
+        self._get_all_independent_events(cpu = int(multiprocessing.cpu_count()))
+        print(f'Isolate Events: {(t()-t2):.1f} sec')
+
+        # -- Tag asteroids -- #
+        self._asteroid_checker()
+        
+        self.events['objid'] = self.events['objid'].astype(int)
+
+        self._TSS_catalogue_names()
+
+        # -- Save out results to csv files -- #
+        if self.time_bin is None:
+            self.events.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_events.csv',index=False)
+        else:
+            self.events.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_events_tbin{self.time_bin_name}d.csv',index=False)
+
+    def _find_objects(self):
 
         objids = self.events['objid'].unique()
 
@@ -1137,73 +1291,15 @@ class Detector():
 
         self.objects = objects
 
-    def _TSS_catalogue_names(self):
-
-        from astropy.coordinates import SkyCoord
-        import astropy.units as u
-
-        tss_names = []
-        for _,event in self.events.iterrows():
-            c = SkyCoord(ra=event['ra'] * u.deg, dec=event['dec'] * u.deg)
-
-            ra_hms = c.ra.hms
-            dec_dms = c.dec.dms
-
-            RAh = f'{int(ra_hms.h):02d}'
-            RAm = f'{int(ra_hms.m):02d}'
-            RAs = f'{ra_hms.s:.2f}'
-
-            sign = '+' if dec_dms.d >= 0 else '-'
-            DECd = abs(int(dec_dms.d))
-            DECm = f'{abs(int(dec_dms.m)):02d}'
-            DECs = f'{abs(dec_dms.s):.2f}'
-
-            tss_name = f'TSS {RAh}{RAm}{RAs}{sign}{DECd}{DECm}{DECs}'
-            if event['total_events']==1:
-                tss_name += f"T{int(event['mjd_start'])}"
-            tss_names.append(tss_name)
-        self.events['TSS Catalogue'] = tss_names
-
-    def _gather_results(self,cut):
-        """
-        Gather the results of the source detection for a given cut.
-        """
-
-        import multiprocessing
-        from .tools import CutWCS
-
-        self.objects = None
-        path = f'{self.path}/Cut{cut}of{self.n**2}'
-        self.sources = pd.read_csv(f'{path}/detected_sources.csv')   # raw detection results
-        try:
-            self.events = pd.read_csv(f'{path}/detected_events.csv')    # temporally located with same object id
-        except:
-            print('No detected events file found')
-        try:
-            self.objects = pd.read_csv(f'{path}/detected_objects.csv')    # temporally located with same object id
-        except:
-            print('No detected objects file found')
-        
-        self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
-
-        if self.events is None:
-            self.sources['Prob'] = 0; self.sources['Type'] = 0
-            self.sources['GaiaID'] = 0
-            self._get_all_independent_events(cpu=int(multiprocessing.cpu_count()))
-        if self.objects is None:    
-            self._get_objects_df()
+        if self.time_bin is None:
+            self.objects.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_objects.csv',index=False)
+        else:
+            self.objects.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_objects_tbin{self.time_bin_name}d.csv',index=False)
 
     def source_detect(self,cut,mode='starfind',prf_path='/fred/oz335/_local_TESS_PRFs/',time_bin=None):
         """
         Run the source detection algorithm on the data for a given cut.
         """
-
-        from .dataprocessor import DataProcessor
-        from .catalog_queries import match_result_to_cat #,find_variables, gaia_stars,
-        from .tools import pandas_weighted_avg
-
-        from time import time as t
-        import multiprocessing
 
         # -- Check if using starfinder and/or sourcedetect for detection -- #
         if mode is None:
@@ -1219,93 +1315,22 @@ class Detector():
             self._gather_data(cut)
             self.cut = cut
 
-        
+        # -- Preload self.sources and self.events if they're already made, self.objects can't be made otherwise this function wouldn't be called -- #
+        self._gather_results(cut=cut,objects=False)  
+
         if time_bin is not None:
             self.time_bin = time_bin
 
-        # -- Access information about the cut with respect to the original ccd -- #        
-        processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=2)
-        cutCorners, cutCentrePx, _, _ = processor.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
-        column = cutCentrePx[cut-1][0]
-        row = cutCentrePx[cut-1][1]
-
-        # -- Run the detection algorithm, generates dataframe -- #
-        results = Detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,
-                         row=row,mask=self.mask,inputNums=None,mode=mode,datadir=prf_path)
-        
-        # -- Add wcs, time, ccd info to the results dataframe -- #
-        results = self._wcs_time_info(results,cut)
-        results['xccd'] = deepcopy(results['xcentroid'] + cutCorners[cut-1][0])#.astype(int)
-        results['yccd'] = deepcopy(results['ycentroid'] + cutCorners[cut-1][1])#.astype(int)
-        
-        # -- For each source, finds the average position based on the weighted average of the flux -- #
-        av_var = pandas_weighted_avg(results[['objid','sig','xcentroid','ycentroid','ra','dec','xccd','yccd']])
-        av_var = av_var.rename(columns={'xcentroid':'x_source','ycentroid':'y_source','e_xcentroid':'e_x_source',
-                                        'e_ycentroid':'e_y_source','ra':'ra_source','dec':'dec_source',
-                                        'e_ra':'e_ra_source','e_dec':'e_dec_source','xccd':'xccd_source',
-                                        'yccd':'yccd_source','e_xccd':'e_xccd_source',
-                                        'e_yccd':'e_yccd_source'})
-        av_var = av_var.drop(['sig','e_sig'],axis=1)
-        results = results.merge(av_var, on='objid', how='left')
-        
-        # -- Cross matches location to Gaia -- #
-        gaia = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv')
-        results = match_result_to_cat(deepcopy(results),gaia,columns=['Source'])
-        results = results.rename(columns={'Source': 'GaiaID'})
-
-        # -- Cross matches location to variable catalog -- #
-        variables = pd.read_csv(f'{self.path}/Cut{cut}of{self.n**2}/variable_catalog.csv')
-        results = match_result_to_cat(deepcopy(results),variables,columns=['Type','Prob'])
-
-        # -- Calculates the background level for each source -- #
-        results['bkg_level'] = 0
-        if self.bkg is not None:
-            f = results['frame'].values
-            x = results['xint'].values; y = results['yint'].values
-            bkg = self.bkg
-            b = []
-            for i in range(3):
-                i-=1
-                for j in range(3):
-                    j-=1
-                    b += [bkg[f,y-i,x+j]]
-            b = np.array(b)
-            b = np.nansum(b,axis=0)
-            results['bkg_level'] = b
-        
         # -- self.sources contains all individual sources found in all frames -- #
-        self.sources = results
+        if self.sources is None:
+            self._find_sources(mode,prf_path)
 
-        # -- Group these sources into unique objects based on the objid -- #
-        t2 = t()
-        self._get_all_independent_events(cpu = int(multiprocessing.cpu_count()))
-        print(f'Isolate Events: {(t()-t2):.1f} sec')
+        # -- self.events contains all individual events, grouped by time and space -- #  
+        if self.events is None:
+            self._find_events()
 
-        # -- Tag asteroids -- #
-        self._asteroid_checker()
-        
-        # -- self.sources contains all individual sources, but also has them grouped by objid -- #  
-        self.events['objid'] = self.events['objid'].astype(int)
-
-        self._TSS_catalogue_names()
-
-        self.objects = self._get_objects_df()
-
-        # -- Save out results to csv files -- #
-        if self.time_bin is None:
-            self.events.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_events.csv',index=False)
-        else:
-            self.events.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_events_tbin{self.time_bin_name}d.csv',index=False)
-        # Save detected sources out last in the event it is massive. 
-        if self.time_bin is None:
-            results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources.csv',index=False)
-        else:
-            results.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_sources_tbin{self.time_bin_name}d.csv',index=False)
-
-        if self.time_bin is None:
-            self.objects.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_objects.csv',index=False)
-        else:
-            self.objects.to_csv(f'{self.path}/Cut{cut}of{self.n**2}/detected_objects_tbin{self.time_bin_name}d.csv',index=False)
+        # -- self.objects contains all individual spatial objects -- #  
+        self._find_objects()
 
 
     def display_source_locations(self,cut):

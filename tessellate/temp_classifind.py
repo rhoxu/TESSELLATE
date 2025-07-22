@@ -193,6 +193,7 @@ class get_features:
         self.slope_per90 : float
             90th percentile of the slope of the lightcurve
         """
+
         if self.period == False:
             unit = u.electron / u.s
             light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=self.flux*unit)#(self.f - np.nanmedian(self.f))*unit)
@@ -487,7 +488,8 @@ class get_dataset:
 
     def main(self):
         """Applies the parameter table construction process"""
-        if self.periods == False:
+        if self.periods is None:
+            print('Getting periods')
             self.get_periods(self.lcs)  
         self.build_table(lcs=self.lcs,periods=self.periods,scaled=self.scaled)
 

@@ -1668,7 +1668,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                         if self.part:
                             save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
                             save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
-                            if (os.path.exists(f'{save_path1}/detected_events.csv')) & (os.path.exists(f'{save_path2}/detected_events.csv')):
+                            if (os.path.exists(f'{save_path1}/detected_objects.csv')) & (os.path.exists(f'{save_path2}/detected_objects.csv')):
                                 print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
                                 print('\n')
                             elif (os.path.exists(f'{save_path1}/reduced.txt')) & (os.path.exists(f'{save_path2}/reduced.txt')):
@@ -1681,7 +1681,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                                 raise ValueError(e)
                         else:
                             save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                            if os.path.exists(f'{save_path}/detected_events.csv'):
+                            if os.path.exists(f'{save_path}/detected_objects.csv'):
                                 print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
                                 print('\n')
                             elif os.path.exists(f'{save_path}/reduced.txt'):
