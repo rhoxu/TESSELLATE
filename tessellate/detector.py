@@ -1317,20 +1317,27 @@ class Detector():
             self._gather_data(cut)
             self.cut = cut
 
+        print('Preloading sources / events')
         # -- Preload self.sources and self.events if they're already made, self.objects can't be made otherwise this function wouldn't be called -- #
         self._gather_results(cut=cut,objects=False)  
+        print('\n')
 
         if time_bin is not None:
             self.time_bin = time_bin
 
+        print('Source finding...')
         # -- self.sources contains all individual sources found in all frames -- #
         if self.sources is None:
             self._find_sources(mode,prf_path)
+        print('\n')
 
+        print('Event finding...')
         # -- self.events contains all individual events, grouped by time and space -- #  
         if self.events is None:
             self._find_events()
+        print('\n')
 
+        print('Object finding...')
         # -- self.objects contains all individual spatial objects -- #  
         self._find_objects()
 
