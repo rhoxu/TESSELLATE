@@ -1325,17 +1325,17 @@ class Detector():
         if time_bin is not None:
             self.time_bin = time_bin
 
-        print('Source finding (see progress in errors log file)...')
         # -- self.sources contains all individual sources found in all frames -- #
         if self.sources is None:
+            print('Source finding (see progress in errors log file)...')
             self._find_sources(mode,prf_path)
-        print('\n')
+            print('\n')
 
-        print('Event finding (see progress in errors log file)...')
         # -- self.events contains all individual events, grouped by time and space -- #  
         if self.events is None:
+            print('Event finding (see progress in errors log file)...')
             self._find_events()
-        print('\n')
+            print('\n')
 
         print('Object finding...')
         # -- self.objects contains all individual spatial objects -- #  

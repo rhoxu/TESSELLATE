@@ -1324,8 +1324,9 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
         Access internet, find Gaia sources and save for reduction.
         """
 
-        from .dataprocessor import DataProcessor, tr
+        from .dataprocessor import DataProcessor
         from .catalog_queries import create_external_var_cat
+        import tessreduce as tr
 
         data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
         _,_,cutCentreCoords,rad = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
