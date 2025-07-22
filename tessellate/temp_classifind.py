@@ -554,6 +554,7 @@ class classifind:
             self.lcs = 10 ** (-0.4 * (self.lcs - self.zp))
             print('Lightcurves are in magnitude space')
         self.directory = os.path.dirname(os.path.abspath(__file__)) + '/'
+        print(self.directory)
         if model == 'default':
             if train == True:
                 self.model = model
