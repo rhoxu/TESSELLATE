@@ -689,7 +689,6 @@ class Detector():
         return sig_max, sig_med, lc_sig * flux_sign
     
     def _asteroid_checker(self):#,asteroid_distance=3,asteroid_correlation=0.9,asteroid_duration=1):
-
         from astropy.stats import sigma_clipped_stats
         import cv2
         from skimage.transform import probabilistic_hough_line
@@ -707,8 +706,9 @@ class Detector():
             fs = np.max((frameStart - 5, 0))
             fe = np.min((frameEnd + 5, len(self.time)-1))
             
-            image = self.flux[fs:fe,]
-            image = image / image[(yl+yu)//2,(xl+xu)//2] * 255
+            image = self.flux[fs:fe,yl:yu,xl:xu]
+            image = np.nanmax(image,axis=0)
+            image = (image / image[(yu-yl)//2,(xu-xl)//2]) * 255
             image[image > 255] = 255
             mean, med, std = sigma_clipped_stats(image,maxiters=10,sigma_upper=2)
             edges = cv2.Canny(image.astype('uint8'), med + 5*std, med + 10*std)
@@ -740,7 +740,7 @@ class Detector():
             if len(lines) > 0:
                 #idx = events['objid']==source['objid']
                 events.loc[i, 'Type'] = 'Asteroid'
-                events.loc[i, 'Prob'] = 0.8
+                events.loc[i, 'Prob'] = 0.5
     
         self.events = events
 
