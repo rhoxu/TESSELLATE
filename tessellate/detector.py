@@ -392,7 +392,7 @@ def _Main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
     from tqdm import tqdm
 
     
-    print('Starting source detection')
+    print('    Starting source detection')
     length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
     if mode == 'starfind':
         results = Parallel(n_jobs=int(multiprocessing.cpu_count()*3/4))(delayed(_Frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
@@ -409,12 +409,12 @@ def _Main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
         t1 = t()
         star = _Make_dataframe(results,flux[0])
         star['method'] = 'starfind'
-        print(f'Done Starfind: {(t()-t1):.1f} sec')
+        print(f'    Done Starfind: {(t()-t1):.1f} sec')
         t1 = t()
         machine = _Source_detect(flux,inputNum,prf,corlim,psfdifflim,int(multiprocessing.cpu_count()*3/4))
         machine = machine[~pd.isna(machine['xcentroid'])]
         machine['method'] = 'sourcedetect'
-        print(f'Done Sourcedetect: {(t()-t1):.1f} sec')
+        print(f'    Done Sourcedetect: {(t()-t1):.1f} sec')
         total = [star,machine]
         results = pd.concat(total)
 
@@ -443,24 +443,23 @@ def Detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdiff
 
     t1 = t()
     frame = _Main_detection(flux,prf,corlim,psfdifflim,inputNum,mode=mode)
-    print(f'Main Search: {(t()-t1):.1f} sec')
+    print(f'    Main Search: {(t()-t1):.1f} sec')
 
         
     t1 = t()
-    print(len(frame))
     frame = _Spatial_group(frame,distance=1)
     frame = frame[~frame.duplicated(subset=['objid', 'frame'], keep='first')]
     print(len(frame))
-    print(f'Spatial Group: {(t()-t1):.1f} sec')
+    print(f'    Spatial Group: {(t()-t1):.1f} sec')
 
     t1 = t()
     frame = _Source_mask(frame,mask)
-    print(f'Source Mask: {(t()-t1):.1f} sec')
+    print(f'    Source Mask: {(t()-t1):.1f} sec')
 
     t1 = t()
     frame = _Count_detections(frame)
     #frame = frame[frame['n_detections'] > 1]
-    print(f'Count Detections: {(t()-t1):.1f} sec')
+    print(f'    Count Detections: {(t()-t1):.1f} sec')
 
     return frame
 
@@ -706,13 +705,13 @@ class Detector():
             fs = np.max((frameStart - 5, 0))
             fe = np.min((frameEnd + 5, len(self.time)-1))
             
-            image = self.flux[fs:fe,yl:yu,xl:xu]
-            image = np.nanmax(image,axis=0)
-            image = (image / image[(yu-yl)//2,(xu-xl)//2]) * 255
-            image[image > 255] = 255
-            mean, med, std = sigma_clipped_stats(image,maxiters=10,sigma_upper=2)
-            edges = cv2.Canny(image.astype('uint8'), med + 5*std, med + 10*std)
-            lines = probabilistic_hough_line(edges, threshold=5, line_length=5, line_gap=1)
+            # image = self.flux[fs:fe,yl:yu,xl:xu]
+            # image = np.nanmax(image,axis=0)
+            # image = (image / image[(yu-yl)//2,(xu-xl)//2]) * 255
+            # image[image > 255] = 255
+            # mean, med, std = sigma_clipped_stats(image,maxiters=10,sigma_upper=2)
+            # edges = cv2.Canny(image.astype('uint8'), med + 5*std, med + 10*std)
+            # lines = probabilistic_hough_line(edges, threshold=5, line_length=5, line_gap=1)
             
             # if (frameEnd - frameStart) > 2:
             #   ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
@@ -736,13 +735,29 @@ class Detector():
             # cpass = cor - asteroid_correlation
             # asteroid = dpass + cpass > 0
             # asteroid_check = asteroid & (duration < asteroid_duration)
-        
-            if len(lines) > 0:
+
+            image = self.flux[fs:fe,yl:yu,xl:xu]
+            image = np.nanmax(image,axis=0)
+            image = image / image[5,5] * 255
+            image[image > 255] = 255
+            mean, med, std = sigma_clipped_stats(image,maxiters=10,sigma_upper=2)
+            edges = (image > med + 5*std).astype('uint8')
+
+            lines = cv2.HoughLinesP(edges, # Input edge image
+                                    1, # Distance resolution in pixels
+                                    np.pi/180, # Angle resolution in radians
+                                    threshold=10, # Min number of votes for valid line
+                                    minLineLength=8, # Min allowed length of line
+                                    maxLineGap=0 # Max allowed gap between line for joining them
+                                    )
+
+            if (lines is not None) & (source['psflike']>=0.8):
                 #idx = events['objid']==source['objid']
                 events.loc[i, 'Type'] = 'Asteroid'
                 events.loc[i, 'Prob'] = 0.5
-    
-        self.events = events
+
+            
+                self.events = events
 
     def check_classifind(self,source):
         import joblib
@@ -1231,15 +1246,21 @@ class Detector():
 
         # -- Group these sources into unique objects based on the objid -- #
         t2 = t()
+        print('    Separating into individual events...',end='\r')
         self._get_all_independent_events(cpu = int(multiprocessing.cpu_count()))
-        print(f'Isolate Events: {(t()-t2):.1f} sec')
+        print(f'   Separating into individual events... Done in {(t()-t2):.1f} sec')
 
         # -- Tag asteroids -- #
+        t2 = t()
+        print('    Checking for asteroids...',end='\r')
         self._asteroid_checker()
-        
-        self.events['objid'] = self.events['objid'].astype(int)
+        print(f'   Checking for asteroids... Done in {(t()-t2):.1f} sec')
 
+        self.events['objid'] = self.events['objid'].astype(int)
+        
+        print('    Getting TSS Catalogue Names...',end='\r')
         self._TSS_catalogue_names()
+        print(f'   Getting TSS Catalogue Names... Done!')
 
         # -- Save out results to csv files -- #
         if self.time_bin is None:
@@ -1317,8 +1338,8 @@ class Detector():
             self._gather_data(cut)
             self.cut = cut
 
-        print('Preloading sources / events')
         # -- Preload self.sources and self.events if they're already made, self.objects can't be made otherwise this function wouldn't be called -- #
+        print('Preloading sources / events')
         self._gather_results(cut=cut,objects=False)  
         print('\n')
 
@@ -1327,18 +1348,18 @@ class Detector():
 
         # -- self.sources contains all individual sources found in all frames -- #
         if self.sources is None:
-            print('Source finding (see progress in errors log file)...')
+            print('-------Source finding (see progress in errors log file)-------')
             self._find_sources(mode,prf_path)
             print('\n')
 
         # -- self.events contains all individual events, grouped by time and space -- #  
         if self.events is None:
-            print('Event finding (see progress in errors log file)...')
+            print('-------Event finding (see progress in errors log file)-------')
             self._find_events()
             print('\n')
 
-        print('Object finding...')
         # -- self.objects contains all individual spatial objects -- #  
+        print('-------Object finding-------')
         self._find_objects()
 
 
@@ -1630,14 +1651,14 @@ class Detector():
             self._gather_results(cut)
             self.cut = cut
 
-        if save_path is None:
-            save_path = f'{self.path}/Cut{cut}of{self.n**2}/figs/'
+        # -- If saving is desired -- #
+        if save_path is not None:
+            if save_path[-1] != '/':
+                save_path+='/'
             _Check_dirs(save_path)
-        
-        if save_name is None:
-            save_name = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}'
-
-        save_path = save_path + save_name
+            if save_name is None:
+                save_name = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}'
+            save_path = save_path + save_name
 
         obj = self.objects[self.objects['objid']==objid].iloc[0]
         obj.lc,obj.cutout = Plot_Object(self.time,self.flux,self.events,objid,event,save_path,latex,zoo_mode) 
