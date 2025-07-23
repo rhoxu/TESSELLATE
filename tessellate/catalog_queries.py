@@ -53,7 +53,7 @@ def get_catalog(catalog, centre, radius,gaia=False):
     else:
         t_result = v.query_region(coords, radius=radius*u.deg,
                                   catalog=catalog,cache=False)
- 
+    Vizier.clear_cache()
     if len(t_result) > 0:
         return t_result[catalog].to_pandas()
     else:
