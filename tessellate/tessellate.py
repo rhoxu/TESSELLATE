@@ -224,15 +224,15 @@ class Tessellate():
         Generate suggestions for slurm job runtime, cpu allocation, memory based on sector (tested but temperamental)
         """
 
-        primary_mission = range(1,28)       # ~1200 FFIs , 30 min cadence
-        secondary_mission = range(28,56)    # ~3600 FFIs , 10 min cadence
+        primary_mission = range(1,27)       # ~1200 FFIs , 30 min cadence
+        secondary_mission = range(27,56)    # ~3600 FFIs , 10 min cadence
         tertiary_mission = range(56,100)    # ~12000 FFIs , 200 sec cadence
 
         self.part = False
         if self.sector in primary_mission:
             cube_time_sug = '45:00'
             cube_mem_sug = '20G'
-            cube_mem_req = 100
+            cube_mem_req = 60
 
             cut_time_sug = '20:00'
             cut_mem_sug = '20G'
