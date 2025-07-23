@@ -1630,14 +1630,14 @@ class Detector():
             self._gather_results(cut)
             self.cut = cut
 
-        if save_path is None:
-            save_path = f'{self.path}/Cut{cut}of{self.n**2}/figs/'
+        # -- If saving is desired -- #
+        if save_path is not None:
+            if save_path[-1] != '/':
+                save_path+='/'
             _Check_dirs(save_path)
-        
-        if save_name is None:
-            save_name = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}'
-
-        save_path = save_path + save_name
+            if save_name is None:
+                save_name = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}'
+            save_path = save_path + save_name
 
         obj = self.objects[self.objects['objid']==objid].iloc[0]
         obj.lc,obj.cutout = Plot_Object(self.time,self.flux,self.events,objid,event,save_path,latex,zoo_mode) 
