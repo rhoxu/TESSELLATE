@@ -1276,7 +1276,7 @@ class Detector():
             'objid', 'sector', 'cam', 'ccd', 'cut', 'xcentroid', 'ycentroid', 
             'ra', 'dec', 'max_lcsig', 'flux_maxsig', 'frame_maxsig',
             'mjd_maxsig','psf_maxsig','flux_sign', 'n_events',
-             'min_eventlength', 'max_eventlength','classification',
+            'min_eventlength', 'max_eventlength','classification',
         ]
         objects = pd.DataFrame(columns=columns)
 
@@ -1284,6 +1284,17 @@ class Detector():
             obj = self.events[self.events['objid'] == objid]
 
             maxevent = obj.iloc[obj['lc_sig'].argmax()]
+
+            if maxevent['Type'] == 'Asteroid' and len(obj) < 2:
+                classification = 'Asteroid'
+            else:
+                classification = obj['Type'].mode()[0]
+
+            if classification == '0':
+                classification = 'Non-V'
+            
+            if classification == 'RRLyrae':
+                classification = 'VRRLyr'
 
             row_data = {
                 'objid': objid,
@@ -1301,11 +1312,11 @@ class Detector():
                 'cam': maxevent['camera'],
                 'ccd': maxevent['ccd'],
                 'cut': maxevent['cut'],
-                'classification': maxevent['Type'],              #['cf_class'],
+                'classification': classification,              #['cf_class'],
                                                             # 'classification_prob': maxevent['cf_prob'],
                 'n_events': len(obj),
-                'min_eventlength': (obj['mjd_end'] - obj['mjd_start']).min(),
-                'max_eventlength': (obj['mjd_end'] - obj['mjd_start']).max(),
+                'min_eventlength': obj['duration'].min()-1,
+                'max_eventlength': obj['duration'].max()-1,
                 'TSS Catalogue' : maxevent['TSS Catalogue']
             }
 
@@ -1436,7 +1447,7 @@ class Detector():
             is_negation = classification.startswith(('!', '~'))
             classification_stripped = classification.lstrip('!~').lower()
             if classification_stripped in ['var', 'variable']:
-                classification = ['class1', 'class2', 'class3']  # Replace with variable classes
+                classification = classification = ['VCR', 'VRRLyr', 'VEB','VLPV','VST','VAGN','VRM','VMSO']  # Replace with variable classes
             else:
                 classification = [classification_stripped]
 
@@ -1502,11 +1513,11 @@ class Detector():
         # -- Filter by upper and lower limits on number of detections within each event -- #
         if upper is not None:
             if lower is not None:
-                r = r.loc[(r['n_detections'] < upper) & (r['n_detections'] > lower)]
+                r = r.loc[(r['duration'] <= upper+1) & (r['duration'] >= lower+1)]
             else:
-                r = r.loc[(r['n_detections'] < upper)]
+                r = r.loc[(r['duration'] <= upper+1)]
         elif lower is not None:
-            r = r.loc[(r['n_detections'] > lower)]
+            r = r.loc[(r['duration'] >= lower+1)]
 
         return r
 
