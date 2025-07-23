@@ -692,7 +692,6 @@ class Detector():
     def _asteroid_checker(self):#,asteroid_distance=3,asteroid_correlation=0.9,asteroid_duration=1):
         from astropy.stats import sigma_clipped_stats
         import cv2
-        from skimage.transform import probabilistic_hough_line
 
         events = deepcopy(self.events)
         #time = self.time - self.time[0]
@@ -1041,6 +1040,7 @@ class Detector():
         min_ind = int(start)
         max_ind = int(stop)
         triggers[im_triggers] = 1
+        triggers[:start] = 0; triggers[end:] = 0
         detections = 0
         for segment in segments:
             if np.sum(triggers[segment]) > 0:
