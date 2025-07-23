@@ -232,7 +232,7 @@ class Tessellate():
         if self.sector in primary_mission:
             cube_time_sug = '45:00'
             cube_mem_sug = '20G'
-            cube_mem_req = 60
+            cube_mem_req = 100
 
             cut_time_sug = '20:00'
             cut_mem_sug = '20G'
