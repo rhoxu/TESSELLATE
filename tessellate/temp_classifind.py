@@ -193,6 +193,7 @@ class get_features:
         self.slope_per90 : float
             90th percentile of the slope of the lightcurve
         """
+
         if self.period == False:
             unit = u.electron / u.s
             light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=self.flux*unit)#(self.f - np.nanmedian(self.f))*unit)
@@ -412,7 +413,6 @@ class get_dataset:
         # try:
             if len(df) == 0:
                 df = pd.DataFrame([get_features(time=time,flux=flux,period=period,scaled=scaled).features])
-                print(df)
             else:
                 try:
                     df = pd.concat([df, pd.DataFrame([get_features(time=time,flux=flux,period=period,scaled=scaled).features])], ignore_index=True)
@@ -488,7 +488,7 @@ class get_dataset:
 
     def main(self):
         """Applies the parameter table construction process"""
-        if self.periods == False:
+        if self.periods is None:
             self.get_periods(self.lcs)  
         self.build_table(lcs=self.lcs,periods=self.periods,scaled=self.scaled)
 
@@ -666,17 +666,5 @@ class classifind:
         if train:
             self.train_and_test()
         self.table = get_dataset(self.lcs,periods=self.periods,scaled=self.scaled).table
-
-        # print('\n')
-        # print(f'LCs: {self.lcs}')
-        # print('\n')
-
-        # print(f'Periods: {self.periods}')
-        # print('\n')
-
-        # print(f'Scaled: {self.scaled}')
-        # print('\n')
-
-        # print(self.table)
         self.predict(self.model,self.table,self.classes)
         # self.classify = (self.predictions, np.max(self.class_probs(axis=1)))

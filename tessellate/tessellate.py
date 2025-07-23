@@ -1324,8 +1324,12 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
         Access internet, find Gaia sources and save for reduction.
         """
 
-        from .dataprocessor import DataProcessor, tr
+        print('Importing .dataprocessor, .catalog_queries')
+        from .dataprocessor import DataProcessor
         from .catalog_queries import create_external_var_cat
+        print('Done!')
+        print('\n')
+
 
         data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
         _,_,cutCentreCoords,rad = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
@@ -1366,6 +1370,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                             if os.path.exists(f'{save_path}/local_gaia_cat.csv'):
                                 print('Gaia catalog already made, skipping.')
                             else:
+                                import tessreduce as tr         # its time to move external_save_cat to tessellate, this import takes ages!!
                                 rad = rad + 2*60/21
                                 cutPath = f'{save_path}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}.fits'
                                 tr.external_save_cat(tpf=cutPath,save_path=save_path,maglim=19) # oversize radius by 2 arcmin in terms of tess pixels
@@ -1668,7 +1673,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                         if self.part:
                             save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
                             save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
-                            if (os.path.exists(f'{save_path1}/detected_events.csv')) & (os.path.exists(f'{save_path2}/detected_events.csv')):
+                            if (os.path.exists(f'{save_path1}/detected_objects.csv')) & (os.path.exists(f'{save_path2}/detected_objects.csv')):
                                 print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
                                 print('\n')
                             elif (os.path.exists(f'{save_path1}/reduced.txt')) & (os.path.exists(f'{save_path2}/reduced.txt')):
@@ -1681,7 +1686,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                                 raise ValueError(e)
                         else:
                             save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                            if os.path.exists(f'{save_path}/detected_events.csv'):
+                            if os.path.exists(f'{save_path}/detected_objects.csv'):
                                 print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
                                 print('\n')
                             elif os.path.exists(f'{save_path}/reduced.txt'):
