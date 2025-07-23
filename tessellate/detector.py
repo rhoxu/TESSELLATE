@@ -1451,10 +1451,10 @@ class Detector():
             else:
                 classification = [classification_stripped]
 
-            if is_negation:
-                objects = objects[~objects['classification'].str.lower().isin(classification)]
-            else:
-                objects = objects[objects['classification'].str.lower().isin(classification)]
+        if is_negation:
+            objects = objects[~objects['classification'].str.lower().isin([classification[i].lower() for i in range(len(classification))])]
+        else:
+            objects = objects[objects['classification'].str.lower().isin([classification[i].lower() for i in range(len(classification))])]
 
         if flux_sign is not None:
             objects = objects[objects['flux_sign']==flux_sign]
