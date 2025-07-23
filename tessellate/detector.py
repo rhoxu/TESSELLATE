@@ -1317,8 +1317,8 @@ class Detector():
             self._gather_data(cut)
             self.cut = cut
 
-        print('Preloading sources / events')
         # -- Preload self.sources and self.events if they're already made, self.objects can't be made otherwise this function wouldn't be called -- #
+        print('Preloading sources / events')
         self._gather_results(cut=cut,objects=False)  
         print('\n')
 
@@ -1337,8 +1337,8 @@ class Detector():
             self._find_events()
             print('\n')
 
-        print('Object finding...')
         # -- self.objects contains all individual spatial objects -- #  
+        print('Object finding...')
         self._find_objects()
 
 
