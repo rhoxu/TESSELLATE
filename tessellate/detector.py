@@ -202,7 +202,7 @@ def _Find_stars(data,prf,fwhmlim=7,siglim=2.5,bkgstd_lim=50,negative=False):
                 (star.ycentroid.values >=3) & (star.ycentroid.values < data.shape[0]-3))
     star = star.iloc[ind & pos_ind]
 
-    x = (star.xcentroid.values + 0.5).astype(int); y = (star.ycentroid.values + 0.5).astype(int)
+    x = np.round(star.xcentroid.values + 0.5).astype(int); y = np.round(star.ycentroid.values + 0.5).astype(int)
     pos = list(zip(x, y))
     aperture = RectangularAperture(pos, 3.0, 3.0)
     #aperture = CircularAperture(pos, 1.5)
@@ -315,7 +315,7 @@ def _Do_photometry(star,data,siglim=3,bkgstd_lim=50):
     from photutils.aperture import RectangularAnnulus, CircularAperture, ApertureStats, aperture_photometry
     from astropy.stats import sigma_clip, SigmaClip
 
-    x = (star.xcentroid.values + 0.5).astype(int); y = (star.ycentroid.values + 0.5).astype(int)
+    x = np.round(star.xcentroid.values + 0.5).astype(int); y = np.round(star.ycentroid.values + 0.5).astype(int)
     pos = list(zip(x, y))
     aperture = CircularAperture(pos, 1.5)
     annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=20,h_out=20)
@@ -766,8 +766,8 @@ class Detector():
 
         package_directory = os.path.dirname(os.path.abspath(__file__))
 
-        x = (source['xint']+0.5).astype(int)
-        y = (source['yint']+0.5).astype(int)
+        x = np.round(source['xint']+0.5).astype(int)
+        y = np.round(source['yint']+0.5).astype(int)
         f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
         t = self.time
         finite = np.isfinite(f) & np.isfinite(t)
@@ -798,8 +798,8 @@ class Detector():
         import astropy.units as u
         from astropy.time import Time
 
-        x = (source['xint']+0.5).astype(int)
-        y = (source['yint']+0.5).astype(int)
+        x = np.round(source['xint']+0.5).astype(int)
+        y = np.round(source['yint']+0.5).astype(int)
         
         f = np.nansum(self.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
         t = self.time
@@ -996,8 +996,8 @@ class Detector():
                     event['n_detections'] = n_detections#len(detections)
                     event['mjd_start'] = self.time[e[0]]
                     event['mjd_end'] = self.time[e[1]]
-                    event['yint'] = event['yint'].values.astype(int)
-                    event['xint'] = event['xint'].values.astype(int)
+                    event['yint'] = np.round(event['ycentroid'].values).astype(int)
+                    event['xint'] = np.round(event['xcentroid'].values).astype(int)
                     event['sector'] = self.sector 
                     event['camera'] = self.cam
                     event['ccd'] = self.ccd
@@ -1678,8 +1678,8 @@ class Detector():
         if external_phot:
             print('Getting Photometry...')
 
-            xint = obj['xcentroid'].astype(int)
-            yint = obj['ycentroid'].astype(int)
+            xint = np.round(obj['xcentroid']).astype(int)
+            yint = np.round(obj['ycentroid']).astype(int)
 
             RA,DEC = self.wcs.all_pix2world(xint,yint,0)
             ra_obj,dec_obj = self.wcs.all_pix2world(obj['xcentroid'],obj['ycentroid'],0)
@@ -1758,13 +1758,13 @@ class Detector():
         lcs = []
         for id in eventid:
             e = events[events['eventID']==id].iloc[0]
-            x = (e['xcentroid']+0.5).astype(int)      # x coordinate of the source
-            y = (e['ycentroid']+0.5).astype(int)      # y coordinate of the source
+            x = np.round(e['xcentroid']+0.5).astype(int)      # x coordinate of the source
+            y = np.round(e['ycentroid']+0.5).astype(int)      # y coordinate of the source
             frameStart = int(e['frame_start'])        # Start frame of the event
             frameEnd = int(e['frame_end'])            # End frame of the event
 
             frameStart = np.max([frameStart-frame_buffer,0])
-            frameEnd = np.min([frameEnd+frame_buffer,len(self.time)-1])
+            frameEnd = np.min([frameEnd+frame_buffer+1,len(self.time)-1])
 
             t = self.time[frameStart:frameEnd]
             f = np.nansum(self.flux[frameStart:frameEnd,y-1:y+2,x-1:x+2],axis=(2,1))
@@ -1891,8 +1891,8 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
     for i in range(len(sources)):
         event_id = sources['eventID'].iloc[i]          # Select event ID
         source = deepcopy(sources.iloc[i])             # Select source 
-        x = (source['xcentroid']+0.5).astype(int)      # x coordinate of the source
-        y = (source['ycentroid']+0.5).astype(int)      # y coordinate of the source
+        x = np.round(source['xcentroid']+0.5).astype(int)      # x coordinate of the source
+        y = np.round(source['ycentroid']+0.5).astype(int)      # y coordinate of the source
         frameStart = int(source['frame_start'])        # Start frame of the event
         frameEnd = int(source['frame_end'])            # End frame of the event
 
@@ -1950,7 +1950,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
             ax[1].yaxis.set_tick_params(labelleft=False,left=False)
 
         else:
-            ax[1].set_title('Lightcurve',fontsize=15)   
+            ax[1].set_title(f'{source['TSS Catalogue']}',fontsize=15)   
             ax[1].set_ylabel('Counts (e/s)',fontsize=15,labelpad=10)
             ax[1].set_xlabel(f'Time (MJD - {np.round(times[0],3)})',fontsize=15)
 
