@@ -1216,12 +1216,12 @@ class Detector():
 
             RAh = f'{int(ra_hms.h):02d}'
             RAm = f'{int(ra_hms.m):02d}'
-            RAs = f'{ra_hms.s:.2f}'
+            RAs = f'{ra_hms.s:05.2f}'
 
             sign = '+' if dec_dms.d >= 0 else '-'
-            DECd = abs(int(dec_dms.d))
+            DECd = f'{abs(int(dec_dms.d)):02d}'
             DECm = f'{abs(int(dec_dms.m)):02d}'
-            DECs = f'{abs(dec_dms.s):.2f}'
+            DECs = f'{abs(dec_dms.s):05.2f}'
 
             tss_name = f'TSS {RAh}{RAm}{RAs}{sign}{DECd}{DECm}{DECs}'
             if event['total_events']==1:
@@ -1567,9 +1567,9 @@ class Detector():
 
         return objects
 
-    def filter_events(self,cut,starkiller=False,asteroidkiller=False,
-                            lower=None,upper=None,sig_image=None,sig_lc=None,sig_lc_average=None,
-                            max_events=None,bkgstd_lim=None,sign=None):
+    def filter_events(self,cut,starkiller=False,lower=None,upper=None,sig_image=None,
+                      sig_lc=None,sig_lc_average=None,max_events=None,bkgstd_lim=None,
+                      sign=None,classification=None,psf_like=None):
         
         """
         Returns a dataframe of the events in the cut, with options to filter by various parameters.
@@ -1587,9 +1587,22 @@ class Detector():
         else:
             r = self.events
 
-        # -- If true, remove asteroids from the results -- #
-        if asteroidkiller:
-            r = r.loc[~(r['Type'] == 'Asteroid')]
+        # # -- If true, remove asteroids from the results -- #
+        # if asteroidkiller:
+        #     r = r.loc[~(r['Type'] == 'Asteroid')]
+
+        if classification is not None:
+            is_negation = classification.startswith(('!', '~'))
+            classification_stripped = classification.lstrip('!~').lower()
+            if classification_stripped in ['var', 'variable']:
+                classification = classification = ['VCR', 'VRRLyr', 'VEB','VLPV','VST','VAGN','VRM','VMSO','RRLyrae']  
+            else:
+                classification = [classification_stripped]
+
+            if is_negation:
+                r = r[~r['Type'].str.lower().isin([classification[i].lower() for i in range(len(classification))])]
+            else:
+                r = r[r['Type'].str.lower().isin([classification[i].lower() for i in range(len(classification))])]
 
         # -- Filter by various parameters -- #
         if sig_lc is not None:
@@ -1604,6 +1617,8 @@ class Detector():
             r = r.loc[r['bkgstd'] <= bkgstd_lim]
         if sign is not None:
             r = r.loc[r['flux_sign'] == sign]
+        if psf_like is not None:
+            r = r.loc[r['psflike']>=psf_like]
 
         # -- Filter by upper and lower limits on number of detections within each event -- #
         if upper is not None:
