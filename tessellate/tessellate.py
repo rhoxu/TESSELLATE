@@ -1365,6 +1365,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                         if os.path.exists(f'{save_path}/variable_catalog.csv'):
                             completed.append(cut)
                         elif os.path.exists(f'{save_path}/cut.txt'):
+                            import sys
                             if 'tessreduce' not in sys.modules:
                                 print("Importing tessreduce...",end='\r')
                                 import tessreduce as tr
