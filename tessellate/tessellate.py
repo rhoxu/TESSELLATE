@@ -1365,12 +1365,15 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                         if os.path.exists(f'{save_path}/variable_catalog.csv'):
                             completed.append(cut)
                         elif os.path.exists(f'{save_path}/cut.txt'):
+                            if 'tessreduce' not in sys.modules:
+                                print("Importing tessreduce...",end='\r')
+                                import tessreduce as tr
+                                print("Importing tessreduce...Done!")
                             #try:
                             print(f'Generating Catalogues {cut}')
                             if os.path.exists(f'{save_path}/local_gaia_cat.csv'):
                                 print('Gaia catalog already made, skipping.')
-                            else:
-                                import tessreduce as tr         # its time to move external_save_cat to tessellate, this import takes ages!!
+                            else:      # its time to move external_save_cat to tessellate, this import takes ages!!             
                                 rad = rad + 2*60/21
                                 cutPath = f'{save_path}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}.fits'
 

@@ -1740,7 +1740,32 @@ class Detector():
             obj.coord = (ra_obj,dec_obj)
         
         return obj
+    
+    def event_lc(self,cut,objid,eventid=None,frame_buffer=10):
 
+        # -- Gather data -- #
+        if cut != self.cut:
+            self._gather_data(cut)
+            self._gather_results(cut)
+            self.cut = cut
+        
+        events = self.events[self.events['objid']==objid]
+        if eventid is not None:
+            eventid = [eventid]
+        
+        lcs = []
+        for id in eventid:
+            e = events[events['eventID']==id]
+            x = (e['xcentroid']+0.5).astype(int)      # x coordinate of the source
+            y = (e['ycentroid']+0.5).astype(int)      # y coordinate of the source
+            frameStart = int(e['frame_start'])        # Start frame of the event
+            frameEnd = int(e['frame_end'])            # End frame of the event
+
+            t = self.time[frameStart-frame_buffer:frameEnd+frame_buffer]
+            f = np.nansum(self.flux[frameStart-frame_buffer:frameEnd+frame_buffer,y-1:y+2,x-1:x+2],axis=(2,1))
+            lcs.append((t,f))
+
+        return lcs
 
     def locate_transient(self,cut,xcentroid,ycentroid,threshold=3):
 
@@ -2080,7 +2105,6 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
                                             #np.save(save_path+'/'+savename+'_cutout.npy',cutout_image)
 
     return [times,f], cutout_image
-
 
 def Save_LC(times,flux,events,id,save_path):
     """
