@@ -1373,9 +1373,29 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                                 import tessreduce as tr         # its time to move external_save_cat to tessellate, this import takes ages!!
                                 rad = rad + 2*60/21
                                 cutPath = f'{save_path}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}.fits'
-                                tr.external_save_cat(tpf=cutPath,save_path=save_path,maglim=19) # oversize radius by 2 arcmin in terms of tess pixels
+
+                                doneGaia = False
+                                attempt = 1
+                                while not doneGaia:
+                                    try:
+                                        tr.external_save_cat(tpf=cutPath,save_path=save_path,maglim=19) # oversize radius by 2 arcmin in terms of tess pixels
+                                    except Exception as e:
+                                        print(f"GAIA Attempt {attempt} failed with error: {e}")
+                                        sleep(120)
+                                        attempt += 1
+
                             rad2 = rad*21/60**2
-                            create_external_var_cat(center=cutCentreCoords[cut-1],size=rad2,save_path=save_path) # This one queries in degrees!!!!
+                            doneVar = False
+                            attempt = 1
+                            while not doneVar:
+                                try:
+                                    create_external_var_cat(center=cutCentreCoords[cut-1],
+                                                            size=rad2,save_path=save_path) # This one queries in degrees!!!!
+                                except Exception as e:
+                                    print(f" Variable Catalogue Attempt {attempt} failed with error: {e}")
+                                    sleep(120)
+                                    attempt+=1
+
                             completed.append(cut)
 
                 i += 1

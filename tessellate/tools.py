@@ -110,8 +110,9 @@ def _remove_reductions(data_path,sector,n,cams,ccds,cuts,part):
                             os.system(f'rm -f reduced.txt')
                             os.system(f'rm -f detected_events.csv')
                             os.system(f'rm -f detected_sources.csv')
-                            os.system('rm -r -f figs')
-                            os.system('rm -r -f lcs')   
+                            os.system(f'rm -f detected_objects.csv')
+                            os.system('rm -f figs.zip')
+                            os.system('rm -f lcs.zip')  
                         except:
                             pass
                 else:
@@ -121,8 +122,9 @@ def _remove_reductions(data_path,sector,n,cams,ccds,cuts,part):
                         os.system(f'rm -f reduced.txt')
                         os.system(f'rm -f detected_events.csv')
                         os.system(f'rm -f detected_sources.csv')
-                        os.system('rm -r -f figs')
-                        os.system('rm -r -f lcs') 
+                        os.system(f'rm -f detected_objects.csv')
+                        os.system('rm -f figs.zip')
+                        os.system('rm -f lcs.zip')  
                     except:
                         pass   
 
@@ -140,8 +142,9 @@ def _remove_search(data_path,sector,n,cams,ccds,cuts,part):
                             os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Part{i}/Cut{cut}of{n**2}')
                             os.system(f'rm -f detected_events.csv')
                             os.system(f'rm -f detected_sources.csv')
-                            os.system('rm -r -f figs')
-                            os.system('rm -r -f lcs') 
+                            os.system(f'rm -f detected_objects.csv')
+                            os.system('rm -f figs.zip')
+                            os.system('rm -f lcs.zip') 
                         except:
                             pass
                 else:
@@ -149,8 +152,9 @@ def _remove_search(data_path,sector,n,cams,ccds,cuts,part):
                         os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}')
                         os.system(f'rm -f detected_events.csv')
                         os.system(f'rm -f detected_sources.csv')
-                        os.system('rm -r -f figs')
-                        os.system('rm -r -f lcs')  
+                        os.system(f'rm -f detected_objects.csv')
+                        os.system('rm -f figs.zip')
+                        os.system('rm -f lcs.zip')  
                     except:
                         pass 
     os.chdir(home_path)
@@ -165,17 +169,15 @@ def _remove_plots(data_path,sector,n,cams,ccds,cuts,part):
                     for i in range(1,3):
                         try:
                             os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Part{i}/Cut{cut}of{n**2}')
-                            os.system('rm -r -f figs')
-                            os.system('rm -r -f lcs')
-                            os.system('rm -r -f object_lcs') 
+                            os.system('rm -r -f figs.zip')
+                            os.system('rm -r -f lcs.zip')
                         except:
                             pass
                 else:
                     try:
                         os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}')
-                        os.system('rm -r -f figs')
-                        os.system('rm -r -f lcs')  
-                        os.system('rm -r -f object_lcs') 
+                        os.system('rm -r -f figs.zip')
+                        os.system('rm -r -f lcs.zip')
                     except:
                         pass 
     os.chdir(home_path)
