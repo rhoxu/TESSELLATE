@@ -1950,7 +1950,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
             ax[1].yaxis.set_tick_params(labelleft=False,left=False)
 
         else:
-            ax[1].set_title(f"{source['TSS Catalogue']}",fontsize=15)   
+            ax[1].set_title(f"{source['TSS Catalogue']}   |   ObjID: {source['objid']}",fontsize=15)   
             ax[1].set_ylabel('Counts (e/s)',fontsize=15,labelpad=10)
             ax[1].set_xlabel(f'Time (MJD - {np.round(times[0],3)})',fontsize=15)
 
