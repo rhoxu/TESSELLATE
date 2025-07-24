@@ -1752,6 +1752,8 @@ class Detector():
         events = self.events[self.events['objid']==objid]
         if eventid is not None:
             eventid = [eventid]
+        else:
+            eventid = range(1,len(events)+1)
         
         lcs = []
         for id in eventid:
