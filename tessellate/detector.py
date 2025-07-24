@@ -1757,7 +1757,7 @@ class Detector():
         
         lcs = []
         for id in eventid:
-            e = events[events['eventID']==id]
+            e = events[events['eventID']==id].iloc[0]
             x = (e['xcentroid']+0.5).astype(int)      # x coordinate of the source
             y = (e['ycentroid']+0.5).astype(int)      # y coordinate of the source
             frameStart = int(e['frame_start'])        # Start frame of the event
