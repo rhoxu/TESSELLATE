@@ -787,26 +787,29 @@ class Detector():
 
         r2s = []
         for i in range(len(candidates)):
-            event = candidates.iloc[i]
-            time,flux = self.event_lc(self.cut,event['objid'],int(event['eventID']))[0]
-            p0 = [
-                np.max(flux) - np.min(flux),                     # A: positive height of the bump
-                time[np.argmax(flux)],                           # t0: time of peak flux
-                (np.max(time) - np.min(time)) / 2,              # sigma: rough width guess
-                np.min(flux)                                     # offset: estimated baseline
-            ]
+            try:
+                event = candidates.iloc[i]
+                time,flux = self.event_lc(self.cut,event['objid'],int(event['eventID']))[0]
+                p0 = [
+                    np.max(flux) - np.min(flux),                     # A: positive height of the bump
+                    time[np.argmax(flux)],                           # t0: time of peak flux
+                    (np.max(time) - np.min(time)) / 2,              # sigma: rough width guess
+                    np.min(flux)                                     # offset: estimated baseline
+                ]
 
-            bounds = (
-                [0, np.min(time), 10/24/60, -np.inf],       # lower bounds: A ≥ 0, σ ≥ 15
-                [np.inf, np.max(time), np.inf, np.inf]  # upper bounds
-            )
+                bounds = (
+                    [0, np.min(time), 10/24/60, -np.inf],       # lower bounds: A ≥ 0, σ ≥ 15
+                    [np.inf, np.max(time), np.inf, np.inf]  # upper bounds
+                )
 
-            params, _ = curve_fit(Gaussian, time, flux, p0=p0, bounds=bounds)
-            fit_flux_gaussian = Gaussian(time, *params)
-            r2 = r2_score(flux, fit_flux_gaussian)
+                params, _ = curve_fit(Gaussian, time, flux, p0=p0, bounds=bounds)
+                fit_flux_gaussian = Gaussian(time, *params)
+                r2 = r2_score(flux, fit_flux_gaussian)
 
-            r2s.append(r2)
-        
+                r2s.append(r2)
+            except:
+                r2s.append(0)
+            
         r2s = np.array(r2s)
         r2s[r2s<0]=0
 
