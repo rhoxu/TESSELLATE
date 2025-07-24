@@ -1763,8 +1763,8 @@ class Detector():
             frameStart = int(e['frame_start'])        # Start frame of the event
             frameEnd = int(e['frame_end'])            # End frame of the event
 
-            frameStart = np.max(frameStart-frame_buffer,0)
-            frameEnd = np.min(frameEnd+frame_buffer,len(self.time)-1)
+            frameStart = np.max([frameStart-frame_buffer,0])
+            frameEnd = np.min([frameEnd+frame_buffer,len(self.time)-1])
 
             t = self.time[frameStart:frameEnd]
             f = np.nansum(self.flux[frameStart:frameEnd,y-1:y+2,x-1:x+2],axis=(2,1))
