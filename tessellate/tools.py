@@ -256,6 +256,11 @@ def pandas_weighted_avg(df,weight_col='sig'):
 def consecutive_points(data, stepsize=2):
     return np.split(data, np.where(np.diff(data) > stepsize)[0]+1)
 
+def Gaussian(t, A, t0, sigma, offset):
+    return A * np.exp(-0.5 * ((t - t0) / sigma)**2) + offset
+
+def Distance(p1,p2):
+    return np.sqrt((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)
 
 class CutWCS():
 

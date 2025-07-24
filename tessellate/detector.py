@@ -688,76 +688,171 @@ class Detector():
         lc_sig = (lc - med) / std
         return sig_max, sig_med, lc_sig * flux_sign
     
-    def _asteroid_checker(self):#,asteroid_distance=3,asteroid_correlation=0.9,asteroid_duration=1):
+    def _straight_line_asteroid_checker(self):#,asteroid_distance=3,asteroid_correlation=0.9,asteroid_duration=1):
         from astropy.stats import sigma_clipped_stats
         import cv2
 
         events = deepcopy(self.events)
-        #time = self.time - self.time[0]
         for i in range(len(events)):
             source = events.iloc[i]
+            if source['Type'] != 'Asteroid':                
+                frameStart = source['frame_start']
+                frameEnd = source['frame_end']
+                x = source['xint']; y = source['yint']
+                xl = np.max((x - 5,0)); xu = np.min((x + 6,self.flux.shape[2]-1))
+                yl = np.max((y - 5,0)); yu = np.min((y + 6,self.flux.shape[1]-1))
+                fs = np.max((frameStart - 5, 0))
+                fe = np.min((frameEnd + 5, len(self.time)-1))
             
-            frameStart = source['frame_start']
-            frameEnd = source['frame_end']
-            x = source['xint']; y = source['yint']
-            xl = np.max((x - 5,0)); xu = np.min((x + 6,self.flux.shape[2]-1))
-            yl = np.max((y - 5,0)); yu = np.min((y + 6,self.flux.shape[1]-1))
-            fs = np.max((frameStart - 5, 0))
-            fe = np.min((frameEnd + 5, len(self.time)-1))
+                                    # image = self.flux[fs:fe,yl:yu,xl:xu]
+                                    # image = np.nanmax(image,axis=0)
+                                    # image = (image / image[(yu-yl)//2,(xu-xl)//2]) * 255
+                                    # image[image > 255] = 255
+                                    # mean, med, std = sigma_clipped_stats(image,maxiters=10,sigma_upper=2)
+                                    # edges = cv2.Canny(image.astype('uint8'), med + 5*std, med + 10*std)
+                                    # lines = probabilistic_hough_line(edges, threshold=5, line_length=5, line_gap=1)
+                                    
+                                    # if (frameEnd - frameStart) > 2:
+                                    #   ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
+                                    #     duration = time[frameEnd] - time[frameStart]
+                                    # else:
+                                    # #   ax[1].axvline(time[(frameEnd + frameStart)//2],color='C1')
+                                    #     duration = 0
+
+                                    # s = self.sources.iloc[self.sources.objid.values == source['objid']]
+                                    # e = s.iloc[(s.frame.values >= frameStart) & (s.frame.values <= frameEnd)]
+                                    # x = e.xcentroid.values
+                                    # y = e.ycentroid.values
+                                    # dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
+                                    # dist = np.nanmax(dist,axis=1)
+                                    # dist = np.nanmean(dist)
+                                    # if len(x)>= 2:
+                                    #     cor = np.round(abs(pearsonr(x,y)[0]),1)
+                                    # else:
+                                    #     cor = 0
+                                    # dpass = dist - asteroid_distance
+                                    # cpass = cor - asteroid_correlation
+                                    # asteroid = dpass + cpass > 0
+                                    # asteroid_check = asteroid & (duration < asteroid_duration)
+
+                image = self.flux[fs:fe,yl:yu,xl:xu]
+                image = np.nanmax(image,axis=0)
+                image = image / image[5,5] * 255
+                image[image > 255] = 255
+                mean, med, std = sigma_clipped_stats(image,maxiters=10,sigma_upper=2)
+                edges = (image > med + 5*std).astype('uint8')
+
+                lines = cv2.HoughLinesP(edges, # Input edge image
+                                        1, # Distance resolution in pixels
+                                        np.pi/180, # Angle resolution in radians
+                                        threshold=10, # Min number of votes for valid line
+                                        minLineLength=8, # Min allowed length of line
+                                        maxLineGap=0 # Max allowed gap between line for joining them
+                                        )
+
+                if (lines is not None) & (source['psflike']>=0.8):
+                    #idx = events['objid']==source['objid']
+                    events.loc[i, 'Type'] = 'Asteroid'
+                    events.loc[i, 'Prob'] = 0.5
             
-            # image = self.flux[fs:fe,yl:yu,xl:xu]
-            # image = np.nanmax(image,axis=0)
-            # image = (image / image[(yu-yl)//2,(xu-xl)//2]) * 255
-            # image[image > 255] = 255
-            # mean, med, std = sigma_clipped_stats(image,maxiters=10,sigma_upper=2)
-            # edges = cv2.Canny(image.astype('uint8'), med + 5*std, med + 10*std)
-            # lines = probabilistic_hough_line(edges, threshold=5, line_length=5, line_gap=1)
-            
-            # if (frameEnd - frameStart) > 2:
-            #   ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
-            #     duration = time[frameEnd] - time[frameStart]
-            # else:
-            # #   ax[1].axvline(time[(frameEnd + frameStart)//2],color='C1')
-            #     duration = 0
+        self.events = events
 
-            # s = self.sources.iloc[self.sources.objid.values == source['objid']]
-            # e = s.iloc[(s.frame.values >= frameStart) & (s.frame.values <= frameEnd)]
-            # x = e.xcentroid.values
-            # y = e.ycentroid.values
-            # dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
-            # dist = np.nanmax(dist,axis=1)
-            # dist = np.nanmean(dist)
-            # if len(x)>= 2:
-            #     cor = np.round(abs(pearsonr(x,y)[0]),1)
-            # else:
-            #     cor = 0
-            # dpass = dist - asteroid_distance
-            # cpass = cor - asteroid_correlation
-            # asteroid = dpass + cpass > 0
-            # asteroid_check = asteroid & (duration < asteroid_duration)
+    def _calculate_xcom_motion(self,candidates):
 
-            image = self.flux[fs:fe,yl:yu,xl:xu]
-            image = np.nanmax(image,axis=0)
-            image = image / image[5,5] * 255
-            image[image > 255] = 255
-            mean, med, std = sigma_clipped_stats(image,maxiters=10,sigma_upper=2)
-            edges = (image > med + 5*std).astype('uint8')
+        from .tools import Distance
+        from scipy.ndimage import center_of_mass as COM
 
-            lines = cv2.HoughLinesP(edges, # Input edge image
-                                    1, # Distance resolution in pixels
-                                    np.pi/180, # Angle resolution in radians
-                                    threshold=10, # Min number of votes for valid line
-                                    minLineLength=8, # Min allowed length of line
-                                    maxLineGap=0 # Max allowed gap between line for joining them
-                                    )
+        distances = []
+        for i in range(len(candidates)):
+            event = candidates.iloc[i]
+            x = np.round(event['xcentroid']).astype(int)
+            y = np.round(event['ycentroid']).astype(int)
+            flux = self.flux[event['frame_start']:event['frame_end']+1,y-1:y+2,x-1:x+2]
 
-            if (lines is not None) & (source['psflike']>=0.8):
-                #idx = events['objid']==source['objid']
-                events.loc[i, 'Type'] = 'Asteroid'
-                events.loc[i, 'Prob'] = 0.5
+            coms = []
+            maxflux = np.max(np.nansum(flux,axis=(1,2)))
+            for frame in flux:
+                if np.sum(frame) >= maxflux/2:
+                    com = COM(frame)
+                    coms.append(com)
+            distances.append(Distance(coms[-1],coms[0]))
+        candidates['COM_motion'] = distances
+        return candidates
 
-            
-                self.events = events
+    def _gaussian_score(self,candidates):
+
+        from .tools import Gaussian
+        from scipy.optimize import curve_fit
+        from sklearn.metrics import r2_score
+
+        r2s = []
+        for i in range(len(candidates)):
+            event = candidates.iloc[i]
+            time,flux = self.event_lc(self.cut,event['objid'],int(event['eventID']))[0]
+            p0 = [
+                np.max(flux) - np.min(flux),                     # A: positive height of the bump
+                time[np.argmax(flux)],                           # t0: time of peak flux
+                (np.max(time) - np.min(time)) / 2,              # sigma: rough width guess
+                np.min(flux)                                     # offset: estimated baseline
+            ]
+
+            bounds = (
+                [0, np.min(time), 10/24/60, -np.inf],       # lower bounds: A ≥ 0, σ ≥ 15
+                [np.inf, np.max(time), np.inf, np.inf]  # upper bounds
+            )
+
+            params, _ = curve_fit(Gaussian, time, flux, p0=p0, bounds=bounds)
+            fit_flux_gaussian = Gaussian(time, *params)
+            r2 = r2_score(flux, fit_flux_gaussian)
+
+            r2s.append(r2)
+        
+        r2s = np.array(r2s)
+        r2s[r2s<0]=0
+
+        candidates['gaussian_score']=r2s
+
+        return candidates
+
+
+    def _threshold_asteroid_checker(self, com_motion_thresholds=[1, 0.75, 0.5], gaussian_score_thresholds=[0, 0.7, 0.9]):
+   
+        events = deepcopy(self.events)
+
+        # -- Identify candidates to actually compute on -- #
+        candidates = self.filter_events(self.cut, lower=2, upper=50, sig_lc=5, sign=1)
+
+        candidate_indices = candidates.index
+
+        # -- #Run motion and Gaussian score only on those candidates -- #
+        candidates = self._calculate_xcom_motion(candidates)
+        candidates = self._gaussian_score(candidates)
+
+        # -- Add results back to full events -- #
+        events['COM_motion'] = np.nan
+        events['gaussian_score'] = np.nan
+        events.loc[candidate_indices, 'COM_motion'] = candidates['COM_motion'].values
+        events.loc[candidate_indices, 'gaussian_score'] = candidates['gaussian_score'].values
+
+        # -- Flagging loop -- #
+        for com_thresh, gauss_thresh in zip(com_motion_thresholds, gaussian_score_thresholds):
+            mask = (
+                (events['COM_motion'] >= com_thresh) &
+                (events['gaussian_score'] >= gauss_thresh)
+            )
+            events.loc[mask, 'Type'] = 'Asteroid'
+            events.loc[mask, 'Prob'] = 0.8
+
+        self.events = events
+
+    def _flag_asteroids(self):
+
+        # -- Generally best, checks for centre of mass movement and light curve Gaussianity -- #
+        self._threshold_asteroid_checker()  
+
+        # -- Picks up events with weirdly long event boundaries -- # 
+        self._straight_line_asteroid_checker() 
+
 
     def check_classifind(self,source):
         import joblib
@@ -1253,7 +1348,7 @@ class Detector():
         # -- Tag asteroids -- #
         t2 = t()
         print('    Checking for asteroids...',end='\r')
-        self._asteroid_checker()
+        self._flag_asteroids()
         print(f'   Checking for asteroids... Done in {(t()-t2):.1f} sec')
 
         self.events['objid'] = self.events['objid'].astype(int)
