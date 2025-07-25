@@ -273,7 +273,8 @@ def gaia_stars(obs_cat,size=2*21,mag_limit=19.5):
 ####### Download variables
 
 def get_variable_cats(coords,radius,verbose):
-
+    from time import time as t
+    
     if verbose:
         ts = t()
         print(f'   getting variable catalogues in radius {radius}deg:',end='\r')
