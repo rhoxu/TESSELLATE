@@ -1323,14 +1323,12 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
         """
         Access internet, find Gaia sources and save for reduction.
         """
-
+        
         print('Importing .dataprocessor, .catalog_queries')
         from .dataprocessor import DataProcessor
         from .catalog_queries import create_external_var_cat, create_external_gaia_cat
         import warnings
-        from astropy.io.fits.verify import FITSFixedWarning
-        warnings.simplefilter('ignore', FITSFixedWarning)
-
+        warnings.filterwarnings("ignore")
         print('Done!')
         print('\n')
 
