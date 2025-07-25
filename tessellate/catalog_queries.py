@@ -87,18 +87,15 @@ def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False)
     if verbose:
         ts = t()
         print(f'   getting gaia catalogue in radius {size:.1f} px:')
-        print('       retrieving gaia catalogue...',end='\r')
+        print('       Gaia...',end='\r')
     result = Get_Catalogue(ra,dec,size,Catalog='gaia')
     if verbose:
-        print(f'      retrieving gaia catalogue...Done! (Time taken: {(t()-ts)/60:.2f} mins)')
+        print(f'      Gaia...Done! ({(t()-ts)/60:.2f}m)')
 
     result = result[result.Gmag < magnitude_limit]
     if len(result) == 0:
         raise no_targets_found_message
     
-    if verbose:
-        ts = t()
-        print('      finding gaia star px coords...',end='\r')
     radecs = np.vstack([result['RA_ICRS'], result['DE_ICRS']]).T
     try:
         coords = wcsObj.all_world2pix(radecs, 0) ## TODO, is origin supposed to be zero or one?
@@ -113,12 +110,7 @@ def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False)
         radecs = radecs[good_coords]
         result = result.iloc[good_coords]
         coords = wcsObj.all_world2pix(radecs, 0) ## TODO, is origin supposed to be zero or one?
-    if verbose:
-        print(f'      finding gaia star px coords...Done! (Time taken: {(t()-ts):.1f} secs)')
 
-    if verbose:
-        ts = t()
-        print('      restricting to be within cut...',end='\r')
     source = result['Source'].values
     Gmag = result['Gmag'].values
     #Jmag = result['Jmag']
@@ -129,8 +121,7 @@ def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False)
     Gmag = Gmag[ind]
     source = source[ind]
     Tmag = Gmag - 0.5
-    if verbose:
-        print(f'      restricting to be within cut...Done! (Time taken: {(t()-ts):.2f} secs)')
+
     #Jmag = Jmag[ind]
     return radecs, Tmag, source
 
@@ -309,9 +300,6 @@ def get_variable_cats(coords,radius,verbose):
         variables = pd.DataFrame(columns=['ra','dec','Type','Prob'])
         return variables
     else:
-        if verbose:
-            ts = t()
-            print('   collating variable star information...:',end='\r')
         if varisum is not None:
             varisum['Type'] = 'None'
             varisum['Prob'] = 0
@@ -352,11 +340,6 @@ def get_variable_cats(coords,radius,verbose):
         variables = None
         for tab in tables:
             variables = join_cats(variables,tab)
-
-        if verbose:
-            print(f'   collating variable star information...Done! ({(t()-ts)/60:.1f}m)')
-            print('\n')
-
 
     return variables
 
