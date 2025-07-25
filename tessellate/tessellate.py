@@ -1324,13 +1324,13 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
         Access internet, find Gaia sources and save for reduction.
         """
 
-        print('Importing .dataprocessor, .catalog_queries')
+        # print('Importing .dataprocessor, .catalog_queries')
         from .dataprocessor import DataProcessor
         from .catalog_queries import create_external_var_cat, create_external_gaia_cat
         import warnings
         warnings.filterwarnings("ignore")
-        print('Done!')
-        print('\n')
+        # print('Done!')
+        # print('\n')
 
 
         data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
