@@ -1,16 +1,16 @@
 from time import time as t
-ts = t()
+# ts = t()
 from time import sleep
 
 from glob import glob
 import os
 
 import numpy as np
-print(f'Imported easy functions ({ts-t():.0f}s)')
+# print(f'Imported easy functions ({ts-t():.0f}s)')
 
-ts = t()
+# ts = t()
 from .tools import delete_files, _Print_buff, _Save_space
-print(f'Imported .tools functions ({ts-t():.0f}s)')
+# print(f'Imported .tools functions ({ts-t():.0f}s)')
 
 class Tessellate():
     """
@@ -1328,9 +1328,9 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
         from .dataprocessor import DataProcessor
         from .catalog_queries import create_external_var_cat, create_external_gaia_cat
         import warnings
-        from astropy.utils.exceptions import FITSFixedWarning
+        from astropy.io.fits.verify import FITSFixedWarning
         warnings.simplefilter('ignore', FITSFixedWarning)
-        
+
         print('Done!')
         print('\n')
 
