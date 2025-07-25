@@ -87,10 +87,10 @@ def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False)
     if verbose:
         ts = t()
         print(f'   getting gaia catalogue in radius {size} px:')
-        print('       Gaia...',end='\r')
+        print('        Gaia...',end='\r')
     result = Get_Catalogue(ra,dec,size,Catalog='gaia')
     if verbose:
-        print(f'      Gaia...Done! ({(t()-ts):.2f}s)')
+        print(f'       Gaia...Done! ({(t()-ts):.2f}s)')
 
     result = result[result.Gmag < magnitude_limit]
     if len(result) == 0:
