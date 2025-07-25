@@ -1371,7 +1371,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                             #try:
                             print(f'Generating Catalogues {cut}')
                             if os.path.exists(f'{save_path}/local_gaia_cat.csv'):
-                                print('-Gaia catalog already made, skipping.')
+                                print('--Gaia catalog already made, skipping.')
                             else:      # its time to move external_save_cat to tessellate, this import takes ages!!             
                                 rad = rad + 2*60/21
                                 cutPath = f'{save_path}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}.fits'
@@ -1383,7 +1383,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                                         create_external_gaia_cat(tpf=cutPath,save_path=save_path,maglim=19,verbose=self.verbose>1) # oversize radius by 2 arcmin in terms of tess pixels
                                         doneGaia = True
                                     except Exception as e:
-                                        print(f"GAIA Catalogue Attempt {attempt} failed with error: {e}")
+                                        print(f"--GAIA Catalogue Attempt {attempt} failed with error: {e}")
                                         sleep(120)
                                         attempt += 1
 
@@ -1396,7 +1396,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                                                             size=rad2,save_path=save_path,verbose=self.verbose>1) # This one queries in degrees!!!!
                                     doneVar = True
                                 except Exception as e:
-                                    print(f"Variable Catalogue Attempt {attempt} failed with error: {e}")
+                                    print(f"--Variable Catalogue Attempt {attempt} failed with error: {e}")
                                     sleep(120)
                                     attempt+=1
 
