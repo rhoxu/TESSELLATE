@@ -1326,7 +1326,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 
         print('Importing .dataprocessor, .catalog_queries')
         from .dataprocessor import DataProcessor
-        from .catalog_queries import create_external_var_cat
+        from .catalog_queries import create_external_var_cat, create_external_gaia_cat
         print('Done!')
         print('\n')
 
@@ -1366,10 +1366,6 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                             completed.append(cut)
                         elif os.path.exists(f'{save_path}/cut.txt'):
                             import sys
-                            if 'tessreduce' not in sys.modules:
-                                print("Importing tessreduce...",end='\r')
-                                import tessreduce as tr
-                                print("Importing tessreduce...Done!")
                             #try:
                             print(f'Generating Catalogues {cut}')
                             if os.path.exists(f'{save_path}/local_gaia_cat.csv'):
@@ -1382,9 +1378,9 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                                 attempt = 1
                                 while not doneGaia:
                                     try:
-                                        tr.external_save_cat(tpf=cutPath,save_path=save_path,maglim=19) # oversize radius by 2 arcmin in terms of tess pixels
+                                        create_external_gaia_cat(tpf=cutPath,save_path=save_path,maglim=19,verbose=self.verbose>1) # oversize radius by 2 arcmin in terms of tess pixels
                                     except Exception as e:
-                                        print(f"GAIA Attempt {attempt} failed with error: {e}")
+                                        print(f"GAIA Catalogue Attempt {attempt} failed with error: {e}")
                                         sleep(120)
                                         attempt += 1
 
@@ -1394,7 +1390,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                             while not doneVar:
                                 try:
                                     create_external_var_cat(center=cutCentreCoords[cut-1],
-                                                            size=rad2,save_path=save_path) # This one queries in degrees!!!!
+                                                            size=rad2,save_path=save_path,verbose=self.verbose>1) # This one queries in degrees!!!!
                                 except Exception as e:
                                     print(f" Variable Catalogue Attempt {attempt} failed with error: {e}")
                                     sleep(120)
