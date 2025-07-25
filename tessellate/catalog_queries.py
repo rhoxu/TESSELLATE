@@ -318,8 +318,8 @@ def get_variable_cats(coords,radius,verbose):
             keys = list(varisum.keys())[12:-2]
             for key in keys:
                 tt = varisum[key].values > 0
-                varisum.loc[t,'Type'] = key
-                varisum.loc[t, 'Prob'] = varisum[key].values[tt]
+                varisum.loc[tt,'Type'] = key
+                varisum.loc[tt, 'Prob'] = varisum[key].values[tt]
             varisum = varisum.rename(columns={'RA_ICRS': 'ra',
                                               'DE_ICRS': 'dec',
                                               'Source': 'ID'})

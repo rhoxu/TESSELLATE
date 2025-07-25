@@ -1327,6 +1327,10 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
         print('Importing .dataprocessor, .catalog_queries')
         from .dataprocessor import DataProcessor
         from .catalog_queries import create_external_var_cat, create_external_gaia_cat
+        import warnings
+        from astropy.utils.exceptions import FITSFixedWarning
+        warnings.simplefilter('ignore', FITSFixedWarning)
+        
         print('Done!')
         print('\n')
 
