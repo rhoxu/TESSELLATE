@@ -86,10 +86,11 @@ def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False)
     
     if verbose:
         ts = t()
-        print('   retrieving gaia catalogue...',end='\r')
+        print(f'   getting gaia catalogue in radius {size:.1f} px:')
+        print('       retrieving gaia catalogue...',end='\r')
     result = Get_Catalogue(ra,dec,size,Catalog='gaia')
     if verbose:
-        print(f'   retrieving gaia catalogue...Done! (Time taken: {(t()-ts)/60:.2f} mins)')
+        print(f'      retrieving gaia catalogue...Done! (Time taken: {(t()-ts)/60:.2f} mins)')
 
     result = result[result.Gmag < magnitude_limit]
     if len(result) == 0:
@@ -97,7 +98,7 @@ def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False)
     
     if verbose:
         ts = t()
-        print('   finding gaia star px coords...',end='\r')
+        print('      finding gaia star px coords...',end='\r')
     radecs = np.vstack([result['RA_ICRS'], result['DE_ICRS']]).T
     try:
         coords = wcsObj.all_world2pix(radecs, 0) ## TODO, is origin supposed to be zero or one?
@@ -113,11 +114,11 @@ def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False)
         result = result.iloc[good_coords]
         coords = wcsObj.all_world2pix(radecs, 0) ## TODO, is origin supposed to be zero or one?
     if verbose:
-        print(f'   finding gaia star px coords...Done! (Time taken: {(t()-ts):.1f} secs)')
+        print(f'      finding gaia star px coords...Done! (Time taken: {(t()-ts):.1f} secs)')
 
     if verbose:
         ts = t()
-        print('   restricting to be within cut...',end='\r')
+        print('      restricting to be within cut...',end='\r')
     source = result['Source'].values
     Gmag = result['Gmag'].values
     #Jmag = result['Jmag']
@@ -129,7 +130,7 @@ def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False)
     source = source[ind]
     Tmag = Gmag - 0.5
     if verbose:
-        print(f'   restricting to be within cut...Done! (Time taken: {(t()-ts):.2f} secs)')
+        print(f'      restricting to be within cut...Done! (Time taken: {(t()-ts):.2f} secs)')
     #Jmag = Jmag[ind]
     return radecs, Tmag, source
 
@@ -316,9 +317,9 @@ def get_variable_cats(coords,radius,verbose):
             varisum['Prob'] = 0
             keys = list(varisum.keys())[12:-2]
             for key in keys:
-                t = varisum[key].values > 0
+                tt = varisum[key].values > 0
                 varisum.loc[t,'Type'] = key
-                varisum.loc[t, 'Prob'] = varisum[key].values[t]
+                varisum.loc[t, 'Prob'] = varisum[key].values[tt]
             varisum = varisum.rename(columns={'RA_ICRS': 'ra',
                                               'DE_ICRS': 'dec',
                                               'Source': 'ID'})
@@ -352,7 +353,10 @@ def get_variable_cats(coords,radius,verbose):
         for tab in tables:
             variables = join_cats(variables,tab)
 
-        print(f'   collating variable star information...Done! ({(t()-ts)/60:.1f}m)')
+        if verbose:
+            print(f'   collating variable star information...Done! ({(t()-ts)/60:.1f}m)')
+            print('\n')
+
 
     return variables
 
