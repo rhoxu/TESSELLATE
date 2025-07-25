@@ -86,11 +86,11 @@ def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False)
     
     if verbose:
         ts = t()
-        print(f'   getting gaia catalogue in radius {size:.1f} px:')
+        print(f'   getting gaia catalogue in radius {size} px:')
         print('       Gaia...',end='\r')
     result = Get_Catalogue(ra,dec,size,Catalog='gaia')
     if verbose:
-        print(f'      Gaia...Done! ({(t()-ts)/60:.2f}m)')
+        print(f'      Gaia...Done! ({(t()-ts):.2f}s)')
 
     result = result[result.Gmag < magnitude_limit]
     if len(result) == 0:
@@ -275,25 +275,26 @@ def get_variable_cats(coords,radius,verbose):
 
     varisum = get_catalog("I/358/varisum",coords,radius)
     if verbose:
-        print(f'       Varisum...Done! ({(t()-ts)/60:.1f}m)')
+        print(f'       Varisum...Done! ({(t()-ts):.1f}s)')
         print(f'       Atlas...',end='\r')
         ts = t()
 
     atlas = search_atlas_var(coords,radius)
     if verbose:
-        print(f'       Atlas...Done! ({(t()-ts)/60:.1f}m)')
+        print(f'       Atlas...Done! ({(t()-ts):.1f}s)')
         print(f'       ASASN...',end='\r')
         ts = t()
 
     asasn = get_catalog("II/366/catalog",coords,radius)
     if verbose:
-        print(f'       ASASN...Done! ({(t()-ts)/60:.1f}m)')
+        print(f'       ASASN...Done! ({(t()-ts):.1f}s)')
         print(f'       DES...',end='\r')
         ts = t()
 
     des_var = get_catalog("J/AJ/158/16/table11",coords,radius)
     if verbose:
-        print(f'       DES...Done! ({(t()-ts)/60:.1f}m)')
+        print(f'       DES...Done! ({(t()-ts):.1f}s)')
+        print('\n')
 
     if (varisum is None) & (asasn is None) & (des_var is None) & (atlas is None):
         print("No known variables found ...")
