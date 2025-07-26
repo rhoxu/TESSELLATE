@@ -775,7 +775,10 @@ class Detector():
                 if np.sum(frame) >= maxflux/2:
                     com = COM(frame)
                     coms.append(com)
-            distances.append(Distance(coms[-1],coms[0]))
+            if len(coms)>1:
+                distances.append(Distance(coms[-1],coms[0]))
+            else:
+                distances.append(0)
         candidates['COM_motion'] = distances
         return candidates
 
