@@ -342,14 +342,21 @@ def _Do_photometry(star,data,siglim=3,bkgstd_lim=50):
     return star 
 
 
-def _Source_detect(flux,inputNum,prf,corlim,psfdifflim,cpu,siglim=2,bkgstd=50):
+def _Source_detect(flux,inputNum,prf,corlim,psfdifflim,cpu,siglim=2,bkgstd=50,maxattempts=5):
     
     from sourcedetect import SourceDetect, PrfModel
     from joblib import Parallel, delayed 
 
     #model = PrfModel(save_model=False)
     #res = SourceDetect(flux,run=True,train=False,model=model).result
-    res = SourceDetect(flux,run=True,train=False).result
+    attempt = 0
+    passed = False
+    while (not passed) & (attempt <= maxattempts):
+        try:
+            res = SourceDetect(flux,run=True,train=False).result
+            passed = True
+        except:
+            attempt += 1
     #res = _Spatial_group(res,2)
     frames = res['frame'].unique()
     stars = Parallel(n_jobs=cpu)(delayed(_Do_photometry)(res.loc[res['frame'] == frame],flux[frame],siglim,bkgstd) for frame in frames)
