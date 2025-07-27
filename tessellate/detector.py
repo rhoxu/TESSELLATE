@@ -1163,7 +1163,7 @@ class Detector():
         min_ind = int(start)
         max_ind = int(stop)
         triggers[im_triggers] = 1
-        # triggers[:start] = 0; triggers[end:] = 0
+        triggers[:start] = 0; triggers[stop:] = 0
         detections = 0
         for segment in segments:
             if np.sum(triggers[segment]) > 0:
