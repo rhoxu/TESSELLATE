@@ -1197,7 +1197,7 @@ class Detector():
             'peak_freq', 'peak_power',
 
             # Secondary Identification
-            'GaiaID', 'cf_class', 'cf_prob', 'source_mask',
+            'Prob','GaiaID', 'cf_class', 'cf_prob', 'source_mask',
 
             # Miscellaneous
             'ref_counts', 'total_events'
