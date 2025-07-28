@@ -1526,7 +1526,7 @@ class Detector():
         
         # -- Gather results and data -- #
         if cut != self.cut:
-            self._gather_data(cut)
+            # self._gather_data(cut)
             self._gather_results(cut)
             self.cut = cut
 
@@ -1590,7 +1590,7 @@ class Detector():
 
         # -- Gather results and data -- #
         if cut != self.cut:
-            self._gather_data(cut)
+            # self._gather_data(cut)
             self._gather_results(cut)
             self.cut = cut
 
