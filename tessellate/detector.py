@@ -1525,10 +1525,10 @@ class Detector():
         import astropy.units as u
         
         # -- Gather results and data -- #
-        if cut != self.cut:
+        # if cut != self.cut:
             # self._gather_data(cut)
-            self._gather_results(cut)
-            self.cut = cut
+        self._gather_results(cut)
+            # self.cut = cut
 
         objects = deepcopy(self.objects)
 
@@ -1589,10 +1589,10 @@ class Detector():
         """
 
         # -- Gather results and data -- #
-        if cut != self.cut:
+            # if cut != self.cut:
             # self._gather_data(cut)
-            self._gather_results(cut)
-            self.cut = cut
+        self._gather_results(cut)
+            # self.cut = cut
 
         # -- If true, remove events near sources in reduction source mask (ie. stars) -- #
         if starkiller:
