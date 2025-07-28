@@ -702,7 +702,7 @@ class Detector():
         events = deepcopy(self.events)
         for i in range(len(events)):
             source = events.iloc[i]
-            if source['Type'] != 'Asteroid':                
+            if source['classification'] != 'Asteroid':                
                 frameStart = source['frame_start']
                 frameEnd = source['frame_end']
                 x = source['xint']; y = source['yint']
@@ -759,7 +759,7 @@ class Detector():
 
                 if (lines is not None) & (source['psflike']>=0.8):
                     #idx = events['objid']==source['objid']
-                    events.loc[i, 'Type'] = 'Asteroid'
+                    events.loc[i, 'classification'] = 'Asteroid'
                     events.loc[i, 'Prob'] = 0.5
             
         self.events = events
@@ -853,7 +853,7 @@ class Detector():
                 (events['COM_motion'] >= com_thresh) &
                 (events['gaussian_score'] >= gauss_thresh)
             )
-            events.loc[mask, 'Type'] = 'Asteroid'
+            events.loc[mask, 'classification'] = 'Asteroid'
             events.loc[mask, 'Prob'] = 0.8
 
         self.events = events
@@ -969,7 +969,6 @@ class Detector():
         """
 
         from .tools import pandas_weighted_avg
-
 
         # -- Select all sources grouped to this objid -- #
         obj_ind = self.sources['objid'].values == objid
@@ -1110,8 +1109,8 @@ class Detector():
                     event['camera'] = self.cam
                     event['ccd'] = self.ccd
                     event['cut'] = self.cut
-                    
-                    event['Type'] = obj['Type'].iloc[0]
+
+                    event['classification'] = obj['Type'].iloc[0]
                     event['peak_freq'] = peak_freq[0]
                     event['peak_power'] = peak_power[0]
                     event['cf_class'] = classification
@@ -1150,7 +1149,62 @@ class Detector():
         events = pd.concat(events,ignore_index=True)
         self.events = events 
     
+    def _clean_and_order_event_cols(self):
+        from astropy.coordinates import SkyCoord
+        import astropy.units as u
 
+        self.events.loc[self.events['classification'] == '0', 'classification'] = 'None'
+
+        coords = SkyCoord(ra=self.events['ra'].values*u.degree,dec=self.events['dec'].values*u.degree)
+        self.events['gal_l'] = coords.galactic.l.value
+        self.events['gal_b'] = coords.galactic.b.value
+
+        ordered_cols = [
+            # Primary Identification
+            'objid', 'eventID', 'classification', 'TSS Catalogue',
+            'cut', 'camera', 'sector', 'ccd',
+
+            # Centroid Positions
+            'xcentroid', 'e_xcentroid', 'ycentroid', 'e_ycentroid',
+            'xcentroid_com', 'e_xcentroid_com', 'ycentroid_com', 'e_ycentroid_com',
+            'x_source', 'e_x_source', 'y_source', 'e_y_source',
+            'xint', 'e_xint', 'yint', 'e_yint',
+            'xccd', 'e_xccd', 'yccd', 'e_yccd',
+            'xccd_source', 'e_xccd_source', 'yccd_source', 'e_yccd_source',
+
+            # Astrometry
+            'ra', 'e_ra', 'dec', 'e_dec',
+            'ra_source', 'e_ra_source', 'dec_source', 'e_dec_source',
+            'gal_l', 'gal_b',
+
+            # Time and Frame Info
+            'mjd', 'e_mjd', 'mjd_start', 'mjd_end', 'duration',
+            'frame', 'e_frame', 'frame_start', 'frame_end', 'n_detections',
+
+            # Photometry
+            'flux', 'e_flux', 'mag', 'e_mag', 'max_value', 'e_max_value',
+            'flux_sign', 'bkg_level', 'e_bkg_level', 'bkgstd', 'e_bkgstd',
+
+            # Morphology
+            'fwhm', 'e_fwhm', 'roundness', 'e_roundness', 'pa', 'e_pa',
+            'psflike', 'e_psflike', 'psfdiff', 'e_psfdiff', 'max_psflike', 'min_psfdiff',
+            'COM_motion','gaussian_score',
+
+            # Significance / Statistics
+            'sig', 'e_sig', 'max_sig', 'lc_sig', 'lc_sig_med',
+
+            # Frequency Domain
+            'peak_freq', 'peak_power',
+
+            # Secondary Identification
+            'GaiaID', 'cf_class', 'cf_prob', 'source_mask',
+
+            # Miscellaneous
+            'ref_counts', 'total_events'
+        ]
+
+        # Safely apply ordering
+        self.events = self.events[[col for col in ordered_cols if col in self.events.columns]]
     
     def _lightcurve_event_checker(self,start,stop,lc_sig,im_triggers,siglim=3):
         #lc_sig = self._check_lc_significance(event,sig_lc=True)
@@ -1370,6 +1424,8 @@ class Detector():
         self._TSS_catalogue_names()
         print(f'   Getting TSS Catalogue Names... Done!')
 
+        self._clean_and_order_event_cols()     # Lazy, does a bunch of extra stuff that should probably be done earlier 
+
         # -- Save out results to csv files -- #
         if self.time_bin is None:
             self.events.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_events.csv',index=False)
@@ -1393,13 +1449,13 @@ class Detector():
 
             maxevent = obj.iloc[obj['lc_sig'].argmax()]
 
-            if maxevent['Type'] == 'Asteroid' and len(obj) < 2:
+            if maxevent['classification'] == 'Asteroid' and len(obj) < 2:
                 classification = 'Asteroid'
             else:
-                classification = obj['Type'].mode()[0]
+                classification = obj['classification'].mode()[0]
 
-            if classification == '0':
-                classification = 'Non-V'
+            # if classification == '0':
+            #     classification = 'None'
             
             if classification == 'RRLyrae':
                 classification = 'VRRLyr'
@@ -1410,6 +1466,8 @@ class Detector():
                 'ycentroid': maxevent['ycentroid'],
                 'ra': maxevent['ra'],
                 'dec': maxevent['dec'],
+                'gal_l': maxevent['gal_l'],
+                'gal_b': maxevent['gal_b'],
                 'max_lcsig': maxevent['lc_sig'],
                 'flux_maxsig': maxevent['flux'],
                 'frame_maxsig': maxevent['frame'],
@@ -1582,7 +1640,7 @@ class Detector():
 
     def filter_events(self,cut,starkiller=False,lower=None,upper=None,sig_image=None,
                       sig_lc=None,sig_lc_average=None,max_events=None,bkgstd_lim=None,
-                      sign=None,classification=None,psf_like=None):
+                      sign=None,classification=None,psf_like=None,galactic_latitude=None):
         
         """
         Returns a dataframe of the events in the cut, with options to filter by various parameters.
@@ -1613,9 +1671,9 @@ class Detector():
                 classification = [classification_stripped]
 
             if is_negation:
-                r = r[~r['Type'].str.lower().isin([classification[i].lower() for i in range(len(classification))])]
+                r = r[~r['classification'].str.lower().isin([classification[i].lower() for i in range(len(classification))])]
             else:
-                r = r[r['Type'].str.lower().isin([classification[i].lower() for i in range(len(classification))])]
+                r = r[r['classification'].str.lower().isin([classification[i].lower() for i in range(len(classification))])]
 
         # -- Filter by various parameters -- #
         if sig_lc is not None:
