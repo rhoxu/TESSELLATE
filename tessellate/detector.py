@@ -833,7 +833,9 @@ class Detector():
         events = deepcopy(self.events)
 
         # -- Identify candidates to actually compute on -- #
-        candidates = self.filter_events(self.cut, lower=2, upper=50, sig_lc=5, sign=1)
+        candidates = self.events[(self.events['duration']>=2)&(self.events['duration']<=50)]
+        candidates = candidates[(candidates['lc_sig']>=5)&(candidates['flux_sign']==1)]
+        # candidates = self.filter_events(self.cut, lower=2, upper=50, sig_lc=5, sign=1)
 
         candidate_indices = candidates.index
 
@@ -1519,7 +1521,7 @@ class Detector():
         # -- Preload self.sources and self.events if they're already made, self.objects can't be made otherwise this function wouldn't be called -- #
         print('Preloading sources / events')
         self._gather_results(cut=cut,objects=False)  
-        print('\n')
+        print('\n') 
 
         if time_bin is not None:
             self.time_bin = time_bin
