@@ -1153,6 +1153,7 @@ class Detector():
         from astropy.coordinates import SkyCoord
         import astropy.units as u
 
+        self.events['classification'] = self.events['classification'].astype(str)
         self.events.loc[self.events['classification'] == '0', 'classification'] = 'None'
 
         coords = SkyCoord(ra=self.events['ra'].values*u.degree,dec=self.events['dec'].values*u.degree)
@@ -1438,7 +1439,7 @@ class Detector():
 
         columns = [
             'objid', 'sector', 'cam', 'ccd', 'cut', 'xcentroid', 'ycentroid', 
-            'ra', 'dec', 'max_lcsig', 'flux_maxsig', 'frame_maxsig',
+            'ra', 'dec', 'gal_l', 'gal_b', 'max_lcsig', 'flux_maxsig', 'frame_maxsig',
             'mjd_maxsig','psf_maxsig','flux_sign', 'n_events',
             'min_eventlength', 'max_eventlength','classification',
         ]
