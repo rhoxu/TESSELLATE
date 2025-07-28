@@ -1251,8 +1251,8 @@ class Detector():
         from .tools import CutWCS
 
         self.objects = None
-        self.cut = cut
-        path = f'{self.path}/Cut{self.cut}of{self.n**2}'
+        # self.cut = cut
+        path = f'{self.path}/Cut{cut}of{self.n**2}'
 
         if sources:
             try:
@@ -1275,7 +1275,7 @@ class Detector():
                 print('No detected objects file found')
                 self.objects = None
         
-        self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=self.cut,n=self.n)
+        self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
 
         # if self.events is None:
         #     self.sources['Prob'] = 0; self.sources['Type'] = 0
@@ -1525,7 +1525,7 @@ class Detector():
         import astropy.units as u
         
         # -- Gather results and data -- #
-        # if cut != self.cut:
+        # if (cut != self.cut) | :
             # self._gather_data(cut)
         self._gather_results(cut)
             # self.cut = cut
