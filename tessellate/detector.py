@@ -1154,7 +1154,7 @@ class Detector():
         import astropy.units as u
 
         self.events['classification'] = self.events['classification'].astype(str)
-        self.events.loc[self.events['classification'] == '0', 'classification'] = 'None'
+        self.events.loc[self.events['classification'] == '0', 'classification'] = '-'
 
         coords = SkyCoord(ra=self.events['ra'].values*u.degree,dec=self.events['dec'].values*u.degree)
         self.events['gal_l'] = coords.galactic.l.value
