@@ -1209,7 +1209,7 @@ class Detector():
 
             # Centroid Positions
             'xcentroid', 'e_xcentroid', 'ycentroid', 'e_ycentroid',
-            'xcentroid_SF', ''
+            'xcentroid_SF', '',
 
             'xcentroid_com', 'e_xcentroid_com', 'ycentroid_com', 'e_ycentroid_com',
             'x_source', 'e_x_source', 'y_source', 'e_y_source',
@@ -1249,7 +1249,7 @@ class Detector():
         ]
 
         # Safely apply ordering
-        self.events = self.events[[col for col in ordered_cols if col in self.events.columns]]
+        # self.events = self.events[[col for col in ordered_cols if col in self.events.columns]]
     
     def _lightcurve_event_checker(self,start,stop,lc_sig,im_triggers,siglim=3):
         #lc_sig = self._check_lc_significance(event,sig_lc=True)
