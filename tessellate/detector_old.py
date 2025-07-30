@@ -422,52 +422,11 @@ def _Main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
         machine = machine[~pd.isna(machine['xcentroid'])]
         machine['method'] = 'sourcedetect'
         print(f'    Done Sourcedetect: {(t()-t1):.1f} sec')
-
-        results = pd.concat([
-            star.assign(method='SF'),
-            machine.assign(method='SD')
-        ], ignore_index=True)
-
-        # total = [star,machine]
-        # results = pd.concat(total)
+        total = [star,machine]
+        results = pd.concat(total)
 
 
     return results
-
-def _Collate_frame(frame):
-
-    frame_sf = frame[frame['method'] == 'SF'].copy()
-    frame_sd = frame[frame['method'] == 'SD'].copy()
-
-    frame_sf = frame_sf.rename(columns={
-        'xcentroid': 'xcentroid_SF',
-        'ycentroid': 'ycentroid_SF'
-    })
-    frame_sd = frame_sd.rename(columns={
-        'xcentroid': 'xcentroid_SD',
-        'ycentroid': 'ycentroid_SD'
-    })
-
-    frame_merged = pd.merge(frame_sf, frame_sd, on='objid', how='outer', suffixes=('_SFtemp', '_SDtemp'))
-
-    for col in frame_sf.columns:
-        if col in ['objid', 'xcentroid_SF', 'ycentroid_SF']:
-            continue
-        sf_col = f"{col}_SFtemp"
-        sd_col = f"{col}_SDtemp"
-        if sf_col in frame_merged.columns and sd_col in frame_merged.columns:
-            # Prefer SD values when available
-            frame_merged[col] = frame_merged[sd_col].combine_first(frame_merged[sf_col])
-            frame_merged.drop(columns=[sf_col, sd_col], inplace=True)
-
-    # Optional: Drop the method columns if you no longer need them
-    frame_merged = frame_merged.drop(columns=['method_SFtemp', 'method_SDtemp','method'], errors='ignore')
-
-    frame_merged['xcentroid'] = frame_merged['xcentroid_SD'].combine_first(frame_merged['xcentroid_SF'])
-    frame_merged['ycentroid'] = frame_merged['ycentroid_SD'].combine_first(frame_merged['ycentroid_SF'])
-
-    return frame_merged
-
 
 def Detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdifflim=0.7,mode='starfind',
             datadir='/fred/oz335/_local_TESS_PRFs/'):
@@ -495,8 +454,9 @@ def Detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdiff
 
         
     t1 = t()
-    frame = _Spatial_group(frame,distance=1)        # groupd based on distance
-    frame = _Collate_frame(frame)                   # prefer SourceDetect results
+    frame = _Spatial_group(frame,distance=1)
+    frame = frame[~frame.duplicated(subset=['objid', 'frame'], keep='first')]
+    print(len(frame))
     print(f'    Spatial Group: {(t()-t1):.1f} sec')
 
     t1 = t()
@@ -1209,8 +1169,6 @@ class Detector():
 
             # Centroid Positions
             'xcentroid', 'e_xcentroid', 'ycentroid', 'e_ycentroid',
-            'xcentroid_SF', ''
-
             'xcentroid_com', 'e_xcentroid_com', 'ycentroid_com', 'e_ycentroid_com',
             'x_source', 'e_x_source', 'y_source', 'e_y_source',
             'xint', 'e_xint', 'yint', 'e_yint',
@@ -1406,17 +1364,10 @@ class Detector():
         
         # -- For each source, finds the average position based on the weighted average of the flux -- #
         av_var = pandas_weighted_avg(results[['objid','sig','xcentroid','ycentroid','ra','dec','xccd','yccd']])
-        av_var = av_var.rename(columns={'xcentroid':'x_source',
-                                        'ycentroid':'y_source',
-                                        'e_xcentroid':'e_x_source',
-                                        'e_ycentroid':'e_y_source',
-                                        'ra':'ra_source',
-                                        'dec':'dec_source',
-                                        'e_ra':'e_ra_source',
-                                        'e_dec':'e_dec_source',
-                                        'xccd':'xccd_source',
-                                        'yccd':'yccd_source',
-                                        'e_xccd':'e_xccd_source',
+        av_var = av_var.rename(columns={'xcentroid':'x_source','ycentroid':'y_source','e_xcentroid':'e_x_source',
+                                        'e_ycentroid':'e_y_source','ra':'ra_source','dec':'dec_source',
+                                        'e_ra':'e_ra_source','e_dec':'e_dec_source','xccd':'xccd_source',
+                                        'yccd':'yccd_source','e_xccd':'e_xccd_source',
                                         'e_yccd':'e_yccd_source'})
         av_var = av_var.drop(['sig','e_sig'],axis=1)
         results = results.merge(av_var, on='objid', how='left')
