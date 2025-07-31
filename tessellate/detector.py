@@ -670,7 +670,7 @@ def _Fit_psf(flux,event,prf):
     # plt.scatter(event['xcentroid_det']-(brightestx-2),event['ycentroid_det']-(brightesty-2))
     # plt.xlabel(event['flux_sign'])
 
-    return event,PSF_fitter
+    return event
 
         
 
