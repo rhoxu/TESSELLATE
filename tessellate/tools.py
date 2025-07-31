@@ -51,6 +51,23 @@ def _Print_buff(length,string):
     buff = '-' * int((length-strLength)/2)
     return f"{buff}{string}{buff}"
 
+def _Check_dirs(save_path):
+    """
+    Check that all reduction directories are constructed.
+
+    Parameters:
+    -----------
+    dirlist : list
+        List of directories to check for, if they don't exist, they will be created.
+    """
+    import os
+    #for d in dirlist:
+    if not os.path.isdir(save_path):
+        try:
+            os.mkdir(save_path)
+        except:
+            pass
+
 def _remove_ffis(data_path,sector,n,cams,ccds,cuts,part):
 
     home_path = os.getcwd()
@@ -262,6 +279,13 @@ def Gaussian(t, A, t0, sigma, offset):
 def Distance(p1,p2):
     return np.sqrt((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)
 
+def RoundToInt(num):
+    return np.floor(num+0.5).astype(int)
+
+def Exp_func(x,a,b,c):
+   e = np.exp(a)*np.exp(-x/np.exp(b)) + np.exp(c)
+   return e
+
 class CutWCS():
 
     def __init__(self,data_path,sector,cam,ccd,cut,n):
@@ -316,3 +340,72 @@ class CutWCS():
 
     def __repr__(self):
         return self.__str__()
+    
+class PSF_Fitter():
+    def __init__(self,shape,PRF,verbose=False):        
+        """
+        x   :    x dimension of psf kernel
+        y   :    y dimension of psf kernel
+        """
+        
+        self.shape = shape
+        self.source_x = 0         # offset of source from centre
+        self.source_y = 0         # offset of source from centre
+        self.verbose = verbose
+
+        # -- Finds centre of kernel -- #
+        self.cent=self.shape/2.-0.5
+
+        self.prf = PRF # initialise psf kernel (unnecessary)    
+
+    def source(self,shiftx=0,shifty=0):
+        """
+        Compute the TSF given input rate of motion, angle of motion, length of exposure, and pixelScale.
+
+        Units choice is irrelevant, as long as they are all the same! eg. rate in "/hr, and dt in hr.
+        Angle is in degrees +-90 from horizontal.
+
+        display=True to see the TSF
+
+        useLookupTable=True to use the lookupTable. OTherwise pure moffat is used.
+        """
+
+        centx_s = self.cent + shiftx    # source centre
+        centy_s = self.cent + shifty
+
+        psf = self.prf.locate(centx_s,centy_s, (self.shape,self.shape))
+        self.psf = psf/np.nansum(psf)
+
+    def minimizer(self,coeff,image):
+
+        self.source_x = coeff[0]
+        self.source_y = coeff[1]
+
+        # -- generate psf -- #
+        self.source(shiftx = self.source_x, shifty = self.source_y)
+
+        # -- calculate residuals -- #
+        diff = abs(image - self.psf)
+        diff[image==0]/=5
+        cent = int(image.shape[0]/2)  # requires psf frame shape to be odd
+        residual = np.nansum(diff[cent-2:cent+3,cent-2:cent+3])     #5x5 forced
+        
+        return residual
+    
+    def fit_psf(self,image,limx=3,limy=3):
+        """
+        Fit the PSF. Limx,y dictates bounds for position of the source
+        """
+        from scipy.optimize import minimize
+
+        #image -= np.nanmedian(image)  # ensure background is calibrated ish
+        #image -= np.nanmedian(image[image<np.percentile(image,70)])
+        normimage = image / np.nansum(image)    # normalise the image
+
+        coeff = [self.source_x,self.source_y]
+        lims = [[-limx,limx],[-limy,limy]]
+        
+        # -- Optimize -- #
+        res = minimize(self.minimizer, coeff, args=normimage, method='Powell',bounds=lims)
+
+        self.psf_fit = res

@@ -1087,6 +1087,7 @@ class Detector():
                 
                 # -- Determine the rest of the parameters to go into the event dataframe row -- #
                 min_ind,max_ind,n_detections = self._lightcurve_event_checker(int(e[0]),int(e[1]),sig_lc,triggers,siglim=3)
+            
                 indo = [min_ind,max_ind]
                 if indo not in times:
                     times += [indo]
