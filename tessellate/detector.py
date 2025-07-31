@@ -614,6 +614,7 @@ def _Check_classifind(time,flux,source):
 def _Lightcurve_event_checker(lc_sig,triggers,siglim=3,maxsep=5):
     from .tools import consecutive_points
 
+    triggers = list(triggers)
     start = np.nanmin(triggers)
     end = np.nanmax(triggers)
 
