@@ -417,7 +417,7 @@ def Detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdiff
     print(f'    Collate Frame: {(t()-t1):.1f} sec')
 
     single_isolated_detections = frame[frame['objid']==0]
-    frame = frame[frame['objid']>0]
+    frame = frame[frame['objid']>0].reset_index(drop=True)
 
     t1 = t()
     frame = _Brightest_Px(flux,frame)               # Find brightest pixels around each source
