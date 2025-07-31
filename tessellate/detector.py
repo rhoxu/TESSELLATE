@@ -672,20 +672,26 @@ def _Fit_psf(flux,event,prf,frames):
 
     centred_flux = np.nansum(f[:,brightesty-2:brightesty+3,brightestx-2:brightestx+3],axis=0)
     # centred_flux[centred_flux<0]=0
+    
+    try:
+        PSF_fitter = PSF_Fitter(5,prf)
+        PSF_fitter.fit_psf(centred_flux,limx=0.5,limy=0.5)
 
-    PSF_fitter = PSF_Fitter(5,prf)
-    PSF_fitter.fit_psf(centred_flux,limx=0.5,limy=0.5)
+        event['xcentroid_psf'] = PSF_fitter.source_x + brightestx
+        event['ycentroid_psf'] = PSF_fitter.source_y + brightesty
 
-    event['xcentroid_psf'] = PSF_fitter.source_x + brightestx
-    event['ycentroid_psf'] = PSF_fitter.source_y + brightesty
+        # event['e_xcentroid_psf'] = PSF_fitter.source_x_err
+        # event['e_ycentroid_psf'] = PSF_fitter.source_y_err
 
-    # event['e_xcentroid_psf'] = PSF_fitter.source_x_err
-    # event['e_ycentroid_psf'] = PSF_fitter.source_y_err
-
-    r = np.corrcoef(centred_flux.flatten(), PSF_fitter.psf.flatten())
-    r = r[0,1]
-    event['psf_like'] = r
-    event['psf_diff'] = np.nansum(abs(centred_flux/np.nansum(centred_flux)-PSF_fitter.psf))
+        r = np.corrcoef(centred_flux.flatten(), PSF_fitter.psf.flatten())
+        r = r[0,1]
+        event['psf_like'] = r
+        event['psf_diff'] = np.nansum(abs(centred_flux/np.nansum(centred_flux)-PSF_fitter.psf))
+    except:
+        event['xcentroid_psf'] = np.nan
+        event['ycentroid_psf'] = np.nan
+        event['psf_like'] = np.nan
+        event['psf_diff'] = np.nan
 
     # plt.figure()
     # plt.imshow(centred_flux,origin='lower',cmap='gray',vmin=np.nanmin(centred_flux),vmax=np.nanmax(centred_flux))
