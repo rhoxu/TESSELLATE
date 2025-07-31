@@ -711,36 +711,36 @@ class Detector():
                 fs = np.max((frameStart - 5, 0))
                 fe = np.min((frameEnd + 5, len(self.time)-1))
             
-                                    # image = self.flux[fs:fe,yl:yu,xl:xu]
-                                    # image = np.nanmax(image,axis=0)
-                                    # image = (image / image[(yu-yl)//2,(xu-xl)//2]) * 255
-                                    # image[image > 255] = 255
-                                    # mean, med, std = sigma_clipped_stats(image,maxiters=10,sigma_upper=2)
-                                    # edges = cv2.Canny(image.astype('uint8'), med + 5*std, med + 10*std)
-                                    # lines = probabilistic_hough_line(edges, threshold=5, line_length=5, line_gap=1)
-                                    
-                                    # if (frameEnd - frameStart) > 2:
-                                    #   ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
-                                    #     duration = time[frameEnd] - time[frameStart]
-                                    # else:
-                                    # #   ax[1].axvline(time[(frameEnd + frameStart)//2],color='C1')
-                                    #     duration = 0
+                # image = self.flux[fs:fe,yl:yu,xl:xu]
+                # image = np.nanmax(image,axis=0)
+                # image = (image / image[(yu-yl)//2,(xu-xl)//2]) * 255
+                # image[image > 255] = 255
+                # mean, med, std = sigma_clipped_stats(image,maxiters=10,sigma_upper=2)
+                # edges = cv2.Canny(image.astype('uint8'), med + 5*std, med + 10*std)
+                # lines = probabilistic_hough_line(edges, threshold=5, line_length=5, line_gap=1)
+                
+                # if (frameEnd - frameStart) > 2:
+                #   ax[1].axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
+                #     duration = time[frameEnd] - time[frameStart]
+                # else:
+                # #   ax[1].axvline(time[(frameEnd + frameStart)//2],color='C1')
+                #     duration = 0
 
-                                    # s = self.sources.iloc[self.sources.objid.values == source['objid']]
-                                    # e = s.iloc[(s.frame.values >= frameStart) & (s.frame.values <= frameEnd)]
-                                    # x = e.xcentroid.values
-                                    # y = e.ycentroid.values
-                                    # dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
-                                    # dist = np.nanmax(dist,axis=1)
-                                    # dist = np.nanmean(dist)
-                                    # if len(x)>= 2:
-                                    #     cor = np.round(abs(pearsonr(x,y)[0]),1)
-                                    # else:
-                                    #     cor = 0
-                                    # dpass = dist - asteroid_distance
-                                    # cpass = cor - asteroid_correlation
-                                    # asteroid = dpass + cpass > 0
-                                    # asteroid_check = asteroid & (duration < asteroid_duration)
+                # s = self.sources.iloc[self.sources.objid.values == source['objid']]
+                # e = s.iloc[(s.frame.values >= frameStart) & (s.frame.values <= frameEnd)]
+                # x = e.xcentroid.values
+                # y = e.ycentroid.values
+                # dist = np.sqrt((x[:,np.newaxis]-x[np.newaxis,:])**2 + (y[:,np.newaxis]-y[np.newaxis,:])**2)
+                # dist = np.nanmax(dist,axis=1)
+                # dist = np.nanmean(dist)
+                # if len(x)>= 2:
+                #     cor = np.round(abs(pearsonr(x,y)[0]),1)
+                # else:
+                #     cor = 0
+                # dpass = dist - asteroid_distance
+                # cpass = cor - asteroid_correlation
+                # asteroid = dpass + cpass > 0
+                # asteroid_check = asteroid & (duration < asteroid_duration)
 
                 image = self.flux[fs:fe,yl:yu,xl:xu]
                 image = np.nanmax(image,axis=0)

@@ -334,7 +334,7 @@ def _add_sources(fig,coords,cat,error=None):
     return fig
 
 
-def event_cutout(coords,real_loc=None,error=None,size=50,phot=None):
+def event_cutout(coords,real_loc=None,error=None,size=100,phot=None):
     if real_loc is None:
         real_loc = coords
     if phot is None:
