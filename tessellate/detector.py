@@ -2060,8 +2060,13 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
             axins = ax[1].inset_axes([0.1, 0.55, 0.86, 0.43])       # add inset axes for zoomed in view of the event
     
 
+        if frameStart ==frameStart:
+            single_det_buffer = 1
+        else:
+            single_det_buffer = 0
         # Generate a coloured span during the event #
-        axins.axvspan(time[frameStart],time[frameEnd],color='C1',alpha=0.4)
+        cadence = np.median(np.diff(time))
+        axins.axvspan(time[frameStart]-cadence/2,time[frameEnd]+cadence/2,color='C1',alpha=0.4)
 
         # Plot full light curve in inset axes #
         for i in range(len(break_ind)-1):
@@ -2084,7 +2089,6 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
             xmin = 0
         if xmax >= len(time):
             xmax = len(time) - 1
-        cadence = np.mean(np.diff(time))
         xmin = time[frameStart] - (3*duration * cadence)
         xmax = time[frameEnd] + (3*duration * cadence)
         if xmin <= 0:
