@@ -743,10 +743,12 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
     if verbose:
         print(f"Objid: {objid} , n_events: {n_events}")
 
-    goodevents=[]
-    for eventID,group in all_labelled_sources.groupby('eventid'):
-        if len(group[group.sig>5]) != 0:
-            goodevents.append(eventID)
+    # goodevents=[]
+    # for eventID,group in all_labelled_sources.groupby('eventid'):
+    #     if len(group[group.sig>5]) != 0:
+    #         goodevents.append(eventID)
+
+    goodevents = all_labelled_sources['eventid'].unique()
 
     events_df = pd.DataFrame()
     for eventID in all_labelled_sources['eventid'].unique():
