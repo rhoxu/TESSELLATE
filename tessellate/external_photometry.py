@@ -301,19 +301,12 @@ def _add_sources(fig,coords,cat,error=None):
         ax.scatter(coords[0],coords[1], transform=ax.get_transform('fk5'),
                     edgecolors='w',marker='x',s=30,facecolors="magenta",linewidths=1,label='Target')
         
-        print(coords)
-
         theta = np.linspace(0, 2*np.pi, 1000)
         r = 10/3600
         raring = coords[0] + r * np.cos(theta)
         decring = coords[1] + r * np.sin(theta)
 
-        plt.figure()
-        plt.axis('equal')
-        plt.scatter(coords[0],coords[1])
-        plt.plot(raring[0],decring[1])
-
-        ax.plot(raring[0],decring[1], transform=ax.get_transform('fk5'),color='magenta',linewidth=2,linestyle=':')
+        ax.plot(raring,decring, transform=ax.get_transform('fk5'),color='magenta',linewidth=2,linestyle=':')
 
 
 
