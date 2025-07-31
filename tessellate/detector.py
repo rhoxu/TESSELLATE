@@ -1402,10 +1402,10 @@ class Detector():
                 'cut': maxevent['cut'],
                 'classification': classification,             
                 'n_events': len(obj),
-                'min_eventlength_frame': obj['frame_duration'].min()-1,
-                'max_eventlength_frame': obj['frame_duration'].max()-1,
-                'min_eventlength_mjd': obj['mjd_duration'].min()-1,
-                'max_eventlength_mjd': obj['mjd_duration'].max()-1,
+                'min_eventlength_frame': obj['frame_duration'].min(),
+                'max_eventlength_frame': obj['frame_duration'].max(),
+                'min_eventlength_mjd': obj['mjd_duration'].min(),
+                'max_eventlength_mjd': obj['mjd_duration'].max(),
                 'TSS Catalogue' : maxevent['TSS Catalogue']
             }
 
@@ -1777,8 +1777,8 @@ class Detector():
 
             print('Getting Photometry...')
 
-            xint = int(obj['xint'])
-            yint = int(obj['yint'])
+            xint = RoundToInt(obj['xcentroid'])
+            yint = RoundToInt(obj['ycentroid'])
 
             RA,DEC = self.wcs.all_pix2world(xint,yint,0)
             # ra_obj,dec_obj = self.wcs.all_pix2world(obj['xcentroid'],obj['ycentroid'],0)
@@ -2060,10 +2060,6 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
             axins = ax[1].inset_axes([0.1, 0.55, 0.86, 0.43])       # add inset axes for zoomed in view of the event
     
 
-        if frameStart ==frameStart:
-            single_det_buffer = 1
-        else:
-            single_det_buffer = 0
         # Generate a coloured span during the event #
         cadence = np.median(np.diff(time))
         axins.axvspan(time[frameStart]-cadence/2,time[frameEnd]+cadence/2,color='C1',alpha=0.4)
