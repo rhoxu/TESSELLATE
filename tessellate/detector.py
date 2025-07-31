@@ -493,7 +493,7 @@ def _Check_LC_significance(time,flux,start,end,pos,flux_sign,buffer = 0.5,base_r
     med = np.nanmedian(lc[ind])
     std = np.nanstd(lc[ind])
 
-    lcevent = lc[start:end]
+    lcevent = lc[start:end+1]
     lc_sig = (lcevent - med) / std
     
     max_flux = np.nanmax(lcevent)
@@ -715,6 +715,9 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
 
             xint = RoundToInt(weighted_eventsources.iloc[0]['xint_brightest'])
             yint = RoundToInt(weighted_eventsources.iloc[0]['yint_brightest'])
+
+            # frameStart = eventsources['frame'].min()
+            # frameEnd = eventsources['frame'].max()
 
             # -- Calculate significance of detection above background and local light curve -- #
             _, _, sig_lc, _, _ = _Check_LC_significance(time,flux,eventsources['frame'].min(),eventsources['frame'].max(),
