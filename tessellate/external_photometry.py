@@ -299,10 +299,10 @@ def _add_sources(fig,coords,cat,error=None):
     count = 0
     for ax in axs:
         ax.scatter(coords[0],coords[1], transform=ax.get_transform('fk5'),
-                    edgecolors='w',marker='x',s=30,facecolors="magenta",linewidths=1,label='Target')
+                    edgecolors='w',marker='x',s=50,facecolors="magenta",linewidths=2,label='Target')
         
         theta = np.linspace(0, 2*np.pi, 1000)
-        r = 10/3600
+        r = 5/3600
         raring = coords[0] + r * np.cos(theta)
         decring = coords[1] + r * np.sin(theta)
 
