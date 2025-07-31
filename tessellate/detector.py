@@ -14,8 +14,8 @@ from .tools import RoundToInt
 
 def Generate_LC(time,flux,xint,yint,frame_start=None,frame_end=None,buffer=1):
 
-    t = deepcopy(time)
-    f = deepcopy(flux)
+    t = time
+    f = flux
 
     if frame_start is not None:
         if frame_end is not None:
@@ -297,17 +297,16 @@ def _Main_detection(flux,prf,inputNum,mode='both'):
         results['method'] = 'sourcedetect'
         results = results[~pd.isna(results['xcentroid'])]
     elif mode == 'both':
-        
-        results = Parallel(n_jobs=int(multiprocessing.cpu_count()*2/3))(delayed(_Frame_detection)(flux[i],prf,inputNum+i) for i in tqdm(length))
         t1 = t()
+        results = Parallel(n_jobs=int(multiprocessing.cpu_count()*2/3))(delayed(_Frame_detection)(flux[i],prf,inputNum+i) for i in tqdm(length))
         star = _Make_dataframe(results,flux[0])
         star['method'] = 'starfind'
-        print(f'    Done Starfind: {(t()-t1):.1f} sec')
+        print(f'        Done Starfind: {(t()-t1):.1f} sec')
         t1 = t()
         machine = _Source_detect(flux,int(multiprocessing.cpu_count()*3/4))
         machine = machine[~pd.isna(machine['xcentroid'])]
         machine['method'] = 'sourcedetect'
-        print(f'    Done Sourcedetect: {(t()-t1):.1f} sec')
+        print(f'        Done Sourcedetect: {(t()-t1):.1f} sec')
 
         results = pd.concat([
             star.assign(method='SF'),
@@ -638,8 +637,8 @@ def _Fit_psf(flux,event,prf):
     xint_trial = np.round(event['xcentroid_det']).astype(int)
     yint_trial = np.round(event['ycentroid_det']).astype(int)
 
-    flux = deepcopy(flux[event['frame_start']:event['frame_end']+1])*event['flux_sign']
-    stacked_flux = np.nansum(flux[:,yint_trial-1:yint_trial+2,xint_trial-1:xint_trial+2],axis=0)
+    f = flux[event['frame_start']:event['frame_end']+1]*event['flux_sign']
+    stacked_flux = np.nansum(f[:,yint_trial-1:yint_trial+2,xint_trial-1:xint_trial+2],axis=0)
 
     iy, ix = np.unravel_index(np.nanargmax(stacked_flux), stacked_flux.shape)
     brightesty = yint_trial + (iy - 1)  # shift from 3x3 center
@@ -648,7 +647,7 @@ def _Fit_psf(flux,event,prf):
     event['xint_brightest'] = brightestx
     event['yint_brightest'] = brightesty
 
-    centred_flux = np.nansum(flux[:,brightesty-2:brightesty+3,brightestx-2:brightestx+3],axis=0)
+    centred_flux = np.nansum(f[:,brightesty-2:brightesty+3,brightestx-2:brightestx+3],axis=0)
     # centred_flux[centred_flux<0]=0
 
     PSF_fitter = PSF_Fitter(5,prf)
