@@ -2075,7 +2075,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
         fe = frameEnd + 20
         if fe >= len(time):
             fe = len(time) - 1
-        duration = int(event['duration'])
+        duration = int(event['frame_duration'])
         if duration < 4:
             duration = 4
         xmin = frameStart - 3*duration
