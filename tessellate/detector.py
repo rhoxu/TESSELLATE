@@ -1127,7 +1127,7 @@ class Detector():
         events['time_duration'] = events['mjd_end'] - events['mjd_start']
         events['mjd_max'] = self.time[events['frame_max']]
 
-        events['mag_min'] = -2.5*np.log10(events['max_flux'])
+        events['mag_min'] = -2.5*np.log10(events['flux_max'])
 
         self.events = events
         
