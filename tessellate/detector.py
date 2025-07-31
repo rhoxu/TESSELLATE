@@ -1101,10 +1101,11 @@ class Detector():
                                     buffer=buffer,base_range=base_range)
                 events += [e]
 
+        events = pd.concat(events,ignore_index=True)
+
         events['xccd'] = RoundToInt(events['xint'] + cutCornerPx[self.cut-1][0])
         events['yccd'] = RoundToInt(events['yint'] + cutCornerPx[self.cut-1][1])
 
-        events = pd.concat(events,ignore_index=True)
         self.events = events 
 
     def _events_physical_units(self):
