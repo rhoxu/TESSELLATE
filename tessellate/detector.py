@@ -38,7 +38,7 @@ def Generate_LC(time,flux,xint,yint,frame_start=None,frame_end=None,buffer=1):
 # ----------------------------------------------------------------------------------------------------------------------------- #
 # ----------------------------------------------------------------------------------------------------------------------------- #
 
-def _Spatial_group(result,distance=0.5,njobs=-1):
+def _Spatial_group(result,min_samples=1,distance=0.5,njobs=-1):
     """
     Groups events based on proximity.
     """
@@ -46,7 +46,7 @@ def _Spatial_group(result,distance=0.5,njobs=-1):
     from sklearn.cluster import DBSCAN
 
     pos = np.array([result.xcentroid,result.ycentroid]).T
-    cluster = DBSCAN(eps=distance,min_samples=1,n_jobs=njobs).fit(pos)
+    cluster = DBSCAN(eps=distance,min_samples=min_samples,n_jobs=njobs).fit(pos)
     labels = cluster.labels_
     unique_labels = set(labels)
     for label in unique_labels:
@@ -403,12 +403,21 @@ def Detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdiff
     print(f'    Main Search: {(t()-t1):.1f} sec')
 
     t1 = t()
-    frame = _Spatial_group(frame,distance=1)        # groupd based on distance
+    frame = _Spatial_group(frame,distance=0.5,min_samples=1)        # groupd based on distance
     print(f'    Spatial Group: {(t()-t1):.1f} sec')
 
     t1 = t()
     frame = _Collate_frame(frame)                   # prefer SourceDetect results
     print(f'    Collate Frame: {(t()-t1):.1f} sec')
+
+    frame = frame.drop('objid',axis=1)
+
+    t1 = t()
+    frame = _Spatial_group(frame,distance=0.5,min_samples=2)                   # prefer SourceDetect results
+    print(f'    Collate Frame: {(t()-t1):.1f} sec')
+
+    single_isolated_detections = frame[frame['objid']==0]
+    frame = frame[frame['objid']>0]
 
     t1 = t()
     frame = _Brightest_Px(flux,frame)               # Find brightest pixels around each source
@@ -422,7 +431,7 @@ def Detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdiff
     frame = _Count_detections(frame)                # Count num detections for each objid
     print(f'    Count Detections: {(t()-t1):.1f} sec')
 
-    return frame
+    return frame,single_isolated_detections
 
 # ----------------------------------------------------------------------------------------------------------------------------- #
 # ----------------------------------------------------------------------------------------------------------------------------- # 
@@ -602,42 +611,55 @@ def _Check_classifind(time,flux,source):
         prob = 0.80001
     return classification, prob
 
-def _Lightcurve_event_checker(start,stop,lc_sig,im_triggers,siglim=3):
+def _Lightcurve_event_checker(lc_sig,triggers,siglim=3,maxsep=5):
     from .tools import consecutive_points
 
+    start = np.nanmin(triggers)
+    end = np.nanmax(triggers)
+
     sig_ind = np.where(lc_sig>= siglim)[0]
-    segments = consecutive_points(sig_ind)
-    triggers = np.zeros_like(lc_sig)
 
-    min_ind = int(start)
-    max_ind = int(stop)
-    triggers[im_triggers] = 1
-    triggers[:start] = 0; triggers[stop:] = 0
-    detections = 0
-    for segment in segments:
-        if np.sum(triggers[segment]) > 0:
-            triggers[segment] = 1
-            if np.min(segment) < min_ind:
-                min_ind = np.min(segment)
-            if np.max(segment) > max_ind:
-                max_ind = np.max(segment)
-            detections += len(segment)
-    if max_ind > len(lc_sig):
-        max_ind = len(lc_sig)
-    if (detections > 0) & (max_ind > min_ind):
-        detections = np.sum(triggers).astype(int)
-    else:
-        max_ind = stop; min_ind = start
-        detections = np.sum(im_triggers).astype(int)
-    return min_ind,max_ind,detections
+    new_frames = (frame for frame in sig_ind if start <= frame <= end and frame not in triggers)
+    triggers.extend(new_frames)
 
-def _Fit_psf(flux,event,prf):
+    doneBack = False
+    frame_ind = start-1
+    count = 0
+    while not doneBack:
+        if frame_ind in sig_ind:
+            triggers.append(frame_ind)
+        else:
+            count += 1
+            if count == maxsep:
+                doneBack = True
+        frame_ind -= 1
+
+
+    doneFront = False
+    frame_ind = end+1
+    count = 0
+    while not doneFront:
+        if frame_ind in sig_ind:
+            triggers.append(frame_ind)
+        else:
+            count += 1
+            if count == maxsep:
+                doneFront = True
+        frame_ind += 1
+
+    new_start = np.nanmin(triggers)
+    new_end = np.nanmax(triggers)
+    n_detections = len(triggers)
+
+    return new_start,new_end,n_detections,sorted(triggers)
+
+def _Fit_psf(flux,event,prf,frames):
     from .tools import PSF_Fitter
 
     xint_trial = np.round(event['xcentroid_det']).astype(int)
     yint_trial = np.round(event['ycentroid_det']).astype(int)
 
-    f = flux[event['frame_start']:event['frame_end']+1]*event['flux_sign']
+    f = flux[frames]*event['flux_sign']
     stacked_flux = np.nansum(f[:,yint_trial-1:yint_trial+2,xint_trial-1:xint_trial+2],axis=0)
 
     iy, ix = np.unravel_index(np.nanargmax(stacked_flux), stacked_flux.shape)
@@ -674,7 +696,7 @@ def _Fit_psf(flux,event,prf):
 
         
 
-def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=5,buffer=1,base_range=1):
+def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=5,buffer=1,base_range=1,verbose=False):
     """_summary_
 
     Args:
@@ -688,14 +710,16 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
     """
 
     from .tools import pandas_weighted_avg
+    from time import time as t
 
     # -- Select all sources grouped to this objid -- #
     source = sources[sources['objid']==objid]
     
-    startingID=1
-    events_df = pd.DataFrame()
+    all_labelled_sources = []
+
 
     # -- For this objid, separate positive and negative detections -- #
+    startingID=1
     for sign in source['flux_sign'].unique():
         signed_sources = source[source['flux_sign']==sign]
 
@@ -708,75 +732,93 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
         cf_classification, cf_prob = _Check_classifind(time,flux,weighted_signedsources.iloc[0])
 
         labelled_sources = Get_temporal_events(signed_sources,max_gap=frame_buffer,startingID=startingID)
-        for eventID in labelled_sources['eventid'].unique():
-            event = {}
-            eventsources = deepcopy(labelled_sources[labelled_sources['eventid']==eventID])
-            weighted_eventsources = pandas_weighted_avg(eventsources)
-
-            xint = RoundToInt(weighted_eventsources.iloc[0]['xint_brightest'])
-            yint = RoundToInt(weighted_eventsources.iloc[0]['yint_brightest'])
-
-            # frameStart = eventsources['frame'].min()
-            # frameEnd = eventsources['frame'].max()
-
-            # -- Calculate significance of detection above background and local light curve -- #
-            _, _, sig_lc, _, _ = _Check_LC_significance(time,flux,eventsources['frame'].min(),eventsources['frame'].max(),
-                                                                    [xint,yint],sign,buffer=buffer,base_range=base_range)
-            
-            frame_start,frame_end,n_detections = _Lightcurve_event_checker(eventsources['frame'].min(),
-                                                                                eventsources['frame'].max(),
-                                                                                sig_lc,eventsources['frame'].values,siglim=3)
-
-            event['objid'] = objid
-            event['eventid'] = eventID
-            event['sector'] = sector
-            event['camera'] = cam
-            event['ccd'] = ccd
-            event['cut'] = cut
-            event['classification'] = eventsources.iloc[0]['classification']
-            event['frame_start'] = frame_start
-            event['frame_end'] = frame_end
-            event['frame_duration'] = event['frame_end']-event['frame_start']+1
-            event['flux_sign'] = sign
-            event['n_detections'] = n_detections
-            event['bkg_level'] = weighted_eventsources.iloc[0]['bkg_level']
-            event['bkg_std'] = weighted_eventsources.iloc[0]['bkgstd']
-
-            event['xcentroid_det'] = weighted_eventsources.iloc[0]['xcentroid']
-            event['ycentroid_det'] = weighted_eventsources.iloc[0]['ycentroid']
-
-            event = _Fit_psf(flux,event,prf)
-
-            if event['psf_like']>0.6:
-                event['xcentroid'] = event['xcentroid_psf']
-                event['ycentroid'] = event['ycentroid_psf']
-            else:
-                event['xcentroid'] = event['xcentroid_det']
-                event['ycentroid'] = event['ycentroid_det']
-
-            event['xint'] = RoundToInt(event['xcentroid'])
-            event['yint'] = RoundToInt(event['ycentroid'])
-
-            sig_max, sig_med, _, max_flux, max_frame = _Check_LC_significance(time,flux,
-                                                                   event['frame_start'],event['frame_end'],
-                                                                   [event['xint'],event['yint']],
-                                                                   sign,buffer=buffer,base_range=base_range)
-
-            event['frame_max'] = max_frame
-            event['flux_max'] = max_flux
-            event['image_sig_max'] = np.nanmax(eventsources['sig'].values)
-            event['lc_sig_max'] = sig_max
-            event['lc_sig_med'] = sig_med
-
-            event['peak_freq'] = peak_freq[0]
-            event['peak_power'] = peak_power[0]
-            event['cf_class'] = cf_classification
-            event['cf_prob'] = cf_prob
-
-            df = pd.DataFrame([event])
-            events_df = pd.concat([events_df,df])
-
+        all_labelled_sources.append(labelled_sources)
         startingID = np.nanmax(labelled_sources['eventid'])+1
+    
+    all_labelled_sources = pd.concat(all_labelled_sources, ignore_index=True)
+    
+    n_events = np.nanmax(all_labelled_sources['eventid'])
+
+    if verbose:
+        print(f"Objid: {objid} , n_events: {n_events}")
+
+    goodevents=[]
+    for eventID,group in all_labelled_sources.groupby('eventid'):
+        if len(group[group.sig>5]) != 0:
+            goodevents.append(eventID)
+
+    events_df = pd.DataFrame()
+    for eventID in all_labelled_sources['eventid'].unique():
+        if verbose:
+            print(f'Event {eventID} of {n_events}')
+        event = {}
+        eventsources = deepcopy(all_labelled_sources[all_labelled_sources['eventid']==eventID])
+        weighted_eventsources = pandas_weighted_avg(eventsources)
+
+        xint = RoundToInt(weighted_eventsources.iloc[0]['xint_brightest'])
+        yint = RoundToInt(weighted_eventsources.iloc[0]['yint_brightest'])
+
+        # -- Calculate significance of detection above background and local light curve -- #
+        _, _, sig_lc, _, _ = _Check_LC_significance(time,flux,eventsources['frame'].min(),eventsources['frame'].max(),
+                                                                [xint,yint],sign,buffer=buffer,base_range=base_range)
+        
+        frame_start,frame_end,n_detections,frames = _Lightcurve_event_checker(sig_lc,eventsources['frame'].values,siglim=3,maxsep=5)
+
+        event['objid'] = objid
+        event['eventid'] = eventID
+        event['sector'] = sector
+        event['camera'] = cam
+        event['ccd'] = ccd
+        event['cut'] = cut
+        event['classification'] = eventsources.loc[0,'classification']
+        event['frame_start'] = frame_start
+        event['frame_end'] = frame_end
+        event['frame_duration'] = event['frame_end']-event['frame_start']+1
+        event['flux_sign'] = eventsources.loc[0,'flux_sign']
+        event['n_detections'] = n_detections
+        event['bkg_level'] = weighted_eventsources.iloc[0]['bkg_level']
+        event['bkg_std'] = weighted_eventsources.iloc[0]['bkgstd']
+
+        event['xcentroid_det'] = weighted_eventsources.iloc[0]['xcentroid']
+        event['ycentroid_det'] = weighted_eventsources.iloc[0]['ycentroid']
+
+        if eventID in goodevents:
+            event = _Fit_psf(flux,event,prf,frames)
+        else:
+            event['xcentroid_psf'] = np.nan
+            event['ycentroid_psf'] = np.nan
+            event['psf_like'] = np.nan
+            event['xint_brightest'] = RoundToInt(weighted_eventsources.iloc[0]['xint_brightest'])
+            event['yint_brightest'] = RoundToInt(weighted_eventsources.iloc[0]['yint_brightest'])
+
+        if event['psf_like']>0.6:
+            event['xcentroid'] = event['xcentroid_psf']
+            event['ycentroid'] = event['ycentroid_psf']
+        else:
+            event['xcentroid'] = event['xcentroid_det']
+            event['ycentroid'] = event['ycentroid_det']
+
+        event['xint'] = RoundToInt(event['xcentroid'])
+        event['yint'] = RoundToInt(event['ycentroid'])
+
+        sig_max, sig_med, _, max_flux, max_frame = _Check_LC_significance(time,flux,
+                                                                event['frame_start'],event['frame_end'],
+                                                                [event['xint'],event['yint']],
+                                                                sign,buffer=buffer,base_range=base_range)
+
+        event['frame_max'] = max_frame
+        event['flux_max'] = max_flux
+        event['image_sig_max'] = np.nanmax(eventsources['sig'].values)
+        event['lc_sig_max'] = sig_max
+        event['lc_sig_med'] = sig_med
+
+        event['peak_freq'] = peak_freq[0]
+        event['peak_power'] = peak_power[0]
+        event['cf_class'] = cf_classification
+        event['cf_prob'] = cf_prob
+
+        df = pd.DataFrame([event])
+        events_df = pd.concat([events_df,df])
 
     # -- Add to each dataframe row the number of events in the total object -- #
     events_df['total_events'] = len(events_df)
@@ -1029,7 +1071,7 @@ class Detector():
         self.events = events
     
 
-    def _get_all_independent_events(self,frame_buffer=5,buffer=0.5,base_range=1,cpu=1):
+    def _get_all_independent_events(self,frame_buffer=10,buffer=0.5,base_range=1,cpu=1):
         from joblib import Parallel, delayed 
         from tqdm import tqdm
         from .dataprocessor import DataProcessor
@@ -1203,8 +1245,11 @@ class Detector():
         row = cutCentrePx[self.cut-1][1]
 
         # -- Run the detection algorithm, generates dataframe -- #
-        results = Detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,
+        results,single_isolated_detections = Detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,
                          row=row,mask=self.mask,inputNums=None,mode=mode,datadir=prf_path)
+        
+        # -- Save out single detections which are isolated in space in time, probably noise, maybe cool -- #
+        single_isolated_detections.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/single_isolated_detections.csv',index=False)
         
         # -- Add wcs, time, ccd info to the results dataframe -- #
         results = self._wcs_time_info(results,self.cut)

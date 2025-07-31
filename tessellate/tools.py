@@ -359,16 +359,6 @@ class PSF_Fitter():
         self.prf = PRF # initialise psf kernel (unnecessary)    
 
     def source(self,shiftx=0,shifty=0):
-        """
-        Compute the TSF given input rate of motion, angle of motion, length of exposure, and pixelScale.
-
-        Units choice is irrelevant, as long as they are all the same! eg. rate in "/hr, and dt in hr.
-        Angle is in degrees +-90 from horizontal.
-
-        display=True to see the TSF
-
-        useLookupTable=True to use the lookupTable. OTherwise pure moffat is used.
-        """
 
         centx_s = self.cent + shiftx    # source centre
         centy_s = self.cent + shifty
