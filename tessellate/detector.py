@@ -1124,7 +1124,7 @@ class Detector():
 
         events['mjd_start'] = self.time[events['frame_start']]
         events['mjd_end'] = self.time[events['frame_end']]
-        events['time_duration'] = events['mjd_end'] - events['mjd_start']
+        events['mjd_duration'] = events['mjd_end'] - events['mjd_start']
         events['mjd_max'] = self.time[events['frame_max']]
 
         events['mag_min'] = -2.5*np.log10(events['flux_max'])
@@ -1356,7 +1356,8 @@ class Detector():
             'objid', 'sector', 'cam', 'ccd', 'cut', 'xcentroid', 'ycentroid', 
             'ra', 'dec', 'gal_l', 'gal_b', 'lc_sig_max', 'flux_maxsig', 'frame_maxsig',
             'mjd_maxsig','psf_maxsig','flux_sign', 'n_events',
-            'min_eventlength', 'max_eventlength','classification',
+            'min_eventlength_frame', 'max_eventlength_frame',
+            'min_eventlength_mjd','max_eventlength_mjd','classification'
         ]
         objects = pd.DataFrame(columns=columns)
 
