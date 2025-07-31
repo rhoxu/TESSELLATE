@@ -1998,7 +1998,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
         frameStart = int(event['frame_start'])        # Start frame of the event
         frameEnd = int(event['frame_end'])            # End frame of the event
 
-        _,f = Generate_LC(times,flux,x,y,frameStart,frameEnd,buffer=1)
+        _,f = Generate_LC(times,flux,x,y,buffer=1)
         # f = np.nansum(flux[:,y-1:y+2,x-1:x+2],axis=(2,1))    # Sum the flux in a 3x3 pixel box around the source
 
         # Find brightest frame in the event #
