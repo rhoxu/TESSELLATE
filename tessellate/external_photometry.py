@@ -299,7 +299,7 @@ def _add_sources(fig,coords,cat,error=None):
     count = 0
     for ax in axs:
         ax.scatter(coords[0],coords[1], transform=ax.get_transform('fk5'),
-                    edgecolors='w',marker='x',s=50,facecolors="magenta",linewidths=2,label='Target')
+                    edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
         
         # theta = np.linspace(0, 2*np.pi, 1000)
         # r = 5/3600
@@ -315,7 +315,7 @@ def _add_sources(fig,coords,cat,error=None):
                 xerr = yerr = error
             ellipse = Ellipse(xy=(coords[0],coords[1]),  
                               width=error[0],height=error[1],     
-                              edgecolor='white',facecolor='none',
+                              edgecolor='red',facecolor='none',
                               linestyle=':', linewidth=3,
                               transform=ax.get_transform('fk5'))
             ax.add_patch(ellipse)
