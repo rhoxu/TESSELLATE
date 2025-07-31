@@ -755,7 +755,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
             event['yint'] = RoundToInt(event['ycentroid'])
 
             sig_max, sig_med, _, max_flux, max_frame = _Check_LC_significance(time,flux,
-                                                                   event['frame'],event['frame'],
+                                                                   event['frame_start'],event['frame_end'],
                                                                    [event['xint'],event['yint']],
                                                                    sign,buffer=buffer,base_range=base_range)
 
