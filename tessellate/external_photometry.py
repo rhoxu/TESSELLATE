@@ -299,18 +299,29 @@ def _add_sources(fig,coords,cat,error=None):
     count = 0
     for ax in axs:
         ax.scatter(coords[0],coords[1], transform=ax.get_transform('fk5'),
-                    edgecolors='w',marker='x',s=30,facecolors="w",linewidths=1,label='Target')
-        if error is not None:
-            if len(error) > 1:
-                xerr,yerr = error
-            else:
-                xerr = yerr = error
-            ellipse = Ellipse(xy=(coords[0],coords[1]),  
-                              width=error[0],height=error[1],     
-                              edgecolor='white',facecolor='none',
-                              linestyle=':', linewidth=2,
-                              transform=ax.get_transform('fk5'))
-            ax.add_patch(ellipse)
+                    edgecolors='w',marker='x',s=30,facecolors="magenta",linewidths=1,label='Target')
+        
+
+        theta = np.linspace(0, 2*np.pi, 1000)
+        r = 10/3600
+        raring = coords[0] + r * np.cos(theta)
+        decring = coords[1] + r * np.sin(theta)
+
+        ax.plot(raring[0],decring[1], transform=ax.get_transform('fk5'),color='magenta',linewidth=2,linestyle=':')
+
+
+
+        # if error is not None:
+        #     if len(error) > 1:
+        #         xerr,yerr = error
+        #     else:
+        #         xerr = yerr = error
+        #     ellipse = Ellipse(xy=(coords[0],coords[1]),  
+        #                       width=error[0],height=error[1],     
+        #                       edgecolor='white',facecolor='none',
+        #                       linestyle=':', linewidth=2,
+        #                       transform=ax.get_transform('fk5'))
+        #     ax.add_patch(ellipse)
         
         # scatter stars 
         stars = cat.loc[cat['star'] ==1]
