@@ -946,7 +946,7 @@ def _Threshold_asteroid_checker(time,flux,events,com_motion_thresholds=[1, 0.75,
 
     # -- Identify candidates to actually compute on -- #
     candidates = events[(events['frame_duration']>=2)&(events['frame_duration']<=50)]
-    candidates = candidates[(candidates['max_lc_sig']>=5)&(candidates['flux_sign']==1)]
+    candidates = candidates[(candidates['lc_sig_max']>=5)&(candidates['flux_sign']==1)]
     # candidates = self.filter_events(self.cut, lower=2, upper=50, sig_lc=5, sign=1)
 
     candidate_indices = candidates.index
