@@ -717,7 +717,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
             yint = RoundToInt(weighted_eventsources['yint_brightest'])
 
             # -- Calculate significance of detection above background and local light curve -- #
-            _, _, sig_lc, _, _ = _Check_LC_significance(time,flux,eventsources['frame'].min(),eventsources['frame'].max(),
+            _, _, sig_lc, _, _ = _Check_LC_significance(time,flux,int(eventsources['frame'].min()),int(eventsources['frame'].max()),
                                                                     [xint,yint],sign,buffer=buffer,base_range=base_range)
             
             frame_start,frame_end,n_detections = _Lightcurve_event_checker(eventsources['frame'].min(),
