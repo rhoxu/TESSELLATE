@@ -1139,7 +1139,7 @@ class Detector():
             'sector', 'camera', 'ccd', 'cut',
 
             # Centroid Positions
-            'xcentroid', 'ycentroid', 'xint', 'yint'
+            'xcentroid', 'ycentroid', 'xint', 'yint',
             'xccd', 'yccd',
             'xcentroid_det', 'ycentroid_det', 
             'xcentroid_psf', 'ycentroid_psf',
