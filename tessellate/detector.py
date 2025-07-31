@@ -1938,7 +1938,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
 
     # -- Select sources associated with the object id -- #
     events =  events[events['objid']==id]      # not sources, events, but 
-    total_events = int(np.nanmean(sources['total_events'].values))   #  Number of events associated with the object id
+    total_events = int(np.nanmean(events['total_events'].values))   #  Number of events associated with the object id
     
                                                 # if type(objectid_bin) == str:
                                                 #     if total_events > 5:
