@@ -277,7 +277,7 @@ def _Make_dataframe(results,data):
 
     return frame
     
-def _Main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
+def _Main_detection(flux,prf,inputNum,mode='both'):
 
     from time import time as t
     import multiprocessing
@@ -288,7 +288,7 @@ def _Main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
     print('    Starting source detection')
     length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
     if mode == 'starfind':
-        results = Parallel(n_jobs=int(multiprocessing.cpu_count()*3/4))(delayed(_Frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
+        results = Parallel(n_jobs=int(multiprocessing.cpu_count()*3/4))(delayed(_Frame_detection)(flux[i],prf,inputNum+i) for i in tqdm(length))
         print('found sources')
         results = _Make_dataframe(results,flux[0])
         results['method'] = 'starfind'
@@ -298,7 +298,7 @@ def _Main_detection(flux,prf,corlim,psfdifflim,inputNum,mode='both'):
         results = results[~pd.isna(results['xcentroid'])]
     elif mode == 'both':
         
-        results = Parallel(n_jobs=int(multiprocessing.cpu_count()*2/3))(delayed(_Frame_detection)(flux[i],prf,corlim,psfdifflim,inputNum+i) for i in tqdm(length))
+        results = Parallel(n_jobs=int(multiprocessing.cpu_count()*2/3))(delayed(_Frame_detection)(flux[i],prf,inputNum+i) for i in tqdm(length))
         t1 = t()
         star = _Make_dataframe(results,flux[0])
         star['method'] = 'starfind'
@@ -400,7 +400,7 @@ def Detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdiff
         prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir=datadir+'Sectors4+')
 
     t1 = t()
-    frame = _Main_detection(flux,prf,corlim,psfdifflim,inputNum,mode=mode)
+    frame = _Main_detection(flux,prf,inputNum,mode=mode)
     print(f'    Main Search: {(t()-t1):.1f} sec')
 
     t1 = t()
