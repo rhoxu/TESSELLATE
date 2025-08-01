@@ -1126,7 +1126,7 @@ class Detector():
         median_positions = df_valid.groupby('objid')[['xcentroid', 'ycentroid']].median().reset_index()
         obj_coords = median_positions[['xcentroid', 'ycentroid']].to_numpy()
 
-        dists = np.linalg.norm(obj_coords[:, None, :] - tile_centers[None, :, :], axis=2)
+        dists = np.linalg.norm(obj_coords[:, None, ::-1] - tile_centers[None, :, :], axis=2)
         closest_tile_indices = np.argmin(dists, axis=1)
 
         tile_windows = []
@@ -1143,15 +1143,12 @@ class Detector():
 
             tile_windows.append((rmin, rmax, cmin, cmax))
 
-        idx = np.arange(len(obj_coords))
+        idx = np.arange(1,len(obj_coords)+1)
         for i in range(16):
             tile_objids.append(idx[closest_tile_indices==i])
 
         return tile_windows, tile_objids
 
-
-
-    
 
     def _get_all_independent_events(self,frame_buffer=10,buffer=0.5,base_range=1,cpu=1):
         from joblib import Parallel, delayed, dump 
