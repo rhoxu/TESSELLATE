@@ -758,7 +758,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
 
     goodevents = all_labelled_sources['eventid'].unique()
 
-    events_df = pd.DataFrame()
+    dfs = []
     for eventID in all_labelled_sources['eventid'].unique():
         if verbose:
             print(f'Event {eventID} of {n_events}')
@@ -829,7 +829,9 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
         event['cf_prob'] = cf_prob
 
         df = pd.DataFrame([event])
-        events_df = pd.concat([events_df,df])
+        dfs.append(df)
+
+    events_df = pd.concat(dfs, ignore_index=True)
 
     # -- Add to each dataframe row the number of events in the total object -- #
     events_df['total_events'] = len(events_df)
@@ -1098,24 +1100,25 @@ class Detector():
         self.events = events
     
 
-    def _get_all_independent_events(self,frame_buffer=10,buffer=0.5,base_range=1,cpu=1):
-        from joblib import Parallel, delayed, dump 
+    def _get_all_independent_events(self, frame_buffer=10, buffer=0.5, base_range=1, cpu=1):
+        from joblib import Parallel, delayed, dump
         from tqdm import tqdm
         from .dataprocessor import DataProcessor
         from PRF import TESS_PRF
         import os
-    
+        import gc
 
-        dp = DataProcessor(self.sector,path=self.data_path)
-        cutCornerPx, cutCentrePx, _, _ = dp.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
-        column = cutCentrePx[self.cut-1][0]
-        row = cutCentrePx[self.cut-1][1]
+        dp = DataProcessor(self.sector, path=self.data_path)
+        cutCornerPx, cutCentrePx, _, _ = dp.find_cuts(cam=self.cam, ccd=self.ccd, n=self.n, plot=False)
+        column = cutCentrePx[self.cut - 1][0]
+        row = cutCentrePx[self.cut - 1][1]
 
-        datadir='/fred/oz335/_local_TESS_PRFs/'
-        prf = TESS_PRF(cam=self.cam,ccd=self.ccd,sector=self.sector,
-                       colnum=column,rownum=row,localdatadir=datadir+'Sectors4+')
+        datadir = '/fred/oz335/_local_TESS_PRFs/'
+        prf = TESS_PRF(cam=self.cam, ccd=self.ccd, sector=self.sector,
+                    colnum=column, rownum=row, localdatadir=datadir + 'Sectors4+')
 
         ids = np.unique(self.sources['objid'].values).astype(int)
+
         if cpu > 1:
             from .tools import _Save_space
             temp_folder = f'/fred/oz335/TESSdata/.tmp/S{self.sector}C{self.cam}C{self.cam}C{self.cut}'
@@ -1123,23 +1126,37 @@ class Detector():
             flux_file = os.path.join(temp_folder, "flux_memmap.pkl")
             dump(self.flux, flux_file)
 
-            length = np.arange(0,len(ids)).astype(int)
-            events = Parallel(n_jobs=cpu)(delayed(_Isolate_events_safe)(ids[i],self.time,flux_file,self.sources,
-                                                                   self.sector,self.cam,self.ccd,self.cut,prf,
-                                                                   frame_buffer,buffer,base_range) for i in tqdm(length))
+            length = np.arange(len(ids)).astype(int)
+            batch_size = 100  # You can tune this
+            events = []
+
+            for i in tqdm(range(0, len(length), batch_size)):
+                batch = length[i:i + batch_size]
+                batch_results = Parallel(n_jobs=cpu)(
+                    delayed(_Isolate_events_safe)(
+                        ids[j], self.time, flux_file, self.sources,
+                        self.sector, self.cam, self.ccd, self.cut, prf,
+                        frame_buffer, buffer, base_range
+                    )
+                    for j in batch
+                )
+                events.extend(batch_results)
+                del batch_results
+                gc.collect()
+
             os.system(f'rm -r {temp_folder}')
-        else:            
+        else:
             events = []
             for id in ids:
-                e = _Isolate_events(id,self.time,self.flux,self.sources,self.sector,self.cam,
-                                    self.ccd,self.cut,prf,frame_buffer=frame_buffer,
-                                    buffer=buffer,base_range=base_range)
-                events += [e]
+                e = _Isolate_events(id, self.time, self.flux, self.sources, self.sector, self.cam,
+                                    self.ccd, self.cut, prf, frame_buffer=frame_buffer,
+                                    buffer=buffer, base_range=base_range)
+                events.append(e)
 
-        events = pd.concat(events,ignore_index=True)
+        events = pd.concat(events, ignore_index=True)
+        events['xccd'] = RoundToInt(events['xint'] + cutCornerPx[self.cut - 1][0])
+        events['yccd'] = RoundToInt(events['yint'] + cutCornerPx[self.cut - 1][1])
 
-        events['xccd'] = RoundToInt(events['xint'] + cutCornerPx[self.cut-1][0])
-        events['yccd'] = RoundToInt(events['yint'] + cutCornerPx[self.cut-1][1])
 
         self.events = events 
 
