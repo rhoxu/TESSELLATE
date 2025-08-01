@@ -265,7 +265,7 @@ class Tessellate():
 
             search_time_sug = '30:00'
             search_cpu_sug = '32'
-            search_mem_req = 160
+            search_mem_req = 96
             
             plot_time_sug = '10:00'
             plot_cpu_sug = '32'
