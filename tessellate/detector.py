@@ -833,6 +833,11 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
     events_df['total_events'] = len(events_df)
     
     return events_df 
+
+def _Isolate_events_safe(id, time, flux_file, sources, sector,cam,ccd,cut,prf,frame_buffer,buffer,base_range):
+    from joblib import load
+    flux = load(flux_file, mmap_mode='r')
+    return _Isolate_events(id, time, flux, sources, sector,cam,ccd,cut,prf,frame_buffer,buffer,base_range)
     
 
 def _Straight_line_asteroid_checker(time,flux,events):
@@ -1081,10 +1086,12 @@ class Detector():
     
 
     def _get_all_independent_events(self,frame_buffer=10,buffer=0.5,base_range=1,cpu=1):
-        from joblib import Parallel, delayed 
+        from joblib import Parallel, delayed, dump 
         from tqdm import tqdm
         from .dataprocessor import DataProcessor
         from PRF import TESS_PRF
+        import os
+    
 
         dp = DataProcessor(self.sector,path=self.data_path)
         cutCornerPx, cutCentrePx, _, _ = dp.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
@@ -1097,8 +1104,14 @@ class Detector():
 
         ids = np.unique(self.sources['objid'].values).astype(int)
         if cpu > 1:
+            print('        Dumping flux to shared mem...',end='\r')
+            temp_folder = os.environ["SLURM_TMPDIR"]
+            flux_file = os.path.join(temp_folder, "flux_memmap.pkl")
+            dump(self.flux, flux_file)
+            print('        Dumping flux to shared mem...Done!',end='\r')
+
             length = np.arange(0,len(ids)).astype(int)
-            events = Parallel(n_jobs=cpu)(delayed(_Isolate_events)(ids[i],self.time,self.flux,self.sources,
+            events = Parallel(n_jobs=cpu)(delayed(_Isolate_events_safe)(ids[i],self.time,flux_file,self.sources,
                                                                    self.sector,self.cam,self.ccd,self.cut,prf,
                                                                    frame_buffer,buffer,base_range) for i in tqdm(length))
         else:            
