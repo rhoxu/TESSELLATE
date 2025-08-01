@@ -475,15 +475,16 @@ def Get_temporal_events(df, max_gap=2, frame_col='frame', id_col='eventid',start
     return df
 
 
-def _Check_LC_significance(time,flux,start,end,pos,flux_sign,buffer = 0.5,base_range=1):
+def _Check_LC_significance(time,flux,offset,start,end,pos,flux_sign,buffer = 0.5,base_range=1):
 
+    xs,ys = offset
     time_per_frame = time[1] - time[0]
     buffer = int(buffer/time_per_frame)
     base_range = int(base_range/time_per_frame)
     ap = np.zeros_like(flux[0])
     y = pos[1] 
     x = pos[0] 
-    _,lc = Generate_LC(time,flux,x,y,buffer=1)
+    _,lc = Generate_LC(time,flux,x-xs,y-ys,buffer=1)
     # lc = np.nansum(flux[:,y-1:y+2,x-1:x+2],axis=(1,2))
     fs = start - buffer
     fe = end + buffer
@@ -522,7 +523,7 @@ def _Check_LC_significance(time,flux,start,end,pos,flux_sign,buffer = 0.5,base_r
     return sig_max, sig_med, lc_sig * flux_sign, max_flux, max_frame
 
 
-def _Fit_period(time,flux,source,significance=3):
+def _Fit_period(time,flux,offset,source,significance=3):
 
     from scipy.optimize import curve_fit
     from scipy.signal import find_peaks
@@ -535,7 +536,9 @@ def _Fit_period(time,flux,source,significance=3):
     x = RoundToInt(source['xint_brightest'])
     y = RoundToInt(source['yint_brightest'])
     
-    t,f = Generate_LC(time,flux,x,y,buffer=1)
+    xs,ys = offset
+
+    t,f = Generate_LC(time,flux,x-xs,y-ys,buffer=1)
     # f = np.nansum(flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
     # t = time
     finite = np.isfinite(f) & np.isfinite(t)
@@ -582,7 +585,7 @@ def _Fit_period(time,flux,source,significance=3):
             peak_freq = [0]
     return peak_freq, peak_power
 
-def _Check_classifind(time,flux,source):
+def _Check_classifind(time,flux,offset,source):
     import joblib
     from .temp_classifind import classifind as cf 
     import os
@@ -591,7 +594,8 @@ def _Check_classifind(time,flux,source):
 
     x = RoundToInt(source['xint_brightest'])
     y = RoundToInt(source['yint_brightest'])
-    t,f = Generate_LC(time,flux,x,y,buffer=1)
+    xs,ys = offset
+    t,f = Generate_LC(time,flux,x-xs,y-ys,buffer=1)
     # f = np.nansum(flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
     # t = time
     finite = np.isfinite(f) & np.isfinite(t)
@@ -656,14 +660,16 @@ def _Lightcurve_event_checker(lc_sig,triggers,siglim=3,maxsep=5):
 
     return new_start,new_end,n_detections,sorted(triggers)
 
-def _Fit_psf(flux,event,prf,frames):
+def _Fit_psf(flux,offset,event,prf,frames):
     from .tools import PSF_Fitter
+
+    xs,ys = offset
 
     xint_trial = np.round(event['xcentroid_det']).astype(int)
     yint_trial = np.round(event['ycentroid_det']).astype(int)
 
     f = flux[frames]*event['flux_sign']
-    stacked_flux = np.nansum(f[:,yint_trial-1:yint_trial+2,xint_trial-1:xint_trial+2],axis=0)
+    stacked_flux = np.nansum(f[:,yint_trial-1-ys:yint_trial+2-ys,xint_trial-1-xs:xint_trial+2-xs],axis=0)
 
     iy, ix = np.unravel_index(np.nanargmax(stacked_flux), stacked_flux.shape)
     brightesty = yint_trial + (iy - 1)  # shift from 3x3 center
@@ -672,7 +678,7 @@ def _Fit_psf(flux,event,prf,frames):
     event['xint_brightest'] = brightestx
     event['yint_brightest'] = brightesty
 
-    centred_flux = np.nansum(f[:,brightesty-2:brightesty+3,brightestx-2:brightestx+3],axis=0)
+    centred_flux = np.nansum(f[:,brightesty-2-ys:brightesty+3-ys,brightestx-2-xs:brightestx+3-xs],axis=0)
     # centred_flux[centred_flux<0]=0
     
     try:
@@ -705,7 +711,7 @@ def _Fit_psf(flux,event,prf,frames):
 
         
 
-def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=5,buffer=1,base_range=1,verbose=False):
+def _Isolate_events(objid,time,flux,offset,sources,sector,cam,ccd,cut,prf,frame_buffer=5,buffer=1,base_range=1,verbose=False):
     """_summary_
 
     Args:
@@ -735,10 +741,10 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
         weighted_signedsources = pandas_weighted_avg(signed_sources)
 
         # -- Look for any regular variability -- #
-        peak_freq, peak_power = _Fit_period(time,flux,weighted_signedsources.iloc[0])
+        peak_freq, peak_power = _Fit_period(time,flux,offset,weighted_signedsources.iloc[0])
 
         # -- Run RFC Classification -- #
-        cf_classification, cf_prob = _Check_classifind(time,flux,weighted_signedsources.iloc[0])
+        cf_classification, cf_prob = _Check_classifind(time,flux,offset,weighted_signedsources.iloc[0])
 
         labelled_sources = Get_temporal_events(signed_sources,max_gap=frame_buffer,startingID=startingID)
         all_labelled_sources.append(labelled_sources)
@@ -770,7 +776,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
         yint = RoundToInt(weighted_eventsources.iloc[0]['yint_brightest'])
 
         # -- Calculate significance of detection above background and local light curve -- #
-        _, _, sig_lc, _, _ = _Check_LC_significance(time,flux,eventsources['frame'].min(),eventsources['frame'].max(),
+        _, _, sig_lc, _, _ = _Check_LC_significance(time,flux,offset,eventsources['frame'].min(),eventsources['frame'].max(),
                                                                 [xint,yint],sign,buffer=buffer,base_range=base_range)
         
         frame_start,frame_end,n_detections,frames = _Lightcurve_event_checker(sig_lc,eventsources['frame'].values,siglim=3,maxsep=5)
@@ -794,7 +800,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
         event['ycentroid_det'] = weighted_eventsources.iloc[0]['ycentroid']
 
         if eventID in goodevents:
-            event = _Fit_psf(flux,event,prf,frames)
+            event = _Fit_psf(flux,offset,event,prf,frames)
         else:
             event['xcentroid_psf'] = np.nan
             event['ycentroid_psf'] = np.nan
@@ -812,7 +818,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
         event['xint'] = RoundToInt(event['xcentroid'])
         event['yint'] = RoundToInt(event['ycentroid'])
 
-        sig_max, sig_med, _, max_flux, max_frame = _Check_LC_significance(time,flux,
+        sig_max, sig_med, _, max_flux, max_frame = _Check_LC_significance(time,flux,offset,
                                                                 event['frame_start'],event['frame_end'],
                                                                 [event['xint'],event['yint']],
                                                                 sign,buffer=buffer,base_range=base_range)
@@ -1098,6 +1104,53 @@ class Detector():
         events = _Straight_line_asteroid_checker(self.time,self.flux,events)
 
         self.events = events
+
+    def _batch_spatial_objids(self,num_tiles=16,margin=30):
+
+        height = 512
+        width = 512
+        n_rows = int(np.sqrt(num_tiles))
+        n_cols = int(np.sqrt(num_tiles))
+        tile_height = height // n_rows
+        tile_width = width // n_cols
+
+        tile_centers = []
+        for i in range(n_rows):
+            for j in range(n_cols):
+                center_x = j * tile_width + tile_width / 2
+                center_y = i * tile_height + tile_height / 2
+                tile_centers.append((center_x, center_y))
+        tile_centers = np.array(tile_centers)  # shape (16, 2)
+
+        df_valid = self.sources.dropna(subset=['xcentroid', 'ycentroid', 'objid'])
+        median_positions = df_valid.groupby('objid')[['xcentroid', 'ycentroid']].median().reset_index()
+        obj_coords = median_positions[['xcentroid', 'ycentroid']].to_numpy()
+
+        dists = np.linalg.norm(obj_coords[:, None, :] - tile_centers[None, :, :], axis=2)
+        closest_tile_indices = np.argmin(dists, axis=1)
+
+        tile_windows = []
+        tile_objids = []
+
+        for tile_id in range(num_tiles):
+            i = tile_id // n_cols  # row index
+            j = tile_id % n_cols   # col index
+
+            rmin = max(i * tile_height - margin, 0)
+            rmax = min((i + 1) * tile_height + margin, height)
+            cmin = max(j * tile_width - margin, 0)
+            cmax = min((j + 1) * tile_width + margin, width)
+
+            tile_windows.append((rmin, rmax, cmin, cmax))
+
+        idx = np.arange(len(obj_coords))
+        for i in range(16):
+            tile_objids.append(idx[closest_tile_indices==i])
+
+        return tile_windows, tile_objids
+
+
+
     
 
     def _get_all_independent_events(self,frame_buffer=10,buffer=0.5,base_range=1,cpu=1):
@@ -1117,20 +1170,31 @@ class Detector():
         prf = TESS_PRF(cam=self.cam,ccd=self.ccd,sector=self.sector,
                        colnum=column,rownum=row,localdatadir=datadir+'Sectors4+')
 
-        ids = np.unique(self.sources['objid'].values).astype(int)
         if cpu > 1:
-            from .tools import _Save_space
-            temp_folder = f'/fred/oz335/TESSdata/.tmp/S{self.sector}C{self.cam}C{self.cam}C{self.cut}'
-            _Save_space(temp_folder)
-            flux_file = os.path.join(temp_folder, "flux_memmap.pkl")
-            dump(self.flux, flux_file)
+            events = []            
+            tile_windows, tile_objids = self._batch_spatial_objids()
+            for i,ids in enumerate(tile_objids):
+                xs,xe,ys,ye = tile_windows[i]
+                tile_events = Parallel(n_jobs=cpu)(delayed(_Isolate_events)(objid,self.time,self.flux[:,ys:ye,xs:xe],[xs,ys],
+                                                                       self.sources,self.sector,self.cam,self.ccd,
+                                                                       self.cut,prf,frame_buffer,buffer,base_range) 
+                                                                       for objid in tqdm(ids))
+                
+                events.extend(tile_events)
+            
+            # from .tools import _Save_space
+            # temp_folder = f'/fred/oz335/TESSdata/.tmp/S{self.sector}C{self.cam}C{self.cam}C{self.cut}'
+            # _Save_space(temp_folder)
+            # flux_file = os.path.join(temp_folder, "flux_memmap.pkl")
+            # dump(self.flux, flux_file)
 
-            length = np.arange(0,len(ids)).astype(int)
-            events = Parallel(n_jobs=int(cpu*2/3))(delayed(_Isolate_events_safe)(ids[i],self.time,flux_file,self.sources,
-                                                                   self.sector,self.cam,self.ccd,self.cut,prf,
-                                                                   frame_buffer,buffer,base_range) for i in tqdm(length))
-            os.system(f'rm -r {temp_folder}')
+            # length = np.arange(0,len(ids)).astype(int)
+            # events = Parallel(n_jobs=int(cpu*2/3))(delayed(_Isolate_events_safe)(ids[i],self.time,flux_file,self.sources,
+            #                                                        self.sector,self.cam,self.ccd,self.cut,prf,
+            #                                                        frame_buffer,buffer,base_range) for i in tqdm(length))
+            # os.system(f'rm -r {temp_folder}')
         else:            
+            ids = np.unique(self.sources['objid'].values).astype(int)
             events = []
             for id in ids:
                 e = _Isolate_events(id,self.time,self.flux,self.sources,self.sector,self.cam,
