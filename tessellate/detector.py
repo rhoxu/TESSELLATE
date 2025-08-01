@@ -1100,25 +1100,24 @@ class Detector():
         self.events = events
     
 
-    def _get_all_independent_events(self, frame_buffer=10, buffer=0.5, base_range=1, cpu=1):
-        from joblib import Parallel, delayed, dump
+    def _get_all_independent_events(self,frame_buffer=10,buffer=0.5,base_range=1,cpu=1):
+        from joblib import Parallel, delayed, dump 
         from tqdm import tqdm
         from .dataprocessor import DataProcessor
         from PRF import TESS_PRF
         import os
-        import gc
+    
 
-        dp = DataProcessor(self.sector, path=self.data_path)
-        cutCornerPx, cutCentrePx, _, _ = dp.find_cuts(cam=self.cam, ccd=self.ccd, n=self.n, plot=False)
-        column = cutCentrePx[self.cut - 1][0]
-        row = cutCentrePx[self.cut - 1][1]
+        dp = DataProcessor(self.sector,path=self.data_path)
+        cutCornerPx, cutCentrePx, _, _ = dp.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
+        column = cutCentrePx[self.cut-1][0]
+        row = cutCentrePx[self.cut-1][1]
 
-        datadir = '/fred/oz335/_local_TESS_PRFs/'
-        prf = TESS_PRF(cam=self.cam, ccd=self.ccd, sector=self.sector,
-                    colnum=column, rownum=row, localdatadir=datadir + 'Sectors4+')
+        datadir='/fred/oz335/_local_TESS_PRFs/'
+        prf = TESS_PRF(cam=self.cam,ccd=self.ccd,sector=self.sector,
+                       colnum=column,rownum=row,localdatadir=datadir+'Sectors4+')
 
         ids = np.unique(self.sources['objid'].values).astype(int)
-
         if cpu > 1:
             from .tools import _Save_space
             temp_folder = f'/fred/oz335/TESSdata/.tmp/S{self.sector}C{self.cam}C{self.cam}C{self.cut}'
@@ -1126,37 +1125,23 @@ class Detector():
             flux_file = os.path.join(temp_folder, "flux_memmap.pkl")
             dump(self.flux, flux_file)
 
-            length = np.arange(len(ids)).astype(int)
-            batch_size = 100  # You can tune this
-            events = []
-
-            for i in tqdm(range(0, len(length), batch_size)):
-                batch = length[i:i + batch_size]
-                batch_results = Parallel(n_jobs=cpu)(
-                    delayed(_Isolate_events_safe)(
-                        ids[j], self.time, flux_file, self.sources,
-                        self.sector, self.cam, self.ccd, self.cut, prf,
-                        frame_buffer, buffer, base_range
-                    )
-                    for j in batch
-                )
-                events.extend(batch_results)
-                del batch_results
-                gc.collect()
-
+            length = np.arange(0,len(ids)).astype(int)
+            events = Parallel(n_jobs=int(cpu*2/3))(delayed(_Isolate_events_safe)(ids[i],self.time,flux_file,self.sources,
+                                                                   self.sector,self.cam,self.ccd,self.cut,prf,
+                                                                   frame_buffer,buffer,base_range) for i in tqdm(length))
             os.system(f'rm -r {temp_folder}')
-        else:
+        else:            
             events = []
             for id in ids:
-                e = _Isolate_events(id, self.time, self.flux, self.sources, self.sector, self.cam,
-                                    self.ccd, self.cut, prf, frame_buffer=frame_buffer,
-                                    buffer=buffer, base_range=base_range)
-                events.append(e)
+                e = _Isolate_events(id,self.time,self.flux,self.sources,self.sector,self.cam,
+                                    self.ccd,self.cut,prf,frame_buffer=frame_buffer,
+                                    buffer=buffer,base_range=base_range)
+                events += [e]
 
-        events = pd.concat(events, ignore_index=True)
-        events['xccd'] = RoundToInt(events['xint'] + cutCornerPx[self.cut - 1][0])
-        events['yccd'] = RoundToInt(events['yint'] + cutCornerPx[self.cut - 1][1])
+        events = pd.concat(events,ignore_index=True)
 
+        events['xccd'] = RoundToInt(events['xint'] + cutCornerPx[self.cut-1][0])
+        events['yccd'] = RoundToInt(events['yint'] + cutCornerPx[self.cut-1][1])
 
         self.events = events 
 
