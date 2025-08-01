@@ -838,18 +838,19 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
 
 def _Isolate_events_safe(id, time, flux_file, sources, sector,cam,ccd,cut,prf,frame_buffer,buffer,base_range):
     from joblib import load
-    log_worker_mem(f"start i={id}")
+    # log_worker_mem(f"start i={id}")
     flux = load(flux_file, mmap_mode='r')
-    result = _Isolate_events(id, time, flux, sources, sector,cam,ccd,cut,prf,frame_buffer,buffer,base_range)
-    log_worker_mem(f"end i={id}")
-    return result
+    # result = _Isolate_events(id, time, flux, sources, sector,cam,ccd,cut,prf,frame_buffer,buffer,base_range)
+    # log_worker_mem(f"end i={id}")
+    return _Isolate_events(id, time, flux, sources, sector,cam,ccd,cut,prf,frame_buffer,buffer,base_range)
 
-def log_worker_mem(tag=""):
-    import os
-    import psutil
-    proc = psutil.Process(os.getpid())
-    mem_mb = proc.memory_info().rss / 1024**2
-    print(f"[PID {proc.pid} {tag}] Memory RSS: {mem_mb:.2f} MB")
+
+# def log_worker_mem(tag=""):
+#     import os
+#     import psutil
+#     proc = psutil.Process(os.getpid())
+#     mem_mb = proc.memory_info().rss / 1024**2
+#     print(f"[PID {proc.pid} {tag}] Memory RSS: {mem_mb:.2f} MB")
 
     
 def _Straight_line_asteroid_checker(time,flux,events):
