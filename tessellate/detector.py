@@ -662,8 +662,14 @@ def _Fit_psf(flux,event,prf,frames):
     xint_trial = np.round(event['xcentroid_det']).astype(int)
     yint_trial = np.round(event['ycentroid_det']).astype(int)
 
-    f = flux[frames]*event['flux_sign']
-    stacked_flux = np.nansum(f[:,yint_trial-1:yint_trial+2,xint_trial-1:xint_trial+2],axis=0)
+
+    stacked_flux = np.zeros((3, 3), dtype=np.float32)
+    for i in frames:  # or whatever your cap is
+        cut = flux[i, yint_trial-1:yint_trial+2, xint_trial-1:xint_trial+2]
+        stacked_flux += event['flux_sign'] * cut
+
+    # f = flux[frames]*event['flux_sign']
+    # stacked_flux = np.nansum(f[:,yint_trial-1:yint_trial+2,xint_trial-1:xint_trial+2],axis=0)
 
     iy, ix = np.unravel_index(np.nanargmax(stacked_flux), stacked_flux.shape)
     brightesty = yint_trial + (iy - 1)  # shift from 3x3 center
@@ -672,7 +678,12 @@ def _Fit_psf(flux,event,prf,frames):
     event['xint_brightest'] = brightestx
     event['yint_brightest'] = brightesty
 
-    centred_flux = np.nansum(f[:,brightesty-2:brightesty+3,brightestx-2:brightestx+3],axis=0)
+    centred_flux = np.zeros((5, 5), dtype=np.float32)
+    for i in frames:  # or whatever your cap is
+        cut = flux[i, brightesty-2:brightesty+3, brightestx-2:brightestx+3]
+        centred_flux += event['flux_sign'] * cut
+
+    # centred_flux = np.nansum(f[:,brightesty-2:brightesty+3,brightestx-2:brightestx+3],axis=0)
     # centred_flux[centred_flux<0]=0
     
     try:
@@ -794,12 +805,12 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
         event['ycentroid_det'] = weighted_eventsources.iloc[0]['ycentroid']
 
         if eventID in goodevents:
-            # event = _Fit_psf(flux,event,prf,frames)
-            event['xcentroid_psf'] = np.nan
-            event['ycentroid_psf'] = np.nan
-            event['psf_like'] = np.nan
-            event['xint_brightest'] = RoundToInt(weighted_eventsources.iloc[0]['xint_brightest'])
-            event['yint_brightest'] = RoundToInt(weighted_eventsources.iloc[0]['yint_brightest']) 
+            event = _Fit_psf(flux,event,prf,frames)
+            # event['xcentroid_psf'] = np.nan
+            # event['ycentroid_psf'] = np.nan
+            # event['psf_like'] = np.nan
+            # event['xint_brightest'] = RoundToInt(weighted_eventsources.iloc[0]['xint_brightest'])
+            # event['yint_brightest'] = RoundToInt(weighted_eventsources.iloc[0]['yint_brightest']) 
         else:
             event['xcentroid_psf'] = np.nan
             event['ycentroid_psf'] = np.nan
