@@ -1107,6 +1107,7 @@ class Detector():
             import tempfile
             print('        Dumping flux to shared mem...',end='\r')
             temp_folder = '/fred/oz335/.tmp'
+            os.mkdir(temp_folder)
             flux_file = os.path.join(temp_folder, "flux_memmap.pkl")
             dump(self.flux, flux_file)
             print('        Dumping flux to shared mem...Done!',end='\r')
@@ -1115,6 +1116,7 @@ class Detector():
             events = Parallel(n_jobs=cpu)(delayed(_Isolate_events_safe)(ids[i],self.time,flux_file,self.sources,
                                                                    self.sector,self.cam,self.ccd,self.cut,prf,
                                                                    frame_buffer,buffer,base_range) for i in tqdm(length))
+            os.system(f'rm -r {temp_folder}')
         else:            
             events = []
             for id in ids:
