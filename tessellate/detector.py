@@ -1106,7 +1106,7 @@ class Detector():
         if cpu > 1:
             import tempfile
             print('        Dumping flux to shared mem...',end='\r')
-            temp_folder = os.environ.get("SLURM_TMPDIR", tempfile.mkdtemp())
+            temp_folder = '/fred/oz335/.tmp'
             flux_file = os.path.join(temp_folder, "flux_memmap.pkl")
             dump(self.flux, flux_file)
             print('        Dumping flux to shared mem...Done!',end='\r')
