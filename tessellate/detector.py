@@ -1120,7 +1120,7 @@ class Detector():
         ids = np.unique(self.sources['objid'].values).astype(int)
         if cpu > 1:
             length = np.arange(0,len(ids)).astype(int)
-            events = Parallel(n_jobs=cpu*int)(delayed(_Isolate_events)(ids[i],self.time,self.flux,self.sources,
+            events = Parallel(n_jobs=cpu)(delayed(_Isolate_events)(ids[i],self.time,self.flux,self.sources,
                                                                    self.sector,self.cam,self.ccd,self.cut,prf,
                                                                    frame_buffer,buffer,base_range) for i in tqdm(length))
         else:            
