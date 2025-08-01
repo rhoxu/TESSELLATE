@@ -1178,7 +1178,11 @@ class Detector():
                 print('\n')
                 print('\n')
                 print(tile_windows[i])
-                print(self.sources[self.sources['objid'].isin(ids)][['xcentroid', 'ycentroid']].median())
+                print(
+                    self.sources[self.sources['objid'].isin(ids)]
+                        .groupby('objid')[['xcentroid', 'ycentroid']]
+                        .median()
+                )
                 print('\n')
                 print('\n')
 
