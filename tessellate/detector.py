@@ -1175,6 +1175,15 @@ class Detector():
             tile_windows, tile_objids = self._batch_spatial_objids()
             for i,ids in enumerate(tile_objids):
                 xs,xe,ys,ye = tile_windows[i]
+                print('\n')
+                print('\n')
+                print(tile_windows[i])
+                print(self.sources[self.sources['objid'].isin(ids)][['xcentroid', 'ycentroid']].median())
+                print('\n')
+                print('\n')
+
+
+
                 tile_events = Parallel(n_jobs=cpu)(delayed(_Isolate_events)(objid,self.time,self.flux[:,ys:ye,xs:xe],[xs,ys],
                                                                        self.sources,self.sector,self.cam,self.ccd,
                                                                        self.cut,prf,frame_buffer,buffer,base_range) 
