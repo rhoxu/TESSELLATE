@@ -442,7 +442,7 @@ def Detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdiff
 # ----------------------------------------------------------------------------------------------------------------------------- #
 
 
-def Get_temporal_events(df, max_gap=2, frame_col='frame', id_col='eventid',startingID=1):
+def _Get_temporal_events(df, max_gap=2, frame_col='frame', id_col='eventid',startingID=1):
     """
     Labels temporally clustered events in a DataFrame by assigning an event ID.
 
@@ -740,7 +740,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
         # -- Run RFC Classification -- #
         cf_classification, cf_prob = _Check_classifind(time,flux,weighted_signedsources.iloc[0])
 
-        labelled_sources = Get_temporal_events(signed_sources,max_gap=frame_buffer,startingID=startingID)
+        labelled_sources = _Get_temporal_events(signed_sources,max_gap=frame_buffer,startingID=startingID)
         all_labelled_sources.append(labelled_sources)
         startingID = np.nanmax(labelled_sources['eventid'])+1
     
@@ -794,7 +794,12 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
         event['ycentroid_det'] = weighted_eventsources.iloc[0]['ycentroid']
 
         if eventID in goodevents:
-            event = _Fit_psf(flux,event,prf,frames)
+            # event = _Fit_psf(flux,event,prf,frames)
+            event['xcentroid_psf'] = np.nan
+            event['ycentroid_psf'] = np.nan
+            event['psf_like'] = np.nan
+            event['xint_brightest'] = RoundToInt(weighted_eventsources.iloc[0]['xint_brightest'])
+            event['yint_brightest'] = RoundToInt(weighted_eventsources.iloc[0]['yint_brightest']) 
         else:
             event['xcentroid_psf'] = np.nan
             event['ycentroid_psf'] = np.nan
