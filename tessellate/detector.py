@@ -1104,13 +1104,11 @@ class Detector():
 
         ids = np.unique(self.sources['objid'].values).astype(int)
         if cpu > 1:
-            import tempfile
-            print('        Dumping flux to shared mem...',end='\r')
-            temp_folder = '/fred/oz335/.tmp'
-            os.mkdir(temp_folder)
+            from .tools import _Save_space
+            temp_folder = f'/fred/oz335/TESSdata/.tmp/S{self.sector}C{self.cam}C{self.cam}C{self.cut}'
+            _Save_space(temp_folder)
             flux_file = os.path.join(temp_folder, "flux_memmap.pkl")
             dump(self.flux, flux_file)
-            print('        Dumping flux to shared mem...Done!',end='\r')
 
             length = np.arange(0,len(ids)).astype(int)
             events = Parallel(n_jobs=cpu)(delayed(_Isolate_events_safe)(ids[i],self.time,flux_file,self.sources,
