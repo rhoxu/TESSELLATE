@@ -1095,7 +1095,40 @@ class Detector():
         self.flux = flux
         self.bkg = bkg
     
+    def _recheck_asteroid_lcs(self,events):
 
+        asteroids = events[events['classification']=='Asteroid']
+        if len (asteroids) > 0:
+            for _, ast in asteroids.iterrows():
+                objid = ast['objid']
+                eventid = ast['eventid']
+                xint = ast['xint']
+                yint = ast['yint']
+                frame_start = ast['frame_start']
+                frame_end = ast['frame_end']
+
+                _, _, lc_sig, _, _ = _Check_LC_significance(
+                    self.time, self.flux, frame_start, frame_end, [xint, yint], 1, 0.5, 1
+                )
+
+                start, end, _, _ = _Lightcurve_event_checker(
+                    lc_sig, np.arange(frame_start, frame_end)
+                )
+
+                n_detections = np.nansum([frame_start - start, end - frame_end])
+
+                # Update d.events
+                event_mask = (events['objid'] == objid) & (events['eventid'] == eventid)
+                events.loc[event_mask, 'frame_start'] = start
+                events.loc[event_mask, 'frame_end'] = end
+                events.loc[event_mask, 'mjd_start'] = self.time[start]
+                events.loc[event_mask, 'mjd_end'] = self.time[end]
+                events.loc[event_mask, 'frame_duration'] = end - start
+                events.loc[event_mask, 'mjd_duration'] = self.time[end] - self.time[start]
+                events.loc[event_mask, 'n_detections'] += n_detections
+
+        return events
+            
     def _flag_asteroids(self):
 
         events = deepcopy(self.events)
@@ -1105,6 +1138,8 @@ class Detector():
 
         # -- Picks up events with weirdly long event boundaries -- # 
         events = _Straight_line_asteroid_checker(self.time,self.flux,events)
+
+        events = self._recheck_asteroid_lcs(events)
 
         self.events = events
     
