@@ -1112,7 +1112,7 @@ class Detector():
                 )
 
                 start, end, _, _ = _Lightcurve_event_checker(
-                    lc_sig, np.arange(frame_start, frame_end)
+                    lc_sig, np.arange(frame_start, frame_end+1)
                 )
 
                 n_detections = np.nansum([frame_start - start, end - frame_end])
