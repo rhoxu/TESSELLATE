@@ -1715,6 +1715,8 @@ class Detector():
                                         flux_sign=flux_sign,starkiller=starkiller,
                                         lc_sig_max=lc_sig_max,image_sig_max=image_sig_max)
         
+        self._gather_data(cut=cut)
+        
         # -- Generate save path and name -- #
         if save_path is None:
             save_path = self.path + f'/Cut{cut}of{self.n**2}/lcs/'
@@ -1760,6 +1762,8 @@ class Detector():
         detections = self.filter_events(cut=cut,lower=lower,max_events=max_events,
                                         flux_sign=flux_sign,starkiller=starkiller,lc_sig_max=lc_sig_max,image_sig_max=image_sig_max)
         
+        self._gather_data(cut=cut)
+
         # -- Generate save path and name -- #
         if save_path is None:
             save_path = self.path + f'/Cut{cut}of{self.n**2}/figs/'
