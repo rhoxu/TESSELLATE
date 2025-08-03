@@ -1841,9 +1841,9 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                             if (os.path.exists(f'{save_path1}/lcs.zip')) & (os.path.exists(f'{save_path2}/lcs.zip')):
                                 print(f'Cam {cam} CCD {ccd} Cut {cut} plots already made!')
                                 print('\n')
-                            elif (os.path.exists(f'{save_path1}/detected_events.csv'))&(os.path.exists(f'{save_path2}/detected_events.csv')):
+                            elif (os.path.exists(f'{save_path1}/detected_objects.csv'))&(os.path.exists(f'{save_path2}/detected_objects.csv')):
                                 self._cut_transient_plot(cam,ccd,cut)
-                            elif not os.path.exists(f'{save_path1}/detected_events.csv'):
+                            elif not os.path.exists(f'{save_path1}/detected_objects.csv'):
                                 e = f'No Event File Detected for Plotting of Cut {cut} Part 1!\n'
                                 raise ValueError(e)
                             else:
@@ -1854,7 +1854,7 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                             if os.path.exists(f'{save_path}/lcs.zip'):
                                 print(f'Cam {cam} CCD {ccd} Cut {cut} plots already made!')
                                 print('\n')
-                            elif os.path.exists(f'{save_path}/detected_events.csv'):
+                            elif os.path.exists(f'{save_path}/detected_objects.csv'):
                                 self._cut_transient_plot(cam,ccd,cut)
                             else:
                                 e = f'No Event File Detected for Plotting of Cut {cut}!\n'
