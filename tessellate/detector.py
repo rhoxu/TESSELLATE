@@ -1870,8 +1870,9 @@ class Detector():
 
 
             theta = np.linspace(0,2*np.pi,10)
-            raCircle = 5 * np.cos(theta) + ra_obj
-            decCircle = 5 * np.sin(theta) + dec_obj
+            radius = 5/3600
+            raCircle = radius * np.cos(theta) + ra_obj
+            decCircle = radius * np.sin(theta) + dec_obj
 
             xRange = np.arange(xint-3,xint+3)
             yRange = np.arange(yint-3,yint+3)
