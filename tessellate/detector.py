@@ -2059,6 +2059,8 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
     break_ind += 1
     break_ind = np.insert(break_ind,0,0)
 
+    eventtype = event       # just for use down the line as we redefine what event is
+
     # -- Iterates over each source in the events dataframe and generates plot -- #
     for i in range(len(events)):
         event_id = events['eventid'].iloc[i]          # Select event ID
@@ -2260,7 +2262,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
                                                 #splc += '/' + extension
                                                 #_Check_dirs(splc)
                                                                         
-            if event == 'all':
+            if eventtype == 'all':
                 plt.savefig(f'{save_name}_all_events.png', bbox_inches = "tight")
             else:
                 plt.savefig(f'{save_name}_event{event_id}of{total_events}.png', 
