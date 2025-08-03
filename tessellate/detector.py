@@ -508,7 +508,7 @@ def _Check_LC_significance(time,flux,start,end,pos,flux_sign,buffer = 0.5,base_r
     lc_sig = (lcevent - med) / std
     
     max_flux = np.nanmax(lcevent)
-    max_frame = np.argmax(lcevent)
+    max_frame = np.argmax(lcevent)+start
 
     if flux_sign >= 0:
         sig_max = np.nanmax(lc_sig)
@@ -836,7 +836,10 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
         event['peak_power'] = peak_power[0]
         event['cf_class'] = cf_classification
         event['cf_prob'] = cf_prob
+        event['GaiaID'] = eventsources.iloc[0]['GaiaID']
+        event['source_mask'] = eventsources.iloc[0]['source_mask']
 
+ 
         df = pd.DataFrame([event])
         dfs.append(df)
 
@@ -1431,7 +1434,7 @@ class Detector():
             'ra', 'dec', 'gal_l', 'gal_b', 'lc_sig_max', 'flux_maxsig', 'frame_maxsig',
             'mjd_maxsig','psf_maxsig','flux_sign', 'n_events',
             'min_eventlength_frame', 'max_eventlength_frame',
-            'min_eventlength_mjd','max_eventlength_mjd','classification'
+            'min_eventlength_mjd','max_eventlength_mjd','GaiaID','classification','TSS Catalogue'
         ]
         objects = pd.DataFrame(columns=columns)
 
@@ -1472,7 +1475,8 @@ class Detector():
                 'max_eventlength_frame': obj['frame_duration'].max(),
                 'min_eventlength_mjd': obj['mjd_duration'].min(),
                 'max_eventlength_mjd': obj['mjd_duration'].max(),
-                'TSS Catalogue' : maxevent['TSS Catalogue']
+                'TSS Catalogue' : maxevent['TSS Catalogue'],
+                'GaiaID' : maxevent['GaiaID']
             }
 
             obj_row = pd.DataFrame([row_data])
@@ -1943,6 +1947,33 @@ class Detector():
             lcs.append((t,f))
 
         return lcs
+    
+    def event_frames(self,cut,objid,eventid=None,frame_buffer=5,image_size=11):
+
+        # -- Gather data -- #
+        if cut != self.cut:
+            self._gather_data(cut)
+            self._gather_results(cut)
+            self.cut = cut
+
+        events = self.events[self.events['objid']==objid]
+        if eventid is None:
+            print('No event specificed, using brightest one!')
+            eventid = events['lc_sig_max'].argmax()+1
+        
+        event = events[events.eventid==eventid]
+        brightestframe = event['frame_max']
+        frames = np.array([brightestframe+frame_buffer*n for n in range(-2,3)])
+        frames[frames<0] = 0
+        frames[frames>len(self.time)]=len(self.time)-1
+        frames = np.unique(frames)
+
+        x = int(event['xint']) 
+        y = int(event['yint']) 
+
+        return self.flux[frames,y-image_size//2:y+image_size//2+1,x-image_size//2:x+image_size//2+1]
+        
+
 
     def locate_transient(self,cut,xcentroid,ycentroid,threshold=3):
 
