@@ -1868,6 +1868,11 @@ class Detector():
             if len(axes) == 1:
                 wcs = [wcs]
 
+
+            theta = np.linspace(0,2*np.pi,10)
+            raCircle = error/2 * np.cos(theta) + ra_obj
+            decCircle = error/2 * np.sin(theta) + dec_obj
+
             xRange = np.arange(xint-3,xint+3)
             yRange = np.arange(yint-3,yint+3)
 
@@ -1881,7 +1886,10 @@ class Detector():
                 lines.append(line)
 
             # -- Plot the TESS pixel edges on the axes -- #
-            for i,ax in enumerate(axes):                    
+            for i,ax in enumerate(axes): 
+                x,y,_ = wcs[i].all_worldpix(raCircle,decCircle,0)
+                ax.plot(x,y,'.',markersize=10,color='red',alpha=1,lw=1)
+
                 ys = []
                 for j,line in enumerate(lines):
                     if j in [0,6]:

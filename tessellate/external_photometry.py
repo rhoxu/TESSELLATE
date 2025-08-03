@@ -308,17 +308,17 @@ def _add_sources(fig,coords,cat,error=None):
 
         # ax.plot(raring,decring, transform=ax.get_transform('fk5'),color='magenta',linewidth=3,linestyle=':')
 
-        if error is not None:
-            if len(error) > 1:
-                xerr,yerr = error
-            else:
-                xerr = yerr = error
-            ellipse = Ellipse(xy=(coords[0],coords[1]),  
-                              width=error[0],height=error[1],     
-                              edgecolor='red',facecolor='none',
-                              linestyle=':', linewidth=3,
-                              transform=ax.get_transform('fk5'))
-            ax.add_patch(ellipse)
+        # if error is not None:
+        #     if len(error) > 1:
+        #         xerr,yerr = error
+        #     else:
+        #         xerr = yerr = error
+        #     ellipse = Ellipse(xy=(coords[0],coords[1]),  
+        #                       width=error[0],height=error[1],     
+        #                       edgecolor='red',facecolor='none',
+        #                       linestyle=':', linewidth=3,
+        #                       transform=ax.get_transform('fk5'))
+        #     ax.add_patch(ellipse)
         
         # scatter stars 
         stars = cat.loc[cat['star'] ==1]
