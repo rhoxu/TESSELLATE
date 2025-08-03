@@ -1883,8 +1883,6 @@ class Detector():
 
             # -- Plot the TESS pixel edges on the axes -- #
             for i,ax in enumerate(axes): 
-                ax.plot(x,y,'.',markersize=10,color='red',alpha=1,lw=1)
-
                 ys = []
                 for j,line in enumerate(lines):
                     if j in [0,6]:
