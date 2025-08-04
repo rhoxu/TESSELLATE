@@ -1172,7 +1172,7 @@ class Detector():
 
     def count_detections(self,cut,starkiller=False,asteroidkiller=False,
                             lower=None,upper=None,sig_image=None,sig_lc=None,
-                            max_events=None):
+                            max_events=None,bkgstd_lim=None,sign=None):
 
         if cut != self.cut:
             self._gather_data(cut)
@@ -1193,6 +1193,10 @@ class Detector():
             r = r.loc[r['max_sig'] >= sig_image]
         if max_events is not None:
             r = r.loc[r['total_events'] <= max_events]
+        if bkgstd_lim is not None:
+            r = r.loc[r['bkgstd'] <= bkgstd_lim]
+        if sign is not None:
+            r = r.loc[r['flux_sign'] == sign]
         #array = r['objid'].values
         #counts = []
         #ids = np.unique(array)
@@ -1250,10 +1254,13 @@ class Detector():
         return extension
 
 
-    def plot_ALL(self,cut,save_path=None,lower=2,starkiller=False,sig_image=2.5,sig_lc=2.5,save_lc=True,time_bin=None):
+    def plot_ALL(self,cut,save_path=None,lower=3,max_events=10,starkiller=False,
+                 sig_image=2.5,sig_lc=2.5,bkgstd_lim=50,sign=1,
+                 save_lc=True,time_bin=None):
         if time_bin is not None:
             self.time_bin = time_bin
-        detections = self.count_detections(cut=cut,lower=lower,starkiller=starkiller,sig_lc=sig_lc,sig_image=sig_image)
+        detections = self.count_detections(cut=cut,lower=lower,max_events=max_events,
+                                           sign=sign,starkiller=starkiller,sig_lc=sig_lc,sig_image=sig_image)
         if save_path is None:
             save_path = self.path + f'/Cut{cut}of{self.n**2}/figs/'
             print('Figure path: ',save_path)
@@ -1531,10 +1538,10 @@ class Detector():
                         else:
                             lc.to_csv(splc+'/'+savename+f'_all_events_tbin{self.time_bin_name}d.csv', index=False)
                     else:
-                        if self.time_bin is None:
-                            lc.to_csv(splc+'/'+savename+f'_event{event_id}of{total_events}.csv', index=False)
-                        else:
-                            lc.to_csv(splc+'/'+savename+f'_event{event_id}of{total_events}_tbin{str(self.time_bin)}d.csv', index=False)
+                        #if self.time_bin is None:
+                        #    lc.to_csv(splc+'/'+savename+f'_event{event_id}of{total_events}.csv', index=False)
+                        #else:
+                        #    lc.to_csv(splc+'/'+savename+f'_event{event_id}of{total_events}_tbin{str(self.time_bin)}d.csv', index=False)
                 #np.save(save_path+'/'+savename+'_lc.npy',[time,f])
                 #np.save(save_path+'/'+savename+'_cutout.npy',cutout_image)
                 self.save_base = sp+'/'+savename

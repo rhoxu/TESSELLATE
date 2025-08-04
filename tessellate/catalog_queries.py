@@ -114,7 +114,7 @@ def find_variables(coords,viz_cat,radius):
  
         variables = pd.concat([varisum, asasn, des_var])
     
-    obs = cross_match(viz_cat, variables)
+    obs = cross_match(viz_cat, variables,2)
     return obs
 
 def gaia_stars(obs_cat,size=2*21,mag_limit=19.5):
