@@ -5,13 +5,146 @@ from astroquery.vizier import Vizier
 import numpy as np
 from astropy.io import fits 
 from astropy.wcs import WCS 
-from sklearn.cluster import DBSCAN
 from time import time as t
-from sklearn.neighbors import KDTree
-import mastcasjobs
-import os
+
+no_targets_found_message = ValueError('Either no sources were found in the query region '
+                                        'or Vizier is unavailable')
+
+def Get_Catalogue(ra,dec,size,Catalog = 'gaia'):
+	"""
+	Get the coordinates and mag of all sources in the field of view from a specified catalogue.
+
+	I/347/gaia2dis   Distances to 1.33 billion stars in Gaia DR2 (Bailer-Jones+, 2018)
+
+	-------
+	Inputs-
+	-------
+		tpf 				class 	target pixel file lightkurve class
+		Catalogue 			str 	Permitted options: 'gaia', 'dist', 'ps1'
+	
+	--------
+	Outputs-
+	--------
+		coords 	array	coordinates of sources
+		Gmag 	array 	Gmags of sources
+	"""
+	c1 = SkyCoord(ra, dec, frame='icrs', unit='deg')
+	# Use pixel scale for query size
+	pix_scale = 21.0
+	# We are querying with a diameter as the radius, overfilling by 2x.
+	Vizier.ROW_LIMIT = -1
+	if Catalog == 'gaia':
+		catalog = "I/345/gaia2"
+	elif Catalog == 'dist':
+		catalog = "I/350/gaiaedr3"
+	elif Catalog == 'ps1':
+		catalog = "II/349/ps1"
+	elif Catalog == 'skymapper':
+		catalog = 'II/358/smss'
+	else:
+		raise ValueError(f"{catalog} not recognised as a catalog. Available options: 'gaia', 'dist','ps1'")
+	if Catalog == 'gaia':
+		result = Vizier.query_region(c1, catalog=[catalog],
+							 		 radius=Angle(size * pix_scale + 60, "arcsec"),column_filters={'Gmag':'<19'},cache=False)
+	else:
+		result = Vizier.query_region(c1, catalog=[catalog],
+									 radius=Angle(size * pix_scale + 60, "arcsec"),cache=False)
+
+	no_targets_found_message = ValueError('Either no sources were found in the query region '
+										  'or Vizier is unavailable')
+	#too_few_found_message = ValueError('No sources found brighter than {:0.1f}'.format(magnitude_limit))
+	if result is None:
+		raise no_targets_found_message
+	elif len(result) == 0:
+		raise no_targets_found_message
+	result = result[catalog].to_pandas()
+	
+	return result 
+
+
+def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False):
+    """
+    Get the coordinates and mag of all gaia sources in the field of view.
+
+    -------
+    Inputs-
+    -------
+        tpf 				class 	target pixel file lightkurve class
+        magnitude_limit 	float 	cutoff for Gaia sources
+        Offset 				int 	offset for the boundary 
+
+    --------
+    Outputs-
+    --------
+        coords 	array	coordinates of sources
+        Gmag 	array 	Gmags of sources 
+    """
+    keys = ['objID','RAJ2000','DEJ2000','e_RAJ2000','e_DEJ2000','gmag','e_gmag','gKmag','e_gKmag','rmag',
+            'e_rmag','rKmag','e_rKmag','imag','e_imag','iKmag','e_iKmag','zmag','e_zmag','zKmag','e_zKmag',
+            'ymag','e_ymag','yKmag','e_yKmag','tmag','gaiaid','gaiamag','gaiadist','gaiadist_u','gaiadist_l',
+            'row','col']
+    
+    if verbose:
+        ts = t()
+        print(f'   getting gaia catalogue in radius {size} px:')
+        print('        Gaia...',end='\r')
+    result = Get_Catalogue(ra,dec,size,Catalog='gaia')
+    if verbose:
+        print(f'       Gaia...Done! ({(t()-ts):.2f}s)')
+
+    result = result[result.Gmag < magnitude_limit]
+    if len(result) == 0:
+        raise no_targets_found_message
+    
+    radecs = np.vstack([result['RA_ICRS'], result['DE_ICRS']]).T
+    try:
+        coords = wcsObj.all_world2pix(radecs, 0) ## TODO, is origin supposed to be zero or one?
+    except:
+        good_coords = []
+        for i,radec in enumerate(radecs):
+            try:
+                c = wcsObj.all_world2pix(radec[0],radec[1], 0)
+                good_coords.append(i)
+            except:
+                pass
+        radecs = radecs[good_coords]
+        result = result.iloc[good_coords]
+        coords = wcsObj.all_world2pix(radecs, 0) ## TODO, is origin supposed to be zero or one?
+
+    source = result['Source'].values
+    Gmag = result['Gmag'].values
+    #Jmag = result['Jmag']
+    ind = (((coords[:,0] >= -10) & (coords[:,1] >= -10)) & 
+            ((coords[:,0] < (size + 10)) & (coords[:,1] < (size + 10))))
+    coords = coords[ind]
+    radecs = radecs[ind]
+    Gmag = Gmag[ind]
+    source = source[ind]
+    Tmag = Gmag - 0.5
+
+    #Jmag = Jmag[ind]
+    return radecs, Tmag, source
+
+def create_external_gaia_cat(tpf,save_path,maglim,verbose=False):
+
+	tpfFits = fits.open(tpf)
+
+	ra = tpfFits[1].header['RA_OBJ']
+	dec = tpfFits[1].header['DEC_OBJ']
+	size = eval(tpfFits[1].header['TDIM8'])[0] 
+
+	wcsObj = WCS(tpfFits[2].header)
+
+	gp,gm, source = Get_Gaia(ra,dec,size,wcsObj,magnitude_limit=maglim,verbose=verbose)
+	
+	gaia  = pd.DataFrame(np.array([gp[:,0],gp[:,1],gm,source]).T,columns=['ra','dec','mag','Source'])
+
+	gaia.to_csv(f'{save_path}/local_gaia_cat.csv',index=False)
+
 
 def search_atlas_var(coords, radius):
+    import mastcasjobs
+
     query = """select o.ATO_ID, o.ra, o.dec, o.CLASS
                from fGetNearbyObjEq("""+str(coords[0])+','+str(coords[1])+","+str(radius)+""") as nb
                inner join object as o on o.objid = nb.ObjID
@@ -53,69 +186,69 @@ def get_catalog(catalog, centre, radius,gaia=False):
     else:
         t_result = v.query_region(coords, radius=radius*u.deg,
                                   catalog=catalog,cache=False)
- 
+    Vizier.clear_cache()
     if len(t_result) > 0:
         return t_result[catalog].to_pandas()
     else:
         return None
  
-def find_variables(coords,viz_cat,radius):
-    # Fetch and save catalogs from Vizier.
-    # Gaia Variable Catalog
-    varisum = get_catalog("I/358/varisum",coords,radius)
-    t.sleep(10)
-    try:
-        atlas = search_atlas_var(coords,radius)
-    except:
-        atlas = None
-    t.sleep(10)
-    # ASASN Variable Catalog
-    asasn = get_catalog("II/366/catalog",coords,radius)
-    t.sleep(10)
-    # DES RRLyrae Catalog
-    des_var = get_catalog("J/AJ/158/16/table11",coords,radius)
-    if (varisum is None) & (asasn is None) & (des_var is None) & (atlas is None):
-        print("No known variables found ...")
-        variables = pd.DataFrame(columns=['ra','dec','Type','Prob'])
-    else:
-        if varisum is not None:
-            varisum['Type'] = 'None'
-            varisum['Prob'] = 0
-            keys = list(varisum.keys())[12:-2]
-            for key in keys:
-                t = varisum[key].values > 0
-                varisum['Type'].iloc[t] = key
-                varisum['Prob'].iloc[t] = varisum[key].values[t]
-            varisum = varisum.rename(columns={'RA_ICRS': 'ra',
-                                              'DE_ICRS': 'dec'})
-            varisum = pd.DataFrame(varisum, columns=['ra','dec','Type','Prob'])
-            varisum['Catalog'] = 'I/358/varisum'
-        if atlas is not None:
-            atlas = atlas.rename(columns={'CLASS':'Type'})
-            atlas['Prob'] = 1
-            atlas['Catalog'] = 'HLSP_ATLAS_VAR'
-        if asasn is not None:
-            asasn = asasn.rename(columns={'RAJ2000': 'ra',
-                                          'DEJ2000': 'dec'})
-            asasn = pd.DataFrame(asasn, columns=['ra','dec','Type','Prob'])
-            asasn['Catalog'] = 'II/366/catalog'
-        else:
-            asasn = None
+# def find_variables(coords,viz_cat,radius):
+#     # Fetch and save catalogs from Vizier.
+#     # Gaia Variable Catalog
+#     varisum = get_catalog("I/358/varisum",coords,radius)
+#     t.sleep(10)
+#     try:
+#         atlas = search_atlas_var(coords,radius)
+#     except:
+#         atlas = None
+#     t.sleep(10)
+#     # ASASN Variable Catalog
+#     asasn = get_catalog("II/366/catalog",coords,radius)
+#     t.sleep(10)
+#     # DES RRLyrae Catalog
+#     des_var = get_catalog("J/AJ/158/16/table11",coords,radius)
+#     if (varisum is None) & (asasn is None) & (des_var is None) & (atlas is None):
+#         print("No known variables found ...")
+#         variables = pd.DataFrame(columns=['ra','dec','Type','Prob'])
+#     else:
+#         if varisum is not None:
+#             varisum['Type'] = 'None'
+#             varisum['Prob'] = 0
+#             keys = list(varisum.keys())[12:-2]
+#             for key in keys:
+#                 t = varisum[key].values > 0
+#                 varisum['Type'].iloc[t] = key
+#                 varisum['Prob'].iloc[t] = varisum[key].values[t]
+#             varisum = varisum.rename(columns={'RA_ICRS': 'ra',
+#                                               'DE_ICRS': 'dec'})
+#             varisum = pd.DataFrame(varisum, columns=['ra','dec','Type','Prob'])
+#             varisum['Catalog'] = 'I/358/varisum'
+#         if atlas is not None:
+#             atlas = atlas.rename(columns={'CLASS':'Type'})
+#             atlas['Prob'] = 1
+#             atlas['Catalog'] = 'HLSP_ATLAS_VAR'
+#         if asasn is not None:
+#             asasn = asasn.rename(columns={'RAJ2000': 'ra',
+#                                           'DEJ2000': 'dec'})
+#             asasn = pd.DataFrame(asasn, columns=['ra','dec','Type','Prob'])
+#             asasn['Catalog'] = 'II/366/catalog'
+#         else:
+#             asasn = None
  
-        if des_var is not None:
-            des_var = des_var.rename(columns={'RAJ2000': 'ra',
-                                              'DEJ2000': 'dec'})
-            des_var = pd.DataFrame(des_var, columns=['ra','dec'])
-            des_var['Type'] = 'RRLyrae'
-            des_var['Prob'] = 1
-            des_var['Catalog'] = 'DES'
-        else:
-            des_var = None
+#         if des_var is not None:
+#             des_var = des_var.rename(columns={'RAJ2000': 'ra',
+#                                               'DEJ2000': 'dec'})
+#             des_var = pd.DataFrame(des_var, columns=['ra','dec'])
+#             des_var['Type'] = 'RRLyrae'
+#             des_var['Prob'] = 1
+#             des_var['Catalog'] = 'DES'
+#         else:
+#             des_var = None
  
-        variables = pd.concat([varisum, asasn, des_var])
+#         variables = pd.concat([varisum, asasn, des_var])
     
-    obs = cross_match(viz_cat, variables,2)
-    return obs
+#     obs = cross_match(viz_cat, variables)
+#     return obs
 
 def gaia_stars(obs_cat,size=2*21,mag_limit=19.5):
     coords = SkyCoord(ra=obs_cat.ra.values*u.deg,
@@ -131,25 +264,38 @@ def gaia_stars(obs_cat,size=2*21,mag_limit=19.5):
 
 ####### Download variables
 
-def _Extract_fits(pixelfile):
-    """
-    Quickly extract fits
-    """
-    try:
-        hdu = fits.open(pixelfile)
-        return hdu
-    except OSError:
-        print('OSError ',pixelfile)
-        return
+def get_variable_cats(coords,radius,verbose):
+    from time import time as t
 
-def get_variable_cats(coords,radius):
+    if verbose:
+        ts = t()
+        print(f'   getting variable catalogues in radius {radius:.1f} deg:')
+        print('       Varisum...',end='\r')
+
+
     varisum = get_catalog("I/358/varisum",coords,radius)
-    atlas = search_atlas_var(coords,radius)
+    if verbose:
+        print(f'       Varisum...Done! ({(t()-ts):.1f}s)')
+        print(f'       Atlas...',end='\r')
+        ts = t()
 
-    # ASASN Variable Catalog
+    atlas = search_atlas_var(coords,radius)
+    if verbose:
+        print(f'       Atlas...Done! ({(t()-ts):.1f}s)')
+        print(f'       ASASN...',end='\r')
+        ts = t()
+
     asasn = get_catalog("II/366/catalog",coords,radius)
-    # DES RRLyrae Catalog
+    if verbose:
+        print(f'       ASASN...Done! ({(t()-ts):.1f}s)')
+        print(f'       DES...',end='\r')
+        ts = t()
+
     des_var = get_catalog("J/AJ/158/16/table11",coords,radius)
+    if verbose:
+        print(f'       DES...Done! ({(t()-ts):.1f}s)')
+        print('\n')
+
     if (varisum is None) & (asasn is None) & (des_var is None) & (atlas is None):
         print("No known variables found ...")
         variables = pd.DataFrame(columns=['ra','dec','Type','Prob'])
@@ -160,9 +306,9 @@ def get_variable_cats(coords,radius):
             varisum['Prob'] = 0
             keys = list(varisum.keys())[12:-2]
             for key in keys:
-                t = varisum[key].values > 0
-                varisum.loc[t,'Type'] = key
-                varisum.loc[t, 'Prob'] = varisum[key].values[t]
+                tt = varisum[key].values > 0
+                varisum.loc[tt,'Type'] = key
+                varisum.loc[tt, 'Prob'] = varisum[key].values[tt]
             varisum = varisum.rename(columns={'RA_ICRS': 'ra',
                                               'DE_ICRS': 'dec',
                                               'Source': 'ID'})
@@ -199,8 +345,8 @@ def get_variable_cats(coords,radius):
     return variables
 
 
-def create_external_var_cat(center,size,save_path):
-    varcat = get_variable_cats(center,size)
+def create_external_var_cat(center,size,save_path,verbose=False):
+    varcat = get_variable_cats(center,size,verbose=verbose)
     varcat.to_csv(save_path+'/variable_catalog.csv',index=False)
 
 
@@ -236,6 +382,8 @@ def join_cats(obs_cat, viz_cat,rad = 2):
 #    return cat1_id,cat2_id
 
 def cross_match_DB(cat1,cat2,distance=2*21,njobs=-1):
+    from sklearn.cluster import DBSCAN
+
     all_ra = np.append(cat1['ra'].values,cat2['ra'].values)
     all_dec = np.append(cat1['dec'].values,cat2['dec'].values)
     cat2_ind = len(cat1)
@@ -265,6 +413,8 @@ def cross_match_DB(cat1,cat2,distance=2*21,njobs=-1):
     return cat1_id,cat2_id
 
 def cross_match_tree(cat1,cat2,distance=2,ax1='ra',ax2='dec'):
+    from sklearn.neighbors import KDTree
+
     p1 = np.array([cat1[ax1].values,cat1[ax2].values]).T.astype(float)
     p2 = np.array([cat2[ax1].values,cat2[ax2].values]).T.astype(float)
 
@@ -294,7 +444,7 @@ def match_result_to_cat(result,cat,columns=['Type','Prob'],distance=2*21,min_ent
     pos = {'objid':Id,'ra':ra,'dec':dec}
     pos = pd.DataFrame(pos)
     id_ind, cat_ind = cross_match_DB(pos,cat,distance) #cross_match_tree(pos,cat,distance/60**2)
-    obj_id = ids[id_ind]
+    obj_id = pos['objid'].values[id_ind]
     for column in columns:
         result[column] = 0
     if isinstance(obj_id,int) | isinstance(obj_id,np.int64):

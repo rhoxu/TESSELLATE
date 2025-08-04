@@ -1,3 +1,0 @@
-astrocut
-photutils>=1.4
-tessreduce@ git+https://github.com/rhoxu/TESSreduce.git

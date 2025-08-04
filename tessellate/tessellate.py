@@ -1,13 +1,16 @@
-from .tools import delete_files, _Print_buff, _Save_space
-
 from time import time as t
+# ts = t()
 from time import sleep
 
 from glob import glob
 import os
 
 import numpy as np
+# print(f'Imported easy functions ({ts-t():.0f}s)')
 
+# ts = t()
+from .tools import delete_files, _Print_buff, _Save_space
+# print(f'Imported .tools functions ({ts-t():.0f}s)')
 
 class Tessellate():
     """
@@ -221,8 +224,8 @@ class Tessellate():
         Generate suggestions for slurm job runtime, cpu allocation, memory based on sector (tested but temperamental)
         """
 
-        primary_mission = range(1,28)       # ~1200 FFIs , 30 min cadence
-        secondary_mission = range(28,56)    # ~3600 FFIs , 10 min cadence
+        primary_mission = range(1,27)       # ~1200 FFIs , 30 min cadence
+        secondary_mission = range(27,56)    # ~3600 FFIs , 10 min cadence
         tertiary_mission = range(56,100)    # ~12000 FFIs , 200 sec cadence
 
         self.part = False
@@ -243,9 +246,9 @@ class Tessellate():
             search_cpu_sug = '32'
             search_mem_req = 50
             
-            plot_time_sug = '20:00'
+            plot_time_sug = '10:00'
             plot_cpu_sug = '32'
-            plot_mem_req = 50
+            plot_mem_req = 64
 
         elif self.sector in secondary_mission:
             cube_time_sug = '1:45:00'
@@ -262,11 +265,11 @@ class Tessellate():
 
             search_time_sug = '30:00'
             search_cpu_sug = '32'
-            search_mem_req = 70
+            search_mem_req = 64
             
-            plot_time_sug = '20:00'
+            plot_time_sug = '10:00'
             plot_cpu_sug = '32'
-            plot_mem_req = 70
+            plot_mem_req = 64
 
         elif self.sector in tertiary_mission:
             self.part = True
@@ -287,7 +290,7 @@ class Tessellate():
             search_cpu_sug = '32'
             search_mem_req = 60
             
-            plot_time_sug = '20:00'
+            plot_time_sug = '10:00'
             plot_cpu_sug = '32'
             plot_mem_req = 50
 
@@ -1298,8 +1301,8 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', '
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cubing\n\
-#SBATCH --output={self.job_output_path}/tessellate_cubing_logs/%A_cubing_job_output.txt\n\
-#SBATCH --error={self.job_output_path}/tessellate_cubing_logs/%A_cubing_errors.txt\n\
+#SBATCH --output={self.job_output_path}/tessellate_cubing_logs/%A_%x_job_output.txt\n\
+#SBATCH --error={self.job_output_path}/tessellate_cubing_logs/%A_%x_errors.txt\n\
 #\n\
 #SBATCH --ntasks=1\n\
 #SBATCH --time={self.cube_time}\n\
@@ -1321,8 +1324,14 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
         Access internet, find Gaia sources and save for reduction.
         """
 
-        from .dataprocessor import DataProcessor, tr
-        from .catalog_queries import create_external_var_cat
+        # print('Importing .dataprocessor, .catalog_queries')
+        from .dataprocessor import DataProcessor
+        from .catalog_queries import create_external_var_cat, create_external_gaia_cat
+        import warnings
+        warnings.filterwarnings("ignore")
+        # print('Done!')
+        # print('\n')
+
 
         data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
         _,_,cutCentreCoords,rad = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
@@ -1358,16 +1367,39 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                         if os.path.exists(f'{save_path}/variable_catalog.csv'):
                             completed.append(cut)
                         elif os.path.exists(f'{save_path}/cut.txt'):
+                            import sys
                             #try:
                             print(f'Generating Catalogues {cut}')
                             if os.path.exists(f'{save_path}/local_gaia_cat.csv'):
-                                print('Gaia catalog already made, skipping.')
-                            else:
+                                print('--Gaia catalog already made, skipping.')
+                            else:      # its time to move external_save_cat to tessellate, this import takes ages!!             
                                 rad = rad + 2*60/21
                                 cutPath = f'{save_path}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}.fits'
-                                tr.external_save_cat(tpf=cutPath,save_path=save_path,maglim=19) # oversize radius by 2 arcmin in terms of tess pixels
+
+                                doneGaia = False
+                                attempt = 1
+                                while not doneGaia:
+                                    try:
+                                        create_external_gaia_cat(tpf=cutPath,save_path=save_path,maglim=19,verbose=self.verbose>1) # oversize radius by 2 arcmin in terms of tess pixels
+                                        doneGaia = True
+                                    except Exception as e:
+                                        print(f"--GAIA Catalogue Attempt {attempt} failed with error: {e}")
+                                        sleep(120)
+                                        attempt += 1
+
                             rad2 = rad*21/60**2
-                            create_external_var_cat(center=cutCentreCoords[cut-1],size=rad2,save_path=save_path) # This one queries in degrees!!!!
+                            doneVar = False
+                            attempt = 1
+                            while not doneVar:
+                                try:
+                                    create_external_var_cat(center=cutCentreCoords[cut-1],
+                                                            size=rad2,save_path=save_path,verbose=self.verbose>1) # This one queries in degrees!!!!
+                                    doneVar = True
+                                except Exception as e:
+                                    print(f"--Variable Catalogue Attempt {attempt} failed with error: {e}")
+                                    sleep(120)
+                                    attempt+=1
+
                             completed.append(cut)
 
                 i += 1
@@ -1469,8 +1501,8 @@ if not part:\n\
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Cutting\n\
-#SBATCH --output={self.job_output_path}/tessellate_cutting_logs/%A_cutting_job_output.txt\n\
-#SBATCH --error={self.job_output_path}/tessellate_cutting_logs/%A_cutting_errors.txt\n\
+#SBATCH --output={self.job_output_path}/tessellate_cutting_logs/%A_%x_job_output.txt\n\
+#SBATCH --error={self.job_output_path}/tessellate_cutting_logs/%A_%x_errors.txt\n\
 #\n\
 #SBATCH --ntasks=1\n\
 #SBATCH --time={self.cut_time}\n\
@@ -1574,8 +1606,8 @@ if not part:\n\
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Reduction\n\
-#SBATCH --output={self.job_output_path}/tessellate_reduction_logs/%A_reduction_job_output.txt\n\
-#SBATCH --error={self.job_output_path}/tessellate_reduction_logs/%A_reduction_errors.txt\n\
+#SBATCH --output={self.job_output_path}/tessellate_reduction_logs/%A_%x_job_output.txt\n\
+#SBATCH --error={self.job_output_path}/tessellate_reduction_logs/%A_%x_errors.txt\n\
 #\n\
 #SBATCH --ntasks=1\n\
 #SBATCH --time={self.reduce_time}\n\
@@ -1624,8 +1656,8 @@ else:\n\
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Search\n\
-#SBATCH --output={self.job_output_path}/tessellate_search_logs/%A_search_job_output.txt\n\
-#SBATCH --error={self.job_output_path}/tessellate_search_logs/%A_search_errors.txt\n\
+#SBATCH --output={self.job_output_path}/tessellate_search_logs/%A_%x_job_output.txt\n\
+#SBATCH --error={self.job_output_path}/tessellate_search_logs/%A_%x_errors.txt\n\
 #\n\
 #SBATCH --ntasks=1\n\
 #SBATCH --time={self.search_time}\n\
@@ -1665,7 +1697,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                         if self.part:
                             save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
                             save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
-                            if (os.path.exists(f'{save_path1}/detected_events.csv')) & (os.path.exists(f'{save_path2}/detected_events.csv')):
+                            if (os.path.exists(f'{save_path1}/detected_objects.csv')) & (os.path.exists(f'{save_path2}/detected_objects.csv')):
                                 print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
                                 print('\n')
                             elif (os.path.exists(f'{save_path1}/reduced.txt')) & (os.path.exists(f'{save_path2}/reduced.txt')):
@@ -1678,7 +1710,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                                 raise ValueError(e)
                         else:
                             save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                            if os.path.exists(f'{save_path}/detected_events.csv'):
+                            if os.path.exists(f'{save_path}/detected_objects.csv'):
                                 print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
                                 print('\n')
                             elif os.path.exists(f'{save_path}/reduced.txt'):
@@ -1747,12 +1779,14 @@ from tessellate import Detector\n\
 part = {self.part}\n\
 if part:\n\
     detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},part=1)\n\
-    detector.plot_ALL(cut={cut},lower=2)\n\
+    detector.plot_ALL(cut={cut},lower=3)\n\
+    detector.lc_ALL(cut={cut},lower=3)\n\
     detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},part=2)\n\
-    detector.plot_ALL(cut={cut},lower=2)\n\
+    detector.lc_ALL(cut={cut},lower=3)\n\
 else:\n\
     detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
-    detector.plot_ALL(cut={cut},lower=2)"
+    detector.plot_ALL(cut={cut},lower=3)\n\
+    detector.lc_ALL(cut={cut},lower=3)"
                     
         with open(f"{self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
             python_file.write(python_text)
@@ -1763,8 +1797,8 @@ else:\n\
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Plotting\n\
-#SBATCH --output={self.job_output_path}/tessellate_plotting_logs/%A_plotting_job_output.txt\n\
-#SBATCH --error={self.job_output_path}/tessellate_plotting_logs/%A_plotting_errors.txt\n\
+#SBATCH --output={self.job_output_path}/tessellate_plotting_logs/%A_%x_job_output.txt\n\
+#SBATCH --error={self.job_output_path}/tessellate_plotting_logs/%A_%x_errors.txt\n\
 #\n\
 #SBATCH --ntasks=1\n\
 #SBATCH --time={self.plot_time}\n\
@@ -1804,12 +1838,12 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                         if self.part:
                             save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
                             save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
-                            if (os.path.exists(f'{save_path1}/figs')) & (os.path.exists(f'{save_path2}/figs')):
+                            if (os.path.exists(f'{save_path1}/lcs.zip')) & (os.path.exists(f'{save_path2}/lcs.zip')):
                                 print(f'Cam {cam} CCD {ccd} Cut {cut} plots already made!')
                                 print('\n')
-                            elif (os.path.exists(f'{save_path1}/detected_events.csv'))&(os.path.exists(f'{save_path2}/detected_events.csv')):
+                            elif (os.path.exists(f'{save_path1}/detected_objects.csv'))&(os.path.exists(f'{save_path2}/detected_objects.csv')):
                                 self._cut_transient_plot(cam,ccd,cut)
-                            elif not os.path.exists(f'{save_path1}/detected_events.csv'):
+                            elif not os.path.exists(f'{save_path1}/detected_objects.csv'):
                                 e = f'No Event File Detected for Plotting of Cut {cut} Part 1!\n'
                                 raise ValueError(e)
                             else:
@@ -1817,14 +1851,15 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                                 raise ValueError(e)
                         else:
                             save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                            if os.path.exists(f'{save_path}/figs'):
+                            if os.path.exists(f'{save_path}/lcs.zip'):
                                 print(f'Cam {cam} CCD {ccd} Cut {cut} plots already made!')
                                 print('\n')
-                            elif os.path.exists(f'{save_path}/detected_events.csv'):
+                            elif os.path.exists(f'{save_path}/detected_objects.csv'):
                                 self._cut_transient_plot(cam,ccd,cut)
                             else:
                                 e = f'No Event File Detected for Plotting of Cut {cut}!\n'
-                                raise ValueError(e)
+                                print(e)
+                                #raise ValueError(e)
                             
                         
                 else:
@@ -1859,7 +1894,7 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                                     if self.part:
                                         save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
                                         save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
-                                        if (os.path.exists(f'{save_path1}/figs')) & (os.path.exists(f'{save_path2}/figs')):
+                                        if (os.path.exists(f'{save_path1}/lcs.zip')) & (os.path.exists(f'{save_path2}/lcs.zip')):
                                             print(f'Cam {cam} CCD {ccd} Cut {cut} plots already made!')
                                             print('\n')
                                         elif (os.path.exists(f'{save_path1}/detected_events.csv'))&(os.path.exists(f'{save_path2}/detected_events.csv')):
@@ -1867,7 +1902,7 @@ python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scr
                                             completed.append(cut)
                                     else:
                                         save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                                        if os.path.exists(f'{save_path}/figs'):
+                                        if os.path.exists(f'{save_path}/lcs.zip'):
                                             completed.append(cut)
                                             print(f'Cam {cam} CCD {ccd} Cut {cut} already plotted!')
                                             print('\n')
