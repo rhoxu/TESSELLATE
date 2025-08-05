@@ -126,11 +126,12 @@ def _Find_stars(data,prf,fwhmlim=7,siglim=2.5,bkgstd_lim=50,negative=False):
     # -- Generate Aperture photometry for each source -- #
     x = RoundToInt(star.xcentroid.values); y = RoundToInt(star.ycentroid.values)
     pos = list(zip(x, y))
-    try:
-        aperture = RectangularAperture(pos, 3.0, 3.0)
-    except:
-        e = f'Position error occured: pos = {pos}'
-        raise ValueError(e)
+    if len(pos)<1:
+        return None
+    aperture = RectangularAperture(pos, 3.0, 3.0)
+    # except:
+    #     e = f'Position error occured: pos = {pos}'
+    #     raise ValueError(e)
     annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=20,h_out=20)
     m = sigma_clip(data,masked=True,sigma=5).mask
     mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
