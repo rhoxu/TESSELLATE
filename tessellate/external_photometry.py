@@ -259,7 +259,7 @@ def _delve_objects(ra,dec,size=60/60**2):
 
 def _DESI_phot(ra,dec,size):
 
-    size = size *5
+    size = size * 5
     urlFITS = f"http://legacysurvey.org/viewer/cutout.fits?ra={ra}&dec={dec}&size={size}&layer=ls-dr10"
     urlIM = f"http://legacysurvey.org/viewer/cutout.jpg?ra={ra}&dec={dec}&size={size}&layer=ls-dr10"
 
@@ -293,24 +293,106 @@ def _DESI_phot(ra,dec,size):
     else:
         return None,None,None
 
+def simbad_sources(ra,dec,size):
+    from astroquery.simbad import Simbad
 
-def _add_sources(fig,coords,cat,error=None):
+    simbad = Simbad()
+    simbad.ROW_LIMIT = -1
+    gal_query = f"""SELECT ra, dec, main_id, otype
+
+                    FROM basic
+
+                    WHERE otype != 'star..'
+
+                    AND CONTAINS(POINT('ICRS', basic.ra, basic.dec), CIRCLE('ICRS', {ra}, {dec} , {size})) = 1
+                """
+    gal = simbad.query_tap(gal_query)
+    gal = gal.to_pandas()
+
+    star_query = f"""SELECT ra, dec, main_id, otype
+
+                    FROM basic
+
+                    WHERE otype = 'star..'
+
+                    AND CONTAINS(POINT('ICRS', basic.ra, basic.dec), CIRCLE('ICRS', {ra}, {dec} , {size})) = 1
+                 """
+    stars = simbad.query_tap(star_query)
+    stars = stars.to_pandas()
+
+    gal['star'] = 0
+    stars['star'] = 1
+    sbad = pd.concat([stars,gal])
+    
+    return sbad
+
+def check_simbad(cat,sbad):
+    dist = np.sqrt((sbad['ra'].values[:,np.newaxis] - cat['ra'].values[np.newaxis,:])**2 + (sbad['dec'].values[:,np.newaxis] - cat['dec'].values[np.newaxis,:])**2)*60**2
+    sind, catind = np.where(dist<5)
+    cat['otype'] = 'none'
+    if len(catind) > 0:
+        cat.loc[catind,'star'] = sbad.loc[sind,'star'].values
+        cat.loc[catind,'otype'] = sbad.loc[sind,'otype'].values
+    return cat
+
+def get_gaia(ra,dec,size):
+    from astroquery.gaia import Gaia
+    from astropy.coordinates import SkyCoord
+    import astropy.units as u
+    Gaia.ROW_LIMIT = -1  # Ensure the default row limit.
+
+    coord = SkyCoord(ra=ra, dec=dec, unit=(u.degree, u.degree), frame='icrs')
+
+    j = Gaia.cone_search_async(coord, radius=u.Quantity(100, u.arcsec))
+    j = j.get_results().to_pandas()
+    j['star'] = 1
+    j.loc[(j['classprob_dsc_combmod_quasar'] > 0.7) | (j['classprob_dsc_combmod_galaxy'] > 0.7),'star'] = 2
+    j.loc[(j['classprob_dsc_combmod_quasar'] > 0.9) | (j['classprob_dsc_combmod_galaxy'] > 0.9),'star'] = 0
+    return j
+
+def check_gaia(cat,gaia):
+    dist = np.sqrt((gaia['ra'].values[:,np.newaxis] - cat['ra'].values[np.newaxis,:])**2 + (gaia['dec'].values[:,np.newaxis] - cat['dec'].values[np.newaxis,:])**2)*60**2
+    gind, catind = np.where(dist<5)
+    cat['dist'] = np.nan
+    cat['dist_l'] = np.nan
+    cat['dist_u'] = np.nan
+    if len(catind) > 0:
+        cat.loc[catind,'star'] = gaia.loc[gind,'star'].values
+        cat.loc[catind,'dist'] = gaia.loc[gind,'distance_gspphot'].values
+        cat.loc[catind,'dist_l'] = gaia.loc[gind,'distance_gspphot_lower'].values
+        cat.loc[catind,'dist_u'] = gaia.loc[gind,'distance_gspphot_upper'].values
+        
+    return cat
+    
+
+def _add_sources(fig,coords,cat,error=10):
     axs = fig.get_axes()
     count = 0
     for ax in axs:
         ax.scatter(coords[0],coords[1], transform=ax.get_transform('fk5'),
-                    edgecolors='w',marker='x',s=30,facecolors="w",linewidths=1,label='Target')
-        if error is not None:
-            if len(error) > 1:
-                xerr,yerr = error
-            else:
-                xerr = yerr = error
-            ellipse = Ellipse(xy=(coords[0],coords[1]),  
-                              width=error[0],height=error[1],     
-                              edgecolor='white',facecolor='none',
-                              linestyle=':', linewidth=2,
-                              transform=ax.get_transform('fk5'))
-            ax.add_patch(ellipse)
+                    edgecolors='w',marker='x',s=30,facecolors="magenta",linewidths=1,label='Target')
+        
+
+        theta = np.linspace(0, 2*np.pi, 1000)
+        r = error/3600
+        raring = coords[0] + r * np.cos(theta)
+        decring = coords[1] + r * np.sin(theta)
+
+        ax.plot(raring[0],decring[1], transform=ax.get_transform('fk5'),color='magenta',linewidth=2,linestyle=':')
+
+
+
+        # if error is not None:
+        #     if len(error) > 1:
+        #         xerr,yerr = error
+        #     else:
+        #         xerr = yerr = error
+        #     ellipse = Ellipse(xy=(coords[0],coords[1]),  
+        #                       width=error[0],height=error[1],     
+        #                       edgecolor='white',facecolor='none',
+        #                       linestyle=':', linewidth=2,
+        #                       transform=ax.get_transform('fk5'))
+        #     ax.add_patch(ellipse)
         
         # scatter stars 
         stars = cat.loc[cat['star'] ==1]
@@ -334,36 +416,65 @@ def _add_sources(fig,coords,cat,error=None):
     return fig
 
 
-def event_cutout(coords,real_loc=None,error=None,size=100,phot=None):
-    if real_loc is None:
-        real_loc = coords
+def event_cutout(coords,error=10,size=100,phot=None,check='gaia'):
+    """
+    Make an image using ground catalogs for the region of interest.
+    
+    parameters
+    ----------
+    coords : array
+        array with elements of (ra,dec) in decimal degrees
+    error : float
+        Positional error in arcseconds, currently only 1 value is accepted.
+    size : int
+        size of the cutout image, likely in arcseconds 
+    phot : str
+        String defining the catalog to use. If None, then the catalog is automatically determined.
+    check : str
+        Check the photometry catalog against another catalog with better star detection. Currenty
+        only gaia and simbad are available.
+    """
     if phot is None:
-        fig,wcs,outsize = _DESI_phot(coords[0],coords[1],size)
+        fig,wcs,outsize,image = _DESI_phot(coords[0],coords[1],size)
         if fig is None:
             if coords[1] > -10:
-                phot = 'PS1'
+                phot = 'ps1'
             else:
-                phot = 'SkyMapper'
+                phot = 'skymapper'
         else:
-            phot = 'DESI'
-            cat = _delve_objects(real_loc[0],real_loc[1])
-            fig = _add_sources(fig,real_loc,cat,error)
+            phot = 'decam'
+            cat = _delve_objects(coords[0],coords[1])
+            #fig = _add_sources(fig,coords,cat,error)
 
-    if phot == 'PS1':
-        fig,wcs,outsize = _Panstarrs_phot(coords[0],coords[1],size)
+    if phot.lower() == 'ps1':
+        fig,wcs,outsize,image = _Panstarrs_phot(coords[0],coords[1],size)
         cat = None
         #fig = _add_sources(fig,cat)
 
     elif phot.lower() == 'skymapper':
-        fig,wcs,outsize = _Skymapper_phot(coords[0],coords[1],size)
-        cat = _skymapper_objects(real_loc[0],real_loc[1])
-        fig = _add_sources(fig,real_loc,cat,error)
+        fig,wcs,outsize,image = _Skymapper_phot(coords[0],coords[1],size)
+        cat = _skymapper_objects(coords[0],coords[1])
+        #fig = _add_sources(fig,coords,cat,error)
         
     elif phot is None:
         print('Photometry name invalid.')
         fig = None
         wcs = None
 
-    plt.close()
+    if phot is not None:
+        if check == 'simbad':
+            sbad = simbad_sources(coords[0],coords[1],size/60**2)
+            cat = check_simbad(cat,sbad)
+        elif check == 'gaia':
+            gaia = get_gaia(coords[0],coords[1],size/60**2)
+            cat = check_gaia(cat,gaia)
+    else:
+        if check == 'simbad':
+            cat = simbad_sources(coords[0],coords[1],size/60**2)
+        elif check == 'gaia':
+            cat = get_gaia(coords[0],coords[1],size/60**2)
 
-    return fig,wcs,outsize, phot, cat
+    if cat is not None:
+        fig = _add_sources(fig,coords,cat,error)
+
+    return fig,wcs,outsize, phot, cat, image
