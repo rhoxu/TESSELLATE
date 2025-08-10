@@ -1931,7 +1931,7 @@ class Detector():
                     if len(x) > 0:
                         ax.plot(x,y,color=color,alpha=alpha,lw=lw)
 
-                    ax.scatter(xError,yError,color='red',s=10,marker='x',lw=2)
+                    ax.scatter(xError,yError,color='red',s=8,marker='.',lw=1)
 
             obj.photometry = fig
             obj.cat = cat
