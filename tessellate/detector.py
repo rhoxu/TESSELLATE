@@ -1868,10 +1868,21 @@ class Detector():
             #error = np.nanmax([source.e_xccd,source.e_yccd])
             error = [10 / 60**2,10 / 60**2] # just set error to 10 arcsec. The calculated values are unrealistically small.
             
+
+
             fig, wcs, size, photometry,cat = event_cutout((RA,DEC),(ra_obj,dec_obj),error,100)
             axes = fig.get_axes()
             if len(axes) == 1:
                 wcs = [wcs]
+
+
+            theta = np.linspace(0, 2*np.pi, 10)
+            errorX = obj['xcentroid'] + 0.25*np.cos(theta)
+            errorY = obj['ycentroid'] + 0.25*np.sin(theta)
+            errorRA,errorDEC = self.wcs.all_pix2world(errorX,errorY,0)
+            
+
+
 
 
             xRange = np.arange(xint-3,xint+3)
@@ -1906,8 +1917,12 @@ class Detector():
                     ra,dec = self.wcs.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
                     if wcs[i].naxis == 3:
                         x,y,_ = wcs[i].all_world2pix(ra,dec,0,0)
+
+                        xError,yError,_ = wcs[i].all_world2pix(errorRA,errorDEC,0,0)
                     else:
                         x,y = wcs[i].all_world2pix(ra,dec,0)
+                        xError,yError = wcs[i].all_world2pix(errorRA,errorDEC,0)
+
                     if j in [0,5]:
                         ys.append(np.mean(y))
                     good = (x>0)&(y>0)&(x<size)&(y<size)
@@ -1915,6 +1930,8 @@ class Detector():
                     y = y[good]
                     if len(x) > 0:
                         ax.plot(x,y,color=color,alpha=alpha,lw=lw)
+
+                    ax.scatter(xError,yError,color='red',s=10,marker='x',lw=2)
 
             obj.photometry = fig
             obj.cat = cat
