@@ -1570,7 +1570,7 @@ class Detector():
                        ra=None,dec=None,distance=40,
                        min_events=None,max_events=None,
                        classification=None,flux_sign=None,
-                       lc_sig_max=None,psf_like=None,
+                       lc_sig_max=None,psf_like=None,galactic_latitude=None,
                        min_eventlength_frame=None,max_eventlength_frame=None,
                        min_eventlength_mjd=None,max_eventlength_mjd=None):
         
@@ -1607,6 +1607,16 @@ class Detector():
             objects = objects[objects['n_events']>=min_events]
         if max_events is not None:
             objects = objects[objects['n_events']<=max_events]
+
+        if galactic_latitude is not None:
+            if type(galactic_latitude) == float:
+                galactic_latitude = [galactic_latitude,90]
+            elif type(galactic_latitude) == list:
+                pass
+            else:
+                e = 'Galactic latitude must be a float or a list of floats!'
+                raise ValueError(e)
+            r = r.loc[(abs(r['gal_b']) >= min(galactic_latitude)) & (abs(r['gal_b']) <= max(galactic_latitude))]
 
         if classification is not None:
             is_negation = classification.startswith(('!', '~'))
@@ -1665,6 +1675,16 @@ class Detector():
         # # -- If true, remove asteroids from the results -- #
         if asteroidkiller:
             r = r.loc[~(r['classification'] == 'Asteroid')]
+
+        if galactic_latitude is not None:
+            if type(galactic_latitude) == float:
+                galactic_latitude = [galactic_latitude,90]
+            elif type(galactic_latitude) == list:
+                pass
+            else:
+                e = 'Galactic latitude must be a float or a list of floats!'
+                raise ValueError(e)
+            r = r.loc[(abs(r['gal_b']) >= min(galactic_latitude)) & (abs(r['gal_b']) <= max(galactic_latitude))]
 
         if classification is not None:
             is_negation = classification.startswith(('!', '~'))
@@ -1943,8 +1963,11 @@ class Detector():
             obj.coord = (ra_obj,dec_obj)
 
         if save_combined != False:
+            from .tools import _Save_space
             import io
             from PIL import Image
+
+            _Save_space(save_combined)
 
             buf1 = io.BytesIO()
             buf2 = io.BytesIO()
@@ -2082,7 +2105,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
     """
     Plot a source's light curve and image cutout.
     """
-    
+    from matplotlib.lines import Line2D
     import matplotlib.patches as patches
     from mpl_toolkits.axes_grid1.inset_locator import mark_inset
     
@@ -2279,10 +2302,19 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
             xmin = 0
         cutout_image = flux[:,ymin:y+10,xmin:x+10]
         ax[2].imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
-
+            
+            
         # Add 3x3 rectangle around the centre of the cutout image #
-        rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin),5,5, linewidth=3, edgecolor='r', facecolor='none')
-        ax[2].add_patch(rect)
+        if zoo_mode:
+            rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin),5,5, linewidth=3, edgecolor='r', facecolor='none')
+            ax[2].add_patch(rect)
+        else:
+            # Draw base square with left/bottom red
+            rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin), 5, 5,linewidth=3, edgecolor='r', facecolor='none')
+            ax[2].add_patch(rect)
+            # Overlay cyan top/right edge
+            ax[2].add_line(Line2D([x - 2.5 - xmin, x + 2.5 - xmin],[y + 2.5 - ymin, y + 2.5 - ymin],color='c', linewidth=3))
+            ax[2].add_line(Line2D([x + 2.5 - xmin, x + 2.5 - xmin],[y - 2.5 - ymin, y + 2.5 - ymin],color='c', linewidth=3))
 
         # Add labels, remove axes #
         ax[2].set_title('Brightest image',fontsize=15)
