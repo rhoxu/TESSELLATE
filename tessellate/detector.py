@@ -1816,11 +1816,16 @@ class Detector():
 
 
     def plot_object(self,cut,objid,event='seperate',save_name=None,save_path=None,
-                    latex=True,zoo_mode=True,external_phot=False):
+                    latex=True,zoo_mode=True,external_phot=False,save_combined=False):
         """
         Plot a source from the cut data.
         """
             
+        if (save_combined != False) & (not external_phot):
+            print('Warning: save_combined is set to True, but external_phot is False. This will not save the photometry cutout.')
+            print('Setting save_combined to False.')
+            save_combined = False
+
 
         # -- Use Latex in the plots -- #
         if latex:
@@ -1848,7 +1853,7 @@ class Detector():
             save_path = save_path + save_name
 
         obj = self.objects[self.objects['objid']==objid].iloc[0]
-        obj.lc,obj.cutout = Plot_Object(self.time,self.flux,self.events,objid,event,save_path,latex,zoo_mode) 
+        obj.lc,obj.cutout,full_fig = Plot_Object(self.time,self.flux,self.events,objid,event,save_path,latex,zoo_mode) 
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
@@ -1936,6 +1941,35 @@ class Detector():
             obj.photometry = fig
             obj.cat = cat
             obj.coord = (ra_obj,dec_obj)
+
+        if save_combined != False:
+            import io
+            from PIL import Image
+
+            buf1 = io.BytesIO()
+            buf2 = io.BytesIO()
+            full_fig.savefig(buf1, format='png', dpi=150)
+            obj.photometry.savefig(buf2, format='png', dpi=150)
+
+            # Load with Pillow
+            img1 = Image.open(buf1)
+            img2 = Image.open(buf2)
+
+            # Match heights instead of widths
+            max_height = max(img1.height, img2.height)
+            if img1.height != max_height:
+                img1 = img1.resize((int(img1.width * max_height / img1.height), max_height), Image.LANCZOS)
+            if img2.height != max_height:
+                img2 = img2.resize((int(img2.width * max_height / img2.height), max_height), Image.LANCZOS)
+
+            # Combine horizontally
+            combined_width = img1.width + img2.width
+            combined_img = Image.new('RGB', (combined_width, max_height), (255, 255, 255))
+            combined_img.paste(img1, (0, 0))
+            combined_img.paste(img2, (img1.width, 0))
+
+            # Save final combined PNG
+            combined_img.save(f"{save_combined}/S{self.sector}C{self.cam}C{self.ccd}C{self.cut}O{objid}.png", dpi=(150,150))
         
         return obj
     
@@ -2338,7 +2372,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
                                             #np.save(save_path+'/'+savename+'_lc.npy',[time,f])
                                             #np.save(save_path+'/'+savename+'_cutout.npy',cutout_image)
 
-    return [times,f], cutout_image
+    return [times,f], cutout_image, fig
 
 def Save_LC(times,flux,events,id,save_path):
     """
