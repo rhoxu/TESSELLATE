@@ -365,11 +365,11 @@ def check_gaia(cat,gaia):
     return cat
     
 
-def _add_sources(fig,coords,cat,error=10):
+def _add_sources(fig,coords,cat,target_coords):
     axs = fig.get_axes()
     count = 0
     for ax in axs:
-        ax.scatter(coords[0],coords[1], transform=ax.get_transform('fk5'),
+        ax.scatter(target_coords[0],target_coords[1], transform=ax.get_transform('fk5'),
                     edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
         
 
@@ -409,7 +409,7 @@ def _add_sources(fig,coords,cat,error=10):
     return fig
 
 
-def event_cutout(coords,error=10,size=100,phot=None,check='gaia'):
+def event_cutout(coords,target_coords,error=10,size=100,phot=None,check='gaia'):
    
     if phot is None:
         fig,wcs,outsize,image = _DESI_phot(coords[0],coords[1],size)
@@ -452,7 +452,7 @@ def event_cutout(coords,error=10,size=100,phot=None,check='gaia'):
             cat = get_gaia(coords[0],coords[1],size/60**2)
 
     if cat is not None:
-        fig = _add_sources(fig,coords,cat,error)
+        fig = _add_sources(fig,coords,cat,target_coords)
 
     return fig,wcs,outsize, phot, cat, image
 
