@@ -2057,8 +2057,10 @@ class Detector():
                       lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,
                       flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
         
+        from tqdm import tqdm
+
         all_events = pd.DataFrame()
-        for cut in range(1,self.n**2+1):
+        for cut in tqdm(range(1,self.n**2+1)):
             self._gather_results(cut)
             events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
                                     lower=lower,upper=upper,image_sig_max=image_sig_max,
