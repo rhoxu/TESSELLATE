@@ -458,18 +458,22 @@ def event_cutout(coords,real_loc=None,error=10,size=50,phot=None,check='gaia'):
         wcs = None
         return None,None,None,None,None
         
-    if phot is not None:
-        if check == 'simbad':
-            sbad = simbad_sources(real_loc[0],real_loc[1],size/60**2)
-            cat = check_simbad(cat,sbad)
-        elif check == 'gaia':
-            gaia = get_gaia(real_loc[0],real_loc[1],size/60**2)
+    # if phot is not None:
+    if check == 'simbad':
+        sbad = simbad_sources(real_loc[0],real_loc[1],size/60**2)
+        cat = check_simbad(cat,sbad)
+    elif check == 'gaia':
+        gaia = get_gaia(real_loc[0],real_loc[1],size/60**2)
+        if (gaia is not None) & (cat is not None):
             cat = check_gaia(cat,gaia)
-    else:
-        if check == 'simbad':
-            cat = simbad_sources(real_loc[0],real_loc[1],size/60**2)
-        elif check == 'gaia':
-            cat = get_gaia(real_loc[0],real_loc[1],size/60**2)
+        elif phot == 'SkyMapper':
+            print('Something failed getting Skymapper sources.')
+            return None,None,None,None,None
+    # else:
+    #     if check == 'simbad':
+    #         cat = simbad_sources(real_loc[0],real_loc[1],size/60**2)
+    #     elif check == 'gaia':
+    #         cat = get_gaia(real_loc[0],real_loc[1],size/60**2)
     
     if cat is not None:
         fig = _add_sources(fig,real_loc,cat)
