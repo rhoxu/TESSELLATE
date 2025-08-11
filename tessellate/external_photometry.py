@@ -373,31 +373,31 @@ def _add_sources(fig,coords,cat,error=10):
                     edgecolors='w',marker='x',s=30,facecolors="magenta",linewidths=1,label='Target')
         
 
-        theta = np.linspace(0, 2*np.pi, 1000)
-        r = error/3600
-        raring = coords[0] + r * np.cos(theta)
-        decring = coords[1] + r * np.sin(theta)
+        #theta = np.linspace(0, 2*np.pi, 1000)
+        #r = error/60**2
+        #raring = coords[0] + r * np.cos(theta)
+        #decring = coords[1] + r * np.sin(theta)
 
-        ax.plot(raring[0],decring[1], transform=ax.get_transform('fk5'),color='magenta',linewidth=2,linestyle=':')
+        #ax.plot(raring[0],decring[1], transform=ax.get_transform('fk5'),color='magenta',linewidth=2,linestyle=':')
 
 
 
-        # if error is not None:
-        #     if len(error) > 1:
-        #         xerr,yerr = error
-        #     else:
-        #         xerr = yerr = error
-        #     ellipse = Ellipse(xy=(coords[0],coords[1]),  
-        #                       width=error[0],height=error[1],     
-        #                       edgecolor='white',facecolor='none',
-        #                       linestyle=':', linewidth=2,
-        #                       transform=ax.get_transform('fk5'))
-        #     ax.add_patch(ellipse)
+        if error is not None:
+            if len(error) > 1:
+                xerr,yerr = error
+            else:
+                xerr = yerr = error
+            ellipse = Ellipse(xy=(coords[0],coords[1]),  
+                              width=error[0],height=error[1],     
+                              edgecolor='white',facecolor='none',
+                              linestyle=':', linewidth=2,
+                              transform=ax.get_transform('fk5'))
+            ax.add_patch(ellipse)
         
         # scatter stars 
         stars = cat.loc[cat['star'] ==1]
         ax.scatter(stars.ra,stars.dec, transform=ax.get_transform('fk5'),
-                    edgecolors='w',marker='^',s=80,facecolors="None",linewidths=1,label='Star')
+                    edgecolors='w',marker='*',s=80,facecolors="None",linewidths=1,label='Star')
 
         # scatter galaxies
         gal = cat.loc[cat['star'] == 0]
@@ -417,23 +417,7 @@ def _add_sources(fig,coords,cat,error=10):
 
 
 def event_cutout(coords,error=10,size=100,phot=None,check='gaia'):
-    """
-    Make an image using ground catalogs for the region of interest.
-    
-    parameters
-    ----------
-    coords : array
-        array with elements of (ra,dec) in decimal degrees
-    error : float
-        Positional error in arcseconds, currently only 1 value is accepted.
-    size : int
-        size of the cutout image, likely in arcseconds 
-    phot : str
-        String defining the catalog to use. If None, then the catalog is automatically determined.
-    check : str
-        Check the photometry catalog against another catalog with better star detection. Currenty
-        only gaia and simbad are available.
-    """
+   
     if phot is None:
         fig,wcs,outsize,image = _DESI_phot(coords[0],coords[1],size)
         if fig is None:
@@ -478,3 +462,73 @@ def event_cutout(coords,error=10,size=100,phot=None,check='gaia'):
         fig = _add_sources(fig,coords,cat,error)
 
     return fig,wcs,outsize, phot, cat, image
+
+
+def event_cutout(coords,real_loc=None,error=10,size=50,phot=None,check='gaia'):
+    """
+    Make an image using ground catalogs for the region of interest.
+
+    parameters
+    ----------
+    coords : array
+        array with elements of (ra,dec) in decimal degrees
+    real_loc : array
+        real on-sky position of target, if known.
+    error : float
+        Positional error in arcseconds, currently only 1 value is accepted.
+    size : int
+        size of the cutout image, likely in arcseconds 
+    phot : str
+        String defining the catalog to use. If None, then the catalog is automatically determined.
+    check : str
+        Check the photometry catalog against another catalog with better star detection. Currenty
+        only gaia and simbad are available.
+    """
+    if real_loc is None:
+        real_loc = coords
+    if phot is None:
+        fig,wcs,outsize = _DESI_phot(coords[0],coords[1],size)
+        if fig is None:
+            if coords[1] > -10:
+                phot = 'PS1'
+            else:
+                phot = 'SkyMapper'
+        else:
+            phot = 'DESI'
+            cat = _delve_objects(real_loc[0],real_loc[1])
+            #fig = _add_sources(fig,real_loc,cat,error)
+
+    if phot == 'PS1':
+        fig,wcs,outsize = _Panstarrs_phot(coords[0],coords[1],size)
+        cat = None
+        #fig = _add_sources(fig,cat)
+
+    elif phot.lower() == 'skymapper':
+        fig,wcs,outsize = _Skymapper_phot(coords[0],coords[1],size)
+        cat = _skymapper_objects(real_loc[0],real_loc[1])
+        #fig = _add_sources(fig,real_loc,cat,error)
+    elif phot is None:
+        print('Photometry name invalid.')
+        fig = None
+        wcs = None
+        return None,None,None,None,None
+        
+    if phot is not None:
+        if check == 'simbad':
+            sbad = simbad_sources(real_loc[0],real_loc[1],size/60**2)
+            cat = check_simbad(cat,sbad)
+        elif check == 'gaia':
+            gaia = get_gaia(real_loc[0],real_loc[1],size/60**2)
+            cat = check_gaia(cat,gaia)
+    else:
+        if check == 'simbad':
+            cat = simbad_sources(real_loc[0],real_loc[1],size/60**2)
+        elif check == 'gaia':
+            cat = get_gaia(real_loc[0],real_loc[1],size/60**2)
+    
+    if cat is not None:
+        fig = _add_sources(fig,coords,cat,error)
+
+    #plt.close()
+
+    return fig,wcs,outsize, phot, cat

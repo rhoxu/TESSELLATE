@@ -1789,6 +1789,7 @@ class Detector():
             #error = np.nanmax([source.e_xccd,source.e_yccd])
             error = [10 / 60**2,10 / 60**2] # just set error to 10 arcsec. The calculated values are unrealistically small.
             
+            
             fig, wcs, size, photometry,cat = event_cutout((RA,DEC),(ra_obj,dec_obj),error,100)
             axes = fig.get_axes()
             if len(axes) == 1:
