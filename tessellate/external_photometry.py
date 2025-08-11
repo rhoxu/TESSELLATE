@@ -365,7 +365,7 @@ def check_gaia(cat,gaia):
     return cat
     
 
-def _add_sources(fig,coords,cat,target_coords):
+def _add_sources(fig,target_coords,cat):
     axs = fig.get_axes()
     count = 0
     for ax in axs:
@@ -409,52 +409,52 @@ def _add_sources(fig,coords,cat,target_coords):
     return fig
 
 
-def event_cutout(coords,target_coords,error=10,size=100,phot=None,check='gaia'):
+# def event_cutout(coords,target_coords,error=10,size=100,phot=None,check='gaia'):
    
-    if phot is None:
-        fig,wcs,outsize,image = _DESI_phot(coords[0],coords[1],size)
-        if fig is None:
-            if coords[1] > -10:
-                phot = 'ps1'
-            else:
-                phot = 'skymapper'
-        else:
-            phot = 'decam'
-            cat = _delve_objects(coords[0],coords[1])
-            #fig = _add_sources(fig,coords,cat,error)
+#     if phot is None:
+#         fig,wcs,outsize,image = _DESI_phot(coords[0],coords[1],size)
+#         if fig is None:
+#             if coords[1] > -10:
+#                 phot = 'ps1'
+#             else:
+#                 phot = 'skymapper'
+#         else:
+#             phot = 'decam'
+#             cat = _delve_objects(coords[0],coords[1])
+#             #fig = _add_sources(fig,coords,cat,error)
 
-    if phot.lower() == 'ps1':
-        fig,wcs,outsize,image = _Panstarrs_phot(coords[0],coords[1],size)
-        cat = None
-        #fig = _add_sources(fig,cat)
+#     if phot.lower() == 'ps1':
+#         fig,wcs,outsize,image = _Panstarrs_phot(coords[0],coords[1],size)
+#         cat = None
+#         #fig = _add_sources(fig,cat)
 
-    elif phot.lower() == 'skymapper':
-        fig,wcs,outsize,image = _Skymapper_phot(coords[0],coords[1],size)
-        cat = _skymapper_objects(coords[0],coords[1])
-        #fig = _add_sources(fig,coords,cat,error)
+#     elif phot.lower() == 'skymapper':
+#         fig,wcs,outsize,image = _Skymapper_phot(coords[0],coords[1],size)
+#         cat = _skymapper_objects(coords[0],coords[1])
+#         #fig = _add_sources(fig,coords,cat,error)
         
-    elif phot is None:
-        print('Photometry name invalid.')
-        fig = None
-        wcs = None
+#     elif phot is None:
+#         print('Photometry name invalid.')
+#         fig = None
+#         wcs = None
 
-    if phot is not None:
-        if check == 'simbad':
-            sbad = simbad_sources(coords[0],coords[1],size/60**2)
-            cat = check_simbad(cat,sbad)
-        elif check == 'gaia':
-            gaia = get_gaia(coords[0],coords[1],size/60**2)
-            cat = check_gaia(cat,gaia)
-    else:
-        if check == 'simbad':
-            cat = simbad_sources(coords[0],coords[1],size/60**2)
-        elif check == 'gaia':
-            cat = get_gaia(coords[0],coords[1],size/60**2)
+#     if phot is not None:
+#         if check == 'simbad':
+#             sbad = simbad_sources(coords[0],coords[1],size/60**2)
+#             cat = check_simbad(cat,sbad)
+#         elif check == 'gaia':
+#             gaia = get_gaia(coords[0],coords[1],size/60**2)
+#             cat = check_gaia(cat,gaia)
+#     else:
+#         if check == 'simbad':
+#             cat = simbad_sources(coords[0],coords[1],size/60**2)
+#         elif check == 'gaia':
+#             cat = get_gaia(coords[0],coords[1],size/60**2)
 
-    if cat is not None:
-        fig = _add_sources(fig,coords,cat,target_coords)
+#     if cat is not None:
+#         fig = _add_sources(fig,coords,cat,target_coords)
 
-    return fig,wcs,outsize, phot, cat, image
+#     return fig,wcs,outsize, phot, cat, image
 
 
 def event_cutout(coords,real_loc=None,error=10,size=50,phot=None,check='gaia'):
@@ -520,7 +520,7 @@ def event_cutout(coords,real_loc=None,error=10,size=50,phot=None,check='gaia'):
             cat = get_gaia(real_loc[0],real_loc[1],size/60**2)
     
     if cat is not None:
-        fig = _add_sources(fig,coords,cat,error)
+        fig = _add_sources(fig,real_loc,cat)
 
     #plt.close()
 
