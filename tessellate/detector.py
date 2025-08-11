@@ -2058,6 +2058,8 @@ class Detector():
                       flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
         
         from tqdm import tqdm
+        import os
+        import pandas as pd
 
         all_events = pd.DataFrame()
         for cut in tqdm(range(1,self.n**2+1)):
@@ -2076,6 +2078,9 @@ class Detector():
                 
                 all_events = pd.concat([all_events,events],ignore_index=True)
         
+        if os.path.exists(f'{save_path}/events.csv'):
+            df = pd.read_csv(f'{save_path}/events.csv')
+            all_events = pd.concat([df,all_events],ignore_index=True)
         all_events.to_csv(f'{save_path}/events.csv',index=False)
 
 
