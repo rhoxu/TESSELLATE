@@ -2053,6 +2053,28 @@ class Detector():
 
         return self.flux[frames,y-image_size//2:y+image_size//2+1,x-image_size//2:x+image_size//2+1]
         
+    def filter_and_save(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
+                      lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,
+                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
+        
+        all_events = pd.DataFrame()
+        for cut in range(1,self.n**2+1):
+            self._gather_results(cut)
+            events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
+                                    lower=lower,upper=upper,image_sig_max=image_sig_max,
+                                    lc_sig_max=lc_sig_max,lc_sig_med=lc_sig_med,
+                                    max_events=max_events,bkg_std=bkg_std,
+                                    flux_sign=flux_sign,classification=classification,
+                                    psf_like=psf_like,galactic_latitude=galactic_latitude)
+            
+            if len(events) > 0:
+                for _,event in events.iterrows():
+                    self.plot_object(cut,event['objid'],event=event['eventid'],
+                                    latex=True,zoo_mode=False,external_phot=True,save_combined=save_path)
+                
+                all_events = pd.concat([all_events,events],ignore_index=True)
+        
+        all_events.to_csv(f'{save_path}/events.csv',index=False)
 
 
     def locate_transient(self,cut,xcentroid,ycentroid,threshold=3):
@@ -2302,19 +2324,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
             xmin = 0
         cutout_image = flux[:,ymin:y+10,xmin:x+10]
         ax[2].imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
-            
-            
-        # Add 3x3 rectangle around the centre of the cutout image #
-        if zoo_mode:
-            rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin),5,5, linewidth=3, edgecolor='r', facecolor='none')
-            ax[2].add_patch(rect)
-        else:
-            # Draw base square with left/bottom red
-            rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin), 5, 5,linewidth=3, edgecolor='r', facecolor='none')
-            ax[2].add_patch(rect)
-            # Overlay cyan top/right edge
-            ax[2].add_line(Line2D([x - 2.5 - xmin, x + 2.5 - xmin],[y + 2.5 - ymin, y + 2.5 - ymin],color='c', linewidth=3))
-            ax[2].add_line(Line2D([x + 2.5 - xmin, x + 2.5 - xmin],[y - 2.5 - ymin, y + 2.5 - ymin],color='c', linewidth=3))
+        ax[2].scatter(event['xcentroid'] - xmin, event['ycentroid'] - ymin, color='r', s=50, marker='x', lw=2)
 
         # Add labels, remove axes #
         ax[2].set_title('Brightest image',fontsize=15)
@@ -2335,8 +2345,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
         # Plot the cutout image 1 hour later #
         ax[3].imshow(cutout_image[after],
                     cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
-        rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin),5,5, linewidth=3, edgecolor='r', facecolor='none')
-        ax[3].add_patch(rect)
+        
         ax[3].set_title('1 hour later',fontsize=15)
         ax[3].annotate('', xy=(0.2, 1.15), xycoords='axes fraction', xytext=(0.2, 1.), 
                             arrowprops=dict(arrowstyle="<|-", color='r',lw=3))
@@ -2348,7 +2357,26 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
                                             #     unit = u.electron / u.s
                                             #     light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
                                             #     period = light.to_periodogram()
+
+        # Add 3x3 rectangle around the centre of the cutout image #
+        if zoo_mode:
+            rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin),5,5, linewidth=3, edgecolor='r', facecolor='none')
+            ax[2].add_patch(rect)
+            rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin),5,5, linewidth=3, edgecolor='r', facecolor='none')
+            ax[3].add_patch(rect)
+        else:
+            # Draw base square with left/bottom red
+            rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin), 5, 5,linewidth=3, edgecolor='r', facecolor='none')
+            ax[2].add_patch(rect)
+            # Overlay cyan top/right edge
+            ax[2].add_line(Line2D([x - 2.5 - xmin, x + 2.5 - xmin],[y + 2.5 - ymin, y + 2.5 - ymin],color='c', linewidth=3))
+            ax[2].add_line(Line2D([x + 2.5 - xmin, x + 2.5 - xmin],[y - 2.5 - ymin, y + 2.5 - ymin],color='c', linewidth=3))
             
+            rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin), 5, 5,linewidth=3, edgecolor='r', facecolor='none')
+            ax[3].add_patch(rect)
+            # Overlay cyan top/right edge
+            ax[3].add_line(Line2D([x - 2.5 - xmin, x + 2.5 - xmin],[y + 2.5 - ymin, y + 2.5 - ymin],color='c', linewidth=3))
+            ax[3].add_line(Line2D([x + 2.5 - xmin, x + 2.5 - xmin],[y - 2.5 - ymin, y + 2.5 - ymin],color='c', linewidth=3))
             
         # Save the figure if a save path is provided #
         if save_path is not None:
