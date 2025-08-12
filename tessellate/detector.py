@@ -1899,40 +1899,38 @@ class Detector():
 
             print('Getting Photometry...')
 
+            theta = np.linspace(0, 2*np.pi, 10)
             if type(event) == int:
                 e = self.events[(self.events['objid']==objid) & (self.events['eventid']==event)].iloc[0] 
                 xint = RoundToInt(e['xcentroid'])
                 yint = RoundToInt(e['ycentroid'])
                 ra_obj = e['ra']
                 dec_obj = e['dec']
+                errorX = e['xcentroid'] + 0.25*np.cos(theta)
+                errorY = e['ycentroid'] + 0.25*np.sin(theta)
             else:
                 xint = RoundToInt(obj['xcentroid'])
                 yint = RoundToInt(obj['ycentroid'])
                 ra_obj = obj['ra']
                 dec_obj = obj['dec']
+                errorX = obj['xcentroid'] + 0.25*np.cos(theta)
+                errorY = obj['ycentroid'] + 0.25*np.sin(theta)
 
             RA,DEC = self.wcs.all_pix2world(xint,yint,0)
+            errorRA,errorDEC = self.wcs.all_pix2world(errorX,errorY,0)
+
             # ra_obj,dec_obj = self.wcs.all_pix2world(obj['xcentroid'],obj['ycentroid'],0)
             
             #error = (source.e_xccd * 21 /60**2,source.e_yccd * 21/60**2) # convert to deg
             #error = np.nanmax([source.e_xccd,source.e_yccd])
-            error = [10 / 60**2,10 / 60**2] # just set error to 10 arcsec. The calculated values are unrealistically small.
+            # error = [10 / 60**2,10 / 60**2] # just set error to 10 arcsec. The calculated values are unrealistically small.
             
-            fig, wcs, size, photometry,cat = event_cutout((RA,DEC),(ra_obj,dec_obj),error,100)
+            fig, wcs, size, photometry,cat = event_cutout((RA,DEC),(ra_obj,dec_obj),None,100)
             if fig is None:
                 return None
             axes = fig.get_axes()
             if len(axes) == 1:
                 wcs = [wcs]
-
-
-            theta = np.linspace(0, 2*np.pi, 10)
-            errorX = obj['xcentroid'] + 0.25*np.cos(theta)
-            errorY = obj['ycentroid'] + 0.25*np.sin(theta)
-            errorRA,errorDEC = self.wcs.all_pix2world(errorX,errorY,0)
-            
-
-
 
 
             xRange = np.arange(xint-3,xint+3)
