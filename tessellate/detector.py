@@ -1891,8 +1891,8 @@ class Detector():
         axes = fig.get_axes()
 
         if photometry == 'DESI':
-            axes[0].set_xlim(size*5,0)
-            axes[0].set_ylim(0,size*5)
+            axes[0].set_xlim(size,0)
+            axes[0].set_ylim(0,size)
 
         if len(axes) == 1:
             wcs = [wcs]
