@@ -1653,7 +1653,7 @@ class Detector():
         return objects
 
     def filter_events(self,cut,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
-                      lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,
+                      lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,boundarykiller=None,
                       flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
         
         """
@@ -1675,6 +1675,16 @@ class Detector():
         # # -- If true, remove asteroids from the results -- #
         if asteroidkiller:
             r = r.loc[~(r['classification'] == 'Asteroid')]
+
+        if boundarykiller:
+            boundaryFrames = [0,np.argmax(np.diff(self.time)),
+                             np.argmax(np.diff(self.time))+1, len(self.time)-1]
+            
+            mask = ~r.apply(
+                lambda row: any(frame in range(row['frame_start'], row['frame_end'] + 1) for frame in boundaryFrames),
+                axis=1
+            )
+            r = r[mask]
 
         if galactic_latitude is not None:
             if type(galactic_latitude) == float:
