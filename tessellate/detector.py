@@ -1889,6 +1889,11 @@ class Detector():
         if fig is None:
             return None
         axes = fig.get_axes()
+
+        if photometry == 'DESI':
+            axes[0].set_xlim(size*5,0)
+            axes[0].set_ylim(0,size*5)
+
         if len(axes) == 1:
             wcs = [wcs]
 
@@ -1989,7 +1994,7 @@ class Detector():
             obj.photometry = fig
             obj.cat = cat
             obj.coord = coord
-            
+
         if save_combined != False:
             from .tools import _Save_space
             import io
