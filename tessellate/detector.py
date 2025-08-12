@@ -1069,24 +1069,31 @@ class Detector():
  
         return result
     
-    def _gather_data(self,cut):
+    def _gather_data(self,cut,flux=True,time=True,wcs=True,bkg=True,mask=True,ref=True):
 
         from .tools import CutWCS
         
         self.cut = cut
         base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_of{self.n**2}'
         self.base_name = base
-        self.flux = np.load(base + '_ReducedFlux.npy')
-        self.ref = np.load(base + '_Ref.npy')
-        try:
-            self.bkg = np.load(base + '_Background.npy')
-        except:
-            pass
-        self.mask = np.load(base + '_Mask.npy')
-        self.time = np.load(base + '_Times.npy')
-        if self.time_bin is not None:
-            self._rebin_data()
-        self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
+
+        if flux:
+            self.flux = np.load(base + '_ReducedFlux.npy')
+        if ref:
+            self.ref = np.load(base + '_Ref.npy')
+        if bkg:
+            try:
+                self.bkg = np.load(base + '_Background.npy')
+            except:
+                pass
+        if mask:
+            self.mask = np.load(base + '_Mask.npy')
+        if time:
+            self.time = np.load(base + '_Times.npy')
+            if self.time_bin is not None:
+                self._rebin_data()
+        if wcs:
+            self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
 
     def _rebin_data(self):
         points = np.arange(self.time[0]+time_bin*.5,self.time[-1],self.time_bin)
@@ -1677,6 +1684,7 @@ class Detector():
             r = r.loc[~(r['classification'] == 'Asteroid')]
 
         if boundarykiller:
+            self._gather_data(cut,flux=False,wcs=False,mask=False,ref=False,time=True,bkg=False)
             boundaryFrames = [0,np.argmax(np.diff(self.time)),
                              np.argmax(np.diff(self.time))+1, len(self.time)-1]
             
