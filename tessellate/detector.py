@@ -1899,14 +1899,21 @@ class Detector():
 
             print('Getting Photometry...')
 
-            xint = RoundToInt(obj['xcentroid'])
-            yint = RoundToInt(obj['ycentroid'])
+            if type(event) == int:
+                e = self.events[(self.events['objid']==objid) & (self.events['eventid']==event)] 
+                xint = RoundToInt(e['xcentroid'])
+                yint = RoundToInt(e['xcentroid'])
+                ra_obj = e['ra']
+                dec_obj = e['dec']
+            else:
+                xint = RoundToInt(obj['xcentroid'])
+                yint = RoundToInt(obj['ycentroid'])
+                ra_obj = obj['ra']
+                dec_obj = obj['dec']
 
             RA,DEC = self.wcs.all_pix2world(xint,yint,0)
             # ra_obj,dec_obj = self.wcs.all_pix2world(obj['xcentroid'],obj['ycentroid'],0)
-            ra_obj = obj['ra']
-            dec_obj = obj['dec']
-
+            
             #error = (source.e_xccd * 21 /60**2,source.e_yccd * 21/60**2) # convert to deg
             #error = np.nanmax([source.e_xccd,source.e_yccd])
             error = [10 / 60**2,10 / 60**2] # just set error to 10 arcsec. The calculated values are unrealistically small.
