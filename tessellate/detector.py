@@ -2093,6 +2093,9 @@ class Detector():
         from tqdm import tqdm
         import os
         import pandas as pd
+        from .tools import _Save_space
+
+        _Save_space(save_path)
 
         if os.path.exists(f'{save_path}/events.csv'):
             all_events = pd.read_csv(f'{save_path}/events.csv')
