@@ -1900,13 +1900,11 @@ class Detector():
             print('Getting Photometry...')
 
             if type(event) == int:
-                e = self.events[(self.events['objid']==objid) & (self.events['eventid']==event)] 
+                e = self.events[(self.events['objid']==objid) & (self.events['eventid']==event)].iloc[0] 
                 xint = RoundToInt(e['xcentroid'])
                 yint = RoundToInt(e['xcentroid'])
                 ra_obj = e['ra']
                 dec_obj = e['dec']
-                print(ra_obj)
-                print(dec_obj)
             else:
                 xint = RoundToInt(obj['xcentroid'])
                 yint = RoundToInt(obj['ycentroid'])
@@ -1914,7 +1912,6 @@ class Detector():
                 dec_obj = obj['dec']
 
             RA,DEC = self.wcs.all_pix2world(xint,yint,0)
-            print(RA,DEC)
             # ra_obj,dec_obj = self.wcs.all_pix2world(obj['xcentroid'],obj['ycentroid'],0)
             
             #error = (source.e_xccd * 21 /60**2,source.e_yccd * 21/60**2) # convert to deg
