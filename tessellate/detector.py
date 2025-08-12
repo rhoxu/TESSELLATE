@@ -1902,7 +1902,7 @@ class Detector():
             if type(event) == int:
                 e = self.events[(self.events['objid']==objid) & (self.events['eventid']==event)].iloc[0] 
                 xint = RoundToInt(e['xcentroid'])
-                yint = RoundToInt(e['xcentroid'])
+                yint = RoundToInt(e['ycentroid'])
                 ra_obj = e['ra']
                 dec_obj = e['dec']
             else:
