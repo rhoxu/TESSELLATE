@@ -2125,10 +2125,10 @@ class Detector():
             e = 'No events found in the save path!'
             raise FileNotFoundError(e)
         
-        ccd_events = all_events[(all_events['cam'] == self.cam) & (all_events['ccd'] == self.ccd) & (all_events['sector'] == self.sector)]
+        ccd_events = all_events[(all_events['camera'] == self.cam) & (all_events['ccd'] == self.ccd) & (all_events['sector'] == self.sector)]
         count = 0
         for _,event in ccd_events.iterrows():
-            if (event['cam'] == self.cam) & (event['ccd'] == self.ccd) & (event['sector'] == self.sector):
+            if (event['camera'] == self.cam) & (event['ccd'] == self.ccd) & (event['sector'] == self.sector):
                 count += 1
                 cut = event['cut']
                 objid = event['objid']
