@@ -2085,8 +2085,8 @@ class Detector():
         y = int(event['yint']) 
 
         return self.flux[frames,y-image_size//2:y+image_size//2+1,x-image_size//2:x+image_size//2+1]
-        
-    def filter_and_save(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
+    
+    def collate_filtered_events(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
                       lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,boundarykiller=None,
                       flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
         
@@ -2094,7 +2094,11 @@ class Detector():
         import os
         import pandas as pd
 
-        all_events = pd.DataFrame()
+        if os.path.exists(f'{save_path}/events.csv'):
+            all_events = pd.read_csv(f'{save_path}/events.csv')
+        else:
+            all_events = pd.DataFrame()
+
         for cut in tqdm(range(1,self.n**2+1)):
             self._gather_results(cut)
             events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
@@ -2105,16 +2109,72 @@ class Detector():
                                     psf_like=psf_like,galactic_latitude=galactic_latitude)
             
             if len(events) > 0:
-                for _,event in events.iterrows():
-                    self.plot_object(cut,event['objid'],event=event['eventid'],
-                                    latex=True,zoo_mode=False,external_phot=True,save_combined=save_path)
-                
                 all_events = pd.concat([all_events,events],ignore_index=True)
-        
-        if os.path.exists(f'{save_path}/events.csv'):
-            df = pd.read_csv(f'{save_path}/events.csv')
-            all_events = pd.concat([df,all_events],ignore_index=True)
+
         all_events.to_csv(f'{save_path}/events.csv',index=False)
+
+    def plot_filtered_events(self,save_path):
+        import os
+
+        if os.path.exists(f'{save_path}/events.csv'):
+            all_events = pd.read_csv(f'{save_path}/events.csv')
+        else:
+            e = 'No events found in the save path!'
+            raise FileNotFoundError(e)
+        
+        ccd_events = all_events[(all_events['cam'] == self.cam) & (all_events['ccd'] == self.ccd) & (all_events['sector'] == self.sector)]
+        count = 0
+        for _,event in ccd_events.iterrows():
+            if (event['cam'] == self.cam) & (event['ccd'] == self.ccd) & (event['sector'] == self.sector):
+                count += 1
+                cut = event['cut']
+                objid = event['objid']
+                if not os.path.exists(f'{save_path}/S{self.sector}C{self.cam}C{self.ccd}C{cut}O{objid}.png'):
+                    print(f'Event {count} of {len(ccd_events)}')
+                    self.plot_object(event['cut'],event['objid'],event=event['eventid'],
+                                    latex=True,zoo_mode=False,external_phot=True,save_combined=save_path)
+                    print('\n')
+                
+        
+        
+    # def filter_and_save(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
+    #                   lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,boundarykiller=None,
+    #                   flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
+        
+    #     from tqdm import tqdm
+    #     import os
+    #     import pandas as pd
+
+
+    #     if os.path.exists(f'{save_path}/events.csv'):
+    #         all_events = pd.read_csv(f'{save_path}/events.csv')
+    #     else:
+    #         all_events = pd.DataFrame()
+
+    #     for cut in tqdm(range(1,self.n**2+1)):
+    #         self._gather_results(cut)
+    #         events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
+    #                                 lower=lower,upper=upper,image_sig_max=image_sig_max,
+    #                                 lc_sig_max=lc_sig_max,lc_sig_med=lc_sig_med,
+    #                                 max_events=max_events,bkg_std=bkg_std,boundarykiller=boundarykiller,
+    #                                 flux_sign=flux_sign,classification=classification,
+    #                                 psf_like=psf_like,galactic_latitude=galactic_latitude)
+            
+    #         if len(events) > 0:
+    #             all_events = pd.concat([df,all_events],ignore_index=True)
+        
+
+    #     for _,event in all_events.iterrows():
+
+    #         self.plot_object(cut,event['objid'],event=event['eventid'],
+    #                         latex=True,zoo_mode=False,external_phot=True,save_combined=save_path)
+                
+    #             all_events = pd.concat([all_events,events],ignore_index=True)
+        
+    #     if os.path.exists(f'{save_path}/events.csv'):
+    #         df = pd.read_csv(f'{save_path}/events.csv')
+    #         all_events = pd.concat([df,all_events],ignore_index=True)
+    #     all_events.to_csv(f'{save_path}/events.csv',index=False)
 
 
     def locate_transient(self,cut,xcentroid,ycentroid,threshold=3):
