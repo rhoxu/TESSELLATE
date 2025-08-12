@@ -2072,7 +2072,7 @@ class Detector():
         return self.flux[frames,y-image_size//2:y+image_size//2+1,x-image_size//2:x+image_size//2+1]
         
     def filter_and_save(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
-                      lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,
+                      lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,boundarykiller=None,
                       flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
         
         from tqdm import tqdm
@@ -2085,7 +2085,7 @@ class Detector():
             events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
                                     lower=lower,upper=upper,image_sig_max=image_sig_max,
                                     lc_sig_max=lc_sig_max,lc_sig_med=lc_sig_med,
-                                    max_events=max_events,bkg_std=bkg_std,
+                                    max_events=max_events,bkg_std=bkg_std,boundarykiller=boundarykiller,
                                     flux_sign=flux_sign,classification=classification,
                                     psf_like=psf_like,galactic_latitude=galactic_latitude)
             
