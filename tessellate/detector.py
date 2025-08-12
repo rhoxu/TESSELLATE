@@ -1073,12 +1073,12 @@ class Detector():
 
         from .tools import CutWCS
         
-        self.cut = cut
         base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_of{self.n**2}'
         self.base_name = base
 
         if flux:
             self.flux = np.load(base + '_ReducedFlux.npy')
+            self.cut = cut
         if ref:
             self.ref = np.load(base + '_Ref.npy')
         if bkg:
