@@ -1852,6 +1852,96 @@ class Detector():
 
         Save_LC(self.time,self.flux,self.events,id,save_path=save_name)    
 
+    def _external_photometry(self,objid,event,size=100):
+
+        from .external_photometry import event_cutout
+
+        print('Getting Photometry...')
+
+        theta = np.linspace(0, 2*np.pi, 10)
+        if type(event) == int:
+            e = self.events[(self.events['objid']==objid) & (self.events['eventid']==event)].iloc[0] 
+            xint = RoundToInt(e['xcentroid'])
+            yint = RoundToInt(e['ycentroid'])
+            ra_obj = e['ra']
+            dec_obj = e['dec']
+            errorX = e['xcentroid'] + 0.25*np.cos(theta)
+            errorY = e['ycentroid'] + 0.25*np.sin(theta)
+        else:
+            obj = self.objects[self.objects['objid']==objid].iloc[0]
+            xint = RoundToInt(obj['xcentroid'])
+            yint = RoundToInt(obj['ycentroid'])
+            ra_obj = obj['ra']
+            dec_obj = obj['dec']
+            errorX = obj['xcentroid'] + 0.25*np.cos(theta)
+            errorY = obj['ycentroid'] + 0.25*np.sin(theta)
+
+        RA,DEC = self.wcs.all_pix2world(xint,yint,0)
+        errorRA,errorDEC = self.wcs.all_pix2world(errorX,errorY,0)
+
+        # ra_obj,dec_obj = self.wcs.all_pix2world(obj['xcentroid'],obj['ycentroid'],0)
+        
+        #error = (source.e_xccd * 21 /60**2,source.e_yccd * 21/60**2) # convert to deg
+        #error = np.nanmax([source.e_xccd,source.e_yccd])
+        # error = [10 / 60**2,10 / 60**2] # just set error to 10 arcsec. The calculated values are unrealistically small.
+        
+        fig, wcs, size, photometry,cat = event_cutout((RA,DEC),(ra_obj,dec_obj),None,size)
+        if fig is None:
+            return None
+        axes = fig.get_axes()
+        if len(axes) == 1:
+            wcs = [wcs]
+
+
+        xRange = np.arange(xint-3,xint+3)
+        yRange = np.arange(yint-3,yint+3)
+
+        lines = []
+        for x in xRange:
+            line = np.linspace((x,yRange[0]),(x,yRange[-1]),100)
+            lines.append(line)
+
+        for y in yRange:
+            line = np.linspace((xRange[0],y),(xRange[-1],y),100)
+            lines.append(line)
+
+        # -- Plot the TESS pixel edges on the axes -- #
+        for i,ax in enumerate(axes): 
+            ys = []
+            for j,line in enumerate(lines):
+                if j in [0,6]:
+                    color = 'red'
+                    lw = 5
+                    alpha = 0.7
+                elif j in [5,11]:
+                    color = 'cyan'
+                    lw = 5
+                    alpha = 0.7
+                else:
+                    color='white'
+                    lw = 2
+                    alpha = 0.3
+
+                ra,dec = self.wcs.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
+                if wcs[i].naxis == 3:
+                    x,y,_ = wcs[i].all_world2pix(ra,dec,0,0)
+
+                    xError,yError,_ = wcs[i].all_world2pix(errorRA,errorDEC,0,0)
+                else:
+                    x,y = wcs[i].all_world2pix(ra,dec,0)
+                    xError,yError = wcs[i].all_world2pix(errorRA,errorDEC,0)
+
+                if j in [0,5]:
+                    ys.append(np.mean(y))
+                good = (x>0)&(y>0)&(x<size)&(y<size)
+                x = x[good]
+                y = y[good]
+                if len(x) > 0:
+                    ax.plot(x,y,color=color,alpha=alpha,lw=lw)
+
+                ax.scatter(xError,yError,color='red',s=15,marker='.',lw=1)
+
+        return fig, cat, (ra_obj,dec_obj)
 
     def plot_object(self,cut,objid,event='seperate',save_name=None,save_path=None,
                     latex=True,zoo_mode=True,external_phot=False,save_combined=False):
@@ -1895,96 +1985,11 @@ class Detector():
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
-            from .external_photometry import event_cutout
-
-            print('Getting Photometry...')
-
-            theta = np.linspace(0, 2*np.pi, 10)
-            if type(event) == int:
-                e = self.events[(self.events['objid']==objid) & (self.events['eventid']==event)].iloc[0] 
-                xint = RoundToInt(e['xcentroid'])
-                yint = RoundToInt(e['ycentroid'])
-                ra_obj = e['ra']
-                dec_obj = e['dec']
-                errorX = e['xcentroid'] + 0.25*np.cos(theta)
-                errorY = e['ycentroid'] + 0.25*np.sin(theta)
-            else:
-                xint = RoundToInt(obj['xcentroid'])
-                yint = RoundToInt(obj['ycentroid'])
-                ra_obj = obj['ra']
-                dec_obj = obj['dec']
-                errorX = obj['xcentroid'] + 0.25*np.cos(theta)
-                errorY = obj['ycentroid'] + 0.25*np.sin(theta)
-
-            RA,DEC = self.wcs.all_pix2world(xint,yint,0)
-            errorRA,errorDEC = self.wcs.all_pix2world(errorX,errorY,0)
-
-            # ra_obj,dec_obj = self.wcs.all_pix2world(obj['xcentroid'],obj['ycentroid'],0)
-            
-            #error = (source.e_xccd * 21 /60**2,source.e_yccd * 21/60**2) # convert to deg
-            #error = np.nanmax([source.e_xccd,source.e_yccd])
-            # error = [10 / 60**2,10 / 60**2] # just set error to 10 arcsec. The calculated values are unrealistically small.
-            
-            fig, wcs, size, photometry,cat = event_cutout((RA,DEC),(ra_obj,dec_obj),None,100)
-            if fig is None:
-                return None
-            axes = fig.get_axes()
-            if len(axes) == 1:
-                wcs = [wcs]
-
-
-            xRange = np.arange(xint-3,xint+3)
-            yRange = np.arange(yint-3,yint+3)
-
-            lines = []
-            for x in xRange:
-                line = np.linspace((x,yRange[0]),(x,yRange[-1]),100)
-                lines.append(line)
-
-            for y in yRange:
-                line = np.linspace((xRange[0],y),(xRange[-1],y),100)
-                lines.append(line)
-
-            # -- Plot the TESS pixel edges on the axes -- #
-            for i,ax in enumerate(axes): 
-                ys = []
-                for j,line in enumerate(lines):
-                    if j in [0,6]:
-                        color = 'red'
-                        lw = 5
-                        alpha = 0.7
-                    elif j in [5,11]:
-                        color = 'cyan'
-                        lw = 5
-                        alpha = 0.7
-                    else:
-                        color='white'
-                        lw = 2
-                        alpha = 0.3
-
-                    ra,dec = self.wcs.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
-                    if wcs[i].naxis == 3:
-                        x,y,_ = wcs[i].all_world2pix(ra,dec,0,0)
-
-                        xError,yError,_ = wcs[i].all_world2pix(errorRA,errorDEC,0,0)
-                    else:
-                        x,y = wcs[i].all_world2pix(ra,dec,0)
-                        xError,yError = wcs[i].all_world2pix(errorRA,errorDEC,0)
-
-                    if j in [0,5]:
-                        ys.append(np.mean(y))
-                    good = (x>0)&(y>0)&(x<size)&(y<size)
-                    x = x[good]
-                    y = y[good]
-                    if len(x) > 0:
-                        ax.plot(x,y,color=color,alpha=alpha,lw=lw)
-
-                    ax.scatter(xError,yError,color='red',s=15,marker='.',lw=1)
-
+            fig, cat, coord = self._external_photometry(objid,event)
             obj.photometry = fig
             obj.cat = cat
-            obj.coord = (ra_obj,dec_obj)
-
+            obj.coord = coord
+            
         if save_combined != False:
             from .tools import _Save_space
             import io
