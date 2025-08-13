@@ -9,10 +9,12 @@ from astropy.visualization import PercentileInterval, AsinhStretch
 import requests
 from PIL import Image
 from io import BytesIO
-import time as Time 
+from time import sleep 
 
 import pandas as pd
 from matplotlib.patches import Ellipse
+from skimage.transform import rotate
+
 
 fig_width_pt = 240.0  # Get this from LaTeX using \showthe\columnwidth
 inches_per_pt = 1.0/72.27			   # Convert pt to inches
@@ -117,10 +119,12 @@ def _Panstarrs_phot(ra,dec,size):
     return fig,wcsList,grey_im.shape[0]
 
 
-def _skymapper_objects(ra,dec,rad=30/60**2):
+def _skymapper_objects(ra,dec,imshape,wcs,rad=60):
     """
     radius in degrees
     """
+    rad /= 60**2 
+
     query = f'https://skymapper.anu.edu.au/sm-cone/public/query?RA={ra}&DEC={dec}&SR={np.round(rad,3)}&RESPONSEFORMAT=CSV'
     sm = pd.read_csv(query)
     if len(sm) > 0:
@@ -139,18 +143,92 @@ def _skymapper_objects(ra,dec,rad=30/60**2):
         sm['star'].loc[(sm['class_star'] > 0.7) & (sm['class_star'] < 0.9)] = 2
     else:
         sm = None
+
+    x,y = wcs.all_world2pix(sm['ra'],sm['dec'],0)
+    ydiff = y - imshape//2
+    y = imshape//2 - ydiff
+    ra,dec = wcs.all_pix2world(x,y,0)
+    sm['ra'] = ra
+    sm['dec'] = dec
+
     return sm
+
+# Step 3: apply stretch to the whole RGB image
+def _Stretch_rgb(rgb_img, stretch=5, gamma=0.45):
+    # Apply arcsinh stretch per channel but keep ratios
+    stretched = np.arcsinh(stretch * rgb_img) / np.arcsinh(stretch)
+    stretched = np.clip(stretched ** gamma, 0, 1)
+    return stretched
+
+
+def _Adjust_band_peaks(rgb, band_idx, sigma_thresh=3, scale_factor=0.7,exponent=5):
+
+    rgb_out = rgb.copy()
+    band = rgb_out[:, :, band_idx]
+    # Flatten and get central 50% pixels for noise std estimation
+    flat = band.flatten()
+    q25, q75 = np.percentile(flat, [25, 75])
+    central_pixels = flat[(flat >= q25) & (flat <= q75)]
+    noise_std = np.nanstd(central_pixels)
     
+    threshold = sigma_thresh * noise_std
+    
+    mask = band > threshold
+    if np.any(mask):
+        min_val = threshold
+        max_val = np.max(band[mask])
+        normalized = (band[mask] - min_val) / (max_val - min_val)  # 0 to 1
+        # Nonlinear scaling: scale more for moderate pixels, less for extreme pixels
+        scaling = scale_factor + (1 - scale_factor) * (normalized ** exponent)
+        band[mask] = band[mask] * scaling
+    
+    rgb_out[:, :, band_idx] = band
+    return rgb_out
 
-def _Skymapper_phot(ra,dec,size):
+def _Rotate_i_to_g(i_image, wcs_i, g_image, wcs_g, n_points=5):
+
+    ny, nx = i_image.shape
+    
+    x = np.linspace(0, nx-1, n_points)
+    y = np.linspace(0, ny-1, n_points)
+    xv, yv = np.meshgrid(x, y)
+    xv = xv.flatten()
+    yv = yv.flatten()
+    
+    world_coords = wcs_i.pixel_to_world(xv, yv)
+    ra = world_coords.ra.deg
+    dec = world_coords.dec.deg
+    
+    g_x, g_y = wcs_g.world_to_pixel(world_coords)
+    
+    cx_i, cy_i = (nx-1)/2, (ny-1)/2
+    cx_g, cy_g = (g_image.shape[1]-1)/2, (g_image.shape[0]-1)/2
+    
+    dx_i = xv - cx_i
+    dy_i = yv - cy_i
+    dx_g = g_x - cx_g
+    dy_g = g_y - cy_g
+    
+    angles = np.arctan2(dy_g, dx_g) - np.arctan2(dy_i, dx_i)
+    angle_deg = np.median(np.degrees(angles))
+    
+    rotated_i = rotate(i_image, angle=angle_deg, resize=False, center=(cx_i, cy_i))
+    
+    return rotated_i, angle_deg
+
+
+def _Skymapper_phot(ra, dec, size, show_bands=False):
     """
-    Gets g,r,i from skymapper.
+    Gets g, r, i from SkyMapper and makes a colour composite:
+    g -> blue, r -> green, i -> red
+    
+    If show_bands=True, plots the three bands separately.
     """
-    size*=1.1
+    size *= 1.5
     og_size = size
-    size /= 3600
+    size_deg = size / 3600  # arcsec → degrees
 
-    url = f"https://api.skymapper.nci.org.au/public/siap/dr4/query?POS={ra},{dec}&SIZE={size}&BAND=g,r,i&FORMAT=GRAPHIC&VERB=3&INTERSET=COVERS"
+    url = f"https://api.skymapper.nci.org.au/public/siap/dr4/query?POS={ra},{dec}&SIZE={size_deg}&BAND=g,r,i&FORMAT=GRAPHIC&VERB=3&INTERSECT=COVERS"
     max_attempts = 5
 
     complete = False
@@ -161,71 +239,106 @@ def _Skymapper_phot(ra,dec,size):
             complete = True
         except:
             attempt += 1
-            print('failed')
-            Time.sleep(1)
+            print('failed to get table')
+            sleep(1)
 
     t = table[(table['col16'] == 'main')]
     t_unique = t[~t.duplicated(subset='col3', keep='first')]
 
-    wcsList = []        
+    wcsList = []
     images = []
-    filts = ['g','r','i']
-    max_attempts = 5
-    for i in range(len(filts)):
+    filts = ['g', 'r', 'i']
+    for filt in filts:
         complete = False
         attempt = 0
         while (not complete) & (attempt < max_attempts):
             try:
-                f = t_unique.loc[t_unique['col3'] == filts[i]].iloc[0]
-                url = f['col4']
-                r = requests.get(url)
+                f = t_unique.loc[t_unique['col3'] == filt].iloc[0]
+                img_url = f['col4']
+                r = requests.get(img_url)
 
-                im = (Image.open(BytesIO(r.content)))* 10**((f['col22'] - 25)/-2.5)
-                im[im==0] = np.nan
+                im = np.array(Image.open(BytesIO(r.content)), dtype=float) * 10**((f['col22'] - 25)/-2.5)
+                im[im == 0] = np.nan
                 im -= np.nanmedian(im)
                 im[np.isnan(im)] = 0
-                images += [im]
-                
+                pixels = im.flatten()
+                p25, p75 = np.percentile(pixels, 15), np.percentile(pixels, 85)
+                central_pixels = pixels[(pixels >= p25) & (pixels <= p75)]
+                std_central = np.std(central_pixels)
+                im = im / std_central
+                im[im<0]=0
+                images.append(im)
+
                 crpix = np.array(f['col23'].split(' ')).astype(float)
                 crval = np.array(f['col24'].split(' ')).astype(float)
-                cdmatrix = np.array(f['col25'].split(' ')).astype(float).reshape(2,2)
+                cdmatrix = np.array(f['col25'].split(' ')).astype(float).reshape(2, 2)
 
                 wcs = WCS(naxis=2)
                 wcs.wcs.crpix = crpix
                 wcs.wcs.crval = crval
                 wcs.wcs.cd = cdmatrix
-                wcs.wcs.ctype = ["RA---TAN", "DEC--TAN"]  # Common projection type for celestial coordinates
+                wcs.wcs.ctype = ["RA---TAN", "DEC--TAN"]
 
                 wcsList.append(wcs)
-                
                 complete = True
             except:
                 attempt += 1
-                Time.sleep(1)
-    #images = np.array(images)
+                sleep(1)
 
-    fig = plt.figure(figsize=(3*fig_width,1*fig_width))
+    if len(images)<3:
+        return None,None,None,None
 
-    plt.rcParams.update({'font.size':11})
-    titles = ['SkyMapper g','SkyMapper r','SkyMapper i']
-    for i in range(3):
-        ax = plt.subplot(1,3,i+1,projection=wcsList[i])
-        ax.imshow(images[i],cmap="gray_r")
-        ax.grid(alpha=0.5,color='w')
-        ax.set_title(titles[i])
-        if i == 1:
-            ax.set_xlabel('Right Ascension')
-        else:
-            ax.set_xlabel(' ')
-        if i == 0:
-            ax.set_ylabel('Declination')
-        else:
-            #
-            ax.set_ylabel(' ')
-            ax.coords['dec'].set_ticklabel_visible(False)
-    plt.tight_layout()
+    rotated_i, angle = _Rotate_i_to_g(images[2], wcsList[2], images[0],wcsList[0])
+    images[2] = rotated_i
 
-    return fig,wcsList,og_size*2
+    min_shape = np.min([im.shape for im in images], axis=0)
+    cropped_images = [im[:min_shape[0], :min_shape[1]] for im in images]
+
+    rgb = np.dstack([cropped_images[2], cropped_images[1], cropped_images[0]])
+
+    brightim = np.nansum(rgb,axis=2)
+    mask = np.ones_like(brightim)
+    mask[brightim>8]=0
+
+    rgb[mask==1] /= (np.nanmax(rgb)/6)
+
+    rgb = _Adjust_band_peaks(rgb, 2, sigma_thresh=13, scale_factor=0.4)  # Adjust blue band
+    rgb = _Adjust_band_peaks(rgb, 0, sigma_thresh=13, scale_factor=1.65)  
+
+    rgb_norm = rgb / np.nanmax(rgb)
+    rgb_stretched = _Stretch_rgb(rgb_norm, stretch=1, gamma=1)
+
+    plt.rcParams.update({'font.size': 12})
+    if show_bands:
+        fig, axs = plt.subplots(1, 3, figsize=(15, 5),subplot_kw={'projection':wcsList[0]})
+        fig.suptitle('SkyMapper gri')
+        bands = ['g (blue)', 'r (green)', 'i (red)']
+        for i, ax in enumerate(axs):
+            if i ==0 :
+                ax.set_xlabel('Right Ascension')
+                ax.set_ylabel('Declination')
+                ax.coords[0].set_major_formatter('hh:mm:ss')
+                ax.coords[1].set_major_formatter('dd:mm:ss')
+            else:
+                ax.coords[0].set_ticklabel_visible(False)
+                ax.coords[1].set_ticklabel_visible(False)
+            im = rgb_stretched[:,:,i]
+            ax.imshow(im, cmap='gray', origin='lower',vmin=0,vmax=1)
+            ax.set_title(f"{bands[i]} band")
+
+
+    else:
+        fig = plt.figure(figsize=(8, 8))
+        ax = plt.subplot(111, projection=wcsList[0])
+        ax.imshow(rgb_stretched, origin='lower')
+        ax.set_xlabel('Right Ascension')
+        ax.set_ylabel('Declination')
+        ax.set_title('SkyMapper gri')
+        ax.invert_xaxis()
+        ax.coords[0].set_major_formatter('hh:mm:ss')
+        ax.coords[1].set_major_formatter('dd:mm:ss')
+
+    return fig, wcs, og_size * 2,rgb_stretched
 
 def _delve_objects(ra,dec,size=60/60**2):
     from dl import queryClient as qc
@@ -259,7 +372,7 @@ def _delve_objects(ra,dec,size=60/60**2):
 
 def _DESI_phot(ra,dec,size):
 
-    size = size *5
+    size = size * 5
     urlFITS = f"http://legacysurvey.org/viewer/cutout.fits?ra={ra}&dec={dec}&size={size}&layer=ls-dr10"
     urlIM = f"http://legacysurvey.org/viewer/cutout.jpg?ra={ra}&dec={dec}&size={size}&layer=ls-dr10"
 
@@ -282,42 +395,98 @@ def _DESI_phot(ra,dec,size):
             ax.set_xlabel('Right Ascension')
             ax.set_ylabel('Declination')
             ax.invert_xaxis()
-            return fig,wcs,size
+            return fig,wcs,size,image
         except Exception as error:
             print("DES Photometry failed: ", error)
             print(urlFITS)
             print(urlIM)
-            return None,None,None
+            return None,None,None,None
         #else:
           #  return None,None,None
     else:
-        return None,None,None
+        return None,None,None,None
 
+def simbad_sources(ra,dec,size):
+    from astroquery.simbad import Simbad
 
-def _add_sources(fig,coords,cat,error=None):
+    simbad = Simbad()
+    simbad.ROW_LIMIT = -1
+    gal_query = f"""SELECT ra, dec, main_id, otype
+
+                    FROM basic
+
+                    WHERE otype != 'star..'
+
+                    AND CONTAINS(POINT('ICRS', basic.ra, basic.dec), CIRCLE('ICRS', {ra}, {dec} , {size})) = 1
+                """
+    gal = simbad.query_tap(gal_query)
+    gal = gal.to_pandas()
+
+    star_query = f"""SELECT ra, dec, main_id, otype
+
+                    FROM basic
+
+                    WHERE otype = 'star..'
+
+                    AND CONTAINS(POINT('ICRS', basic.ra, basic.dec), CIRCLE('ICRS', {ra}, {dec} , {size})) = 1
+                 """
+    stars = simbad.query_tap(star_query)
+    stars = stars.to_pandas()
+
+    gal['star'] = 0
+    stars['star'] = 1
+    sbad = pd.concat([stars,gal])
+    
+    return sbad
+
+def check_simbad(cat,sbad):
+    dist = np.sqrt((sbad['ra'].values[:,np.newaxis] - cat['ra'].values[np.newaxis,:])**2 + (sbad['dec'].values[:,np.newaxis] - cat['dec'].values[np.newaxis,:])**2)*60**2
+    sind, catind = np.where(dist<5)
+    cat['otype'] = 'none'
+    if len(catind) > 0:
+        cat.loc[catind,'star'] = sbad.loc[sind,'star'].values
+        cat.loc[catind,'otype'] = sbad.loc[sind,'otype'].values
+    return cat
+
+def get_gaia(ra,dec,size):
+    from astroquery.gaia import Gaia
+    from astropy.coordinates import SkyCoord
+    import astropy.units as u
+    Gaia.ROW_LIMIT = -1  # Ensure the default row limit.
+
+    coord = SkyCoord(ra=ra, dec=dec, unit=(u.degree, u.degree), frame='icrs')
+
+    j = Gaia.cone_search_async(coord, radius=u.Quantity(100, u.arcsec))
+    j = j.get_results().to_pandas()
+    j['star'] = 1
+    j.loc[(j['classprob_dsc_combmod_quasar'] > 0.7) | (j['classprob_dsc_combmod_galaxy'] > 0.7),'star'] = 2
+    j.loc[(j['classprob_dsc_combmod_quasar'] > 0.9) | (j['classprob_dsc_combmod_galaxy'] > 0.9),'star'] = 0
+    return j
+
+def check_gaia(cat,gaia):
+    dist = np.sqrt((gaia['ra'].values[:,np.newaxis] - cat['ra'].values[np.newaxis,:])**2 + (gaia['dec'].values[:,np.newaxis] - cat['dec'].values[np.newaxis,:])**2)*60**2
+    gind, catind = np.where(dist<5)
+    cat['dist'] = np.nan
+    cat['dist_l'] = np.nan
+    cat['dist_u'] = np.nan
+    if len(catind) > 0:
+        cat.loc[catind,'star'] = gaia.loc[gind,'star'].values
+        cat.loc[catind,'dist'] = gaia.loc[gind,'distance_gspphot'].values
+        cat.loc[catind,'dist_l'] = gaia.loc[gind,'distance_gspphot_lower'].values
+        cat.loc[catind,'dist_u'] = gaia.loc[gind,'distance_gspphot_upper'].values
+        
+    return cat
+    
+
+def _add_sources(fig,cat):
     axs = fig.get_axes()
     count = 0
     for ax in axs:
-        ax.scatter(coords[0],coords[1], transform=ax.get_transform('fk5'),
-                    edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
-        
 
-        if error is not None:
-            if len(error) > 1:
-                xerr,yerr = error
-            else:
-                xerr = yerr = error
-            ellipse = Ellipse(xy=(coords[0],coords[1]),  
-                              width=error[0],height=error[1],     
-                              edgecolor='red',facecolor='none',
-                              linestyle=':', linewidth=3,
-                              transform=ax.get_transform('fk5'))
-            ax.add_patch(ellipse)
-        
         # scatter stars 
         stars = cat.loc[cat['star'] ==1]
         ax.scatter(stars.ra,stars.dec, transform=ax.get_transform('fk5'),
-                    edgecolors='w',marker='^',s=80,facecolors="None",linewidths=1,label='Star')
+                    edgecolors='w',marker='*',s=80,facecolors="None",linewidths=1,label='Star')
 
         # scatter galaxies
         gal = cat.loc[cat['star'] == 0]
@@ -328,19 +497,37 @@ def _add_sources(fig,coords,cat,error=None):
         gal = cat.loc[cat['star'] == 2]
         ax.scatter(gal.ra,gal.dec, transform=ax.get_transform('fk5'),
                     edgecolors='w',marker='D',s=80,facecolors="None",label='Possible galaxy')
-        if count == 0:
-            legend = ax.legend(loc=2,facecolor="black",fontsize=10)
-            for text in legend.get_texts():
-                text.set_color("white")
+        # if count == 0:
+        #     legend = ax.legend(loc=2,facecolor="black",fontsize=10)
+        #     for text in legend.get_texts():
+        #         text.set_color("white")
         count += 1
     return fig
 
 
-def event_cutout(coords,real_loc=None,error=None,size=50,phot=None):
-    if real_loc is None:
-        real_loc = coords
+def event_cutout(coords,size=50,phot=None,check='gaia'):
+    """
+    Make an image using ground catalogs for the region of interest.
+
+    parameters
+    ----------
+    coords : array
+        array with elements of (ra,dec) in decimal degrees
+    real_loc : array
+        real on-sky position of target, if known.
+    error : float
+        Positional error in arcseconds, currently only 1 value is accepted.
+    size : int
+        size of the cutout image, likely in arcseconds 
+    phot : str
+        String defining the catalog to use. If None, then the catalog is automatically determined.
+    check : str
+        Check the photometry catalog against another catalog with better star detection. Currenty
+        only gaia and simbad are available.
+    """
+
     if phot is None:
-        fig,wcs,outsize = _DESI_phot(coords[0],coords[1],size)
+        fig,wcs,outsize,im = _DESI_phot(coords[0],coords[1],size)
         if fig is None:
             if coords[1] > -10:
                 phot = 'PS1'
@@ -348,8 +535,7 @@ def event_cutout(coords,real_loc=None,error=None,size=50,phot=None):
                 phot = 'SkyMapper'
         else:
             phot = 'DESI'
-            cat = _delve_objects(real_loc[0],real_loc[1])
-            fig = _add_sources(fig,real_loc,cat,error)
+            cat = _delve_objects(coords[0],coords[1])
 
     if phot == 'PS1':
         fig,wcs,outsize = _Panstarrs_phot(coords[0],coords[1],size)
@@ -357,15 +543,31 @@ def event_cutout(coords,real_loc=None,error=None,size=50,phot=None):
         #fig = _add_sources(fig,cat)
 
     elif phot.lower() == 'skymapper':
-        fig,wcs,outsize = _Skymapper_phot(coords[0],coords[1],size)
-        cat = _skymapper_objects(real_loc[0],real_loc[1])
-        fig = _add_sources(fig,real_loc,cat,error)
-        
+        fig,wcs,outsize,im = _Skymapper_phot(coords[0],coords[1],size)
+        if fig is None:
+            return None,None,None,None,None,None
+        cat = _skymapper_objects(coords[0],coords[1],im.shape[1],wcs,rad=60)
     elif phot is None:
         print('Photometry name invalid.')
         fig = None
         wcs = None
+        return None,None,None,None,None,None
+        
+    # if phot is not None:
+    if check == 'simbad':
+        sbad = simbad_sources(coords[0],coords[1],size/60**2)
+        cat = check_simbad(cat,sbad)
+    elif check == 'gaia':
+        gaia = get_gaia(coords[0],coords[1],size/60**2)
+        if (gaia is not None) & (cat is not None):
+            cat = check_gaia(cat,gaia)
+        elif phot == 'SkyMapper':
+            print('Something failed getting Skymapper sources.')
+            return None,None,None,None,None,None
+    
+    if cat is not None:
+        fig = _add_sources(fig,cat)
 
     plt.close()
 
-    return fig,wcs,outsize, phot, cat
+    return fig,wcs,outsize, phot, cat,im

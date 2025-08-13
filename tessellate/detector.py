@@ -1069,24 +1069,31 @@ class Detector():
  
         return result
     
-    def _gather_data(self,cut):
+    def _gather_data(self,cut,flux=True,time=True,wcs=True,bkg=True,mask=True,ref=True):
 
         from .tools import CutWCS
         
-        self.cut = cut
-        base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{self.cut}_of{self.n**2}'
+        base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'
         self.base_name = base
-        self.flux = np.load(base + '_ReducedFlux.npy')
-        self.ref = np.load(base + '_Ref.npy')
-        try:
-            self.bkg = np.load(base + '_Background.npy')
-        except:
-            pass
-        self.mask = np.load(base + '_Mask.npy')
-        self.time = np.load(base + '_Times.npy')
-        if self.time_bin is not None:
-            self._rebin_data()
-        self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
+
+        if flux:
+            self.flux = np.load(base + '_ReducedFlux.npy')
+            self.cut = cut
+        if ref:
+            self.ref = np.load(base + '_Ref.npy')
+        if bkg:
+            try:
+                self.bkg = np.load(base + '_Background.npy')
+            except:
+                pass
+        if mask:
+            self.mask = np.load(base + '_Mask.npy')
+        if time:
+            self.time = np.load(base + '_Times.npy')
+            if self.time_bin is not None:
+                self._rebin_data()
+        if wcs:
+            self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
 
     def _rebin_data(self):
         points = np.arange(self.time[0]+time_bin*.5,self.time[-1],self.time_bin)
@@ -1570,7 +1577,7 @@ class Detector():
                        ra=None,dec=None,distance=40,
                        min_events=None,max_events=None,
                        classification=None,flux_sign=None,
-                       lc_sig_max=None,psf_like=None,
+                       lc_sig_max=None,psf_like=None,galactic_latitude=None,
                        min_eventlength_frame=None,max_eventlength_frame=None,
                        min_eventlength_mjd=None,max_eventlength_mjd=None):
         
@@ -1608,6 +1615,16 @@ class Detector():
         if max_events is not None:
             objects = objects[objects['n_events']<=max_events]
 
+        if galactic_latitude is not None:
+            if type(galactic_latitude) == float:
+                galactic_latitude = [galactic_latitude,90]
+            elif type(galactic_latitude) == list:
+                pass
+            else:
+                e = 'Galactic latitude must be a float or a list of floats!'
+                raise ValueError(e)
+            r = r.loc[(abs(r['gal_b']) >= min(galactic_latitude)) & (abs(r['gal_b']) <= max(galactic_latitude))]
+
         if classification is not None:
             is_negation = classification.startswith(('!', '~'))
             classification_stripped = classification.lstrip('!~').lower()
@@ -1643,7 +1660,7 @@ class Detector():
         return objects
 
     def filter_events(self,cut,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
-                      lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,
+                      lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,boundarykiller=None,
                       flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
         
         """
@@ -1665,6 +1682,27 @@ class Detector():
         # # -- If true, remove asteroids from the results -- #
         if asteroidkiller:
             r = r.loc[~(r['classification'] == 'Asteroid')]
+
+        if boundarykiller:
+            self._gather_data(cut,flux=False,wcs=False,mask=False,ref=False,time=True,bkg=False)
+            boundaryFrames = [0,np.argmax(np.diff(self.time)),
+                             np.argmax(np.diff(self.time))+1, len(self.time)-1]
+            
+            mask = ~r.apply(
+                lambda row: any(frame in range(row['frame_start'], row['frame_end'] + 1) for frame in boundaryFrames),
+                axis=1
+            )
+            r = r[mask]
+
+        if galactic_latitude is not None:
+            if type(galactic_latitude) == float:
+                galactic_latitude = [galactic_latitude,90]
+            elif type(galactic_latitude) == list:
+                pass
+            else:
+                e = 'Galactic latitude must be a float or a list of floats!'
+                raise ValueError(e)
+            r = r.loc[(abs(r['gal_b']) >= min(galactic_latitude)) & (abs(r['gal_b']) <= max(galactic_latitude))]
 
         if classification is not None:
             is_negation = classification.startswith(('!', '~'))
@@ -1814,13 +1852,131 @@ class Detector():
 
         Save_LC(self.time,self.flux,self.events,id,save_path=save_name)    
 
+    def external_photometry(self,objid,event,size=100):
+
+        from .external_photometry import event_cutout
+
+        print('Getting Photometry...')
+
+        theta = np.linspace(0, 2*np.pi, 10)
+        if type(event) == int:
+            e = self.events[(self.events['objid']==objid) & (self.events['eventid']==event)].iloc[0] 
+            xint = RoundToInt(e['xcentroid'])
+            yint = RoundToInt(e['ycentroid'])
+            ra_obj = e['ra']
+            dec_obj = e['dec']
+            errorX = e['xcentroid'] + 0.25*np.cos(theta)
+            errorY = e['ycentroid'] + 0.25*np.sin(theta)
+        else:
+            obj = self.objects[self.objects['objid']==objid].iloc[0]
+            xint = RoundToInt(obj['xcentroid'])
+            yint = RoundToInt(obj['ycentroid'])
+            ra_obj = obj['ra']
+            dec_obj = obj['dec']
+            errorX = obj['xcentroid'] + 0.25*np.cos(theta)
+            errorY = obj['ycentroid'] + 0.25*np.sin(theta)
+
+        RA,DEC = self.wcs.all_pix2world(xint,yint,0)
+        errorRA,errorDEC = self.wcs.all_pix2world(errorX,errorY,0)
+
+        # ra_obj,dec_obj = self.wcs.all_pix2world(obj['xcentroid'],obj['ycentroid'],0)
+        
+        #error = (source.e_xccd * 21 /60**2,source.e_yccd * 21/60**2) # convert to deg
+        #error = np.nanmax([source.e_xccd,source.e_yccd])
+        # error = [10 / 60**2,10 / 60**2] # just set error to 10 arcsec. The calculated values are unrealistically small.
+        
+        fig, wcs, size, photometry,cat,im = event_cutout((RA,DEC),size)
+        if fig is None:
+            return None,None,None,None,None
+        axes = fig.get_axes()
+        
+        if len(axes) == 1:
+            wcs = [wcs]
+
+
+        xRange = np.arange(xint-3,xint+3)
+        yRange = np.arange(yint-3,yint+3)
+
+        if photometry == 'DESI':
+            axes[0].set_xlim(size,0)
+            axes[0].set_ylim(0,size)
+            axes[0].scatter(ra_obj,dec_obj, transform=axes[0].get_transform('fk5'),
+                        edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
+        elif photometry == 'SkyMapper':
+            loc = wcs[0].all_world2pix(ra_obj,dec_obj,0)
+            ydiff = loc[1] - im.shape[1]//2
+            loc[1] = im.shape[1]//2 - ydiff
+            axes[0].scatter(loc[0],loc[1],edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
+            # yRange = yRange[::-1]
+           
+
+        lines = []
+        for x in xRange:
+            line = np.linspace((x,yRange[0]),(x,yRange[-1]),100)
+            lines.append(line)
+
+        for y in yRange:
+            line = np.linspace((xRange[0],y),(xRange[-1],y),100)
+            lines.append(line)
+
+        # -- Plot the TESS pixel edges on the axes -- #
+        for i,ax in enumerate(axes): 
+            ys = []
+            for j,line in enumerate(lines):
+                if j in [0,6]:
+                    color = 'red'
+                    lw = 5
+                    alpha = 0.7
+                elif j in [5,11]:
+                    color = 'cyan'
+                    lw = 5
+                    alpha = 0.7
+                else:
+                    color='white'
+                    lw = 2
+                    alpha = 0.3
+
+                ra,dec = self.wcs.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
+                if wcs[i].naxis == 3:
+                    x,y,_ = wcs[i].all_world2pix(ra,dec,0,0)
+                    xError,yError,_ = wcs[i].all_world2pix(errorRA,errorDEC,0,0)
+                    print('yuh')
+                else:
+                    x,y = wcs[i].all_world2pix(ra,dec,0)
+                    xError,yError = wcs[i].all_world2pix(errorRA,errorDEC,0)
+                    if photometry == 'SkyMapper':
+                        ydiff = y - im.shape[1]//2
+                        y = im.shape[1]//2 - ydiff
+                        ydiff = yError - im.shape[1]//2
+                        yError = im.shape[1]//2 - ydiff
+
+                if j in [0,5]:
+                    ys.append(np.mean(y))
+                good = (x>0)&(y>0)&(x<size)&(y<size)
+                x = x[good]
+                y = y[good]
+                if len(x) > 0:
+                    ax.plot(x,y,color=color,alpha=alpha,lw=lw)
+
+                ax.scatter(xError,yError,color='red',s=15,marker='.',lw=1)
+        
+            legend = ax.legend(loc=2,facecolor="black",fontsize=10)
+            for text in legend.get_texts():
+                    text.set_color("white")
+
+        return fig, cat, (ra_obj,dec_obj), wcs,im
 
     def plot_object(self,cut,objid,event='seperate',save_name=None,save_path=None,
-                    latex=True,zoo_mode=True,external_phot=False):
+                    latex=True,zoo_mode=True,external_phot=False,save_combined=False):
         """
         Plot a source from the cut data.
         """
             
+        if (save_combined != False) & (not external_phot):
+            print('Warning: save_combined is set to True, but external_phot is False. This will not save the photometry cutout.')
+            print('Setting save_combined to False.')
+            save_combined = False
+
 
         # -- Use Latex in the plots -- #
         if latex:
@@ -1848,77 +2004,49 @@ class Detector():
             save_path = save_path + save_name
 
         obj = self.objects[self.objects['objid']==objid].iloc[0]
-        obj.lc,obj.cutout = Plot_Object(self.time,self.flux,self.events,objid,event,save_path,latex,zoo_mode) 
+        obj.lc,obj.cutout,full_fig = Plot_Object(self.time,self.flux,self.events,objid,event,save_path,latex,zoo_mode) 
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
-            from .external_photometry import event_cutout
-
-            print('Getting Photometry...')
-
-            xint = RoundToInt(obj['xcentroid'])
-            yint = RoundToInt(obj['ycentroid'])
-
-            RA,DEC = self.wcs.all_pix2world(xint,yint,0)
-            # ra_obj,dec_obj = self.wcs.all_pix2world(obj['xcentroid'],obj['ycentroid'],0)
-            ra_obj = obj['ra']
-            dec_obj = obj['dec']
-
-            #error = (source.e_xccd * 21 /60**2,source.e_yccd * 21/60**2) # convert to deg
-            #error = np.nanmax([source.e_xccd,source.e_yccd])
-            error = [10 / 60**2,10 / 60**2] # just set error to 10 arcsec. The calculated values are unrealistically small.
+            fig, cat, coord,phot_wcs,im = self.external_photometry(objid,event)
+            if fig is None:
+                return obj
             
-            fig, wcs, size, photometry,cat = event_cutout((RA,DEC),(ra_obj,dec_obj),error,100)
-            axes = fig.get_axes()
-            if len(axes) == 1:
-                wcs = [wcs]
-
-
-            xRange = np.arange(xint-3,xint+3)
-            yRange = np.arange(yint-3,yint+3)
-
-            lines = []
-            for x in xRange:
-                line = np.linspace((x,yRange[0]),(x,yRange[-1]),100)
-                lines.append(line)
-
-            for y in yRange:
-                line = np.linspace((xRange[0],y),(xRange[-1],y),100)
-                lines.append(line)
-
-            # -- Plot the TESS pixel edges on the axes -- #
-            for i,ax in enumerate(axes): 
-                ys = []
-                for j,line in enumerate(lines):
-                    if j in [0,6]:
-                        color = 'red'
-                        lw = 5
-                        alpha = 0.7
-                    elif j in [5,11]:
-                        color = 'cyan'
-                        lw = 5
-                        alpha = 0.7
-                    else:
-                        color='white'
-                        lw = 2
-                        alpha = 0.3
-
-                    ra,dec = self.wcs.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
-                    if wcs[i].naxis == 3:
-                        x,y,_ = wcs[i].all_world2pix(ra,dec,0,0)
-                    else:
-                        x,y = wcs[i].all_world2pix(ra,dec,0)
-                    if j in [0,5]:
-                        ys.append(np.mean(y))
-                    good = (x>0)&(y>0)&(x<size)&(y<size)
-                    x = x[good]
-                    y = y[good]
-                    if len(x) > 0:
-                        ax.plot(x,y,color=color,alpha=alpha,lw=lw)
-
             obj.photometry = fig
             obj.cat = cat
-            obj.coord = (ra_obj,dec_obj)
+            obj.coord = coord
+
+        if save_combined != False:
+            from .tools import _Save_space
+            import io
+            from PIL import Image
+
+            _Save_space(save_combined)
+
+            buf1 = io.BytesIO()
+            buf2 = io.BytesIO()
+            full_fig.savefig(buf1, format='png', dpi=150)
+            obj.photometry.savefig(buf2, format='png', dpi=150)
+
+            # Load with Pillow
+            img1 = Image.open(buf1)
+            img2 = Image.open(buf2)
+
+            # Match heights instead of widths
+            max_height = max(img1.height, img2.height)
+            if img1.height != max_height:
+                img1 = img1.resize((int(img1.width * max_height / img1.height), max_height), Image.LANCZOS)
+            if img2.height != max_height:
+                img2 = img2.resize((int(img2.width * max_height / img2.height), max_height), Image.LANCZOS)
+
+            # Combine horizontally
+            combined_width = img1.width + img2.width
+            combined_img = Image.new('RGB', (combined_width, max_height), (255, 255, 255))
+            combined_img.paste(img1, (0, 0))
+            combined_img.paste(img2, (img1.width, 0))
+
+            # Save final combined PNG
+            combined_img.save(f"{save_combined}/S{self.sector}C{self.cam}C{self.ccd}C{self.cut}O{objid}.png", dpi=(150,150))
         
         return obj
     
@@ -1978,7 +2106,99 @@ class Detector():
         y = int(event['yint']) 
 
         return self.flux[frames,y-image_size//2:y+image_size//2+1,x-image_size//2:x+image_size//2+1]
+    
+    def collate_filtered_events(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
+                      lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,boundarykiller=None,
+                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
         
+        from tqdm import tqdm
+        import os
+        import pandas as pd
+        from .tools import _Save_space
+
+        _Save_space(save_path)
+
+        if os.path.exists(f'{save_path}/events.csv'):
+            all_events = pd.read_csv(f'{save_path}/events.csv')
+        else:
+            all_events = pd.DataFrame()
+
+        for cut in tqdm(range(1,self.n**2+1)):
+            self._gather_results(cut)
+            events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
+                                    lower=lower,upper=upper,image_sig_max=image_sig_max,
+                                    lc_sig_max=lc_sig_max,lc_sig_med=lc_sig_med,
+                                    max_events=max_events,bkg_std=bkg_std,boundarykiller=boundarykiller,
+                                    flux_sign=flux_sign,classification=classification,
+                                    psf_like=psf_like,galactic_latitude=galactic_latitude)
+            
+            if len(events) > 0:
+                all_events = pd.concat([all_events,events],ignore_index=True)
+
+        all_events.to_csv(f'{save_path}/events.csv',index=False)
+
+    def plot_filtered_events(self,save_path):
+        import os
+
+        if os.path.exists(f'{save_path}/events.csv'):
+            all_events = pd.read_csv(f'{save_path}/events.csv')
+        else:
+            e = 'No events found in the save path!'
+            raise FileNotFoundError(e)
+        
+        ccd_events = all_events[(all_events['camera'] == self.cam) & (all_events['ccd'] == self.ccd) & (all_events['sector'] == self.sector)]
+        count = 0
+        for _,event in ccd_events.iterrows():
+            if (event['camera'] == self.cam) & (event['ccd'] == self.ccd) & (event['sector'] == self.sector):
+                count += 1
+                cut = event['cut']
+                objid = event['objid']
+                if not os.path.exists(f'{save_path}/S{self.sector}C{self.cam}C{self.ccd}C{cut}O{objid}.png'):
+                    print(f'Event {count} of {len(ccd_events)}')
+                    self.plot_object(event['cut'],event['objid'],event=event['eventid'],
+                                    latex=True,zoo_mode=False,external_phot=True,save_combined=save_path)
+                    print('\n')
+                
+        
+        
+    # def filter_and_save(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
+    #                   lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,boundarykiller=None,
+    #                   flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
+        
+    #     from tqdm import tqdm
+    #     import os
+    #     import pandas as pd
+
+
+    #     if os.path.exists(f'{save_path}/events.csv'):
+    #         all_events = pd.read_csv(f'{save_path}/events.csv')
+    #     else:
+    #         all_events = pd.DataFrame()
+
+    #     for cut in tqdm(range(1,self.n**2+1)):
+    #         self._gather_results(cut)
+    #         events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
+    #                                 lower=lower,upper=upper,image_sig_max=image_sig_max,
+    #                                 lc_sig_max=lc_sig_max,lc_sig_med=lc_sig_med,
+    #                                 max_events=max_events,bkg_std=bkg_std,boundarykiller=boundarykiller,
+    #                                 flux_sign=flux_sign,classification=classification,
+    #                                 psf_like=psf_like,galactic_latitude=galactic_latitude)
+            
+    #         if len(events) > 0:
+    #             all_events = pd.concat([df,all_events],ignore_index=True)
+        
+
+    #     for _,event in all_events.iterrows():
+
+    #         self.plot_object(cut,event['objid'],event=event['eventid'],
+    #                         latex=True,zoo_mode=False,external_phot=True,save_combined=save_path)
+                
+    #             all_events = pd.concat([all_events,events],ignore_index=True)
+        
+    #     if os.path.exists(f'{save_path}/events.csv'):
+    #         df = pd.read_csv(f'{save_path}/events.csv')
+    #         all_events = pd.concat([df,all_events],ignore_index=True)
+    #     all_events.to_csv(f'{save_path}/events.csv',index=False)
 
 
     def locate_transient(self,cut,xcentroid,ycentroid,threshold=3):
@@ -2031,7 +2251,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
     """
     Plot a source's light curve and image cutout.
     """
-    
+    from matplotlib.lines import Line2D
     import matplotlib.patches as patches
     from mpl_toolkits.axes_grid1.inset_locator import mark_inset
     
@@ -2228,10 +2448,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
             xmin = 0
         cutout_image = flux[:,ymin:y+10,xmin:x+10]
         ax[2].imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
-
-        # Add 3x3 rectangle around the centre of the cutout image #
-        rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin),5,5, linewidth=3, edgecolor='r', facecolor='none')
-        ax[2].add_patch(rect)
+        ax[2].scatter(event['xcentroid'] - xmin, event['ycentroid'] - ymin, color='r', s=50, marker='x', lw=2)
 
         # Add labels, remove axes #
         ax[2].set_title('Brightest image',fontsize=15)
@@ -2252,8 +2469,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
         # Plot the cutout image 1 hour later #
         ax[3].imshow(cutout_image[after],
                     cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
-        rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin),5,5, linewidth=3, edgecolor='r', facecolor='none')
-        ax[3].add_patch(rect)
+        
         ax[3].set_title('1 hour later',fontsize=15)
         ax[3].annotate('', xy=(0.2, 1.15), xycoords='axes fraction', xytext=(0.2, 1.), 
                             arrowprops=dict(arrowstyle="<|-", color='r',lw=3))
@@ -2265,7 +2481,26 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
                                             #     unit = u.electron / u.s
                                             #     light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
                                             #     period = light.to_periodogram()
+
+        # Add 3x3 rectangle around the centre of the cutout image #
+        if zoo_mode:
+            rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin),5,5, linewidth=3, edgecolor='r', facecolor='none')
+            ax[2].add_patch(rect)
+            rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin),5,5, linewidth=3, edgecolor='r', facecolor='none')
+            ax[3].add_patch(rect)
+        else:
+            # Draw base square with left/bottom red
+            rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin), 5, 5,linewidth=3, edgecolor='r', facecolor='none')
+            ax[2].add_patch(rect)
+            # Overlay cyan top/right edge
+            ax[2].add_line(Line2D([x - 2.5 - xmin, x + 2.5 - xmin],[y + 2.5 - ymin, y + 2.5 - ymin],color='c', linewidth=3))
+            ax[2].add_line(Line2D([x + 2.5 - xmin, x + 2.5 - xmin],[y - 2.5 - ymin, y + 2.5 - ymin],color='c', linewidth=3))
             
+            rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin), 5, 5,linewidth=3, edgecolor='r', facecolor='none')
+            ax[3].add_patch(rect)
+            # Overlay cyan top/right edge
+            ax[3].add_line(Line2D([x - 2.5 - xmin, x + 2.5 - xmin],[y + 2.5 - ymin, y + 2.5 - ymin],color='c', linewidth=3))
+            ax[3].add_line(Line2D([x + 2.5 - xmin, x + 2.5 - xmin],[y - 2.5 - ymin, y + 2.5 - ymin],color='c', linewidth=3))
             
         # Save the figure if a save path is provided #
         if save_path is not None:
@@ -2321,7 +2556,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
                                             #np.save(save_path+'/'+savename+'_lc.npy',[time,f])
                                             #np.save(save_path+'/'+savename+'_cutout.npy',cutout_image)
 
-    return [times,f], cutout_image
+    return [times,f], cutout_image, fig
 
 def Save_LC(times,flux,events,id,save_path):
     """
