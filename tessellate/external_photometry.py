@@ -285,7 +285,8 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
                 attempt += 1
                 sleep(1)
 
-    print(len(images))
+    if len(images<3):
+        return None,None,None,None
 
     rotated_i, angle = _Rotate_i_to_g(images[2], wcsList[2], images[0],wcsList[0])
     images[2] = rotated_i
@@ -543,6 +544,8 @@ def event_cutout(coords,size=50,phot=None,check='gaia'):
 
     elif phot.lower() == 'skymapper':
         fig,wcs,outsize,im = _Skymapper_phot(coords[0],coords[1],size)
+        if fig is None:
+            return None,None,None,None,None 
         cat = _skymapper_objects(coords[0],coords[1],im.shape[1],wcs,rad=60)
     elif phot is None:
         print('Photometry name invalid.')
