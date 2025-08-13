@@ -1901,6 +1901,9 @@ class Detector():
         xRange = np.arange(xint-3,xint+3)
         yRange = np.arange(yint-3,yint+3)
 
+        if photometry == 'SkyMapper':
+            yRange *= -1
+
         lines = []
         for x in xRange:
             line = np.linspace((x,yRange[0]),(x,yRange[-1]),100)
