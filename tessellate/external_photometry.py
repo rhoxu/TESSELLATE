@@ -285,7 +285,7 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
                 attempt += 1
                 sleep(1)
 
-    if len(images<3):
+    if len(images)<3:
         return None,None,None,None
 
     rotated_i, angle = _Rotate_i_to_g(images[2], wcsList[2], images[0],wcsList[0])
