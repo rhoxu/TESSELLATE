@@ -1900,13 +1900,13 @@ class Detector():
         if photometry == 'DESI':
             axes[0].set_xlim(size,0)
             axes[0].set_ylim(0,size)
-            ax.scatter(ra_obj,dec_obj, transform=ax.get_transform('fk5'),
+            axes[0].scatter(ra_obj,dec_obj, transform=ax.get_transform('fk5'),
                         edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
         elif photometry == 'SkyMapper':
             loc = wcs[0].all_world2pix(ra_obj,dec_obj,0)
             ydiff = loc[1] - im.shape[1]//2
             loc[1] = im.shape[1]//2 - ydiff
-            ax.scatter(loc[0],loc[1],edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
+            axes[0].scatter(loc[0],loc[1],edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
             yRange = yRange[::-1]
            
 
