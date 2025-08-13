@@ -1852,7 +1852,7 @@ class Detector():
 
         Save_LC(self.time,self.flux,self.events,id,save_path=save_name)    
 
-    def _external_photometry(self,objid,event,size=100):
+    def external_photometry(self,objid,event,size=100):
 
         from .external_photometry import event_cutout
 
@@ -1946,7 +1946,7 @@ class Detector():
 
                 ax.scatter(xError,yError,color='red',s=15,marker='.',lw=1)
 
-        return fig, cat, (ra_obj,dec_obj)
+        return fig, cat, (ra_obj,dec_obj), wcs
 
     def plot_object(self,cut,objid,event='seperate',save_name=None,save_path=None,
                     latex=True,zoo_mode=True,external_phot=False,save_combined=False):
@@ -1990,7 +1990,7 @@ class Detector():
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
-            fig, cat, coord = self._external_photometry(objid,event)
+            fig, cat, coord = self.external_photometry(objid,event)
             obj.photometry = fig
             obj.cat = cat
             obj.coord = coord
