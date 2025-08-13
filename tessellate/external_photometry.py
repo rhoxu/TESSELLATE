@@ -325,7 +325,7 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
         ax.coords[0].set_major_formatter('hh:mm:ss')
         ax.coords[1].set_major_formatter('dd:mm:ss')
 
-    return fig, wcsList, og_size * 2
+    return fig, wcs, og_size * 2
 
 def _delve_objects(ra,dec,size=60/60**2):
     from dl import queryClient as qc
