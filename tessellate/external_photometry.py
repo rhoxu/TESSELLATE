@@ -9,7 +9,7 @@ from astropy.visualization import PercentileInterval, AsinhStretch
 import requests
 from PIL import Image
 from io import BytesIO
-from time import time 
+from time import sleep 
 
 import pandas as pd
 from matplotlib.patches import Ellipse
@@ -240,7 +240,7 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
         except:
             attempt += 1
             print('failed to get table')
-            time.sleep(1)
+            sleep(1)
 
     t = table[(table['col16'] == 'main')]
     t_unique = t[~t.duplicated(subset='col3', keep='first')]
@@ -283,7 +283,7 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
                 complete = True
             except:
                 attempt += 1
-                time.sleep(1)
+                sleep(1)
 
     rotated_i, angle = _Rotate_i_to_g(images[2], wcsList[2], images[0],wcsList[0])
     images[2] = rotated_i
