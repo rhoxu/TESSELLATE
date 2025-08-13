@@ -1944,6 +1944,9 @@ class Detector():
                 else:
                     x,y = wcs[i].all_world2pix(ra,dec,0)
                     xError,yError = wcs[i].all_world2pix(errorRA,errorDEC,0)
+                    if photometry == 'SkyMapper':
+                        ydiff = yError - im.shape[1]//2
+                        yError = im.shape[1]//2 - ydiff
 
                 if j in [0,5]:
                     ys.append(np.mean(y))
