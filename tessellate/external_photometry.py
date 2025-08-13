@@ -254,13 +254,19 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
         while (not complete) & (attempt < max_attempts):
             try:
                 f = t_unique.loc[t_unique['col3'] == filt].iloc[0]
-                img_url = f['col4']
-                r = requests.get(img_url)
+                img_url = f['col6']
+                hdu = fits.open(t_unique.iloc[0]['col6'])
+                data = hdu[0].data
+                m,med,std = sigma_clipped_stats(data)
+                data -= med
+                im = data * 10**((hdu[0].header['ZPAPPROX'] - 25)/-2.5)
 
-                im = np.array(Image.open(BytesIO(r.content)), dtype=float) * 10**((f['col22'] - 25)/-2.5)
-                im[im == 0] = np.nan
-                im -= np.nanmedian(im)
-                im[np.isnan(im)] = 0
+                wcs = WCS[hdu[0].header]
+
+                #im = np.array(Image.open(BytesIO(r.content)), dtype=float) * 10**((f['col22'] - 25)/-2.5)
+                #im[im == 0] = np.nan
+                #im -= np.nanmedian(im)
+                #im[np.isnan(im)] = 0
                 pixels = im.flatten()
                 p25, p75 = np.percentile(pixels, 15), np.percentile(pixels, 85)
                 central_pixels = pixels[(pixels >= p25) & (pixels <= p75)]
@@ -269,15 +275,15 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
                 im[im<0]=0
                 images.append(im)
 
-                crpix = np.array(f['col23'].split(' ')).astype(float)
-                crval = np.array(f['col24'].split(' ')).astype(float)
-                cdmatrix = np.array(f['col25'].split(' ')).astype(float).reshape(2, 2)
+                #crpix = np.array(f['col23'].split(' ')).astype(float)
+                #crval = np.array(f['col24'].split(' ')).astype(float)
+                #cdmatrix = np.array(f['col25'].split(' ')).astype(float).reshape(2, 2)
 
-                wcs = WCS(naxis=2)
-                wcs.wcs.crpix = crpix
-                wcs.wcs.crval = crval
-                wcs.wcs.cd = cdmatrix
-                wcs.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+                #wcs = WCS(naxis=2)
+                #wcs.wcs.crpix = crpix
+                #wcs.wcs.crval = crval
+                #wcs.wcs.cd = cdmatrix
+                #wcs.wcs.ctype = ["RA---TAN", "DEC--TAN"]
 
                 wcsList.append(wcs)
                 complete = True
