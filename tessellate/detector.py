@@ -1887,7 +1887,7 @@ class Detector():
         
         fig, wcs, size, photometry,cat,im = event_cutout((RA,DEC),size)
         if fig is None:
-            return None
+            return None,None,None,None,None
         axes = fig.get_axes()
         
         if len(axes) == 1:
@@ -2009,6 +2009,9 @@ class Detector():
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
             fig, cat, coord,phot_wcs,im = self.external_photometry(objid,event)
+            if fig is None:
+                return obj
+            
             obj.photometry = fig
             obj.cat = cat
             obj.coord = coord

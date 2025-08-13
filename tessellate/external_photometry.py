@@ -545,13 +545,13 @@ def event_cutout(coords,size=50,phot=None,check='gaia'):
     elif phot.lower() == 'skymapper':
         fig,wcs,outsize,im = _Skymapper_phot(coords[0],coords[1],size)
         if fig is None:
-            return None,None,None,None,None 
+            return None,None,None,None,None,None
         cat = _skymapper_objects(coords[0],coords[1],im.shape[1],wcs,rad=60)
     elif phot is None:
         print('Photometry name invalid.')
         fig = None
         wcs = None
-        return None,None,None,None,None
+        return None,None,None,None,None,None
         
     # if phot is not None:
     if check == 'simbad':
@@ -563,7 +563,7 @@ def event_cutout(coords,size=50,phot=None,check='gaia'):
             cat = check_gaia(cat,gaia)
         elif phot == 'SkyMapper':
             print('Something failed getting Skymapper sources.')
-            return None,None,None,None,None
+            return None,None,None,None,None,None
     
     if cat is not None:
         fig = _add_sources(fig,cat)
