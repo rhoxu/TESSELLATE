@@ -1957,6 +1957,10 @@ class Detector():
                     ax.plot(x,y,color=color,alpha=alpha,lw=lw)
 
                 ax.scatter(xError,yError,color='red',s=15,marker='.',lw=1)
+        
+            legend = ax.legend(loc=2,facecolor="black",fontsize=10)
+            for text in legend.get_texts():
+                    text.set_color("white")
 
         return fig, cat, (ra_obj,dec_obj), wcs,im
 

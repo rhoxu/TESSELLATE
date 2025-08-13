@@ -494,10 +494,10 @@ def _add_sources(fig,cat):
         gal = cat.loc[cat['star'] == 2]
         ax.scatter(gal.ra,gal.dec, transform=ax.get_transform('fk5'),
                     edgecolors='w',marker='D',s=80,facecolors="None",label='Possible galaxy')
-        if count == 0:
-            legend = ax.legend(loc=2,facecolor="black",fontsize=10)
-            for text in legend.get_texts():
-                text.set_color("white")
+        # if count == 0:
+        #     legend = ax.legend(loc=2,facecolor="black",fontsize=10)
+        #     for text in legend.get_texts():
+        #         text.set_color("white")
         count += 1
     return fig
 
