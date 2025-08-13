@@ -119,10 +119,12 @@ def _Panstarrs_phot(ra,dec,size):
     return fig,wcsList,grey_im.shape[0]
 
 
-def _skymapper_objects(ra,dec,rad=30/60**2):
+def _skymapper_objects(ra,dec,imshape,wcs,rad=60):
     """
     radius in degrees
     """
+    rad /= 60**2 
+
     query = f'https://skymapper.anu.edu.au/sm-cone/public/query?RA={ra}&DEC={dec}&SR={np.round(rad,3)}&RESPONSEFORMAT=CSV'
     sm = pd.read_csv(query)
     if len(sm) > 0:
@@ -141,6 +143,14 @@ def _skymapper_objects(ra,dec,rad=30/60**2):
         sm['star'].loc[(sm['class_star'] > 0.7) & (sm['class_star'] < 0.9)] = 2
     else:
         sm = None
+
+    x,y = wcs.all_world2pix(sm['ra'],sm['dec'],0)
+    ydiff = y - imshape//2
+    y = imshape//2 - ydiff
+    ra,dec = wcs.all_pix2world(x,y,0)
+    sm['ra'] = ra
+    sm['dec'] = dec
+
     return sm
 
 # Step 3: apply stretch to the whole RGB image
@@ -550,7 +560,7 @@ def event_cutout(coords,real_loc=None,error=10,size=50,phot=None,check='gaia'):
 
     elif phot.lower() == 'skymapper':
         fig,wcs,outsize,im = _Skymapper_phot(coords[0],coords[1],size)
-        cat = _skymapper_objects(real_loc[0],real_loc[1])
+        cat = _skymapper_objects(real_loc[0],real_loc[1],im.shape[1],wcs,rad=60)
         #fig = _add_sources(fig,real_loc,cat,error)
     elif phot is None:
         print('Photometry name invalid.')
