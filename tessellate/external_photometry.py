@@ -475,28 +475,11 @@ def check_gaia(cat,gaia):
     return cat
     
 
-def _add_sources(fig,target_coords,cat):
+def _add_sources(fig,cat):
     axs = fig.get_axes()
     count = 0
     for ax in axs:
-        ax.scatter(target_coords[0],target_coords[1], transform=ax.get_transform('fk5'),
-                    edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
-        
 
-        # if error is not None:
-        #     if len(error) > 1:
-        #         xerr,yerr = error
-        #     else:
-        #         xerr = yerr = error
-        #     ellipse = Ellipse(xy=(coords[0],coords[1]),  
-        #                       width=error[0],height=error[1],     
-        #                       edgecolor='red',facecolor='none',
-        #                       linestyle=':', linewidth=3,
-        #                       transform=ax.get_transform('fk5'))
-        #     ax.add_patch(ellipse)
-
-        
-        
         # scatter stars 
         stars = cat.loc[cat['star'] ==1]
         ax.scatter(stars.ra,stars.dec, transform=ax.get_transform('fk5'),
@@ -519,7 +502,7 @@ def _add_sources(fig,target_coords,cat):
     return fig
 
 
-def event_cutout(coords,real_loc=None,error=10,size=50,phot=None,check='gaia'):
+def event_cutout(coords,size=50,phot=None,check='gaia'):
     """
     Make an image using ground catalogs for the region of interest.
 
@@ -539,8 +522,7 @@ def event_cutout(coords,real_loc=None,error=10,size=50,phot=None,check='gaia'):
         Check the photometry catalog against another catalog with better star detection. Currenty
         only gaia and simbad are available.
     """
-    if real_loc is None:
-        real_loc = coords
+
     if phot is None:
         fig,wcs,outsize,im = _DESI_phot(coords[0],coords[1],size)
         if fig is None:
@@ -550,8 +532,7 @@ def event_cutout(coords,real_loc=None,error=10,size=50,phot=None,check='gaia'):
                 phot = 'SkyMapper'
         else:
             phot = 'DESI'
-            cat = _delve_objects(real_loc[0],real_loc[1])
-            #fig = _add_sources(fig,real_loc,cat,error)
+            cat = _delve_objects(coords[0],coords[1])
 
     if phot == 'PS1':
         fig,wcs,outsize = _Panstarrs_phot(coords[0],coords[1],size)
@@ -560,8 +541,7 @@ def event_cutout(coords,real_loc=None,error=10,size=50,phot=None,check='gaia'):
 
     elif phot.lower() == 'skymapper':
         fig,wcs,outsize,im = _Skymapper_phot(coords[0],coords[1],size)
-        cat = _skymapper_objects(real_loc[0],real_loc[1],im.shape[1],wcs,rad=60)
-        #fig = _add_sources(fig,real_loc,cat,error)
+        cat = _skymapper_objects(coords[0],coords[1],im.shape[1],wcs,rad=60)
     elif phot is None:
         print('Photometry name invalid.')
         fig = None
@@ -570,23 +550,18 @@ def event_cutout(coords,real_loc=None,error=10,size=50,phot=None,check='gaia'):
         
     # if phot is not None:
     if check == 'simbad':
-        sbad = simbad_sources(real_loc[0],real_loc[1],size/60**2)
+        sbad = simbad_sources(coords[0],coords[1],size/60**2)
         cat = check_simbad(cat,sbad)
     elif check == 'gaia':
-        gaia = get_gaia(real_loc[0],real_loc[1],size/60**2)
+        gaia = get_gaia(coords[0],coords[1],size/60**2)
         if (gaia is not None) & (cat is not None):
             cat = check_gaia(cat,gaia)
         elif phot == 'SkyMapper':
             print('Something failed getting Skymapper sources.')
             return None,None,None,None,None
-    # else:
-    #     if check == 'simbad':
-    #         cat = simbad_sources(real_loc[0],real_loc[1],size/60**2)
-    #     elif check == 'gaia':
-    #         cat = get_gaia(real_loc[0],real_loc[1],size/60**2)
     
     if cat is not None:
-        fig = _add_sources(fig,real_loc,cat)
+        fig = _add_sources(fig,cat)
 
     plt.close()
 

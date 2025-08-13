@@ -1885,15 +1885,11 @@ class Detector():
         #error = np.nanmax([source.e_xccd,source.e_yccd])
         # error = [10 / 60**2,10 / 60**2] # just set error to 10 arcsec. The calculated values are unrealistically small.
         
-        fig, wcs, size, photometry,cat,im = event_cutout((RA,DEC),(ra_obj,dec_obj),None,size)
+        fig, wcs, size, photometry,cat,im = event_cutout((RA,DEC),size)
         if fig is None:
             return None
         axes = fig.get_axes()
-
-        if photometry == 'DESI':
-            axes[0].set_xlim(size,0)
-            axes[0].set_ylim(0,size)
-
+        
         if len(axes) == 1:
             wcs = [wcs]
 
@@ -1901,8 +1897,18 @@ class Detector():
         xRange = np.arange(xint-3,xint+3)
         yRange = np.arange(yint-3,yint+3)
 
-        if photometry == 'SkyMapper':
+        if photometry == 'DESI':
+            axes[0].set_xlim(size,0)
+            axes[0].set_ylim(0,size)
+            ax.scatter(ra_obj,dec_obj, transform=ax.get_transform('fk5'),
+                        edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
+        elif photometry == 'SkyMapper':
+            loc = wcs[0].all_world2pix(ra_obj,dec_obj,0)
+            ydiff = loc[1] - im.shape[1]//2
+            loc[1] = im.shape[1]//2 - ydiff
+            ax.scatter(loc[0],loc[1],edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
             yRange = yRange[::-1]
+           
 
         lines = []
         for x in xRange:
