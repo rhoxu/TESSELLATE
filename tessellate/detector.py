@@ -558,7 +558,7 @@ def _Fit_period(time,flux,source,significance=3):
     y = period.power.value
     finite = np.isfinite(x) & np.isfinite(y)
     x = x[finite]; y = y[finite]
-    ind = (x > 2)
+    ind = (x < 6e-6)
     #ind[:np.where(x < 2)[0][-1]] = False
     try:
         for i in range(2):
