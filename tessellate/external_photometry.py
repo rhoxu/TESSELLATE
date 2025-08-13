@@ -214,7 +214,7 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
     
     If show_bands=True, plots the three bands separately.
     """
-    size *= 1.1
+    size *= 1.5
     og_size = size
     size_deg = size / 3600  # arcsec → degrees
 
@@ -321,7 +321,7 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
         ax.set_xlabel('Right Ascension')
         ax.set_ylabel('Declination')
         ax.set_title('SkyMapper gri')
-        ax.invert_xaxis()
+        # ax.invert_xaxis()
         ax.coords[0].set_major_formatter('hh:mm:ss')
         ax.coords[1].set_major_formatter('dd:mm:ss')
 
