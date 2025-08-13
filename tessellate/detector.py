@@ -1940,6 +1940,7 @@ class Detector():
                 if wcs[i].naxis == 3:
                     x,y,_ = wcs[i].all_world2pix(ra,dec,0,0)
                     xError,yError,_ = wcs[i].all_world2pix(errorRA,errorDEC,0,0)
+                    print('yuh')
                 else:
                     x,y = wcs[i].all_world2pix(ra,dec,0)
                     xError,yError = wcs[i].all_world2pix(errorRA,errorDEC,0)
