@@ -325,7 +325,7 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
         ax.coords[0].set_major_formatter('hh:mm:ss')
         ax.coords[1].set_major_formatter('dd:mm:ss')
 
-    return fig, wcs, og_size * 2
+    return fig, wcs, og_size * 2,rgb_stretched
 
 def _delve_objects(ra,dec,size=60/60**2):
     from dl import queryClient as qc
@@ -382,16 +382,16 @@ def _DESI_phot(ra,dec,size):
             ax.set_xlabel('Right Ascension')
             ax.set_ylabel('Declination')
             ax.invert_xaxis()
-            return fig,wcs,size
+            return fig,wcs,size,image
         except Exception as error:
             print("DES Photometry failed: ", error)
             print(urlFITS)
             print(urlIM)
-            return None,None,None
+            return None,None,None,None
         #else:
           #  return None,None,None
     else:
-        return None,None,None
+        return None,None,None,None
 
 def simbad_sources(ra,dec,size):
     from astroquery.simbad import Simbad
@@ -532,7 +532,7 @@ def event_cutout(coords,real_loc=None,error=10,size=50,phot=None,check='gaia'):
     if real_loc is None:
         real_loc = coords
     if phot is None:
-        fig,wcs,outsize = _DESI_phot(coords[0],coords[1],size)
+        fig,wcs,outsize,im = _DESI_phot(coords[0],coords[1],size)
         if fig is None:
             if coords[1] > -10:
                 phot = 'PS1'
@@ -549,7 +549,7 @@ def event_cutout(coords,real_loc=None,error=10,size=50,phot=None,check='gaia'):
         #fig = _add_sources(fig,cat)
 
     elif phot.lower() == 'skymapper':
-        fig,wcs,outsize = _Skymapper_phot(coords[0],coords[1],size)
+        fig,wcs,outsize,im = _Skymapper_phot(coords[0],coords[1],size)
         cat = _skymapper_objects(real_loc[0],real_loc[1])
         #fig = _add_sources(fig,real_loc,cat,error)
     elif phot is None:
@@ -580,4 +580,4 @@ def event_cutout(coords,real_loc=None,error=10,size=50,phot=None,check='gaia'):
 
     plt.close()
 
-    return fig,wcs,outsize, phot, cat
+    return fig,wcs,outsize, phot, cat,im

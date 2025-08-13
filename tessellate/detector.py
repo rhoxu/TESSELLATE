@@ -1885,7 +1885,7 @@ class Detector():
         #error = np.nanmax([source.e_xccd,source.e_yccd])
         # error = [10 / 60**2,10 / 60**2] # just set error to 10 arcsec. The calculated values are unrealistically small.
         
-        fig, wcs, size, photometry,cat = event_cutout((RA,DEC),(ra_obj,dec_obj),None,size)
+        fig, wcs, size, photometry,cat,im = event_cutout((RA,DEC),(ra_obj,dec_obj),None,size)
         if fig is None:
             return None
         axes = fig.get_axes()
@@ -1946,7 +1946,7 @@ class Detector():
 
                 ax.scatter(xError,yError,color='red',s=15,marker='.',lw=1)
 
-        return fig, cat, (ra_obj,dec_obj), wcs
+        return fig, cat, (ra_obj,dec_obj), wcs,im
 
     def plot_object(self,cut,objid,event='seperate',save_name=None,save_path=None,
                     latex=True,zoo_mode=True,external_phot=False,save_combined=False):
@@ -1990,7 +1990,7 @@ class Detector():
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
-            fig, cat, coord = self.external_photometry(objid,event)
+            fig, cat, coord,phot_wcs,im = self.external_photometry(objid,event)
             obj.photometry = fig
             obj.cat = cat
             obj.coord = coord
