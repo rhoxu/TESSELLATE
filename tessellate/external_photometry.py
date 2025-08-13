@@ -9,10 +9,12 @@ from astropy.visualization import PercentileInterval, AsinhStretch
 import requests
 from PIL import Image
 from io import BytesIO
-import time as Time 
+from time import time 
 
 import pandas as pd
 from matplotlib.patches import Ellipse
+from skimage.transform import rotate
+
 
 fig_width_pt = 240.0  # Get this from LaTeX using \showthe\columnwidth
 inches_per_pt = 1.0/72.27			   # Convert pt to inches
@@ -140,17 +142,83 @@ def _skymapper_objects(ra,dec,rad=30/60**2):
     else:
         sm = None
     return sm
+
+# Step 3: apply stretch to the whole RGB image
+def _Stretch_rgb(rgb_img, stretch=5, gamma=0.45):
+    # Apply arcsinh stretch per channel but keep ratios
+    stretched = np.arcsinh(stretch * rgb_img) / np.arcsinh(stretch)
+    stretched = np.clip(stretched ** gamma, 0, 1)
+    return stretched
+
+
+def _Adjust_band_peaks(rgb, band_idx, sigma_thresh=3, scale_factor=0.7,exponent=5):
+
+    rgb_out = rgb.copy()
+    band = rgb_out[:, :, band_idx]
+    # Flatten and get central 50% pixels for noise std estimation
+    flat = band.flatten()
+    q25, q75 = np.percentile(flat, [25, 75])
+    central_pixels = flat[(flat >= q25) & (flat <= q75)]
+    noise_std = np.nanstd(central_pixels)
     
+    threshold = sigma_thresh * noise_std
+    
+    mask = band > threshold
+    if np.any(mask):
+        min_val = threshold
+        max_val = np.max(band[mask])
+        normalized = (band[mask] - min_val) / (max_val - min_val)  # 0 to 1
+        # Nonlinear scaling: scale more for moderate pixels, less for extreme pixels
+        scaling = scale_factor + (1 - scale_factor) * (normalized ** exponent)
+        band[mask] = band[mask] * scaling
+    
+    rgb_out[:, :, band_idx] = band
+    return rgb_out
 
-def _Skymapper_phot(ra,dec,size):
+def _Rotate_i_to_g(i_image, wcs_i, g_image, wcs_g, n_points=5):
+
+    ny, nx = i_image.shape
+    
+    x = np.linspace(0, nx-1, n_points)
+    y = np.linspace(0, ny-1, n_points)
+    xv, yv = np.meshgrid(x, y)
+    xv = xv.flatten()
+    yv = yv.flatten()
+    
+    world_coords = wcs_i.pixel_to_world(xv, yv)
+    ra = world_coords.ra.deg
+    dec = world_coords.dec.deg
+    
+    g_x, g_y = wcs_g.world_to_pixel(world_coords)
+    
+    cx_i, cy_i = (nx-1)/2, (ny-1)/2
+    cx_g, cy_g = (g_image.shape[1]-1)/2, (g_image.shape[0]-1)/2
+    
+    dx_i = xv - cx_i
+    dy_i = yv - cy_i
+    dx_g = g_x - cx_g
+    dy_g = g_y - cy_g
+    
+    angles = np.arctan2(dy_g, dx_g) - np.arctan2(dy_i, dx_i)
+    angle_deg = np.median(np.degrees(angles))
+    
+    rotated_i = rotate(i_image, angle=angle_deg, resize=False, center=(cx_i, cy_i))
+    
+    return rotated_i, angle_deg
+
+
+def _Skymapper_phot(ra, dec, size, show_bands=False):
     """
-    Gets g,r,i from skymapper.
+    Gets g, r, i from SkyMapper and makes a colour composite:
+    g -> blue, r -> green, i -> red
+    
+    If show_bands=True, plots the three bands separately.
     """
-    size*=1.1
+    size *= 1.1
     og_size = size
-    size /= 3600
+    size_deg = size / 3600  # arcsec → degrees
 
-    url = f"https://api.skymapper.nci.org.au/public/siap/dr4/query?POS={ra},{dec}&SIZE={size}&BAND=g,r,i&FORMAT=GRAPHIC&VERB=3&INTERSET=COVERS"
+    url = f"https://api.skymapper.nci.org.au/public/siap/dr4/query?POS={ra},{dec}&SIZE={size_deg}&BAND=g,r,i&FORMAT=GRAPHIC&VERB=3&INTERSECT=COVERS"
     max_attempts = 5
 
     complete = False
@@ -161,71 +229,103 @@ def _Skymapper_phot(ra,dec,size):
             complete = True
         except:
             attempt += 1
-            print('failed')
-            Time.sleep(1)
+            print('failed to get table')
+            time.sleep(1)
 
     t = table[(table['col16'] == 'main')]
     t_unique = t[~t.duplicated(subset='col3', keep='first')]
 
-    wcsList = []        
+    wcsList = []
     images = []
-    filts = ['g','r','i']
-    max_attempts = 5
-    for i in range(len(filts)):
+    filts = ['g', 'r', 'i']
+    for filt in filts:
         complete = False
         attempt = 0
         while (not complete) & (attempt < max_attempts):
             try:
-                f = t_unique.loc[t_unique['col3'] == filts[i]].iloc[0]
-                url = f['col4']
-                r = requests.get(url)
+                f = t_unique.loc[t_unique['col3'] == filt].iloc[0]
+                img_url = f['col4']
+                r = requests.get(img_url)
 
-                im = (Image.open(BytesIO(r.content)))* 10**((f['col22'] - 25)/-2.5)
-                im[im==0] = np.nan
+                im = np.array(Image.open(BytesIO(r.content)), dtype=float) * 10**((f['col22'] - 25)/-2.5)
+                im[im == 0] = np.nan
                 im -= np.nanmedian(im)
                 im[np.isnan(im)] = 0
-                images += [im]
-                
+                pixels = im.flatten()
+                p25, p75 = np.percentile(pixels, 15), np.percentile(pixels, 85)
+                central_pixels = pixels[(pixels >= p25) & (pixels <= p75)]
+                std_central = np.std(central_pixels)
+                im = im / std_central
+                im[im<0]=0
+                images.append(im)
+
                 crpix = np.array(f['col23'].split(' ')).astype(float)
                 crval = np.array(f['col24'].split(' ')).astype(float)
-                cdmatrix = np.array(f['col25'].split(' ')).astype(float).reshape(2,2)
+                cdmatrix = np.array(f['col25'].split(' ')).astype(float).reshape(2, 2)
 
                 wcs = WCS(naxis=2)
                 wcs.wcs.crpix = crpix
                 wcs.wcs.crval = crval
                 wcs.wcs.cd = cdmatrix
-                wcs.wcs.ctype = ["RA---TAN", "DEC--TAN"]  # Common projection type for celestial coordinates
+                wcs.wcs.ctype = ["RA---TAN", "DEC--TAN"]
 
                 wcsList.append(wcs)
-                
                 complete = True
             except:
                 attempt += 1
-                Time.sleep(1)
-    #images = np.array(images)
+                time.sleep(1)
 
-    fig = plt.figure(figsize=(3*fig_width,1*fig_width))
+    rotated_i, angle = _Rotate_i_to_g(images[2], wcsList[2], images[0],wcsList[0])
+    images[2] = rotated_i
 
-    plt.rcParams.update({'font.size':11})
-    titles = ['SkyMapper g','SkyMapper r','SkyMapper i']
-    for i in range(3):
-        ax = plt.subplot(1,3,i+1,projection=wcsList[i])
-        ax.imshow(images[i],cmap="gray_r")
-        ax.grid(alpha=0.5,color='w')
-        ax.set_title(titles[i])
-        if i == 1:
-            ax.set_xlabel('Right Ascension')
-        else:
-            ax.set_xlabel(' ')
-        if i == 0:
-            ax.set_ylabel('Declination')
-        else:
-            #
-            ax.set_ylabel(' ')
-            ax.coords['dec'].set_ticklabel_visible(False)
-    plt.tight_layout()
+    min_shape = np.min([im.shape for im in images], axis=0)
+    cropped_images = [im[:min_shape[0], :min_shape[1]] for im in images]
 
-    return fig,wcsList,og_size*2
+    rgb = np.dstack([cropped_images[2], cropped_images[1], cropped_images[0]])
+
+    brightim = np.nansum(rgb,axis=2)
+    mask = np.ones_like(brightim)
+    mask[brightim>8]=0
+
+    rgb[mask==1] /= (np.nanmax(rgb)/6)
+
+    rgb = _Adjust_band_peaks(rgb, 2, sigma_thresh=13, scale_factor=0.4)  # Adjust blue band
+    rgb = _Adjust_band_peaks(rgb, 0, sigma_thresh=13, scale_factor=1.65)  
+
+    rgb_norm = rgb / np.nanmax(rgb)
+    rgb_stretched = _Stretch_rgb(rgb_norm, stretch=1, gamma=1)
+
+    plt.rcParams.update({'font.size': 12})
+    if show_bands:
+        fig, axs = plt.subplots(1, 3, figsize=(15, 5),subplot_kw={'projection':wcsList[0]})
+        fig.suptitle('SkyMapper gri')
+        bands = ['g (blue)', 'r (green)', 'i (red)']
+        for i, ax in enumerate(axs):
+            if i ==0 :
+                ax.set_xlabel('Right Ascension')
+                ax.set_ylabel('Declination')
+                ax.coords[0].set_major_formatter('hh:mm:ss')
+                ax.coords[1].set_major_formatter('dd:mm:ss')
+            else:
+                ax.coords[0].set_ticklabel_visible(False)
+                ax.coords[1].set_ticklabel_visible(False)
+            im = rgb_stretched[:,:,i]
+            ax.imshow(im, cmap='gray', origin='lower',vmin=0,vmax=1)
+            ax.set_title(f"{bands[i]} band")
+
+
+    else:
+        fig = plt.figure(figsize=(8, 8))
+        ax = plt.subplot(111, projection=wcsList[0])
+        ax.imshow(rgb_stretched, origin='lower')
+        ax.set_xlabel('Right Ascension')
+        ax.set_ylabel('Declination')
+        ax.set_title('SkyMapper gri')
+        ax.invert_xaxis()
+        ax.coords[0].set_major_formatter('hh:mm:ss')
+        ax.coords[1].set_major_formatter('dd:mm:ss')
+
+    return fig, wcsList, og_size * 2
 
 def _delve_objects(ra,dec,size=60/60**2):
     from dl import queryClient as qc
