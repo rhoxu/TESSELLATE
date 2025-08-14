@@ -1900,13 +1900,15 @@ class Detector():
         if photometry == 'DESI':
             axes[0].set_xlim(size,0)
             axes[0].set_ylim(0,size)
-            axes[0].scatter(ra_obj,dec_obj, transform=axes[0].get_transform('fk5'),
-                        edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
-        elif photometry == 'SkyMapper':
-            loc = wcs[0].all_world2pix(ra_obj,dec_obj,0)
-            ydiff = loc[1] - im.shape[1]//2
-            loc[1] = im.shape[1]//2 - ydiff
-            axes[0].scatter(loc[0],loc[1],edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
+
+
+        axes[0].scatter(ra_obj,dec_obj, transform=axes[0].get_transform('fk5'),
+                    edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
+        # elif photometry == 'SkyMapper':
+        #     loc = wcs[0].all_world2pix(ra_obj,dec_obj,0)
+        #     ydiff = loc[1] - im.shape[1]//2
+        #     loc[1] = im.shape[1]//2 - ydiff
+        #     axes[0].scatter(loc[0],loc[1],edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
             # yRange = yRange[::-1]
            
 
@@ -1940,15 +1942,14 @@ class Detector():
                 if wcs[i].naxis == 3:
                     x,y,_ = wcs[i].all_world2pix(ra,dec,0,0)
                     xError,yError,_ = wcs[i].all_world2pix(errorRA,errorDEC,0,0)
-                    print('yuh')
                 else:
                     x,y = wcs[i].all_world2pix(ra,dec,0)
                     xError,yError = wcs[i].all_world2pix(errorRA,errorDEC,0)
-                    if photometry == 'SkyMapper':
-                        ydiff = y - im.shape[1]//2
-                        y = im.shape[1]//2 - ydiff
-                        ydiff = yError - im.shape[1]//2
-                        yError = im.shape[1]//2 - ydiff
+                    # if photometry == 'SkyMapper':
+                    #     ydiff = y - im.shape[1]//2
+                    #     y = im.shape[1]//2 - ydiff
+                    #     ydiff = yError - im.shape[1]//2
+                    #     yError = im.shape[1]//2 - ydiff
 
                 if j in [0,5]:
                     ys.append(np.mean(y))
