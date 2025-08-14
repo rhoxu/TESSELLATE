@@ -293,17 +293,13 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
 
     rgb = np.dstack([cropped_images[2], cropped_images[1], cropped_images[0]])
 
-    brightim = np.nansum(rgb,axis=2)
-    mask = np.ones_like(brightim)
-    mask[brightim>8]=0
+    m,med,std = sigma_clipped_stats(data)
 
-    rgb[mask==1] /= (np.nanmax(rgb)/6)
+    rgb = rgb / (med+1*std)
+    # rgb_norm = rgb / np.nanmax(rgb)
+    rgb = _Stretch_rgb(rgb, stretch=1, gamma=0.7)
 
-    rgb = _Adjust_band_peaks(rgb, 2, sigma_thresh=13, scale_factor=0.4)  # Adjust blue band
-    rgb = _Adjust_band_peaks(rgb, 0, sigma_thresh=13, scale_factor=1.65)  
-
-    rgb_norm = rgb / np.nanmax(rgb)
-    rgb_stretched = _Stretch_rgb(rgb_norm, stretch=1, gamma=1)
+    rgb /= np.nanmax(rgb)
 
     plt.rcParams.update({'font.size': 12})
     if show_bands:
@@ -319,7 +315,7 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
             else:
                 ax.coords[0].set_ticklabel_visible(False)
                 ax.coords[1].set_ticklabel_visible(False)
-            im = rgb_stretched[:,:,i]
+            im = rgb[:,:,i]
             ax.imshow(im, cmap='gray', origin='lower',vmin=0,vmax=1)
             ax.set_title(f"{bands[i]} band")
 
@@ -327,7 +323,7 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
     else:
         fig = plt.figure(figsize=(8, 8))
         ax = plt.subplot(111, projection=wcsList[0])
-        ax.imshow(rgb_stretched, origin='lower')
+        ax.imshow(rgb, origin='lower')
         ax.set_xlabel('Right Ascension')
         ax.set_ylabel('Declination')
         ax.set_title('SkyMapper gri')
@@ -335,7 +331,7 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
         ax.coords[0].set_major_formatter('hh:mm:ss')
         ax.coords[1].set_major_formatter('dd:mm:ss')
 
-    return fig, wcsList[0], og_size * 2,rgb_stretched
+    return fig, wcsList[0], og_size * 2,rgb
 
 def _delve_objects(ra,dec,size=60/60**2):
     from dl import queryClient as qc
