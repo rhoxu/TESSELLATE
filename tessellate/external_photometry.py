@@ -262,6 +262,10 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
                 data -= med
                 im = data * 10**((hdu[0].header['ZPAPPROX'] - 25)/-2.5)
 
+                im[im == 0] = np.nan
+                im -= np.nanmedian(im)
+                im[np.isnan(im)] = 0
+
                 wcs = WCS(hdu[0].header)
 
                 pixels = im.flatten()
