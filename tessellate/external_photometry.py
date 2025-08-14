@@ -213,7 +213,7 @@ def _Rotate_i_to_g(i_image, wcs_i, g_image, wcs_g, n_points=5):
     angles = np.arctan2(dy_g, dx_g) - np.arctan2(dy_i, dx_i)
     angle_deg = np.median(np.degrees(angles))
     
-    rotated_i = rotate(i_image, angle=angle_deg, resize=False, center=(cx_i, cy_i))
+    rotated_i = rotate(i_image, angle=-angle_deg, resize=False, center=(cx_i, cy_i))
     
     return rotated_i, angle_deg
 
