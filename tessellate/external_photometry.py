@@ -93,31 +93,69 @@ def _Get_im(ra, dec, size,color):
 
     return im,wcs
 
+# def _Panstarrs_phot(ra,dec,size):
+
+#     grey_im,wcsI = _Get_im(ra,dec,size=size*6,color=False)
+#     colour_im,wcsGRZ = _Get_im(ra,dec,size=size*6,color=True)
+
+#     wcsList = [wcsGRZ,wcsGRZ,wcsGRZ,wcsI]
+
+#     plt.rcParams.update({'font.size':12})
+#     fig,ax = plt.subplots(ncols=4,figsize=(3*fig_width,1*fig_width))
+
+#     ax[2].imshow(grey_im,origin="lower",cmap="gray")
+#     ax[2].set_title('PS1 i')
+#     ax[2].set_xlabel('px (0.25")')
+#     ax[3].imshow(colour_im[0],origin="lower",cmap="gray")
+#     ax[3].set_title('PS1 z')
+#     ax[3].set_xlabel('px (0.25")')
+#     ax[1].imshow(colour_im[1],origin="lower",cmap="gray")
+#     ax[1].set_title('PS1 r')
+#     ax[1].set_xlabel('px (0.25")')
+   
+#     ax[0].set_title('PS1 g')
+#     ax[0].imshow(colour_im[2],origin="lower",cmap="gray")
+#     ax[0].set_xlabel('px (0.25")')
+
+#     return fig,wcsList,grey_im.shape[0]
+
 def _Panstarrs_phot(ra,dec,size):
 
-    grey_im,wcsI = _Get_im(ra,dec,size=size*6,color=False)
+    # grey_im,wcsI = _Get_im(ra,dec,size=size*6,color=False)
     colour_im,wcsGRZ = _Get_im(ra,dec,size=size*6,color=True)
 
-    wcsList = [wcsGRZ,wcsGRZ,wcsGRZ,wcsI]
+    wcs = wcsGRZ.dropaxis(2)
 
-    plt.rcParams.update({'font.size':12})
-    fig,ax = plt.subplots(ncols=4,figsize=(3*fig_width,1*fig_width))
+    truegrz = []
+    for im in colour_im[::-1]:
+        m,med,std = sigma_clipped_stats(im)
+        im -= med
+        pixels = im.flatten()
+        p25, p75 = np.percentile(pixels, 15), np.percentile(pixels, 85)
+        central_pixels = pixels[(pixels >= p25) & (pixels <= p75)]
+        std_central = np.std(central_pixels)
+        im = im / std_central
+        im[im<0]=0
+        truegrz.append(im)
+    
+    truegrz[1] = (truegrz[2]+truegrz[0])/2
+    rgb = np.dstack([truegrz[2],truegrz[1],truegrz[0]])
+    m,med,std = sigma_clipped_stats(rgb)
+    rgb = rgb / (med+10*std)
+    rgb = _Stretch_rgb(rgb, stretch=1, gamma=1)
+    rgb /= np.nanmax(rgb)
 
-    ax[2].imshow(grey_im,origin="lower",cmap="gray")
-    ax[2].set_title('PS1 i')
-    ax[2].set_xlabel('px (0.25")')
-    ax[3].imshow(colour_im[0],origin="lower",cmap="gray")
-    ax[3].set_title('PS1 z')
-    ax[3].set_xlabel('px (0.25")')
-    ax[1].imshow(colour_im[1],origin="lower",cmap="gray")
-    ax[1].set_title('PS1 r')
-    ax[1].set_xlabel('px (0.25")')
-   
-    ax[0].set_title('PS1 g')
-    ax[0].imshow(colour_im[2],origin="lower",cmap="gray")
-    ax[0].set_xlabel('px (0.25")')
+    fig = plt.figure(figsize=(8, 8))
+    ax = plt.subplot(111, projection=wcs)
+    ax.imshow(rgb, origin='lower')
+    ax.set_xlabel('Right Ascension')
+    ax.set_ylabel('Declination')
+    ax.set_title('SkyMapper gri')
+    ax.invert_xaxis()
+    ax.coords[0].set_major_formatter('hh:mm:ss')
+    ax.coords[1].set_major_formatter('dd:mm:ss')
 
-    return fig,wcsList,grey_im.shape[0]
+    return fig,wcs,truegrz[0].shape[0]
 
 
 def _skymapper_objects(ra,dec,imshape,wcs,rad=60):
