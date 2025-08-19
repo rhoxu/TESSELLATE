@@ -119,6 +119,47 @@ def _Get_im(ra, dec, size,color):
 
 #     return fig,wcsList,grey_im.shape[0]
 
+def _panstarrs_objects(ra, dec, rad=80, release='dr2'):
+    
+    # convert radius to degrees
+    rad_deg = rad / 3600.0
+    
+    # Build MAST Pan-STARRS API URL
+    url = (
+        f"https://catalogs.mast.stsci.edu/api/v0.1/panstarrs/{release}/"
+        f"stack.csv?ra={ra}&dec={dec}&radius={rad_deg}&nDetections.gte=1"
+    )
+    
+    try:
+        ps = pd.read_csv(url)
+    except Exception as e:
+        print(f"Query failed: {e}")
+        return None
+    
+    if len(ps) > 0:
+        # Keep useful columns
+        keep = [
+            'objID','raMean','decMean','gPSFMag','gKronMag','rPSFMag','rKronMag',
+            'iPSFMag','iKronMag','zPSFMag','zKronMag','yPSFMag','yKronMag',
+            'gPSFMagErr','gKronMagErr','rPSFMagErr','rKronMagErr','iPSFMagErr',
+            'iKronMagErr','zPSFMagErr','zKronMagErr','yPSFMagErr','yKronMagErr',
+            'qualityFlag','primaryDetection'
+        ]
+        ps = ps[keep]
+        ps = ps.rename(columns={
+            'raMean':'ra','decMean':'dec',
+        })
+        
+        # crude star/galaxy separation using PS1 "primaryDetection" and qualityFlag
+        ps['star'] = 0
+        ps['star'].loc[ps['iPSFMag']-ps['iKronMag'] < 0.1] = 2
+        ps['star'].loc[ps['iPSFMag']-ps['iKronMag'] < 0.05] = 1
+    else:
+        ps = None
+
+    
+    return ps
+
 def _Panstarrs_phot(ra,dec,size):
 
     # grey_im,wcsI = _Get_im(ra,dec,size=size*6,color=False)
@@ -150,7 +191,7 @@ def _Panstarrs_phot(ra,dec,size):
     ax.imshow(rgb, origin='lower')
     ax.set_xlabel('Right Ascension')
     ax.set_ylabel('Declination')
-    ax.set_title('SkyMapper gri')
+    ax.set_title('Photometry gz')
     ax.invert_xaxis()
     ax.coords[0].set_major_formatter('hh:mm:ss')
     ax.coords[1].set_major_formatter('dd:mm:ss')
@@ -517,17 +558,17 @@ def _add_sources(fig,cat):
         # scatter stars 
         stars = cat.loc[cat['star'] ==1]
         ax.scatter(stars.ra,stars.dec, transform=ax.get_transform('fk5'),
-                    edgecolors='w',marker='*',s=80,facecolors="None",linewidths=1,label='Star')
+                    edgecolors='bisque',marker='*',s=80,facecolors="None",linewidths=1,label='Star')
 
         # scatter galaxies
         gal = cat.loc[cat['star'] == 0]
         ax.scatter(gal.ra,gal.dec, transform=ax.get_transform('fk5'),
-                    edgecolors='w',marker='o',s=80,facecolors="None",label='Galaxy')
+                    edgecolors='bisque',marker='o',s=80,facecolors="None",label='Galaxy')
         
         # scatter other
         gal = cat.loc[cat['star'] == 2]
         ax.scatter(gal.ra,gal.dec, transform=ax.get_transform('fk5'),
-                    edgecolors='w',marker='D',s=80,facecolors="None",label='Possible galaxy')
+                    edgecolors='bisque',marker='D',s=80,facecolors="None",label='Possible galaxy')
         # if count == 0:
         #     legend = ax.legend(loc=2,facecolor="black",fontsize=10)
         #     for text in legend.get_texts():
@@ -570,7 +611,9 @@ def event_cutout(coords,size=50,phot=None,check='gaia'):
 
     if phot == 'PS1':
         fig,wcs,outsize = _Panstarrs_phot(coords[0],coords[1],size)
-        cat = None
+        if fig is None:
+            return None,None,None,None,None,None
+        cat = _panstarrs_objects(coords[0],coords[1])
         #fig = _add_sources(fig,cat)
 
     elif phot.lower() == 'skymapper':
