@@ -191,7 +191,7 @@ def _Panstarrs_phot(ra,dec,size):
     ax.imshow(rgb, origin='lower')
     ax.set_xlabel('Right Ascension')
     ax.set_ylabel('Declination')
-    ax.set_title('Photometry gz')
+    ax.set_title('PanSTARRS gz')
     ax.invert_xaxis()
     ax.coords[0].set_major_formatter('hh:mm:ss')
     ax.coords[1].set_major_formatter('dd:mm:ss')
