@@ -2136,7 +2136,8 @@ class Detector():
             if len(events) > 0:
                 all_events = pd.concat([all_events,events],ignore_index=True)
 
-        all_events.to_csv(f'{save_path}/events.csv',index=False)
+        if len(all_events)>0:
+            all_events.to_csv(f'{save_path}/events.csv',index=False)
 
     def plot_filtered_events(self,save_path):
         import os
