@@ -1852,7 +1852,7 @@ class Detector():
 
         Save_LC(self.time,self.flux,self.events,id,save_path=save_name)    
 
-    def external_photometry(self,objid,event,size=100):
+    def external_photometry(self,objid,event,size=100,phot=None):
 
         from .external_photometry import event_cutout
 
@@ -1885,7 +1885,7 @@ class Detector():
         #error = np.nanmax([source.e_xccd,source.e_yccd])
         # error = [10 / 60**2,10 / 60**2] # just set error to 10 arcsec. The calculated values are unrealistically small.
         
-        fig, wcs, size, photometry,cat,im = event_cutout((RA,DEC),size)
+        fig, wcs, size, photometry,cat,im = event_cutout((RA,DEC),size,phot=phot)
         if fig is None:
             return None,None,None,None,None
         axes = fig.get_axes()

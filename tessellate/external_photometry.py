@@ -196,7 +196,7 @@ def _Panstarrs_phot(ra,dec,size):
     ax.coords[0].set_major_formatter('hh:mm:ss')
     ax.coords[1].set_major_formatter('dd:mm:ss')
 
-    return fig,wcs,truegrz[0].shape[0]
+    return fig,wcs,truegrz[0].shape[0],rgb
 
 
 def _skymapper_objects(ra,dec,imshape,wcs,rad=60):
@@ -610,7 +610,7 @@ def event_cutout(coords,size=50,phot=None,check='gaia'):
             cat = _delve_objects(coords[0],coords[1])
 
     if phot == 'PS1':
-        fig,wcs,outsize = _Panstarrs_phot(coords[0],coords[1],size)
+        fig,wcs,outsize,im = _Panstarrs_phot(coords[0],coords[1],size)
         if fig is None:
             return None,None,None,None,None,None
         cat = _panstarrs_objects(coords[0],coords[1])
