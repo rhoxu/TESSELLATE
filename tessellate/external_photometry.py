@@ -601,7 +601,7 @@ def event_cutout(coords,size=50,phot=None,check='gaia'):
     if phot is None:
         fig,wcs,outsize,im = _DESI_phot(coords[0],coords[1],size)
         if fig is None:
-            if coords[1] > -10:
+            if coords[1] > -28:
                 phot = 'PS1'
             else:
                 phot = 'SkyMapper'
