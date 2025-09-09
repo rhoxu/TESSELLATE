@@ -1858,7 +1858,7 @@ class Detector():
 
         print('Getting Photometry...')
 
-        theta = np.linspace(0, 2*np.pi, 10)
+        theta = np.linspace(0, 2*np.pi, 50/tess_grid)
         if type(event) == int:
             e = self.events[(self.events['objid']==objid) & (self.events['eventid']==event)].iloc[0] 
             xint = RoundToInt(e['xcentroid'])
@@ -1961,7 +1961,7 @@ class Detector():
                 if len(x) > 0:
                     ax.plot(x,y,color=color,alpha=alpha,lw=lw)
 
-                ax.scatter(xError,yError,color='red',s=75/tess_grid,marker='.',lw=1)
+                ax.scatter(xError,yError,color='red',s=15,marker='.',lw=1)
         
             legend = ax.legend(loc=2,facecolor="black",fontsize=10)
             for text in legend.get_texts():
