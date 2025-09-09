@@ -2051,7 +2051,7 @@ class Detector():
             combined_img.paste(img2, (int(img1.width+combined_width/22), 0))
 
             # Save final combined PNG
-            combined_img.save(f"{save_combined}/S{self.sector}C{self.cam}C{self.ccd}C{self.cut}O{objid}.png", dpi=(150,150))
+            combined_img.save(f"{save_combined}/S{self.sector}C{self.cam}C{self.ccd}C{self.cut}O{objid}E{event}.png", dpi=(150,150))
         
         return obj
     
