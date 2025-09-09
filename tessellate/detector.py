@@ -2043,10 +2043,10 @@ class Detector():
                 img2 = img2.resize((int(img2.width * max_height / img2.height), max_height), Image.LANCZOS)
 
             # Combine horizontally
-            combined_width = (img1.width + img2.width)*1.1
+            combined_width = int((img1.width + img2.width)*1.1)
             combined_img = Image.new('RGB', (combined_width, max_height), (255, 255, 255))
             combined_img.paste(img1, (0, 0))
-            combined_img.paste(img2, (img1.width, 0))
+            combined_img.paste(img2, (int(img1.width+combined_width/11), 0))
 
             # Save final combined PNG
             combined_img.save(f"{save_combined}/S{self.sector}C{self.cam}C{self.ccd}C{self.cut}O{objid}.png", dpi=(150,150))
