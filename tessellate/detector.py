@@ -1892,7 +1892,7 @@ class Detector():
         if fig is None:
             return None,None,None,None,None
         axes = fig.get_axes()
-        axes[0].set_xlim(0,size)
+        axes[0].set_xlim(size,0)
         axes[0].set_ylim(0,size)
         
         if len(axes) == 1:
