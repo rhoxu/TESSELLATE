@@ -1660,7 +1660,7 @@ class Detector():
         return objects
 
     def filter_events(self,cut,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
-                      lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,boundarykiller=None,
+                      lc_sig_max=None,lc_sig_med=None,min_events=None,max_events=None,bkg_std=None,boundarykiller=None,
                       flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
         
         """
@@ -1724,6 +1724,8 @@ class Detector():
             r = r.loc[r['lc_sig_med']>=lc_sig_med]
         if image_sig_max is not None:
             r = r.loc[r['image_sig_max'] >= image_sig_max]
+        if min_events is not None:
+            r = r.loc[r['total_events'] >= min_events]
         if max_events is not None:
             r = r.loc[r['total_events'] <= max_events]
         if bkg_std is not None:
@@ -2111,7 +2113,7 @@ class Detector():
         return self.flux[frames,y-image_size//2:y+image_size//2+1,x-image_size//2:x+image_size//2+1]
     
     def collate_filtered_events(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
-                      lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,boundarykiller=None,
+                      lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,boundarykiller=None,min_events=None,
                       flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
         
         from tqdm import tqdm
@@ -2130,7 +2132,7 @@ class Detector():
             self._gather_results(cut)
             events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
                                     lower=lower,upper=upper,image_sig_max=image_sig_max,
-                                    lc_sig_max=lc_sig_max,lc_sig_med=lc_sig_med,
+                                    lc_sig_max=lc_sig_max,lc_sig_med=lc_sig_med,min_events=min_events,
                                     max_events=max_events,bkg_std=bkg_std,boundarykiller=boundarykiller,
                                     flux_sign=flux_sign,classification=classification,
                                     psf_like=psf_like,galactic_latitude=galactic_latitude)
