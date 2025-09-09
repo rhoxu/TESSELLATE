@@ -1970,7 +1970,7 @@ class Detector():
         return fig, cat, (ra_obj,dec_obj), wcs,im
 
     def plot_object(self,cut,objid,event='seperate',save_name=None,save_path=None,
-                    latex=True,zoo_mode=True,external_phot=False,save_combined=False):
+                    latex=True,zoo_mode=True,external_phot=False,save_combined=False,tess_grid=5):
         """
         Plot a source from the cut data.
         """
@@ -2011,7 +2011,7 @@ class Detector():
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
-            fig, cat, coord,phot_wcs,im = self.external_photometry(objid,event)
+            fig, cat, coord,phot_wcs,im = self.external_photometry(objid,event,tess_grid=tess_grid)
             if fig is None:
                 return obj
             
@@ -2028,8 +2028,8 @@ class Detector():
 
             buf1 = io.BytesIO()
             buf2 = io.BytesIO()
-            full_fig.savefig(buf1, format='png', dpi=150)
-            obj.photometry.savefig(buf2, format='png', dpi=150)
+            full_fig.savefig(buf1, format='png', dpi=150,bbox_inches='tight')
+            obj.photometry.savefig(buf2, format='png', dpi=150,bbox_inches='tight')
 
             # Load with Pillow
             img1 = Image.open(buf1)
