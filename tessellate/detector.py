@@ -2043,7 +2043,7 @@ class Detector():
                 img2 = img2.resize((int(img2.width * max_height / img2.height), max_height), Image.LANCZOS)
 
             # Combine horizontally
-            combined_width = img1.width + img2.width
+            combined_width = (img1.width + img2.width)*1.1
             combined_img = Image.new('RGB', (combined_width, max_height), (255, 255, 255))
             combined_img.paste(img1, (0, 0))
             combined_img.paste(img2, (img1.width, 0))
@@ -2141,7 +2141,7 @@ class Detector():
         if len(all_events)>0:
             all_events.to_csv(f'{save_path}/events.csv',index=False)
 
-    def plot_filtered_events(self,save_path):
+    def plot_filtered_events(self,save_path,tess_grid):
         import os
 
         if os.path.exists(f'{save_path}/events.csv'):
@@ -2159,7 +2159,7 @@ class Detector():
                 objid = event['objid']
                 if not os.path.exists(f'{save_path}/S{self.sector}C{self.cam}C{self.ccd}C{cut}O{objid}.png'):
                     print(f'Event {count} of {len(ccd_events)}')
-                    self.plot_object(event['cut'],event['objid'],event=event['eventid'],
+                    self.plot_object(event['cut'],event['objid'],event=event['eventid'],tess_grid=tess_grid,
                                     latex=True,zoo_mode=False,external_phot=True,save_combined=save_path)
                     print('\n')
                 
