@@ -1852,7 +1852,7 @@ class Detector():
 
         Save_LC(self.time,self.flux,self.events,id,save_path=save_name)    
 
-    def external_photometry(self,objid,event,size=100,phot=None):
+    def external_photometry(self,objid,event,tess_grid=5,phot=None):
 
         from .external_photometry import event_cutout
 
@@ -1885,17 +1885,14 @@ class Detector():
         #error = np.nanmax([source.e_xccd,source.e_yccd])
         # error = [10 / 60**2,10 / 60**2] # just set error to 10 arcsec. The calculated values are unrealistically small.
         
-        fig, wcs, size, photometry,cat,im = event_cutout((RA,DEC),size,phot=phot)
+
+        fig, wcs, size, photometry,cat,im = event_cutout((RA,DEC),20*tess_grid,phot=phot)
         if fig is None:
             return None,None,None,None,None
         axes = fig.get_axes()
         
         if len(axes) == 1:
             wcs = [wcs]
-
-
-        xRange = np.arange(xint-3,xint+3)
-        yRange = np.arange(yint-3,yint+3)
 
         if photometry == 'DESI':
             axes[0].set_xlim(size,0)
@@ -1911,6 +1908,10 @@ class Detector():
         #     axes[0].scatter(loc[0],loc[1],edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
             # yRange = yRange[::-1]
            
+        number = tess_grid//2 + 1
+
+        xRange = np.arange(xint-number,xint+number)
+        yRange = np.arange(yint-number,yint+number)
 
         lines = []
         for x in xRange:
@@ -1925,11 +1926,11 @@ class Detector():
         for i,ax in enumerate(axes): 
             ys = []
             for j,line in enumerate(lines):
-                if j in [0,6]:
+                if j in [0,2*number]:
                     color = 'red'
                     lw = 5
                     alpha = 0.7
-                elif j in [5,11]:
+                elif j in [2*number-1,4*number]:
                     color = 'cyan'
                     lw = 5
                     alpha = 0.7
