@@ -1682,6 +1682,8 @@ class Detector():
         # # -- If true, remove asteroids from the results -- #
         if asteroidkiller:
             r = r.loc[~(r['classification'] == 'Asteroid')]
+            if 'Asteroid' in r.keys():
+                r = r.loc[r['Asteroid'] == 0]
 
         if boundarykiller:
             self._gather_data(cut,flux=False,wcs=False,mask=False,ref=False,time=True,bkg=False)
