@@ -2087,7 +2087,7 @@ class Detector():
 
         return lcs
     
-    def event_frames(self,cut,objid,eventid=None,frame_buffer=5,image_size=11):
+    def event_frames(self,cut,objid,eventid=None,frame_buffer=1,image_size=11):
 
         # -- Gather data -- #
         if cut != self.cut:
@@ -2110,7 +2110,49 @@ class Detector():
         x = int(event['xint']) 
         y = int(event['yint']) 
 
-        return self.flux[frames,y-image_size//2:y+image_size//2+1,x-image_size//2:x+image_size//2+1]
+        xmin = max(x-image_size//2,0)
+        xmax = min(x+image_size//2,self.flux.shape[1])
+
+        ymin = max(y-image_size//2,0)
+        ymax = min(y+image_size//2,self.flux.shape[1])
+
+        return self.flux[frames,ymin:ymax+1,xmin:xmax+1]
+    
+    def object_lc(self,cut,objid):
+
+        # -- Gather data -- #
+        if cut != self.cut:
+            self._gather_data(cut)
+            self._gather_results(cut)
+            self.cut = cut
+        
+        obj = self.objects[self.objects['objid']==objid]
+        x = RoundToInt(obj['xcentroid'])     # x coordinate of the source
+        y = RoundToInt(obj['ycentroid'])     # x coordinate of the source
+        t,f = Generate_LC(self.time,self.flux,x,y)
+
+        return t,f
+    
+    def object_frames(self,cut,objid,image_size=11):
+
+        # -- Gather data -- #
+        if cut != self.cut:
+            self._gather_data(cut)
+            self._gather_results(cut)
+            self.cut = cut
+
+        obj = self.objects[self.objects['objid']==objid]
+
+        x = RoundToInt(obj['xcentroid']) 
+        xmin = max(x-image_size//2,0)
+        xmax = min(x+image_size//2,self.flux.shape[1])
+
+        y = RoundToInt(obj['ycentroid']) 
+        ymin = max(y-image_size//2,0)
+        ymax = min(y+image_size//2,self.flux.shape[1])
+
+        return self.flux[:,ymin:ymax+1,xmin:xmax+1]
+
     
     def collate_filtered_events(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
                       lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,boundarykiller=None,min_events=None,
