@@ -453,6 +453,7 @@ def _DESI_phot(ra,dec,size):
     response = requests.get(urlIM)
     if response.status_code == 200:
         image = Image.open(BytesIO(requests.get(urlIM).content))
+        image = np.array(image)
         #if np.nansum(image) == 0:
         try:
             hdulist = fits.open(BytesIO(requests.get(urlFITS).content),ignore_missing_simple=True)
