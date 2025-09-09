@@ -162,8 +162,10 @@ def _panstarrs_objects(ra, dec, rad=80, release='dr2'):
 
 def _Panstarrs_phot(ra,dec,size):
 
+    size = size*6
+
     # grey_im,wcsI = _Get_im(ra,dec,size=size*6,color=False)
-    colour_im,wcsGRZ = _Get_im(ra,dec,size=size*6,color=True)
+    colour_im,wcsGRZ = _Get_im(ra,dec,size=size,color=True)
 
     wcs = wcsGRZ.dropaxis(2)
 
@@ -196,7 +198,7 @@ def _Panstarrs_phot(ra,dec,size):
     ax.coords[0].set_major_formatter('hh:mm:ss')
     ax.coords[1].set_major_formatter('dd:mm:ss')
 
-    return fig,wcs,truegrz[0].shape[0],rgb
+    return fig,wcs,rgb
 
 
 def _skymapper_objects(ra,dec,imshape,wcs,rad=60):
@@ -362,7 +364,7 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
                 sleep(1)
 
     if len(images)<3:
-        return None,None,None,None
+        return None,None,None
 
     rotated_i, angle = _Rotate_i_to_g(images[2], wcsList[2], images[0],wcsList[0])
     images[2] = rotated_i
@@ -410,7 +412,7 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
         ax.coords[0].set_major_formatter('hh:mm:ss')
         ax.coords[1].set_major_formatter('dd:mm:ss')
 
-    return fig, wcsList[0], og_size * 2,rgb
+    return fig, wcsList[0], rgb
 
 def _delve_objects(ra,dec,size=60/60**2):
     from dl import queryClient as qc
@@ -467,16 +469,16 @@ def _DESI_phot(ra,dec,size):
             ax.set_xlabel('Right Ascension')
             ax.set_ylabel('Declination')
             ax.invert_xaxis()
-            return fig,wcs,size,image
+            return fig,wcs,image
         except Exception as error:
             print("DES Photometry failed: ", error)
             print(urlFITS)
             print(urlIM)
-            return None,None,None,None
+            return None,None,None
         #else:
           #  return None,None,None
     else:
-        return None,None,None,None
+        return None,None,None
 
 def simbad_sources(ra,dec,size):
     from astroquery.simbad import Simbad
@@ -599,7 +601,7 @@ def event_cutout(coords,size=50,phot=None,check='gaia'):
     """
 
     if phot is None:
-        fig,wcs,outsize,im = _DESI_phot(coords[0],coords[1],size)
+        fig,wcs,im = _DESI_phot(coords[0],coords[1],size)
         if fig is None:
             if coords[1] > -28:
                 phot = 'PS1'
@@ -610,14 +612,14 @@ def event_cutout(coords,size=50,phot=None,check='gaia'):
             cat = _delve_objects(coords[0],coords[1])
 
     if phot == 'PS1':
-        fig,wcs,outsize,im = _Panstarrs_phot(coords[0],coords[1],size)
+        fig,wcs,im = _Panstarrs_phot(coords[0],coords[1],size)
         if fig is None:
             return None,None,None,None,None,None
         cat = _panstarrs_objects(coords[0],coords[1])
         #fig = _add_sources(fig,cat)
 
     elif phot.lower() == 'skymapper':
-        fig,wcs,outsize,im = _Skymapper_phot(coords[0],coords[1],size)
+        fig,wcs,im = _Skymapper_phot(coords[0],coords[1],size)
         if fig is None:
             return None,None,None,None,None,None
         cat = _skymapper_objects(coords[0],coords[1],im.shape[1],wcs,rad=60)
@@ -644,4 +646,4 @@ def event_cutout(coords,size=50,phot=None,check='gaia'):
 
     plt.close()
 
-    return fig,wcs,outsize, phot, cat,im
+    return fig, wcs, phot, cat, im
