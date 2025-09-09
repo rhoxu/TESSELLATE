@@ -189,9 +189,9 @@ def _Panstarrs_phot(ra,dec,size):
     fig = plt.figure(figsize=(8, 8))
     ax = plt.subplot(111, projection=wcs)
     ax.imshow(rgb, origin='lower')
-    ax.set_xlabel('Right Ascension',fontsize=15)
-    ax.set_ylabel('Declination',fontsize=15)
-    ax.set_title('PanSTARRS gz',fontsize=15)
+    ax.set_xlabel('Right Ascension',fontsize=17)
+    ax.set_ylabel('Declination',fontsize=17)
+    ax.set_title('PanSTARRS gz',fontsize=17)
     # ax.invert_xaxis()
     ax.coords[0].set_major_formatter('hh:mm:ss')
     ax.coords[1].set_major_formatter('dd:mm:ss')
@@ -383,12 +383,12 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
     plt.rcParams.update({'font.size': 12})
     if show_bands:
         fig, axs = plt.subplots(1, 3, figsize=(15, 5),subplot_kw={'projection':wcsList[0]})
-        fig.suptitle('SkyMapper gri',fontsize=15)
+        fig.suptitle('SkyMapper gri',fontsize=17)
         bands = ['g (blue)', 'r (green)', 'i (red)']
         for i, ax in enumerate(axs):
             if i ==0 :
-                ax.set_xlabel('Right Ascension',fontsize=15)
-                ax.set_ylabel('Declination',fontsize=15)
+                ax.set_xlabel('Right Ascension',fontsize=17)
+                ax.set_ylabel('Declination',fontsize=17)
                 ax.coords[0].set_major_formatter('hh:mm:ss')
                 ax.coords[1].set_major_formatter('dd:mm:ss')
             else:
@@ -403,9 +403,9 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
         fig = plt.figure(figsize=(8, 8))
         ax = plt.subplot(111, projection=wcsList[0])
         ax.imshow(rgb, origin='lower')
-        ax.set_xlabel('Right Ascension',fontsize=15)
-        ax.set_ylabel('Declination',fontsize=15)
-        ax.set_title('SkyMapper gri',fontsize=15)
+        ax.set_xlabel('Right Ascension',fontsize=17)
+        ax.set_ylabel('Declination',fontsize=17)
+        ax.set_title('SkyMapper gri',fontsize=17)
         # ax.invert_xaxis()
         ax.coords[0].set_major_formatter('hh:mm:ss')
         ax.coords[1].set_major_formatter('dd:mm:ss')
@@ -462,10 +462,10 @@ def _DESI_phot(ra,dec,size):
             fig = plt.figure(figsize=(8,8))#3*fig_width,1*fig_width))
             ax = plt.subplot(111,projection=wcs)
             ax.imshow(image,cmap="gray")
-            ax.set_title('DES gri',fontsize=15)
+            ax.set_title('DES gri',fontsize=17)
             ax.grid(alpha=0.2)
-            ax.set_xlabel('Right Ascension',fontsize=15)
-            ax.set_ylabel('Declination',fontsize=15)
+            ax.set_xlabel('Right Ascension',fontsize=17)
+            ax.set_ylabel('Declination',fontsize=17)
             # ax.invert_xaxis()
             return fig,wcs,size,image
         except Exception as error:
