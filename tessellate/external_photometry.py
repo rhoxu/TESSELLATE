@@ -192,7 +192,7 @@ def _Panstarrs_phot(ra,dec,size):
     ax.set_xlabel('Right Ascension',fontsize=17)
     ax.set_ylabel('Declination',fontsize=17)
     ax.set_title('PanSTARRS gz',fontsize=17)
-    # ax.invert_xaxis()
+    ax.invert_xaxis()
     ax.coords[0].set_major_formatter('hh:mm:ss')
     ax.coords[1].set_major_formatter('dd:mm:ss')
 
@@ -406,7 +406,7 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
         ax.set_xlabel('Right Ascension',fontsize=17)
         ax.set_ylabel('Declination',fontsize=17)
         ax.set_title('SkyMapper gri',fontsize=17)
-        # ax.invert_xaxis()
+        ax.invert_xaxis()
         ax.coords[0].set_major_formatter('hh:mm:ss')
         ax.coords[1].set_major_formatter('dd:mm:ss')
 
@@ -466,7 +466,7 @@ def _DESI_phot(ra,dec,size):
             ax.grid(alpha=0.2)
             ax.set_xlabel('Right Ascension',fontsize=17)
             ax.set_ylabel('Declination',fontsize=17)
-            # ax.invert_xaxis()
+            ax.invert_xaxis()
             return fig,wcs,size,image
         except Exception as error:
             print("DES Photometry failed: ", error)
