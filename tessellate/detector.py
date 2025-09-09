@@ -1961,7 +1961,7 @@ class Detector():
                 if len(x) > 0:
                     ax.plot(x,y,color=color,alpha=alpha,lw=lw)
 
-                ax.scatter(xError,yError,color='red',s=15,marker='.',lw=1)
+                ax.scatter(xError,yError,color='red',s=75/tess_grid,marker='.',lw=1)
         
             legend = ax.legend(loc=2,facecolor="black",fontsize=10)
             for text in legend.get_texts():
