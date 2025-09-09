@@ -1890,13 +1890,14 @@ class Detector():
         if fig is None:
             return None,None,None,None,None
         axes = fig.get_axes()
+        axes[0].set_xlim(0,size)
+        axes[0].set_ylim(0,size)
         
         if len(axes) == 1:
             wcs = [wcs]
 
-        if photometry == 'DESI':
-            axes[0].set_xlim(size,0)
-            axes[0].set_ylim(0,size)
+        # if photometry == 'DESI':
+
 
 
         axes[0].scatter(ra_obj,dec_obj, transform=axes[0].get_transform('fk5'),
