@@ -1858,7 +1858,7 @@ class Detector():
 
         print('Getting Photometry...')
 
-        theta = np.linspace(0, 2*np.pi, 50/tess_grid)
+        theta = np.linspace(0, 2*np.pi, np.ceil(50/tess_grid).astype(int))
         if type(event) == int:
             e = self.events[(self.events['objid']==objid) & (self.events['eventid']==event)].iloc[0] 
             xint = RoundToInt(e['xcentroid'])
