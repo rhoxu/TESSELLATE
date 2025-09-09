@@ -1910,8 +1910,8 @@ class Detector():
            
         number = tess_grid//2 + 1
 
-        xRange = np.arange(xint-number,xint+number)
-        yRange = np.arange(yint-number,yint+number)
+        xRange = np.arange(xint-3,xint+3)
+        yRange = np.arange(yint-3,yint+3)
 
         lines = []
         for x in xRange:
@@ -1930,7 +1930,7 @@ class Detector():
                     color = 'red'
                     lw = 5
                     alpha = 0.7
-                elif j in [2*number-1,4*number]:
+                elif j in [2*number-1,4*number-1]:
                     color = 'cyan'
                     lw = 5
                     alpha = 0.7
