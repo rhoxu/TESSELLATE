@@ -2126,7 +2126,7 @@ class Detector():
             self._gather_results(cut)
             self.cut = cut
         
-        obj = self.objects[self.objects['objid']==objid]
+        obj = self.objects[self.objects['objid']==objid].iloc[0]
         x = RoundToInt(obj['xcentroid'])     # x coordinate of the source
         y = RoundToInt(obj['ycentroid'])     # x coordinate of the source
         t,f = Generate_LC(self.time,self.flux,x,y)
@@ -2141,7 +2141,7 @@ class Detector():
             self._gather_results(cut)
             self.cut = cut
 
-        obj = self.objects[self.objects['objid']==objid]
+        obj = self.objects[self.objects['objid']==objid].iloc[0]
 
         x = RoundToInt(obj['xcentroid']) 
         xmin = max(x-image_size//2,0)
