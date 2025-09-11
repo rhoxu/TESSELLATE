@@ -2203,7 +2203,8 @@ class Detector():
                 count += 1
                 cut = event['cut']
                 objid = event['objid']
-                if not os.path.exists(f'{save_path}/S{self.sector}C{self.cam}C{self.ccd}C{cut}O{objid}.png'):
+                eventid = event['eventid']
+                if not os.path.exists(f'{save_path}/S{self.sector}C{self.cam}C{self.ccd}C{cut}O{objid}E{eventid}.png'):
                     print(f'Event {count} of {len(ccd_events)}')
                     self.plot_object(event['cut'],event['objid'],event=event['eventid'],tess_grid=tess_grid,
                                     latex=True,zoo_mode=False,external_phot=True,save_combined=save_path)
