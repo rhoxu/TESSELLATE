@@ -2331,6 +2331,9 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
             pass
         elif event.lower() == 'all':
 
+            frame_starts = events['frame_start'].values
+            frame_ends = events['frame_end'].values
+
             # Sets this one "event" to include all the times between first and last detection #
             e = deepcopy(events.iloc[0])
             e['frame_end'] = events['frame_end'].iloc[-1]
@@ -2353,8 +2356,12 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
             
     elif type(event) == int:
         events = deepcopy(events.iloc[events['eventid'].values == event])
+        frame_starts = events['frame_start'].values
+        frame_ends = events['frame_end'].values
     elif type(event) == list:
         events = deepcopy(events.iloc[events['eventid'].isin(event).values])
+        frame_starts = events['frame_start'].values
+        frame_ends = events['frame_end'].values
     else:
         m = "No valid option selected, input either 'all', 'seperate', an integer event id, or list of integers."
         raise ValueError(m)
@@ -2443,7 +2450,12 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
 
         # Generate a coloured span during the event #
         cadence = np.median(np.diff(time))
-        axins.axvspan(time[frameStart]-cadence/2,time[frameEnd]+cadence/2,color='C1',alpha=0.4)
+
+        for i in range(len(frame_starts)):
+            axins.axvspan(time[frame_starts[i]]-cadence/2,time[frame_ends[i]]+cadence/2,color='C1',alpha=0.4)
+
+
+        # axins.axvspan(time[frameStart]-cadence/2,time[frameEnd]+cadence/2,color='C1',alpha=0.4)
 
         # Plot full light curve in inset axes #
         for i in range(len(break_ind)-1):
