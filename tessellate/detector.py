@@ -1688,7 +1688,8 @@ class Detector():
         if boundarykiller:
             self._gather_data(cut,flux=False,wcs=False,mask=False,ref=False,time=True,bkg=False)
             boundaryFrames = [0,np.argmax(np.diff(self.time)),
-                             np.argmax(np.diff(self.time))+1, len(self.time)-1]
+                    np.argmax(np.diff(self.time))+1, len(self.time)-1,
+                    np.argmax(np.diff(self.time))-1, len(self.time)-2]
             
             mask = ~r.apply(
                 lambda row: any(frame in range(row['frame_start'], row['frame_end'] + 1) for frame in boundaryFrames),
