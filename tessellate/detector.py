@@ -2179,7 +2179,7 @@ class Detector():
     
     def collate_filtered_events(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
                       lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,boundarykiller=None,min_events=None,
-                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
+                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,density_score=None):
         
         from tqdm import tqdm
         import os
@@ -2199,7 +2199,7 @@ class Detector():
                                     lower=lower,upper=upper,image_sig_max=image_sig_max,
                                     lc_sig_max=lc_sig_max,lc_sig_med=lc_sig_med,min_events=min_events,
                                     max_events=max_events,bkg_std=bkg_std,boundarykiller=boundarykiller,
-                                    flux_sign=flux_sign,classification=classification,
+                                    flux_sign=flux_sign,classification=classification,density_score=density_score,
                                     psf_like=psf_like,galactic_latitude=galactic_latitude)
             
             if len(events) > 0:
