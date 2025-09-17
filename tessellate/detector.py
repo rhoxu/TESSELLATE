@@ -1661,7 +1661,7 @@ class Detector():
 
     def filter_events(self,cut,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
                       lc_sig_max=None,lc_sig_med=None,min_events=None,max_events=None,bkg_std=None,boundarykiller=None,
-                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
+                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,density_score=5):
         
         """
         Returns a dataframe of the events in the cut, with options to filter by various parameters.
@@ -1747,8 +1747,28 @@ class Detector():
         elif lower is not None:
             r = r.loc[(r['frame_duration'] >= lower)]
 
-        return r
+        # -- Calculates an event density score for remaining events and weeds out events in crowded frames -- #
+        if density_score is not None:
+            
+            # Count how many events are in each frame
+            frames = np.concatenate([
+                np.arange(ev['frame_start'], ev['frame_end'] + 1, dtype=int)
+                for _, ev in r.iterrows()
+            ])
+            frame_counts = np.bincount(frames)
+            
+            # Calculates average number of events in the frames each event occurs in
+            scores = np.array([
+                frame_counts[ev['frame_start']:ev['frame_end'] + 1].mean()
+                for _, ev in r.iterrows()
+            ])
 
+            # Normalise the score based on very low baseline
+            mu = np.percentile(scores, 0.1)
+            scores = scores / mu
+
+            r = r.loc[scores <= density_score]
+            
 
 
     def lc_ALL(self,cut,save_path=None,lower=2,max_events=None,starkiller=False,
