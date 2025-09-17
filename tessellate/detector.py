@@ -1661,7 +1661,7 @@ class Detector():
 
     def filter_events(self,cut,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
                       lc_sig_max=None,lc_sig_med=None,min_events=None,max_events=None,bkg_std=None,boundarykiller=None,
-                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,density_score=None):
+                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
         
         """
         Returns a dataframe of the events in the cut, with options to filter by various parameters.
@@ -1746,28 +1746,6 @@ class Detector():
                 r = r.loc[(r['frame_duration'] <= upper)]
         elif lower is not None:
             r = r.loc[(r['frame_duration'] >= lower)]
-
-        # -- Calculates an event density score for remaining events and weeds out events in crowded frames -- #
-        if (density_score is not None) & (len(r) > 0):
-            
-            # Count how many events are in each frame
-            frames = np.concatenate([
-                np.arange(ev['frame_start'], ev['frame_end'] + 1, dtype=int)
-                for _, ev in r.iterrows()
-            ])
-            frame_counts = np.bincount(frames)
-            
-            # Calculates average number of events in the frames each event occurs in
-            scores = np.array([
-                frame_counts[ev['frame_start']:ev['frame_end'] + 1].mean()
-                for _, ev in r.iterrows()
-            ])
-
-            # Normalise the score based on very low baseline
-            mu = np.percentile(scores, 0.1)
-            scores = scores / mu
-
-            r = r.loc[scores <= density_score]
 
         return r
 
@@ -2200,11 +2178,33 @@ class Detector():
                                     lower=lower,upper=upper,image_sig_max=image_sig_max,
                                     lc_sig_max=lc_sig_max,lc_sig_med=lc_sig_med,min_events=min_events,
                                     max_events=max_events,bkg_std=bkg_std,boundarykiller=boundarykiller,
-                                    flux_sign=flux_sign,classification=classification,density_score=density_score,
+                                    flux_sign=flux_sign,classification=classification,
                                     psf_like=psf_like,galactic_latitude=galactic_latitude)
             
             if len(events) > 0:
                 all_events = pd.concat([all_events,events],ignore_index=True)
+
+                # -- Calculates an event density score for remaining events and weeds out events in crowded frames -- #
+        if (density_score is not None) & (len(all_events) > 0):
+            
+            # Count how many events are in each frame
+            frames = np.concatenate([
+                np.arange(ev['frame_start'], ev['frame_end'] + 1, dtype=int)
+                for _, ev in all_events.iterrows()
+            ])
+            frame_counts = np.bincount(frames)
+            
+            # Calculates average number of events in the frames each event occurs in
+            scores = np.array([
+                frame_counts[ev['frame_start']:ev['frame_end'] + 1].mean()
+                for _, ev in all_events.iterrows()
+            ])
+
+            # Normalise the score based on very low baseline
+            mu = np.percentile(scores, 0.1)
+            scores = scores / mu
+
+            all_events = all_events.loc[scores <= density_score]
 
         if len(all_events)>0:
             all_events.to_csv(f'{save_path}/events.csv',index=False)
