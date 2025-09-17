@@ -1661,7 +1661,7 @@ class Detector():
 
     def filter_events(self,cut,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
                       lc_sig_max=None,lc_sig_med=None,min_events=None,max_events=None,bkg_std=None,boundarykiller=None,
-                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,density_score=5):
+                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,density_score=None):
         
         """
         Returns a dataframe of the events in the cut, with options to filter by various parameters.
@@ -1768,7 +1768,8 @@ class Detector():
             scores = scores / mu
 
             r = r.loc[scores <= density_score]
-            
+
+        return r
 
 
     def lc_ALL(self,cut,save_path=None,lower=2,max_events=None,starkiller=False,
