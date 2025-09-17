@@ -1748,7 +1748,7 @@ class Detector():
             r = r.loc[(r['frame_duration'] >= lower)]
 
         # -- Calculates an event density score for remaining events and weeds out events in crowded frames -- #
-        if density_score is not None:
+        if (density_score is not None) & (len(r) > 0):
             
             # Count how many events are in each frame
             frames = np.concatenate([
