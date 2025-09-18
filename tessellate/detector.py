@@ -2182,22 +2182,40 @@ class Detector():
         if (len(ccd_events) > 0):
             _Save_space(save_path)
             if (density_score is not None):
-                # Count how many events are in each frame
+                deduped = (
+                ccd_events.sort_values("total_events", ascending=False)
+                    .drop_duplicates(subset=["xint", "yint", "frame_max"], keep="first")
+                )
+
+                # Keep a mapping from original -> deduped row
+                mapping = pd.Series(deduped.index, index=deduped[["xint", "yint", "frame_max"]].apply(tuple, axis=1))
+                reverse_map = ccd_events[["xint", "yint", "frame_max"]].apply(tuple, axis=1).map(mapping)
+
+                # --- Step 2: Perform scoring on deduplicated events
                 frames = np.concatenate([
                     np.arange(ev['frame_start'], ev['frame_end'] + 1, dtype=int)
-                    for _, ev in ccd_events.iterrows()
+                    for _, ev in deduped.iterrows()
                 ])
                 frame_counts = np.bincount(frames)
-                
-                # Calculates average number of events in the frames each event occurs in
-                scores = np.array([
+
+                scores_deduped = np.array([
                     frame_counts[ev['frame_start']:ev['frame_end'] + 1].mean()
-                    for _, ev in ccd_events.iterrows()
+                    for _, ev in deduped.iterrows()
                 ])
 
-                # Normalise the score based on 0.1 percentile score, which acts as baseline
-                mu = np.percentile(scores, 0.1)
-                scores = scores / mu
+                mu = np.percentile(scores_deduped, 0.1)
+                scores_deduped = scores_deduped / mu
+                scores_deduped -= 1
+                scores_deduped = scores_deduped * abs(deduped['bkg_level'].values * 
+                                                    np.nanmax(scores_deduped) / 
+                                                    np.nanmax(deduped['bkg_level'].values))
+
+                if len(deduped) / density_score < 5:
+                    scores_deduped *= 2
+
+                # --- Step 3: Expand scores back to original size
+                deduped_scores_series = pd.Series(scores_deduped, index=deduped.index)
+                scores = reverse_map.map(deduped_scores_series).to_numpy()
 
                 ccd_events = ccd_events.loc[scores <= density_score]
 
