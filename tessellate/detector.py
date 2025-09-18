@@ -2165,13 +2165,7 @@ class Detector():
         import pandas as pd
         from .tools import _Save_space
 
-        _Save_space(save_path)
-
-        if os.path.exists(f'{save_path}/events.csv'):
-            all_events = pd.read_csv(f'{save_path}/events.csv')
-        else:
-            all_events = pd.DataFrame()
-
+        ccd_events = pd.DataFrame()
         for cut in tqdm(range(1,self.n**2+1)):
             self._gather_results(cut)
             events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
@@ -2182,31 +2176,37 @@ class Detector():
                                     psf_like=psf_like,galactic_latitude=galactic_latitude)
             
             if len(events) > 0:
-                all_events = pd.concat([all_events,events],ignore_index=True)
+                ccd_events = pd.concat([ccd_events,events],ignore_index=True)
 
                 # -- Calculates an event density score for remaining events and weeds out events in crowded frames -- #
-        if (density_score is not None) & (len(all_events) > 0):
-            
-            # Count how many events are in each frame
-            frames = np.concatenate([
-                np.arange(ev['frame_start'], ev['frame_end'] + 1, dtype=int)
-                for _, ev in all_events.iterrows()
-            ])
-            frame_counts = np.bincount(frames)
-            
-            # Calculates average number of events in the frames each event occurs in
-            scores = np.array([
-                frame_counts[ev['frame_start']:ev['frame_end'] + 1].mean()
-                for _, ev in all_events.iterrows()
-            ])
+        if (len(ccd_events) > 0):
+            _Save_space(save_path)
+            if (density_score is not None):
+                # Count how many events are in each frame
+                frames = np.concatenate([
+                    np.arange(ev['frame_start'], ev['frame_end'] + 1, dtype=int)
+                    for _, ev in ccd_events.iterrows()
+                ])
+                frame_counts = np.bincount(frames)
+                
+                # Calculates average number of events in the frames each event occurs in
+                scores = np.array([
+                    frame_counts[ev['frame_start']:ev['frame_end'] + 1].mean()
+                    for _, ev in ccd_events.iterrows()
+                ])
 
-            # Normalise the score based on very low baseline
-            mu = np.percentile(scores, 0.1)
-            scores = scores / mu
+                # Normalise the score based on 0.1 percentile score, which acts as baseline
+                mu = np.percentile(scores, 0.1)
+                scores = scores / mu
 
-            all_events = all_events.loc[scores <= density_score]
+                ccd_events = ccd_events.loc[scores <= density_score]
 
-        if len(all_events)>0:
+            if os.path.exists(f'{save_path}/events.csv'):
+                all_events = pd.read_csv(f'{save_path}/events.csv')
+            else:
+                all_events = pd.DataFrame()
+
+            all_events = pd.concat([all_events,ccd_events],ignore_index=True)
             all_events.to_csv(f'{save_path}/events.csv',index=False)
 
     def plot_filtered_events(self,save_path,tess_grid):
