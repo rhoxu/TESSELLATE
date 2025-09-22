@@ -1703,11 +1703,14 @@ class Detector():
         # # -- If true, remove asteroids from the results -- #
         if asteroidkiller:
             r = r.loc[~(r['classification'] == 'Asteroid')]
+            if 'Asteroid' in r.keys():
+                r = r.loc[r['Asteroid'] == 0]
 
         if boundarykiller:
             self._gather_data(cut,flux=False,wcs=False,mask=False,ref=False,time=True,bkg=False)
             boundaryFrames = [0,np.argmax(np.diff(self.time)),
-                             np.argmax(np.diff(self.time))+1, len(self.time)-1]
+                    np.argmax(np.diff(self.time))+1, len(self.time)-1,
+                    np.argmax(np.diff(self.time))-1, len(self.time)-2]
             
             mask = ~r.apply(
                 lambda row: any(frame in range(row['frame_start'], row['frame_end'] + 1) for frame in boundaryFrames),
@@ -1766,7 +1769,6 @@ class Detector():
             r = r.loc[(r['frame_duration'] >= lower)]
 
         return r
-
 
 
     def lc_ALL(self,cut,save_path=None,lower=2,max_events=None,starkiller=False,
@@ -1916,7 +1918,7 @@ class Detector():
         if fig is None:
             return None,None,None,None,None
         axes = fig.get_axes()
-        axes[0].set_xlim(0,size)
+        axes[0].set_xlim(size,0)
         axes[0].set_ylim(0,size)
         
         if len(axes) == 1:
@@ -2179,21 +2181,16 @@ class Detector():
 
     
     def collate_filtered_events(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
-                      lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_level=None,boundarykiller=None,min_events=None,
-                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,save_combined=True):
+                      lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,boundarykiller=None,min_events=None,
+                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,density_score=None,
+                      save_combined=True):
         
         from tqdm import tqdm
         import os
         import pandas as pd
         from .tools import _Save_space
 
-        _Save_space(save_path)
-
-        if os.path.exists(f'{save_path}/events.csv'):
-            all_events = pd.read_csv(f'{save_path}/events.csv')
-        else:
-            all_events = pd.DataFrame()
-
+        ccd_events = pd.DataFrame()
         for cut in tqdm(range(1,self.n**2+1)):
             self._gather_results(cut)
             events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
@@ -2204,9 +2201,55 @@ class Detector():
                                         psf_like=psf_like,galactic_latitude=galactic_latitude)
             
             if len(events) > 0:
-                all_events = pd.concat([all_events,events],ignore_index=True)
+                ccd_events = pd.concat([ccd_events,events],ignore_index=True)
 
-        if len(all_events)>0:
+                # -- Calculates an event density score for remaining events and weeds out events in crowded frames -- #
+        if (len(ccd_events) > 0):
+            _Save_space(save_path)
+            if (density_score is not None):
+                deduped = (
+                ccd_events.sort_values("total_events", ascending=False)
+                    .drop_duplicates(subset=["xint", "yint", "frame_max"], keep="first")
+                )
+
+                # Keep a mapping from original -> deduped row
+                mapping = pd.Series(deduped.index, index=deduped[["xint", "yint", "frame_max"]].apply(tuple, axis=1))
+                reverse_map = ccd_events[["xint", "yint", "frame_max"]].apply(tuple, axis=1).map(mapping)
+
+                # --- Step 2: Perform scoring on deduplicated events
+                frames = np.concatenate([
+                    np.arange(ev['frame_start'], ev['frame_end'] + 1, dtype=int)
+                    for _, ev in deduped.iterrows()
+                ])
+                frame_counts = np.bincount(frames)
+
+                scores_deduped = np.array([
+                    frame_counts[ev['frame_start']:ev['frame_end'] + 1].mean()
+                    for _, ev in deduped.iterrows()
+                ])
+
+                mu = np.percentile(scores_deduped, 0.1)
+                scores_deduped = scores_deduped / mu
+                scores_deduped -= 1
+                scores_deduped = scores_deduped * abs(deduped['bkg_level'].values * 
+                                                    np.nanmax(scores_deduped) / 
+                                                    np.nanmax(deduped['bkg_level'].values))
+
+                if len(deduped) / density_score < 5:
+                    scores_deduped *= 2
+
+                # --- Step 3: Expand scores back to original size
+                deduped_scores_series = pd.Series(scores_deduped, index=deduped.index)
+                scores = reverse_map.map(deduped_scores_series).to_numpy()
+
+                ccd_events = ccd_events.loc[scores <= density_score]
+
+            if os.path.exists(f'{save_path}/events.csv'):
+                all_events = pd.read_csv(f'{save_path}/events.csv')
+            else:
+                all_events = pd.DataFrame()
+
+            all_events = pd.concat([all_events,ccd_events],ignore_index=True)
             all_events.to_csv(f'{save_path}/events.csv',index=False)
 
     def plot_filtered_events(self,save_path,tess_grid,external_phot=True):
@@ -2225,7 +2268,8 @@ class Detector():
                 count += 1
                 cut = event['cut']
                 objid = event['objid']
-                if not os.path.exists(f'{save_path}/S{self.sector}C{self.cam}C{self.ccd}C{cut}O{objid}.png'):
+                eventid = event['eventid']
+                if not os.path.exists(f'{save_path}/S{self.sector}C{self.cam}C{self.ccd}C{cut}O{objid}E{eventid}.png'):
                     print(f'Event {count} of {len(ccd_events)}')
                     self.plot_object(event['cut'],event['objid'],event=event['eventid'],tess_grid=tess_grid,
                                     latex=True,zoo_mode=False,external_phot=external_phot,save_combined=save_combined,save_path=save_path)
@@ -2384,6 +2428,9 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
             pass
         elif event.lower() == 'all':
 
+            frame_starts = events['frame_start'].values
+            frame_ends = events['frame_end'].values
+
             # Sets this one "event" to include all the times between first and last detection #
             e = deepcopy(events.iloc[0])
             e['frame_end'] = events['frame_end'].iloc[-1]
@@ -2406,8 +2453,12 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
             
     elif type(event) == int:
         events = deepcopy(events.iloc[events['eventid'].values == event])
+        frame_starts = events['frame_start'].values
+        frame_ends = events['frame_end'].values
     elif type(event) == list:
         events = deepcopy(events.iloc[events['eventid'].isin(event).values])
+        frame_starts = events['frame_start'].values
+        frame_ends = events['frame_end'].values
     else:
         m = "No valid option selected, input either 'all', 'seperate', an integer event id, or list of integers."
         raise ValueError(m)
@@ -2496,7 +2547,12 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
 
         # Generate a coloured span during the event #
         cadence = np.median(np.diff(time))
-        axins.axvspan(time[frameStart]-cadence/2,time[frameEnd]+cadence/2,color='C1',alpha=0.4)
+
+        for i in range(len(frame_starts)):
+            axins.axvspan(time[frame_starts[i]]-cadence/2,time[frame_ends[i]]+cadence/2,color='C1',alpha=0.4)
+
+
+        # axins.axvspan(time[frameStart]-cadence/2,time[frameEnd]+cadence/2,color='C1',alpha=0.4)
 
         # Plot full light curve in inset axes #
         for i in range(len(break_ind)-1):
