@@ -15,7 +15,7 @@ global_flux = None
 # Reused LC Generation Function
 
 def Generate_LC(time,flux,x,y,frame_start=None,frame_end=None,method='sum',
-                radius=1.5,ref=False):
+                radius=1.5):
     from photutils.aperture import RectangularAperture, RectangularAnnulus, ApertureStats, aperture_photometry
     t = time
     f = flux
@@ -2248,6 +2248,7 @@ class Detector():
         ccd_events = all_events[(all_events['camera'] == self.cam) & (all_events['ccd'] == self.ccd) & (all_events['sector'] == self.sector)]
         ccd_events = ccd_events.loc[(ccd_events['camera'] == self.cam) & (ccd_events['ccd'] == self.ccd) & (ccd_events['sector'] == self.sector)]
         objids = np.unique(ccd_events['objid'].values)
+        print('Total lcs to create: ', len(inds))
         for objid in objids:
             obj = ccd_events.loc[ccd_events['objid'] == objid]
             name = f'{save_path}/S{obj['sector'].iloc[0]}C{obj['cam'].iloc[0]}C{obj['ccd'].iloc[0]}C{obj['cut'].iloc[0]}O{objid}.csv'
@@ -2261,9 +2262,7 @@ class Detector():
                 # -- Run the saving in parallel -- #
                 savename = f'{save_path}/S{obj['sector'].iloc[0]}C{obj['cam'].iloc[0]}C{obj['ccd'].iloc[0]}C{obj['cut'].iloc[0]}'
                 Save_LC(self.time,data,obj,objid,savename)
-                print('Total lcs to create: ', len(inds))
-                events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(Save_LC)(self.time,self.flux,detections,ind,save_name) for ind in inds)
-                print('LCs complete!')
+                
             
         
         
@@ -2664,7 +2663,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
 
     return [times,f], cutout_image, fig
 
-def Save_LC(times,flux,events,id,save_path):
+def Save_LC(times,flux,events,id,save_path,phot_method='aperture',radius=1.5):
     """
     Save the light curve for a given object id to a csv.
     """
@@ -2694,12 +2693,12 @@ def Save_LC(times,flux,events,id,save_path):
     x = np.nanmedian(sources['xcentroid'])
     y = np.nanmedian(sources['ycentroid'])
 
-    times,f = Generate_LC(times,flux,x,y,radius=1.5,phot_method='aperture')
+    times,f,fe = Generate_LC(times,flux,x,y,radius=radius,phot_method=phot_method)
 
     # f = np.nansum(flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
     
-    lc = np.array([times,f,frames,pe,ne]).T
-    headers = ['mjd','counts','event','positive','negative']
+    lc = np.array([times,f,fe,frames,pe,ne]).T
+    headers = ['mjd','counts','e_counts','event','positive','negative']
     lc = pd.DataFrame(data=lc,columns=headers)
     
     lc.to_csv(f'{save_path}O{id}.csv',index = False)
