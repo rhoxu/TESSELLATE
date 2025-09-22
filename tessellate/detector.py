@@ -14,8 +14,9 @@ global_flux = None
 
 # Reused LC Generation Function
 
-def Generate_LC(time,flux,xint,yint,frame_start=None,frame_end=None,buffer=1):
-
+def Generate_LC(time,flux,x,y,frame_start=None,frame_end=None,method='sum',
+                radius=1.5,ref=False):
+    from photutils.aperture import RectangularAperture, RectangularAnnulus, ApertureStats, aperture_photometry
     t = time
     f = flux
 
@@ -30,9 +31,29 @@ def Generate_LC(time,flux,xint,yint,frame_start=None,frame_end=None,buffer=1):
         t = t[:frame_end+1]
         f = f[:frame_end+1]     
 
-    f = np.nansum(f[:,yint-buffer:yint+buffer+1,xint-buffer:xint+buffer+1],axis=(1,2))
+    if method.lower() == 'aperture':
+        aperture = CircularAperture([x, y], radius)
+        annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=20,h_out=20)
+        flux = []
+        flux_err = []
+        for i in range(len(f)):
+            m = sigma_clip(data,masked=True,sigma=5).mask
+            mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
+            aperstats_sky = ApertureStats(f[i], annulus_aperture,mask = mask)
+            phot_table = aperture_photometry(f[i], aperture)
+            bkg_std = aperstats_sky.std
+            flux_err += [aperture.area * bkg_std]
+            flux += [phot_table['aperture_sum'].value[0]]
+        flux = np.array(flux)
+        flux_err = np.array(flux_err)
+        return t, flux, flux_err
+    elif method.lower() == 'sum':
+        xint = int(np.round(x,0))
+        yint = int(np.round(y,0))
+        buffer = floor(radius)
+        f = np.nansum(f[:,yint-buffer:yint+buffer+1,xint-buffer:xint+buffer+1],axis=(1,2))
 
-    return t,f
+        return t,f
 
 # ----------------------------------------------------------------------------------------------------------------------------- #
 # ----------------------------------------------------------------------------------------------------------------------------- # 
@@ -1660,7 +1681,7 @@ class Detector():
         return objects
 
     def filter_events(self,cut,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
-                      lc_sig_max=None,lc_sig_med=None,min_events=None,max_events=None,bkg_std=None,boundarykiller=None,
+                      lc_sig_max=None,lc_sig_med=None,min_events=None,max_events=None,bkg_level=None,boundarykiller=None,
                       flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
         
         """
@@ -1728,8 +1749,8 @@ class Detector():
             r = r.loc[r['total_events'] >= min_events]
         if max_events is not None:
             r = r.loc[r['total_events'] <= max_events]
-        if bkg_std is not None:
-            r = r.loc[r['bkg_std'] <= bkg_std]
+        if bkg_level is not None:
+            r = r.loc[r['bkg_level'] <= bkg_level]
         if flux_sign is not None:
             r = r.loc[r['flux_sign'] == flux_sign]
         if psf_like is not None:
@@ -1749,7 +1770,7 @@ class Detector():
 
 
     def lc_ALL(self,cut,save_path=None,lower=2,max_events=None,starkiller=False,
-                 image_sig_max=3,lc_sig_max=2.5,bkgstd_lim=100,flux_sign=None):
+                 image_sig_max=3,lc_sig_max=2.5,bkg_lim=100,flux_sign=None,compress=True):
         """
         Generates all light curves for the detections in the cut to a zip file of csvs.
         """
@@ -1762,7 +1783,8 @@ class Detector():
         # -- Gather detections to be considered for plotting -- #
         detections = self.filter_events(cut=cut,lower=lower,max_events=max_events,
                                         flux_sign=flux_sign,starkiller=starkiller,
-                                        lc_sig_max=lc_sig_max,image_sig_max=image_sig_max)
+                                        lc_sig_max=lc_sig_max,image_sig_max=image_sig_max,
+                                        bkg_level=bkg_lim)
         
         self._gather_data(cut=cut)
         
@@ -1780,17 +1802,18 @@ class Detector():
         print('LCs complete!')
 
         # -- Now zips files and then deletes the directory to save inodes -- #
-        cwd = os.getcwd()
-        os.chdir(f'{save_path}/..')
-        print('Zipping...')
-        cmd = f"zip -r lcs.zip lcs > /dev/null 2>&1"
-        os.system(cmd)
-        print('Zip complete!')
-        os.chdir(cwd)
+        if compress:
+            cwd = os.getcwd()
+            os.chdir(f'{save_path}/..')
+            print('Zipping...')
+            cmd = f"zip -r lcs.zip lcs > /dev/null 2>&1"
+            os.system(cmd)
+            print('Zip complete!')
+            os.chdir(cwd)
 
-        print('Deleting...')
-        os.system(f'rm -r {save_path}')
-        print('Delete complete!')
+            print('Deleting...')
+            os.system(f'rm -r {save_path}')
+            print('Delete complete!')
 
     
     def plot_ALL(self,cut,save_path=None,lower=3,max_events=30,starkiller=False,
@@ -1809,7 +1832,8 @@ class Detector():
 
         # -- Gather detections to be considered for plotting -- #
         detections = self.filter_events(cut=cut,lower=lower,max_events=max_events,
-                                        flux_sign=flux_sign,starkiller=starkiller,lc_sig_max=lc_sig_max,image_sig_max=image_sig_max)
+                                        flux_sign=flux_sign,starkiller=starkiller,
+                                        lc_sig_max=lc_sig_max,image_sig_max=image_sig_max)
         
         self._gather_data(cut=cut)
 
@@ -1977,7 +2001,7 @@ class Detector():
         Plot a source from the cut data.
         """
             
-        if (save_combined != False) & (not external_phot):
+        if (save_combined) & (not external_phot):
             print('Warning: save_combined is set to True, but external_phot is False. This will not save the photometry cutout.')
             print('Setting save_combined to False.')
             save_combined = False
@@ -2021,7 +2045,7 @@ class Detector():
             obj.cat = cat
             obj.coord = coord
 
-        if save_combined != False:
+        if save_combined:
             from .tools import _Save_space
             import io
             from PIL import Image
@@ -2155,8 +2179,8 @@ class Detector():
 
     
     def collate_filtered_events(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
-                      lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,boundarykiller=None,min_events=None,
-                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
+                      lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_level=None,boundarykiller=None,min_events=None,
+                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,save_combined=True):
         
         from tqdm import tqdm
         import os
@@ -2173,11 +2197,11 @@ class Detector():
         for cut in tqdm(range(1,self.n**2+1)):
             self._gather_results(cut)
             events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
-                                    lower=lower,upper=upper,image_sig_max=image_sig_max,
-                                    lc_sig_max=lc_sig_max,lc_sig_med=lc_sig_med,min_events=min_events,
-                                    max_events=max_events,bkg_std=bkg_std,boundarykiller=boundarykiller,
-                                    flux_sign=flux_sign,classification=classification,
-                                    psf_like=psf_like,galactic_latitude=galactic_latitude)
+                                        lower=lower,upper=upper,image_sig_max=image_sig_max,
+                                        lc_sig_max=lc_sig_max,lc_sig_med=lc_sig_med,min_events=min_events,
+                                        max_events=max_events,bkg_level=bkg_level,boundarykiller=boundarykiller,
+                                        flux_sign=flux_sign,classification=classification,
+                                        psf_like=psf_like,galactic_latitude=galactic_latitude)
             
             if len(events) > 0:
                 all_events = pd.concat([all_events,events],ignore_index=True)
@@ -2185,7 +2209,7 @@ class Detector():
         if len(all_events)>0:
             all_events.to_csv(f'{save_path}/events.csv',index=False)
 
-    def plot_filtered_events(self,save_path,tess_grid):
+    def plot_filtered_events(self,save_path,tess_grid,external_phot=True):
         import os
 
         if os.path.exists(f'{save_path}/events.csv'):
@@ -2204,9 +2228,43 @@ class Detector():
                 if not os.path.exists(f'{save_path}/S{self.sector}C{self.cam}C{self.ccd}C{cut}O{objid}.png'):
                     print(f'Event {count} of {len(ccd_events)}')
                     self.plot_object(event['cut'],event['objid'],event=event['eventid'],tess_grid=tess_grid,
-                                    latex=True,zoo_mode=False,external_phot=True,save_combined=save_path)
+                                    latex=True,zoo_mode=False,external_phot=external_phot,save_combined=save_combined,save_path=save_path)
                     print('\n')
                 
+    def lc_filtered_events(self,save_path,phot_method='aperture',aperture_rad=1.5,ref=False):
+        import os
+        from .tools import _Check_dirs
+        if os.path.exists(f'{save_path}/events.csv'):
+            all_events = pd.read_csv(f'{save_path}/events.csv')
+        else:
+            e = 'No events found in the save path!'
+            raise FileNotFoundError(e)
+        
+        save_path = save_path + f'/lcs/'
+        print('LC path: ',save_path)
+        _Check_dirs(save_path)
+        save_name = save_path + f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}'
+        
+        ccd_events = all_events[(all_events['camera'] == self.cam) & (all_events['ccd'] == self.ccd) & (all_events['sector'] == self.sector)]
+        ccd_events = ccd_events.loc[(ccd_events['camera'] == self.cam) & (ccd_events['ccd'] == self.ccd) & (ccd_events['sector'] == self.sector)]
+        objids = np.unique(ccd_events['objid'].values)
+        for objid in objids:
+            obj = ccd_events.loc[ccd_events['objid'] == objid]
+            name = f'{save_path}/S{obj['sector'].iloc[0]}C{obj['cam'].iloc[0]}C{obj['ccd'].iloc[0]}C{obj['cut'].iloc[0]}O{objid}.csv'
+            if not os.path.exists(name):
+                if self.cut != obj['cut'].iloc[0]:
+                    self._gather_data(cut=obj['cut'].iloc[0])
+                if ref:
+                    data = self.flux + self.ref
+                else:
+                    data = self.flux
+                # -- Run the saving in parallel -- #
+                savename = f'{save_path}/S{obj['sector'].iloc[0]}C{obj['cam'].iloc[0]}C{obj['ccd'].iloc[0]}C{obj['cut'].iloc[0]}'
+                Save_LC(self.time,data,obj,objid,savename)
+                print('Total lcs to create: ', len(inds))
+                events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(Save_LC)(self.time,self.flux,detections,ind,save_name) for ind in inds)
+                print('LCs complete!')
+            
         
         
     # def filter_and_save(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
@@ -2631,10 +2689,12 @@ def Save_LC(times,flux,events,id,save_path):
             else:
                 ne[(frame_counter >= frameStart) & (frame_counter <= frameEnd)] = int(s['flux_sign'].values)
     
-    x = int(np.round(np.nanmedian(sources['xcentroid'])))
-    y = int(np.round(np.nanmedian(sources['ycentroid'])))
+    #x = int(np.round(np.nanmedian(sources['xcentroid'])))
+    #y = int(np.round(np.nanmedian(sources['ycentroid'])))
+    x = np.nanmedian(sources['xcentroid'])
+    y = np.nanmedian(sources['ycentroid'])
 
-    times,f = Generate_LC(times,flux,x,y,buffer=1)
+    times,f = Generate_LC(times,flux,x,y,radius=1.5,phot_method='aperture')
 
     # f = np.nansum(flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
     
@@ -2642,4 +2702,4 @@ def Save_LC(times,flux,events,id,save_path):
     headers = ['mjd','counts','event','positive','negative']
     lc = pd.DataFrame(data=lc,columns=headers)
     
-    lc.to_csv(f'{save_path}_object{id}_lc.csv',index = False)
+    lc.to_csv(f'{save_path}O{id}.csv',index = False)
