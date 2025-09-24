@@ -2181,7 +2181,7 @@ class Detector():
 
     
     def collate_filtered_events(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
-                      lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,boundarykiller=None,min_events=None,
+                      lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_level=None,boundarykiller=None,min_events=None,
                       flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,density_score=None,
                       save_combined=True):
         
