@@ -512,7 +512,7 @@ def _Check_LC_significance(time,flux,start,end,pos,flux_sign,buffer = 0.5,base_r
     ap = np.zeros_like(flux[0])
     y = pos[1] 
     x = pos[0] 
-    _,lc = Generate_LC(time,flux,x,y,buffer=1)
+    _,lc = Generate_LC(time,flux,x,y,radius=1.5)
     # lc = np.nansum(flux[:,y-1:y+2,x-1:x+2],axis=(1,2))
     fs = start - buffer
     fe = end + buffer
@@ -564,7 +564,7 @@ def _Fit_period(time,flux,source,significance=3):
     x = RoundToInt(source['xint_brightest'])
     y = RoundToInt(source['yint_brightest'])
     
-    t,f = Generate_LC(time,flux,x,y,buffer=1)
+    t,f = Generate_LC(time,flux,x,y,radius=1.5)
     # f = np.nansum(flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
     # t = time
     finite = np.isfinite(f) & np.isfinite(t)
@@ -620,7 +620,7 @@ def _Check_classifind(time,flux,source):
 
     x = RoundToInt(source['xint_brightest'])
     y = RoundToInt(source['yint_brightest'])
-    t,f = Generate_LC(time,flux,x,y,buffer=1)
+    t,f = Generate_LC(time,flux,x,y,radius=1.5)
     # f = np.nansum(flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
     # t = time
     finite = np.isfinite(f) & np.isfinite(t)
@@ -980,7 +980,7 @@ def _Gaussian_score(time,flux,candidates):
             frameStart = np.max([frameStart-10,0])
             frameEnd = np.min([frameEnd+11,len(time)-1])
 
-            t,f = Generate_LC(time,flux,x,y,frameStart,frameEnd,buffer=1)
+            t,f = Generate_LC(time,flux,x,y,frameStart,frameEnd,radius=1.5)
 
             p0 = [
                 np.max(f) - np.min(f),                     # A: positive height of the bump
@@ -2109,7 +2109,7 @@ class Detector():
             frameStart = np.max([frameStart-frame_buffer,0])
             frameEnd = np.min([frameEnd+frame_buffer+1,len(self.time)-1])
 
-            t,f = Generate_LC(self.time,self.flux,x,y,frameStart,frameEnd,buffer=1)
+            t,f = Generate_LC(self.time,self.flux,x,y,frameStart,frameEnd,radius=1.5)
             # t = self.time[frameStart:frameEnd]
             # f = np.nansum(self.flux[frameStart:frameEnd,y-1:y+2,x-1:x+2],axis=(2,1))
             lcs.append((t,f))
@@ -2486,7 +2486,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
         frameStart = int(event['frame_start'])        # Start frame of the event
         frameEnd = int(event['frame_end'])            # End frame of the event
 
-        _,f = Generate_LC(times,flux,x,y,buffer=1)
+        _,f = Generate_LC(times,flux,x,y,radius=1.5)
         # f = np.nansum(flux[:,y-1:y+2,x-1:x+2],axis=(2,1))    # Sum the flux in a 3x3 pixel box around the source
 
         # Find brightest frame in the event #
