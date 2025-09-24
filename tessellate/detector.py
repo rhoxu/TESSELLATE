@@ -2295,7 +2295,7 @@ class Detector():
         print('Total lcs to create: ', len(inds))
         for objid in objids:
             obj = ccd_events.loc[ccd_events['objid'] == objid]
-            name = f'{save_path}/S{obj['sector'].iloc[0]}C{obj['cam'].iloc[0]}C{obj['ccd'].iloc[0]}C{obj['cut'].iloc[0]}O{objid}.csv'
+            name = f"{save_path}/S{obj['sector'].iloc[0]}C{obj['cam'].iloc[0]}C{obj['ccd'].iloc[0]}C{obj['cut'].iloc[0]}O{objid}.csv"
             if not os.path.exists(name):
                 if self.cut != obj['cut'].iloc[0]:
                     self._gather_data(cut=obj['cut'].iloc[0])
