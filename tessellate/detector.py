@@ -2304,7 +2304,7 @@ class Detector():
                 else:
                     data = self.flux
                 # -- Run the saving in parallel -- #
-                savename = f'{save_path}/S{obj['sector'].iloc[0]}C{obj['cam'].iloc[0]}C{obj['ccd'].iloc[0]}C{obj['cut'].iloc[0]}'
+                savename = f"{save_path}/S{obj['sector'].iloc[0]}C{obj['cam'].iloc[0]}C{obj['ccd'].iloc[0]}C{obj['cut'].iloc[0]}"
                 Save_LC(self.time,data,obj,objid,savename)
                 
             
