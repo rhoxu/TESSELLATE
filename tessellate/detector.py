@@ -53,7 +53,7 @@ def Generate_LC(time,flux,x,y,frame_start=None,frame_end=None,method='sum',
     elif method.lower() == 'sum':
         xint = int(np.round(x,0))
         yint = int(np.round(y,0))
-        buffer = np.floor(radius)
+        buffer = np.floor(radius).astype(int)
         f = np.nansum(f[:,yint-buffer:yint+buffer+1,xint-buffer:xint+buffer+1],axis=(1,2))
 
         return t,f
