@@ -16,7 +16,10 @@ global_flux = None
 
 def Generate_LC(time,flux,x,y,frame_start=None,frame_end=None,method='sum',
                 radius=1.5):
-    from photutils.aperture import RectangularAperture, RectangularAnnulus, ApertureStats, aperture_photometry
+    
+    from photutils.aperture import CircularAperture, RectangularAnnulus, ApertureStats, aperture_photometry
+    from scipy.signal import fftconvolve
+    
     t = time
     f = flux
 
@@ -50,7 +53,7 @@ def Generate_LC(time,flux,x,y,frame_start=None,frame_end=None,method='sum',
     elif method.lower() == 'sum':
         xint = int(np.round(x,0))
         yint = int(np.round(y,0))
-        buffer = floor(radius)
+        buffer = np.floor(radius)
         f = np.nansum(f[:,yint-buffer:yint+buffer+1,xint-buffer:xint+buffer+1],axis=(1,2))
 
         return t,f
