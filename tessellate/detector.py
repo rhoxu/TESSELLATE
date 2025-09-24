@@ -1042,7 +1042,7 @@ def _Threshold_asteroid_checker(time,flux,events,com_motion_thresholds=[1, 0.75,
 
 class Detector():
 
-    def __init__(self,sector,cam,ccd,data_path,n,
+    def __init__(self,sector,cam,ccd,data_path='/fred/oz335/TESSdata',n=4,
                  match_variables=True,mode='both',part=None,time_bin=None):
 
         self.sector = sector
@@ -2003,7 +2003,7 @@ class Detector():
         Plot a source from the cut data.
         """
             
-        if (save_combined) & (not external_phot):
+        if (save_combined != False) & (not external_phot):
             print('Warning: save_combined is set to True, but external_phot is False. This will not save the photometry cutout.')
             print('Setting save_combined to False.')
             save_combined = False
@@ -2047,7 +2047,7 @@ class Detector():
             obj.cat = cat
             obj.coord = coord
 
-        if save_combined:
+        if save_combined != False:
             from .tools import _Save_space
             import io
             from PIL import Image
