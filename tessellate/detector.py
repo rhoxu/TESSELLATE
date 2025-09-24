@@ -2001,15 +2001,15 @@ class Detector():
         return fig, cat, (ra_obj,dec_obj), wcs,im
 
     def plot_object(self,cut,objid,event='seperate',save_name=None,save_path=None,
-                    latex=True,zoo_mode=True,external_phot=False,save_combined=False,tess_grid=5):
+                    latex=True,zoo_mode=True,external_phot=False,save_combined_path=None,tess_grid=5):
         """
         Plot a source from the cut data.
         """
             
-        if (save_combined != False) & (not external_phot):
-            print('Warning: save_combined is set to True, but external_phot is False. This will not save the photometry cutout.')
-            print('Setting save_combined to False.')
-            save_combined = False
+        if (save_combined_path is not None) & (not external_phot):
+            print('Warning: save_combined_path is given, but external_phot is False. This will not save the photometry cutout.')
+            print('Setting save_combined_path to None.')
+            save_combined_path = None
 
 
         # -- Use Latex in the plots -- #
@@ -2050,12 +2050,12 @@ class Detector():
             obj.cat = cat
             obj.coord = coord
 
-        if save_combined != False:
+        if save_combined_path is not None:
             from .tools import _Save_space
             import io
             from PIL import Image
 
-            _Save_space(save_combined)
+            _Save_space(save_combined_path)
 
             buf1 = io.BytesIO()
             buf2 = io.BytesIO()
@@ -2080,7 +2080,7 @@ class Detector():
             combined_img.paste(img2, (int(img1.width+combined_width/22), 0))
 
             # Save final combined PNG
-            combined_img.save(f"{save_combined}/S{self.sector}C{self.cam}C{self.ccd}C{self.cut}O{objid}E{event}.png", dpi=(150,150))
+            combined_img.save(f"{save_combined_path}/S{self.sector}C{self.cam}C{self.ccd}C{self.cut}O{objid}E{event}.png", dpi=(150,150))
         
         return obj
     
@@ -2185,8 +2185,7 @@ class Detector():
     
     def collate_filtered_events(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
                       lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_level=None,boundarykiller=None,min_events=None,
-                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,density_score=None,
-                      save_combined=True):
+                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,density_score=None):
         
         from tqdm import tqdm
         import os
@@ -2275,7 +2274,7 @@ class Detector():
                 if not os.path.exists(f'{save_path}/S{self.sector}C{self.cam}C{self.ccd}C{cut}O{objid}E{eventid}.png'):
                     print(f'Event {count} of {len(ccd_events)}')
                     self.plot_object(event['cut'],event['objid'],event=event['eventid'],tess_grid=tess_grid,
-                                    latex=True,zoo_mode=False,external_phot=external_phot,save_combined=save_combined,save_path=save_path)
+                                    latex=True,zoo_mode=False,external_phot=external_phot,save_combined_path=save_path)
                     print('\n')
                 
     def lc_filtered_events(self,save_path,phot_method='aperture',aperture_rad=1.5,ref=False):
