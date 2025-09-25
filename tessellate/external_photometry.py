@@ -612,6 +612,7 @@ def event_cutout(coords,size=50,phot=None,check='gaia'):
     if phot == 'PS1':
         fig,wcs,outsize,im = _Panstarrs_phot(coords[0],coords[1],size)
         if fig is None:
+            print('PanSTARRS photometry failed.')
             return None,None,None,None,None,None
         cat = _panstarrs_objects(coords[0],coords[1])
         #fig = _add_sources(fig,cat)
@@ -619,6 +620,7 @@ def event_cutout(coords,size=50,phot=None,check='gaia'):
     elif phot.lower() == 'skymapper':
         fig,wcs,outsize,im = _Skymapper_phot(coords[0],coords[1],size)
         if fig is None:
+            print('SkyMapper photometry failed.')
             return None,None,None,None,None,None
         cat = _skymapper_objects(coords[0],coords[1],im.shape[1],wcs,rad=60)
     elif phot is None:
