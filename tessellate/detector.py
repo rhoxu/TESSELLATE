@@ -1101,6 +1101,7 @@ class Detector():
         self.base_name = base
 
         if flux:
+            print('Loading Data...')
             self.flux = np.load(base + '_ReducedFlux.npy')
             self.cut = cut
         if ref:
@@ -2558,7 +2559,10 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
 
         # Plot full light curve in inset axes #
         for i in range(len(break_ind)-1):
-            axins.plot(time[break_ind[i]:break_ind[i+1]],f[break_ind[i]:break_ind[i+1]],'k',alpha=0.8)
+            if zoo_mode:
+                axins.plot(time[break_ind[i]:break_ind[i+1]],f[break_ind[i]:break_ind[i+1]],'k',alpha=0.8)
+            else:
+                axins.plot(time[break_ind[i]:break_ind[i+1]],f[break_ind[i]:break_ind[i+1]],'k',alpha=0.8,marker='.')
 
         # Change the x and y limits of the inset axes to focus on the event #
         if (frameEnd - frameStart) > 2:
