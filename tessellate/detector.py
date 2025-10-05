@@ -1856,7 +1856,7 @@ class Detector():
 
         # -- Run the plotting in parallel -- #
         events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(Plot_Object)(self.time,self.flux,detections,
-                                                                                        ind,event='seperate',latex=True,
+                                                                                        ind,event='separate',latex=True,
                                                                                         save_path=save_name,zoo_mode=True) for ind in inds)
         print('Plot complete!')
 
@@ -2001,7 +2001,7 @@ class Detector():
 
         return fig, cat, (ra_obj,dec_obj), wcs,im
 
-    def plot_object(self,cut,objid,event='seperate',save_name=None,save_path=None,
+    def plot_object(self,cut,objid,event='separate',save_name=None,save_path=None,
                     latex=True,zoo_mode=True,external_phot=False,save_combined_path=None,tess_grid=5):
         """
         Plot a source from the cut data.
@@ -2427,7 +2427,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
 
     # -- Compile source list based on if plotted source contains all in one -- #
     if type(event) == str:
-        if event.lower() == 'seperate':
+        if event.lower() == 'separate':
             pass
         elif event.lower() == 'all':
 
@@ -2456,14 +2456,10 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
             
     elif type(event) == int:
         events = deepcopy(events.iloc[events['eventid'].values == event])
-        frame_starts = events['frame_start'].values
-        frame_ends = events['frame_end'].values
     elif type(event) == list:
         events = deepcopy(events.iloc[events['eventid'].isin(event).values])
-        frame_starts = events['frame_start'].values
-        frame_ends = events['frame_end'].values
     else:
-        m = "No valid option selected, input either 'all', 'seperate', an integer event id, or list of integers."
+        m = "No valid option selected, input either 'all', 'separate', an integer event id, or list of integers."
         raise ValueError(m)
 
     # -- Generates time for plotting and finds breaks in the time series based on the median and standard deviation - #
@@ -2551,9 +2547,11 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
         # Generate a coloured span during the event #
         cadence = np.median(np.diff(time))
 
-        for i in range(len(frame_starts)):
-            axins.axvspan(time[frame_starts[i]]-cadence/2,time[frame_ends[i]]+cadence/2,color='C1',alpha=0.4)
-
+        if event == 'all':
+            for i in range(len(frame_starts)):
+                axins.axvspan(time[frame_starts[i]]-cadence/2,time[frame_ends[i]]+cadence/2,color='C1',alpha=0.4)
+        else:
+            axins.axvspan(time[frameStart]-cadence/2,time[frameEnd]+cadence/2,color='C1',alpha=0.4)
 
         # axins.axvspan(time[frameStart]-cadence/2,time[frameEnd]+cadence/2,color='C1',alpha=0.4)
 
