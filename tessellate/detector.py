@@ -2436,8 +2436,10 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
 
             # Sets this one "event" to include all the times between first and last detection #
             e = deepcopy(events.iloc[0])
-            e['frame_end'] = events['frame_end'].iloc[-1]
-            e['mjd_end'] = events['mjd_end'].iloc[-1]
+            e['frame_start'] = events['frame_start'].min()
+            e['mjd_start'] = events['mjd_start'].min()
+            e['frame_end'] = events['frame_end'].max()
+            e['mjd_end'] = events['mjd_end'].min()
             e['mjd_duration'] = e['mjd_end'] - e['mjd_start']
             e['frame'] = (e['frame_end'] + e['frame_start']) / 2 
             e['mjd'] = (e['mjd_end'] + e['mjd_start']) / 2 
