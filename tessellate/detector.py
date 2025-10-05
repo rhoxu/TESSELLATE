@@ -2547,7 +2547,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
         # Generate a coloured span during the event #
         cadence = np.median(np.diff(time))
 
-        if event == 'all':
+        if eventtype == 'all':
             for i in range(len(frame_starts)):
                 axins.axvspan(time[frame_starts[i]]-cadence/2,time[frame_ends[i]]+cadence/2,color='C1',alpha=0.4)
         else:
