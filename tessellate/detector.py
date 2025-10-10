@@ -2039,7 +2039,7 @@ class Detector():
             save_path = save_path + save_name
 
         obj = self.objects[self.objects['objid']==objid].iloc[0]
-        obj.lc,obj.cutout,full_fig = Plot_Object(self.time,self.flux,self.events,objid,event,save_path,latex,zoo_mode) 
+        obj.lc,obj.cutout,obj.lc_fig = Plot_Object(self.time,self.flux,self.events,objid,event,save_path,latex,zoo_mode) 
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
@@ -2060,7 +2060,7 @@ class Detector():
 
             buf1 = io.BytesIO()
             buf2 = io.BytesIO()
-            full_fig.savefig(buf1, format='png', dpi=150,bbox_inches='tight')
+            obj.lc_fig.savefig(buf1, format='png', dpi=150,bbox_inches='tight')
             obj.photometry.savefig(buf2, format='png', dpi=150,bbox_inches='tight')
 
             # Load with Pillow
