@@ -2466,7 +2466,7 @@ class Detector():
                 print('Not Interesting')
             else:
                 peak_period = period[np.argmax(power)]
-                peak_power = np.argmax(power)
+                peak_power = power[np.argmax(power)]
 
                 if plot:
                     for peak in peaks_interesting:
