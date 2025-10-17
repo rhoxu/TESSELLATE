@@ -1093,7 +1093,7 @@ class Detector():
  
         return result
     
-    def _gather_data(self,cut,flux=True,time=True,wcs=True,bkg=True,mask=True,ref=True):
+    def _gather_data(self,cut,flux=True,time=True,wcs=True,bkg=False,mask=False,ref=False):
 
         from .tools import CutWCS
         
@@ -1542,7 +1542,7 @@ class Detector():
         
         # -- Gather time/flux data for the cut -- #
         if cut != self.cut:
-            self._gather_data(cut)
+            self._gather_data(cut,bkg=True,mask=True,ref=True)
             self.cut = cut
 
         # -- Preload self.sources and self.events if they're already made, self.objects can't be made otherwise this function wouldn't be called -- #
@@ -1576,7 +1576,7 @@ class Detector():
         """
 
         if cut != self.cut:
-            self._gather_data(cut)
+            self._gather_data(cut,mask=True)
             self._gather_results(cut)
             self.cut = cut
 
@@ -1711,7 +1711,7 @@ class Detector():
                 r = r.loc[r['Asteroid'] == 0]
 
         if boundarykiller:
-            self._gather_data(cut,flux=False,wcs=False,mask=False,ref=False,time=True,bkg=False)
+            self._gather_data(cut,flux=False,wcs=False)
             boundaryFrames = [0,np.argmax(np.diff(self.time)),
                     np.argmax(np.diff(self.time))+1, len(self.time)-1,
                     np.argmax(np.diff(self.time))-1, len(self.time)-2]
@@ -1792,7 +1792,7 @@ class Detector():
                                         lc_sig_max=lc_sig_max,image_sig_max=image_sig_max,
                                         bkg_level=bkg_lim)
         
-        self._gather_data(cut=cut)
+        self._gather_data(cut=cut,wcs=False)
         
         # -- Generate save path and name -- #
         if save_path is None:
@@ -2111,8 +2111,6 @@ class Detector():
             frameEnd = np.min([frameEnd+frame_buffer+1,len(self.time)-1])
 
             t,f = Generate_LC(self.time,self.flux,x,y,frameStart,frameEnd,radius=1.5)
-            # t = self.time[frameStart:frameEnd]
-            # f = np.nansum(self.flux[frameStart:frameEnd,y-1:y+2,x-1:x+2],axis=(2,1))
             lcs.append((t,f))
 
         return lcs
@@ -2310,47 +2308,180 @@ class Detector():
                 savename = f"{save_path}/S{obj['sector'].iloc[0]}C{obj['cam'].iloc[0]}C{obj['ccd'].iloc[0]}C{obj['cut'].iloc[0]}"
                 Save_LC(self.time,data,obj,objid,savename)
                 
-            
         
-        
-    # def filter_and_save(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
-    #                   lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,boundarykiller=None,
-    #                   flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
-        
-    #     from tqdm import tqdm
-    #     import os
-    #     import pandas as pd
+                    
+                # def filter_and_save(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
+                #                   lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,boundarykiller=None,
+                #                   flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
+                    
+                #     from tqdm import tqdm
+                #     import os
+                #     import pandas as pd
 
 
-    #     if os.path.exists(f'{save_path}/events.csv'):
-    #         all_events = pd.read_csv(f'{save_path}/events.csv')
-    #     else:
-    #         all_events = pd.DataFrame()
+                #     if os.path.exists(f'{save_path}/events.csv'):
+                #         all_events = pd.read_csv(f'{save_path}/events.csv')
+                #     else:
+                #         all_events = pd.DataFrame()
 
-    #     for cut in tqdm(range(1,self.n**2+1)):
-    #         self._gather_results(cut)
-    #         events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
-    #                                 lower=lower,upper=upper,image_sig_max=image_sig_max,
-    #                                 lc_sig_max=lc_sig_max,lc_sig_med=lc_sig_med,
-    #                                 max_events=max_events,bkg_std=bkg_std,boundarykiller=boundarykiller,
-    #                                 flux_sign=flux_sign,classification=classification,
-    #                                 psf_like=psf_like,galactic_latitude=galactic_latitude)
-            
-    #         if len(events) > 0:
-    #             all_events = pd.concat([df,all_events],ignore_index=True)
-        
+                #     for cut in tqdm(range(1,self.n**2+1)):
+                #         self._gather_results(cut)
+                #         events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
+                #                                 lower=lower,upper=upper,image_sig_max=image_sig_max,
+                #                                 lc_sig_max=lc_sig_max,lc_sig_med=lc_sig_med,
+                #                                 max_events=max_events,bkg_std=bkg_std,boundarykiller=boundarykiller,
+                #                                 flux_sign=flux_sign,classification=classification,
+                #                                 psf_like=psf_like,galactic_latitude=galactic_latitude)
+                        
+                #         if len(events) > 0:
+                #             all_events = pd.concat([df,all_events],ignore_index=True)
+                    
 
-    #     for _,event in all_events.iterrows():
+                #     for _,event in all_events.iterrows():
 
-    #         self.plot_object(cut,event['objid'],event=event['eventid'],
-    #                         latex=True,zoo_mode=False,external_phot=True,save_combined=save_path)
-                
-    #             all_events = pd.concat([all_events,events],ignore_index=True)
-        
-    #     if os.path.exists(f'{save_path}/events.csv'):
-    #         df = pd.read_csv(f'{save_path}/events.csv')
-    #         all_events = pd.concat([df,all_events],ignore_index=True)
-    #     all_events.to_csv(f'{save_path}/events.csv',index=False)
+                #         self.plot_object(cut,event['objid'],event=event['eventid'],
+                #                         latex=True,zoo_mode=False,external_phot=True,save_combined=save_path)
+                            
+                #             all_events = pd.concat([all_events,events],ignore_index=True)
+                    
+                #     if os.path.exists(f'{save_path}/events.csv'):
+                #         df = pd.read_csv(f'{save_path}/events.csv')
+                #         all_events = pd.concat([df,all_events],ignore_index=True)
+                #     all_events.to_csv(f'{save_path}/events.csv',index=False)
+
+    def object_periodogram(self,cut,objid,plot=True):
+
+        from astropy.timeseries import LombScargle
+        from scipy.signal import find_peaks,peak_prominences        
+
+        # -- Gather data -- #
+        if cut != self.cut:
+            self._gather_data(cut)
+            self._gather_results(cut)
+            self.cut = cut
+
+        obj_events = self.events[self.events.objid==objid]
+        psf_best = np.where(obj_events['psf_like']==np.nanmax(obj_events['psf_like']))[0][0]
+
+        t,f = self.event_lc(cut=self.cut,objid=objid,eventid=psf_best+1,frame_buffer=10000)[0]
+
+        dt = np.median(np.diff(np.sort(d.time*24*60)))
+        min_period = 2 * dt 
+
+        max_freq = 1.0 / min_period
+
+        # Consider full
+        frequency, power = LombScargle(t*24*60, f, np.ones_like(f)).autopower(maximum_frequency=max_freq,
+                                                                        nyquist_factor=5,
+                                                                        samples_per_peak=5)
+
+        peaks = find_peaks(power,distance=30,prominence=0.05)[0]
+
+        period = 1/frequency
+
+        peaks_interesting = peaks[period[peaks]<=1e4]
+
+        peak_period = None
+        peak_power = None
+
+        if len(peaks_interesting) > 0:
+            prominences = peak_prominences(power, peaks_interesting)[0]
+            if len(prominences[prominences>0.1]) == 0:
+                #split into quarters
+                split = np.argmax(np.diff(t)) + 1
+                index = np.array([[0,split//2],[split//2,split],[split,(len(t)+split)//2],[(len(t)+split)//2,len(t)]])
+                for j,idx in enumerate(index):
+                    i1 = idx[0]
+                    i2 = idx[1]
+                    t_sub = t[i1:i2]
+                    f_sub = f[i1:i2]
+                    freq_sub, power_sub = LombScargle(t_sub*24*60, f_sub, np.ones_like(f_sub)).autopower(maximum_frequency=max_freq,
+                                                                        nyquist_factor=5,
+                                                                        samples_per_peak=5)
+
+                    period_sub = 1/freq_sub
+
+                    peaks_sub = find_peaks(power_sub,distance=30,prominence=0.1)[0]     
+                    peaks_sub_interesting = peaks_sub[period_sub[peaks_sub]<=1e4]
+                    prominences_interesting = peak_prominences(power_sub, peaks_sub_interesting)[0]
+
+                    if (len(peaks_sub_interesting)>0) & (np.argmax(power_sub)!=0): 
+                        if plot:
+                            fig,ax = plt.subplots(ncols=2,nrows=2,figsize=(14,8))
+                            ax = ax.flatten()
+                            ax[0].plot(t,f)
+                            ax[1].plot(period,power)
+                            ax[1].set_xscale('log')
+                            ax[1].set_xlabel('Period (min)')
+                            for peak in peaks_interesting:
+                                ax[1].axvline(period[peak],color='r',alpha=0.2)
+
+                            ax[2].plot(t_sub,f_sub)
+                            ax[3].plot(period_sub,power_sub)
+                            ax[3].set_xscale('log')
+                            ax[3].set_xlabel('Period (min)')
+                            for peak in peaks_sub_interesting:
+                                ax[3].axvline(period_sub[peak],color='r',alpha=0.2)
+
+                        sorted_peaks = [p for _, p in sorted(zip(prominences_interesting, peaks_sub_interesting), reverse=True)]
+                        peak_period = period_sub[sorted_peaks[0]]
+                        peak_power = power_sub[sorted_peaks[0]]
+
+                        break
+                    elif j == 3:
+                        print('Not Interesting')
+                        if plot:
+                            fig,ax = plt.subplots(ncols=2,figsize=(14,4))
+                            ax[1].plot(1/frequency,power)
+                            ax[0].plot(t,f)
+                            ax[1].set_xscale('log')
+                            ax[1].set_xlabel('Period (min)')
+
+            else:
+                sorted_peaks = [p for _, p in sorted(zip(prominences, peaks_interesting), reverse=True)]
+                peak_period = period[sorted_peaks[0]]
+                peak_power = power[sorted_peaks[0]]
+
+                if plot:
+                    fig,ax = plt.subplots(ncols=2,figsize=(14,4))
+                    ax[1].plot(1/frequency,power)
+                    ax[0].plot(t,f)
+                    ax[1].set_xscale('log')
+                    ax[1].set_xlabel('Period (min)')
+                    for peak in peaks_interesting:
+                        ax[1].axvline(period[peak],color='r',alpha=0.2)
+
+        elif period[np.argmax(power)] < 1e4:
+            peaks = find_peaks(power,distance=30,prominence=0.03)[0]
+            peaks_interesting = peaks[period[peaks]<=1e4]
+
+            if plot:
+                fig,ax = plt.subplots(ncols=2,figsize=(14,4))
+                ax[1].plot(1/frequency,power)
+                ax[0].plot(t,f)
+                ax[1].set_xscale('log')
+                ax[1].set_xlabel('Period (min)')
+
+            if len(peaks_interesting) ==0:
+                print('Not Interesting')
+            else:
+                peak_period = period[np.argmax(power)]
+                peak_power = np.argmax(power)
+
+                if plot:
+                    for peak in peaks_interesting:
+                        ax[1].axvline(period[peak],color='r',alpha=0.2)
+        else:
+            print('Not Interesting')
+
+            if plot:
+                fig,ax = plt.subplots(ncols=2,figsize=(14,4))
+                ax[1].plot(1/frequency,power)
+                ax[0].plot(t,f)
+                ax[1].set_xscale('log')
+                ax[1].set_xlabel('Period (min)')
+
+        return peak_period,peak_power                                          
 
 
     def locate_transient(self,cut,xcentroid,ycentroid,threshold=3):
