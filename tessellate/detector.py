@@ -1157,7 +1157,7 @@ class Detector():
 
                 n_detections = np.nansum([frame_start - start, end - frame_end])
 
-                # Update d.events
+                # Update self.events
                 event_mask = (events['objid'] == objid) & (events['eventid'] == eventid)
                 events.loc[event_mask, 'frame_start'] = start
                 events.loc[event_mask, 'frame_end'] = end
@@ -2365,7 +2365,7 @@ class Detector():
 
         t,f = self.event_lc(cut=self.cut,objid=objid,eventid=psf_best+1,frame_buffer=10000)[0]
 
-        dt = np.median(np.diff(np.sort(d.time*24*60)))
+        dt = np.median(np.diff(np.sort(self.time*24*60)))
         min_period = 2 * dt 
 
         max_freq = 1.0 / min_period
