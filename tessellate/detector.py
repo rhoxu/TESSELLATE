@@ -1478,7 +1478,7 @@ class Detector():
         for objid in objids:
             obj = self.events[self.events['objid'] == objid]
 
-            maxevent = obj.iloc[obj['lc_sig_max'].argmax()]
+            maxevent = obj.iloc[obj['image_sig_max'].argmax()]
 
             if maxevent['classification'] == 'Asteroid' and len(obj) < 2:
                 classification = 'Asteroid'
@@ -2576,7 +2576,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
             e['mjd'] = (e['mjd_end'] + e['mjd_start']) / 2 
 
             # Sets the x and y coordinates to the brightest source in the event #
-            brightest = np.where(events['lc_sig_max']==np.nanmax(events['lc_sig_max']))[0][0]
+            brightest = np.where(events['image_sig_max']==np.nanmax(events['image_sig_max']))[0][0]
             brightest = deepcopy(events.iloc[brightest])
             e['xccd'] = brightest['xccd']
             e['yccd'] = brightest['yccd']
