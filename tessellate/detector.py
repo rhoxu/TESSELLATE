@@ -1496,6 +1496,7 @@ class Detector():
                 'dec': maxevent['dec'],
                 'gal_l': maxevent['gal_l'],
                 'gal_b': maxevent['gal_b'],
+                'image_sig_max': maxevent['image_sig_max'],
                 'lc_sig_max': maxevent['lc_sig_max'],
                 'flux_maxsig': maxevent['flux_max'],
                 'frame_maxsig': maxevent['frame_max'],
@@ -2193,7 +2194,7 @@ class Detector():
 
         ccd_events = pd.DataFrame()
         for cut in tqdm(range(1,self.n**2+1)):
-            self._gather_results(cut)
+            self._gather_results(cut,sources=False,objects=False)
             events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
                                         lower=lower,upper=upper,image_sig_max=image_sig_max,
                                         lc_sig_max=lc_sig_max,lc_sig_med=lc_sig_med,min_events=min_events,

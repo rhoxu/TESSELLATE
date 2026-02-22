@@ -437,7 +437,7 @@ def match_result_to_cat(result,cat,columns=['Type','Prob'],distance=2*21,min_ent
     ra = []; dec = []
     Id = []
     for id in ids:
-        if len(result.iloc[result['objid'].values == id]) >=min_entry:
+        if len(result.iloc[result['objid'].values == id]) >= min_entry:
             Id += [id]
             ra += [result.loc[result['objid'] == id, 'ra_source'].mean()]
             dec += [result.loc[result['objid'] == id, 'dec_source'].mean()]
