@@ -1300,6 +1300,13 @@ class Detector():
         events['xcentroid_err'] = np.sqrt(events['centroid_err']**2 + wcs_unc[0]**2)
         events['ycentroid_err'] = np.sqrt(events['centroid_err']**2 + wcs_unc[1]**2)
 
+        fake_events = events[events.frame_duration==1].copy()
+        fake_events.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/single_frame_events.csv')
+
+        real_events = events[events.frame_duration>1].copy()
+        real_events['total_events'] = real_events.groupby('objid')['objid'].transform('size')
+        real_events['eventid'] = real_events.groupby('objid').cumcount() + 1
+
         self.events = events 
 
     def _events_physical_units(self):
