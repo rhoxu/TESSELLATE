@@ -1307,7 +1307,7 @@ class Detector():
         real_events['total_events'] = real_events.groupby('objid')['objid'].transform('size')
         real_events['eventid'] = real_events.groupby('objid').cumcount() + 1
 
-        self.events = events 
+        self.events = real_events 
 
     def _events_physical_units(self):
         from astropy.coordinates import SkyCoord
