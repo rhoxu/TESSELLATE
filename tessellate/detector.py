@@ -1350,7 +1350,7 @@ class Detector():
             'xcentroid', 'ycentroid', 'xcentroid_err','ycentroid_err',
             'xint', 'yint','xccd', 'yccd',
             'xcentroid_det', 'ycentroid_det', 
-            'xcentroid_psf', 'ycentroid_psf','centroid_err_psf'
+            'xcentroid_psf', 'ycentroid_psf','centroid_err_psf',
 
             # Astrometry
             'ra', 'dec','ra_err','dec_err'
