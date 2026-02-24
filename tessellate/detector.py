@@ -1353,7 +1353,7 @@ class Detector():
             'xcentroid_psf', 'ycentroid_psf','centroid_err_psf',
 
             # Astrometry
-            'ra', 'dec','ra_err','dec_err'
+            'ra', 'dec','ra_err','dec_err',
             'gal_l', 'gal_b',
 
             # Time and Frame Info
