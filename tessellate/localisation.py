@@ -250,3 +250,7 @@ def get_snr_to_localisation_func(path,sector,cam,ccd,cut):
         return model(snr, *popt) 
 
     return func
+
+def get_wcs_uncertainty(path,sector,cam,ccd,cut):
+
+    return np.load(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of16/wcs_info/wcs_uncertainty.npy')
