@@ -2729,7 +2729,7 @@ def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=Tr
 
 
         # Define max and min brightness for frame plot based on closer 5x5 cutout of brightest frame #
-        bright_frame = flux[brightestframe,y-2:y+3,x-2:x+3]   
+        bright_frame = flux[brightestframe,y-1:y+2,x-1:x+2]   
         vmin = np.percentile(flux[brightestframe],16)
         try:
             vmax = np.percentile(bright_frame,80)
