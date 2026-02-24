@@ -105,7 +105,7 @@ class DataProcessor():
             _Save_space(f'{self.path}/Sector{self.sector}')
             self.path = f'{self.path}/Sector{self.sector}'
 
-    def download(self,cam,ccd,number='all',time=None):
+    def download(self,cam,ccd,number='all',time=None,single=None):
         """
         Function for downloading FFIs from MAST archive.
 
@@ -131,7 +131,7 @@ class DataProcessor():
         
         if self.verbose > 0:
             print(_Print_buff(50,f'Downloading Sector {self.sector} Cam {cam} CCD {ccd}'))
-        Download_cam_ccd_FFIs(self.path,self.sector,cam,ccd,time,None,None,number=number) 
+        Download_cam_ccd_FFIs(self.path,self.sector,cam,ccd,time,None,None,number=number,single=single) 
     
     def find_cuts(self,cam,ccd,n,plot=True,proj=True,coord=None,verbose=1):
         """

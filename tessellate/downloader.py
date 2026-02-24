@@ -43,7 +43,7 @@ def _download_line(fileline,path,cam,ccd):
     os.chdir(f'{path}/Cam{cam}/Ccd{ccd}/image_files/')
     os.system(fileline)
 
-def Download_cam_ccd_FFIs(path,sector,cam,ccd,time,lower,upper,number):
+def Download_cam_ccd_FFIs(path,sector,cam,ccd,time,lower,upper,number=None,single=None):
     """
     Downloads FFIs of interest (each ~34 MB).
     """
@@ -73,15 +73,16 @@ def Download_cam_ccd_FFIs(path,sector,cam,ccd,time,lower,upper,number):
     goodlines = goodlines[goodlines!=None]
     
     # -- If all are to be downloaded, download in parallel -- #
+    if single is not None:
+        _download_line(goodlines[single],path,cam,ccd)
+
     if number == 'all':
         inds = np.linspace(0,len(goodlines)-1,len(goodlines)).astype(int)
         Parallel(n_jobs=multiprocessing.cpu_count())(delayed(_download_line)(goodlines[ind],path,cam,ccd) for ind in tqdm(inds, position=0, leave=True,dynamic_ncols=False,ascii=True))
-    elif type(number) == int:
-        _download_line(goodlines[number],path,cam,ccd)
     elif number > 10:
         inds = np.linspace(0,number-1,number).astype(int)
         Parallel(n_jobs=multiprocessing.cpu_count())(delayed(_download_line)(goodlines[ind],path,cam,ccd) for ind in tqdm(inds, position=0, leave=True,dynamic_ncols=False,ascii=True))
-    else:
+    elif number is not None:
         for i in range(number):     # download {number} files from the goodlines
             _download_line(goodlines[i],path,cam,ccd)
             print(f'Done {i+1}', end='\r')
