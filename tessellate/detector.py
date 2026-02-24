@@ -1274,7 +1274,7 @@ class Detector():
         prf = TESS_PRF(cam=self.cam,ccd=self.ccd,sector=self.sector,
                        colnum=column,rownum=row,localdatadir=datadir+'Sectors4+')
         
-        snr_to_localisation = get_snr_to_localisation_func(self.path,self.sector,self.cam,self.ccd,self.cut)
+        snr_to_localisation = get_snr_to_localisation_func(self.data_path,self.sector,self.cam,self.ccd,self.cut)
 
         ids = np.unique(self.sources['objid'].values).astype(int)
         if cpu > 1:
