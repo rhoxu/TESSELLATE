@@ -685,8 +685,13 @@ def _Lightcurve_event_checker(lc_sig,triggers,siglim=3,maxsep=5):
 
     return new_start,new_end,n_detections,sorted(triggers)
 
-def _Fit_psf(flux,event,prf,frames):
-    from .tools import PSF_Fitter
+
+
+
+def _Fit_psf(flux,event,prf,frames,uncertainty_func,big_size=15,small_size=5):
+
+    from .localisation import PSF_Fitter
+    from astropy.stats import sigma_clipped_stats
 
     xint_trial = np.round(event['xcentroid_det']).astype(int)
     yint_trial = np.round(event['ycentroid_det']).astype(int)
@@ -704,41 +709,121 @@ def _Fit_psf(flux,event,prf,frames):
         event['xint_brightest'] = brightestx
         event['yint_brightest'] = brightesty
 
-        centred_flux = np.zeros((5, 5), dtype=np.float32)
+        centred_flux = np.zeros((big_size, big_size), dtype=np.float32)
+        cuts = []
+        snrs = []
         for i in frames:  # or whatever your cap is
-            cut = flux[i, brightesty-2:brightesty+3, brightestx-2:brightestx+3]
-            centred_flux += event['flux_sign'] * cut
+            cut = flux[i, brightesty-big_size//2:brightesty+big_size//2+1, brightestx-big_size//2:brightestx+big_size//2+1] * event['flux_sign']
+            _,_,noise = sigma_clipped_stats(cut, sigma=3)
+            flux_sum = np.nansum(cut[big_size//2-small_size//2:big_size//2+small_size//2+1,
+                                        big_size//2-small_size//2:big_size//2+small_size//2+1])
+            snrs.append(flux_sum / (9*noise))
+            cuts.append(cut)
 
-        PSF_fitter = PSF_Fitter(5,prf)
+            centred_flux += cut
+
+        _, _, noise = sigma_clipped_stats(centred_flux, sigma=3)
+        flux_sum = np.nansum(centred_flux[big_size//2-small_size//2:big_size//2+small_size//2+1,
+                                                big_size//2-small_size//2:big_size//2+small_size//2+1])
+        stacked_snr = flux_sum / (9*noise)
+
+        if np.max(snrs) > stacked_snr:
+            centred_flux = cuts[np.argmax(snrs)][big_size//2-small_size//2:big_size//2+small_size//2+1,
+                                                big_size//2-small_size//2:big_size//2+small_size//2+1]
+            snr = np.max(snrs)
+            stacked_psf_fit = 0
+        else:
+            centred_flux = centred_flux[big_size//2-small_size//2:big_size//2+small_size//2+1,
+                                        big_size//2-small_size//2:big_size//2+small_size//2+1]
+            stacked_psf_fit = 1
+
+        snrs.append(stacked_snr)
+        
+        unc = uncertainty_func(snr)
+
+        PSF_fitter = PSF_Fitter(small_size,prf)
         PSF_fitter.fit_psf(centred_flux,limx=0.5,limy=0.5)
 
         event['xcentroid_psf'] = PSF_fitter.source_x + brightestx
         event['ycentroid_psf'] = PSF_fitter.source_y + brightesty
 
-        # event['e_xcentroid_psf'] = PSF_fitter.source_x_err
-        # event['e_ycentroid_psf'] = PSF_fitter.source_y_err
+        event['centroid_err_psf'] = unc
+        event['snr_psf'] = snr
 
         r = np.corrcoef(centred_flux.flatten(), PSF_fitter.psf.flatten())
         r = r[0,1]
         event['psf_like'] = r
         event['psf_diff'] = np.nansum(abs(centred_flux/np.nansum(centred_flux)-PSF_fitter.psf))
+
+        event['psf_stacked'] = stacked_psf_fit
+
     except:
         event['xcentroid_psf'] = np.nan
         event['ycentroid_psf'] = np.nan
+        event['centroid_err_psf'] = np.nan
+        event['snr_psf'] = np.nan
         event['psf_like'] = np.nan
         event['psf_diff'] = np.nan
-
-    # plt.figure()
-    # plt.imshow(centred_flux,origin='lower',cmap='gray',vmin=np.nanmin(centred_flux),vmax=np.nanmax(centred_flux))
-    # plt.scatter(PSF_fitter.source_x+2,PSF_fitter.source_y+2)
-    # plt.scatter(event['xcentroid_det']-(brightestx-2),event['ycentroid_det']-(brightesty-2))
-    # plt.xlabel(event['flux_sign'])
+        event['psf_stacked'] = np.nan
 
     return event
 
+
+
+# def _Fit_psf(flux,event,prf,frames):
+#     from .localisation import PSF_Fitter
+
+#     xint_trial = np.round(event['xcentroid_det']).astype(int)
+#     yint_trial = np.round(event['ycentroid_det']).astype(int)
+
+#     try:
+#         stacked_flux = np.zeros((3, 3), dtype=np.float32)
+#         for i in frames:  # or whatever your cap is
+#             cut = flux[i, yint_trial-1:yint_trial+2, xint_trial-1:xint_trial+2]
+#             stacked_flux += event['flux_sign'] * cut
+
+#         iy, ix = np.unravel_index(np.nanargmax(stacked_flux), stacked_flux.shape)
+#         brightesty = yint_trial + (iy - 1)  # shift from 3x3 center
+#         brightestx = xint_trial + (ix - 1)
+
+#         event['xint_brightest'] = brightestx
+#         event['yint_brightest'] = brightesty
+
+#         centred_flux = np.zeros((5, 5), dtype=np.float32)
+#         for i in frames:  # or whatever your cap is
+#             cut = flux[i, brightesty-2:brightesty+3, brightestx-2:brightestx+3]
+#             centred_flux += event['flux_sign'] * cut
+
+#         PSF_fitter = PSF_Fitter(5,prf)
+#         PSF_fitter.fit_psf(centred_flux,limx=0.5,limy=0.5)
+
+#         event['xcentroid_psf'] = PSF_fitter.source_x + brightestx
+#         event['ycentroid_psf'] = PSF_fitter.source_y + brightesty
+
+#         # event['e_xcentroid_psf'] = PSF_fitter.source_x_err
+#         # event['e_ycentroid_psf'] = PSF_fitter.source_y_err
+
+#         r = np.corrcoef(centred_flux.flatten(), PSF_fitter.psf.flatten())
+#         r = r[0,1]
+#         event['psf_like'] = r
+#         event['psf_diff'] = np.nansum(abs(centred_flux/np.nansum(centred_flux)-PSF_fitter.psf))
+#     except:
+#         event['xcentroid_psf'] = np.nan
+#         event['ycentroid_psf'] = np.nan
+#         event['psf_like'] = np.nan
+#         event['psf_diff'] = np.nan
+
+#     # plt.figure()
+#     # plt.imshow(centred_flux,origin='lower',cmap='gray',vmin=np.nanmin(centred_flux),vmax=np.nanmax(centred_flux))
+#     # plt.scatter(PSF_fitter.source_x+2,PSF_fitter.source_y+2)
+#     # plt.scatter(event['xcentroid_det']-(brightestx-2),event['ycentroid_det']-(brightesty-2))
+#     # plt.xlabel(event['flux_sign'])
+
+#     return event
+
         
 
-def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=5,buffer=1,base_range=1,verbose=False):
+def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,snr_to_localisation_func,frame_buffer=5,buffer=1,base_range=1,verbose=False):
     """_summary_
 
     Args:
@@ -827,7 +912,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
         event['ycentroid_det'] = weighted_eventsources.iloc[0]['ycentroid']
 
         if eventID in goodevents:
-            event = _Fit_psf(flux,event,prf,frames)
+            event = _Fit_psf(flux,event,prf,frames,snr_to_localisation_func)
             # event['xcentroid_psf'] = np.nan
             # event['ycentroid_psf'] = np.nan
             # event['psf_like'] = np.nan
@@ -843,9 +928,11 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
         if event['psf_like']>0.6:
             event['xcentroid'] = event['xcentroid_psf']
             event['ycentroid'] = event['ycentroid_psf']
+            event['centroid_err'] = event['centroid_err_psf']
         else:
             event['xcentroid'] = event['xcentroid_det']
             event['ycentroid'] = event['ycentroid_det']
+            event['centroid_err'] = 0.5
 
         event['xint'] = RoundToInt(event['xcentroid'])
         event['yint'] = RoundToInt(event['ycentroid'])
@@ -879,21 +966,6 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,frame_buffer=
     
     return events_df 
 
-def _Isolate_events_safe(id, time, flux_file, sources, sector,cam,ccd,cut,prf,frame_buffer,buffer,base_range):
-    from joblib import load
-    # log_worker_mem(f"start i={id}")
-    flux = load(flux_file, mmap_mode='r')
-    # result = _Isolate_events(id, time, flux, sources, sector,cam,ccd,cut,prf,frame_buffer,buffer,base_range)
-    # log_worker_mem(f"end i={id}")
-    return _Isolate_events(id, time, flux, sources, sector,cam,ccd,cut,prf,frame_buffer,buffer,base_range)
-
-
-# def log_worker_mem(tag=""):
-#     import os
-#     import psutil
-#     proc = psutil.Process(os.getpid())
-#     mem_mb = proc.memory_info().rss / 1024**2
-#     print(f"[PID {proc.pid} {tag}] Memory RSS: {mem_mb:.2f} MB")
 
     
 def _Straight_line_asteroid_checker(time,flux,events):
@@ -1081,7 +1153,7 @@ class Detector():
 
     def _wcs_time_info(self,result,cut):
         
-        from .tools import CutWCS
+        from .localisation import CutWCS
 
         times = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}_Times.npy')
 
@@ -1095,7 +1167,7 @@ class Detector():
     
     def _gather_data(self,cut,flux=True,time=True,wcs=True,bkg=False,mask=False,ref=False):
 
-        from .tools import CutWCS
+        from .localisation import CutWCS
         
         base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'
         self.base_name = base
@@ -1121,11 +1193,11 @@ class Detector():
             self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
 
     def _rebin_data(self):
-        points = np.arange(self.time[0]+time_bin*.5,self.time[-1],self.time_bin)
+        points = np.arange(self.time[0]+self.time_bin*.5,self.time[-1],self.time_bin)
         flux = []
         bkg = []
         for i in range(len(points)):
-            ind = abs(points[i] - self.time) <= time_bin/2
+            ind = abs(points[i] - self.time) <= self.time_bin/2
             flux += [np.nanmean(self.flux[ind])]
             bkg += [np.nanmean(self.bkg[ind])]
         flux = np.array(flux)
@@ -1188,6 +1260,7 @@ class Detector():
         from joblib import Parallel, delayed, dump 
         from tqdm import tqdm
         from .dataprocessor import DataProcessor
+        from .localisation import get_snr_to_localisation_func, get_wcs_uncertainty
         from PRF import TESS_PRF
         import os
     
@@ -1200,18 +1273,20 @@ class Detector():
         datadir='/fred/oz335/_local_TESS_PRFs/'
         prf = TESS_PRF(cam=self.cam,ccd=self.ccd,sector=self.sector,
                        colnum=column,rownum=row,localdatadir=datadir+'Sectors4+')
+        
+        snr_to_localisation = get_snr_to_localisation_func(self.path,self.sector,self.cam.self.ccd,self.cut)
 
         ids = np.unique(self.sources['objid'].values).astype(int)
         if cpu > 1:
             length = np.arange(0,len(ids)).astype(int)
             events = Parallel(n_jobs=cpu)(delayed(_Isolate_events)(ids[i],self.time,self.flux,self.sources,
-                                                                   self.sector,self.cam,self.ccd,self.cut,prf,
+                                                                   self.sector,self.cam,self.ccd,self.cut,prf,snr_to_localisation,
                                                                    frame_buffer,buffer,base_range) for i in tqdm(length))
         else:            
             events = []
             for id in ids:
                 e = _Isolate_events(id,self.time,self.flux,self.sources,self.sector,self.cam,
-                                    self.ccd,self.cut,prf,frame_buffer=frame_buffer,
+                                    self.ccd,self.cut,prf,snr_to_localisation,frame_buffer=frame_buffer,
                                     buffer=buffer,base_range=base_range)
                 events += [e]
 
@@ -1219,6 +1294,11 @@ class Detector():
 
         events['xccd'] = RoundToInt(events['xint'] + cutCornerPx[self.cut-1][0])
         events['yccd'] = RoundToInt(events['yint'] + cutCornerPx[self.cut-1][1])
+
+        wcs_unc = get_wcs_uncertainty(self.data_path,self.sector,self.cam,self.ccd,self.cut)
+
+        events['xcentroid_err'] = np.sqrt(events['centroid_err']**2 + wcs_unc[0]**2)
+        events['ycentroid_err'] = np.sqrt(events['centroid_err']**2 + wcs_unc[1]**2)
 
         self.events = events 
 
@@ -1228,9 +1308,23 @@ class Detector():
 
         events = deepcopy(self.events)
 
-        ra,dec = self.wcs.all_pix2world(events['xcentroid'],events['ycentroid'],0)
-        events['ra'] = ra
-        events['dec'] = dec
+        events['ra'],events['dec'] = self.wcs.all_pix2world(events['xcentroid'],events['ycentroid'],0)
+
+        delta = 0.1
+        # Derivatives w.r.t x
+        ra_px, dec_px = self.wcs.all_pix2world(events['xcentroid'] + delta, events['ycentroid'], 0)
+        dra_dx = (ra_px - events['ra']) / delta
+        ddec_dx = (dec_px - events['dec']) / delta
+        
+        # Derivatives w.r.t y
+        ra_py, dec_py = self.wcs.all_pix2world(events['xcentroid'],  events['ycentroid'] + delta, 0)
+        dra_dy = (ra_py - events['ra']) / delta
+        ddec_dy = (dec_py - events['dec']) / delta
+        
+        events['ra_err'] = np.sqrt((dra_dx * events['xcentroid_err'])**2 + (dra_dy * events['ycentroid_err'])**2)
+        events['dec_err'] = np.sqrt((ddec_dx * events['xcentroid_err'])**2 + (ddec_dy * events['ycentroid_err'])**2)
+        
+        events['dec_err'] = np.abs(events['ra_err'] * np.cos(np.radians(events['dec'])))   # account for cos(dec) factor in RA
 
         coords = SkyCoord(ra=events['ra'].values*u.degree,dec=events['dec'].values*u.degree)
         events['gal_l'] = coords.galactic.l.value
@@ -1253,13 +1347,14 @@ class Detector():
             'sector', 'camera', 'ccd', 'cut',
 
             # Centroid Positions
-            'xcentroid', 'ycentroid', 'xint', 'yint',
-            'xccd', 'yccd',
+            'xcentroid', 'ycentroid', 'xcentroid_err','ycentroid_err',
+            'xint', 'yint','xccd', 'yccd',
             'xcentroid_det', 'ycentroid_det', 
-            'xcentroid_psf', 'ycentroid_psf',
+            'xcentroid_psf', 'ycentroid_psf','centroid_err_psf'
 
             # Astrometry
-            'ra', 'dec', 'gal_l', 'gal_b',
+            'ra', 'dec','ra_err','dec_err'
+            'gal_l', 'gal_b',
 
             # Time and Frame Info
             'frame_start', 'frame_end', 'frame_max', 'frame_duration',
@@ -1268,9 +1363,10 @@ class Detector():
             # Photometry
             'flux_max', 'mag_min','flux_sign',
             'image_sig_max', 'lc_sig_max', 'lc_sig_med','bkg_level',
+            'snr_psf',
 
             # Morphology
-            'psf_like', 'psf_diff','com_motion','gaussian_score',
+            'psf_like', 'psf_diff','psf_stacked','com_motion','gaussian_score',
 
             # Frequency Domain
             'peak_freq', 'peak_power',
@@ -1319,7 +1415,7 @@ class Detector():
         """
 
         import multiprocessing
-        from .tools import CutWCS
+        from .localisation import CutWCS
 
         self.objects = None
         # self.cut = cut
@@ -1430,7 +1526,7 @@ class Detector():
     
     def _find_events(self):
         from time import time as t
-        import multiprocessing
+        import multiprocessing        
 
         # -- Group these sources into unique objects based on the objid -- #
         t2 = t()
@@ -1496,6 +1592,10 @@ class Detector():
                 'dec': maxevent['dec'],
                 'gal_l': maxevent['gal_l'],
                 'gal_b': maxevent['gal_b'],
+                'xcentroid_err': maxevent['xcentroid_err'],
+                'ycentroid_err': maxevent['ycentroid_err'],
+                'ra_err': maxevent['ra_err'],
+                'dec_err': maxevent['dec_err'],
                 'image_sig_max': maxevent['image_sig_max'],
                 'lc_sig_max': maxevent['lc_sig_max'],
                 'flux_maxsig': maxevent['flux_max'],
@@ -1532,6 +1632,8 @@ class Detector():
         Run the source detection algorithm on the data for a given cut.
         """
 
+        import os
+
         # -- Check if using starfinder and/or sourcedetect for detection -- #
         if mode is None:
             mode = self.mode
@@ -1558,6 +1660,13 @@ class Detector():
         if self.sources is None:
             print('-------Source finding (see progress in errors log file)-------')
             self._find_sources(mode,prf_path)
+            print('\n')
+
+        if not os.path.exists(f'{self.path}/Cut{cut}of{self.n**2}/wcs_info/snr_localisation_coeffs.pkl'):
+            from .localisation import simulate_cut_psf_fitting
+
+            print('-------Simulating PSF fit accuracy (see progress in errors log file)-------')
+            simulate_cut_psf_fitting(self.data_path,self.sector,self.cam,self.ccd,cut,nfits=10000,nMedians=10)
             print('\n')
 
         # -- self.events contains all individual events, grouped by time and space -- #  
@@ -1885,7 +1994,7 @@ class Detector():
 
         Save_LC(self.time,self.flux,self.events,id,save_path=save_name)    
 
-    def external_photometry(self,objid,event,tess_grid=5,phot=None):
+    def external_photometry(self,objid,event,tess_grid=5,sigma=3,phot=None):
 
         from .external_photometry import event_cutout
 
@@ -1898,16 +2007,24 @@ class Detector():
             yint = RoundToInt(e['ycentroid'])
             ra_obj = e['ra']
             dec_obj = e['dec']
-            errorX = e['xcentroid'] + 0.25*np.cos(theta)
-            errorY = e['ycentroid'] + 0.25*np.sin(theta)
+
+            error_x_rad = min(sigma*e['xcentroid_err'],0.5)
+            error_y_rad = min(sigma*e['ycentroid_err'],0.5)
+
+            errorX = e['xcentroid'] + error_x_rad*np.cos(theta)
+            errorY = e['ycentroid'] + error_y_rad*np.sin(theta)
         else:
             obj = self.objects[self.objects['objid']==objid].iloc[0]
             xint = RoundToInt(obj['xcentroid'])
             yint = RoundToInt(obj['ycentroid'])
             ra_obj = obj['ra']
             dec_obj = obj['dec']
-            errorX = obj['xcentroid'] + 0.25*np.cos(theta)
-            errorY = obj['ycentroid'] + 0.25*np.sin(theta)
+
+            error_x_rad = min(sigma*obj['xcentroid_err'],0.5)
+            error_y_rad = min(sigma*obj['ycentroid_err'],0.5)
+
+            errorX = obj['xcentroid'] + error_x_rad*np.cos(theta)
+            errorY = obj['ycentroid'] + error_y_rad*np.sin(theta)
 
         RA,DEC = self.wcs.all_pix2world(xint,yint,0)
         errorRA,errorDEC = self.wcs.all_pix2world(errorX,errorY,0)
@@ -2003,7 +2120,7 @@ class Detector():
         return fig, cat, (ra_obj,dec_obj), wcs,im
 
     def plot_object(self,cut,objid,event='separate',save_name=None,save_path=None,
-                    latex=True,zoo_mode=True,external_phot=False,save_combined_path=None,tess_grid=5):
+                    latex=True,zoo_mode=True,external_phot=False,save_combined_path=None,tess_grid=3):
         """
         Plot a source from the cut data.
         """
