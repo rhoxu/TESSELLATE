@@ -1564,7 +1564,8 @@ class Detector():
 
         columns = [
             'objid', 'sector', 'cam', 'ccd', 'cut', 'xcentroid', 'ycentroid', 
-            'ra', 'dec', 'gal_l', 'gal_b', 'lc_sig_max', 'flux_maxsig', 'frame_maxsig',
+            'ra', 'dec', 'gal_l', 'gal_b', 'xcentroid_err','ycentroid_err','ra_err','dec_err',
+            'lc_sig_max', 'flux_maxsig', 'frame_maxsig',
             'mjd_maxsig','psf_maxsig','flux_sign', 'n_events',
             'min_eventlength_frame', 'max_eventlength_frame',
             'min_eventlength_mjd','max_eventlength_mjd','GaiaID','classification','TSS Catalogue'
