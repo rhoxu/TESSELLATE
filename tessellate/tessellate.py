@@ -164,7 +164,7 @@ class Tessellate():
             else:
 
                 # -- Confirm Run Properties -- #
-                message = self._run_properties() 
+                message = self._run_properties(message) 
 
                 # -- Get time/cpu/memory suggestions depending on sector -- #
                 suggestions = self._sector_suggestions()  
@@ -510,7 +510,7 @@ class Tessellate():
         
         return suggestions
 
-    def _run_properties(self):
+    def _run_properties(self,message):
         """
         Confirm sector, cam, ccd properties.
         """
