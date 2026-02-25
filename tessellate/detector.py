@@ -1360,10 +1360,6 @@ class Detector():
 
         events = pd.concat(events,ignore_index=True)
 
-        unique_objids = pd.unique(events['objid'])
-        mapping = {old: new for new, old in enumerate(unique_objids, start=start_at)}
-        events['objid'] = events['objid'].map(mapping)
-
         events['xccd'] = RoundToInt(events['xint'] + cutCornerPx[self.cut-1][0])
         events['yccd'] = RoundToInt(events['yint'] + cutCornerPx[self.cut-1][1])
 
