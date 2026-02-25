@@ -1219,19 +1219,18 @@ class Detector():
         asteroids = events[events['classification']=='Asteroid']
         if len (asteroids) > 0:
             for _, ast in asteroids.iterrows():
-                objid = ast['objid']
-                eventid = ast['eventid']
-                xint = ast['xint']
-                yint = ast['yint']
-                frame_start = ast['frame_start']
-                frame_end = ast['frame_end']
+                objid = int(ast['objid'])
+                eventid = int(ast['eventid'])
+                xint = int(ast['xint'])
+                yint = int(ast['yint'])
+                frame_start = int(ast['frame_start'])
+                frame_end = int(ast['frame_end'])
 
-                try:
-                    _, _, lc_sig, _, _ = _Check_LC_significance(
-                        self.time, self.flux, frame_start, frame_end, [xint, yint], 1, 0.5, 1
-                    )
-                except:
-                    print(frame_start, frame_end, [xint, yint])
+                
+                _, _, lc_sig, _, _ = _Check_LC_significance(
+                    self.time, self.flux, frame_start, frame_end, [xint, yint], 1, 0.5, 1
+                )
+                
 
                 start, end, _, _ = _Lightcurve_event_checker(
                     lc_sig, np.arange(frame_start, frame_end+1)
