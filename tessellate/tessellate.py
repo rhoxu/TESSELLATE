@@ -157,11 +157,17 @@ class Tessellate():
             message, load_prev = self._initialise()
 
             if load_prev:
+                print('Loading config')
+                message += 'Loading config\n'
+                print('\n')
+                message += '\n'
 
-                # -- Run from loaded config -- #
+                # -- Load config -- #
                 message, download, make_cube, make_cuts, reduce, search, plot, delete = self._load_config(message)
             
             else:
+                print('\n')
+                message += '\n'
 
                 # -- Confirm Run Properties -- #
                 message = self._run_properties(message) 
@@ -262,12 +268,6 @@ class Tessellate():
         import configparser
         import ast
 
-        print('Loading config')
-        message += 'Loading config\n'
-        print('\n')
-        message += '\n'
-        
-        booldict = {True:'y',False:'n'}
         config_file = f'{self.working_path}/tessellate_config.txt'
 
         parser = configparser.ConfigParser()
@@ -288,6 +288,8 @@ class Tessellate():
         self.sector = parse_value(parser['base'].get('sector'))
         self.cam = parse_value(parser['base'].get('cam'))
         self.ccd = parse_value(parser['base'].get('ccd'))
+        
+        suggestions = self._sector_suggestions()
 
         print(f'   - Sector = {self.sector}')
         message += f'   - Sector = {self.sector}\n'
@@ -1469,7 +1471,7 @@ class Tessellate():
         if make_cuts | reduce | search | plot:
             config['cut_properties'] = {
                 'n' : self.n,
-                'cuts' : self.cuts}
+                'cuts' : list(self.cuts)}
 
         if make_cuts:
             config['make_cuts'] = {
