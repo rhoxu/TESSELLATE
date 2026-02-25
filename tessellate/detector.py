@@ -686,85 +686,111 @@ def _Lightcurve_event_checker(lc_sig,triggers,siglim=3,maxsep=5):
     return new_start,new_end,n_detections,sorted(triggers)
 
 
-
-
-def _Fit_psf(flux,event,prf,frames,uncertainty_func,big_size=15,small_size=5):
+def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size=5):
 
     from .localisation import PSF_Fitter
     from astropy.stats import sigma_clipped_stats
 
-    xint_trial = np.round(event['xcentroid_det']).astype(int)
-    yint_trial = np.round(event['ycentroid_det']).astype(int)
+    x0 = int(np.round(event['xcentroid_det']))
+    y0 = int(np.round(event['ycentroid_det']))
+    sign = event['flux_sign']
 
-    try:
-        stacked_flux = np.zeros((3, 3), dtype=np.float32)
-        for i in frames:  # or whatever your cap is
-            cut = flux[i, yint_trial-1:yint_trial+2, xint_trial-1:xint_trial+2]
-            stacked_flux += event['flux_sign'] * cut
+    half_big = big_size // 2
+    half_small = small_size // 2
 
-        iy, ix = np.unravel_index(np.nanargmax(stacked_flux), stacked_flux.shape)
-        brightesty = yint_trial + (iy - 1)  # shift from 3x3 center
-        brightestx = xint_trial + (ix - 1)
+    # try:
+    # --- Find brightest pixel in 3x3 stacked cut --- #
+    stacked_flux_3x3 = np.zeros((3, 3), dtype=np.float32)
 
-        event['xint_brightest'] = brightestx
-        event['yint_brightest'] = brightesty
+    for i in frames:
+        cut = flux[i, y0-1:y0+2, x0-1:x0+2]
+        stacked_flux_3x3 += sign * cut
 
-        centred_flux = np.zeros((big_size, big_size), dtype=np.float32)
-        cuts = []
-        snrs = []
-        for i in frames:  # or whatever your cap is
-            cut = flux[i, brightesty-big_size//2:brightesty+big_size//2+1, brightestx-big_size//2:brightestx+big_size//2+1] * event['flux_sign']
-            _,_,noise = sigma_clipped_stats(cut, sigma=3)
-            flux_sum = np.nansum(cut[big_size//2-small_size//2:big_size//2+small_size//2+1,
-                                        big_size//2-small_size//2:big_size//2+small_size//2+1])
-            snrs.append(flux_sum / (9*noise))
-            cuts.append(cut)
+    iy, ix = np.unravel_index(np.nanargmax(stacked_flux_3x3), stacked_flux_3x3.shape)
+    brightest_y = y0 + (iy - 1)
+    brightest_x = x0 + (ix - 1)
 
-            centred_flux += cut
+    event['xint_brightest'] = brightest_x
+    event['yint_brightest'] = brightest_y
 
-        _, _, noise = sigma_clipped_stats(centred_flux, sigma=3)
-        flux_sum = np.nansum(centred_flux[big_size//2-small_size//2:big_size//2+small_size//2+1,
-                                                big_size//2-small_size//2:big_size//2+small_size//2+1])
-        stacked_snr = flux_sum / (9*noise)
+    # --- Stack big cuts and compute SNRs --- #
+    stacked_big = np.zeros((big_size, big_size), dtype=np.float32)
+    cuts = []
+    snrs = []
 
-        if np.max(snrs) > stacked_snr:
-            centred_flux = cuts[np.argmax(snrs)][big_size//2-small_size//2:big_size//2+small_size//2+1,
-                                                big_size//2-small_size//2:big_size//2+small_size//2+1]
-            snr = np.max(snrs)
-            stacked_psf_fit = 0
-        else:
-            centred_flux = centred_flux[big_size//2-small_size//2:big_size//2+small_size//2+1,
-                                        big_size//2-small_size//2:big_size//2+small_size//2+1]
-            stacked_psf_fit = 1
+    for i in frames:
+        cut = flux[
+            i,
+            brightest_y-half_big:brightest_y+half_big+1,
+            brightest_x-half_big:brightest_x+half_big+1,
+        ] * sign
 
-        snrs.append(stacked_snr)
-        
-        unc = uncertainty_func(snr)
+        _, _, noise = sigma_clipped_stats(cut, sigma=3)
 
-        PSF_fitter = PSF_Fitter(small_size,prf)
-        PSF_fitter.fit_psf(centred_flux,limx=0.5,limy=0.5)
+        core = cut[
+            half_big-half_small:half_big+half_small+1,
+            half_big-half_small:half_big+half_small+1,
+        ]
 
-        event['xcentroid_psf'] = PSF_fitter.source_x + brightestx
-        event['ycentroid_psf'] = PSF_fitter.source_y + brightesty
+        flux_sum = np.nansum(core)
+        snr = flux_sum / (9 * noise)
 
-        event['centroid_err_psf'] = unc
-        event['snr_psf'] = snr
+        cuts.append(cut)
+        snrs.append(snr)
+        stacked_big += cut
 
-        r = np.corrcoef(centred_flux.flatten(), PSF_fitter.psf.flatten())
-        r = r[0,1]
-        event['psf_like'] = r
-        event['psf_diff'] = np.nansum(abs(centred_flux/np.nansum(centred_flux)-PSF_fitter.psf))
+    # --- Stacked SNR ---
+    _, _, noise = sigma_clipped_stats(stacked_big, sigma=3)
+    stacked_core = stacked_big[
+        half_big-half_small:half_big+half_small+1,
+        half_big-half_small:half_big+half_small+1,
+    ]
+    stacked_flux_sum = np.nansum(stacked_core)
+    stacked_snr = stacked_flux_sum / (9 * noise)
 
-        event['psf_stacked'] = stacked_psf_fit
+    # --- Choose best cut or stacked ---
+    if np.max(snrs) > stacked_snr:
+        idx = int(np.argmax(snrs))
+        centred_flux = cuts[idx][
+            half_big-half_small:half_big+half_small+1,
+            half_big-half_small:half_big+half_small+1,
+        ]
+        snr = snrs[idx]
+        stacked_psf_fit = 0
+    else:
+        centred_flux = stacked_core
+        snr = stacked_snr
+        stacked_psf_fit = 1
 
-    except:
-        event['xcentroid_psf'] = np.nan
-        event['ycentroid_psf'] = np.nan
-        event['centroid_err_psf'] = np.nan
-        event['snr_psf'] = np.nan
-        event['psf_like'] = np.nan
-        event['psf_diff'] = np.nan
-        event['psf_stacked'] = np.nan
+    # --- PSF fit ---
+    unc = uncertainty_func(snr)
+
+    fitter = PSF_Fitter(small_size, prf)
+    fitter.fit_psf(centred_flux, limx=0.5, limy=0.5)
+
+    event['xcentroid_psf'] = fitter.source_x + brightest_x
+    event['ycentroid_psf'] = fitter.source_y + brightest_y
+    event['centroid_err_psf'] = unc
+    event['snr_psf'] = snr
+
+    r = np.corrcoef(centred_flux.flatten(), fitter.psf.flatten())[0, 1]
+    event['psf_like'] = r
+
+    norm_flux = centred_flux / np.nansum(centred_flux)
+    event['psf_diff'] = np.nansum(np.abs(norm_flux - fitter.psf))
+    event['psf_stacked'] = stacked_psf_fit
+
+    # except Exception as e:
+    #     # Fail safely
+    #     event['xcentroid_psf'] = np.nan
+    #     event['ycentroid_psf'] = np.nan
+    #     event['centroid_err_psf'] = np.nan
+    #     event['snr_psf'] = np.nan
+    #     event['psf_like'] = np.nan
+    #     event['psf_diff'] = np.nan
+    #     event['psf_stacked'] = np.nan
+    #     # Optional debug:
+    #     # print(f"PSF fit failed: {e}")
 
     return event
 
