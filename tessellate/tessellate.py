@@ -302,8 +302,12 @@ class Tessellate():
         if 'download' in parser:
             download = parse_value(parser['download'].get('download', False))
             self.download_number = parse_value(parser['download'].get('download_number', None))  
-            print(f'   - Download FFIs? [y/n] = {booldict[download]}')
-            message += f'   - Download FFIs? [y/n] = {booldict[download]}\n'
+            print(f'   - Download FFIs? [y/n] = y')
+            message += f'   - Download FFIs? [y/n] = y\n'
+        else:
+            download = False
+            print(f'   - Download FFIs? [y/n] = n')
+            message += f'   - Download FFIs? [y/n] = n\n'
         
         # Make cubes
         if 'make_cubes' in parser:
@@ -311,8 +315,12 @@ class Tessellate():
             self.cube_time = parse_value(parser['make_cubes'].get('cube job time', None))
             self.cube_mem = parse_value(parser['make_cubes'].get('cube job memory', None))
             self.cube_cpu = parse_value(parser['make_cubes'].get('cube job cpu', None))
-            print(f'   - Make Cube(s)? [y/n] = {booldict[make_cube]}')
-            message += f'   - Make Cube(s)? [y/n] = {booldict[make_cube]}\n'
+            print(f'   - Make Cube(s)? [y/n] = y')
+            message += f'   - Make Cube(s)? [y/n] = y\n'
+        else:
+            make_cube = False
+            print(f'   - Make Cube(s)? [y/n] = n')
+            message += f'   - Make Cube(s)? [y/n] = n\n'
         
         # Cut properties
         if 'cut_properties' in parser:
@@ -325,8 +333,12 @@ class Tessellate():
             self.cut_time = parse_value(parser['make_cuts'].get('cut job time', None))
             self.cut_mem = parse_value(parser['make_cuts'].get('cut job memory', None))
             self.cut_cpu = parse_value(parser['make_cuts'].get('cut job cpu', None))
-            print(f'   - Make Cut(s)? [y/n] = {booldict[make_cuts]}')
-            message += f'   - Make Cut(s)? [y/n] = {booldict[make_cuts]}\n'
+            print(f'   - Make Cut(s)? [y/n] = y')
+            message += f'   - Make Cut(s)? [y/n] = y\n'
+        else:
+            make_cuts = False
+            print(f'   - Make Cut(s)? [y/n] = n')
+            message += f'   - Make Cut(s)? [y/n] = n\n'
         
         # Reduce
         if 'reduce' in parser:
@@ -334,8 +346,12 @@ class Tessellate():
             self.reduce_time = parse_value(parser['reduce'].get('reduce job time', None))
             self.reduce_mem = parse_value(parser['reduce'].get('reduce job memory', None))
             self.reduce_cpu = parse_value(parser['reduce'].get('reduce job cpu', None))
-            print(f'   - Reduce Cut(s)? [y/n] = {booldict[reduce]}')
-            message += f'   - Reduce Cut(s)? [y/n] = {booldict[reduce]}\n'
+            print(f'   - Reduce Cut(s)? [y/n] = y')
+            message += f'   - Reduce Cut(s)? [y/n] = y\n'
+        else:
+            reduce = False
+            print(f'   - Reduce Cut(s)? [y/n] = n')
+            message += f'   - Reduce Cut(s)? [y/n] = n\n'
         
         # Search
         if 'search' in parser:
@@ -345,8 +361,12 @@ class Tessellate():
             self.search_cpu = parse_value(parser['search'].get('search job cpu', None))
             self.detect_mode = parse_value(parser['search'].get('search detection mode', None))
             self.time_bin = parse_value(parser['search'].get('search time bin', None))
-            print(f'   - Run Transient Search on Cut(s)? [y/n] = {booldict[search]}')
-            message += f'   - Run Transient Search on Cut(s)? [y/n] = {booldict[search]}\n'
+            print(f'   - Run Transient Search on Cut(s)? [y/n] = y')
+            message += f'   - Run Transient Search on Cut(s)? [y/n] = y\n'
+        else:
+            search = False
+            print(f'   - Run Transient Search on Cut(s)? [y/n] = n')
+            message += f'   - Run Transient Search on Cut(s)? [y/n] = n\n'
         
         # Plot
         if 'plot' in parser:
@@ -354,15 +374,23 @@ class Tessellate():
             self.plot_time = parse_value(parser['plot'].get('plot job time', None))
             self.plot_mem = parse_value(parser['plot'].get('plot job memory', None))
             self.plot_cpu = parse_value(parser['plot'].get('plot job cpu', None))
-            print(f'   - Run Transient Plotting on Cut(s)? [y/n] = {booldict[plot]}')
-            message += f'   - Run Transient Plotting on Cut(s)? [y/n] = {booldict[plot]}\n'
+            print(f'   - Run Transient Plotting on Cut(s)? [y/n] = y')
+            message += f'   - Run Transient Plotting on Cut(s)? [y/n] = y\n'
+        else:
+            plot = False
+            print(f'   - Run Transient Plotting on Cut(s)? [y/n] = n')
+            message += f'   - Run Transient Plotting on Cut(s)? [y/n] = n\n'
         
         # Options
         if 'options' in parser:
             self.verbose = parse_value(parser['options'].get('verbose', False))
             delete = parse_value(parser['options'].get('delete ffis', False))
-            print(f'   - Delete all FFIs upon completion? [y/n] = {booldict[delete]}')
-            message += f'   - Delete all FFIs upon completion? [y/n] = {booldict[delete]}\n'
+            if delete:
+                print(f'   - Delete all FFIs upon completion? [y/n] = y')
+                message += f'   - Delete all FFIs upon completion? [y/n] = y\n'
+            else:
+                print(f'   - Delete all FFIs upon completion? [y/n] = n')
+                message += f'   - Delete all FFIs upon completion? [y/n] = n\n'
 
         print('\n')
         message += '\n'
@@ -1419,10 +1447,6 @@ class Tessellate():
             config['download'] = {
                 'download' : True,
                 'download_number' : self.download_number}
-        else:
-            config['download'] = {
-                'download' : False
-            }
 
         if make_cube:
             config['make_cubes'] = {
@@ -1430,10 +1454,6 @@ class Tessellate():
                 'cube job time' : self.cube_time,
                 'cube job memory' : self.cube_mem,
                 'cube job cpu' : self.cube_cpu}
-        else:
-            config['make_cubes'] = {
-                'make_cubes' : False
-            }
 
         if make_cuts | reduce | search | plot:
             config['cut_properties'] = {
@@ -1446,10 +1466,6 @@ class Tessellate():
                 'cut job time' : self.cut_time,
                 'cut job memory' : self.cut_mem,
                 'cut job cpu' : self.cut_cpu}
-        else:
-            config['make_cuts'] = {
-                'make_cuts' : False
-            }
 
         if reduce:
             config['reduce'] = {
@@ -1457,10 +1473,6 @@ class Tessellate():
                 'reduce job time' : self.reduce_time,
                 'reduce job memory' : self.reduce_mem,
                 'reduce job cpu' : self.reduce_cpu}
-        else:
-            config['reduce'] = {
-                'reduce' : False
-            }
 
         if search:
             config['search'] = {
@@ -1470,10 +1482,6 @@ class Tessellate():
                 'search job cpu' : self.search_cpu,
                 'search detection mode' : self.detect_mode,
                 'search time bin' : self.time_bin}
-        else:
-            config['search'] = {
-                'search' : False
-            }
 
         if plot:
             config['plot'] = {
@@ -1481,10 +1489,6 @@ class Tessellate():
                 'plot job time' : self.plot_time,
                 'plot job memory' : self.plot_mem,
                 'plot job cpu' : self.plot_cpu}
-        else:
-            config['plot'] = {
-                'plot' : False
-            }
 
         config['options'] = {
             'verbose' : self.verbose,

@@ -1254,17 +1254,18 @@ class Detector():
 
         events = deepcopy(self.events)
         
-        print(f'Here 5: {len(events[pd.isna(events.objid)])}')
-
+        
         # -- Generally best, checks for centre of mass movement and light curve Gaussianity -- #
         events = _Threshold_asteroid_checker(self.time,self.flux,events)
+
+        print(f'Here 1: {len(events[pd.isna(events.objid)])}')
 
         # -- Picks up events with weirdly long event boundaries -- # 
         events = _Straight_line_asteroid_checker(self.time,self.flux,events)
 
-        events = self._recheck_asteroid_lcs(events)
+        print(f'Here 2: {len(events[pd.isna(events.objid)])}')
 
-        print(f'Here 6: {len(events[pd.isna(events.objid)])}')
+        events = self._recheck_asteroid_lcs(events)
 
         self.events = events
     
@@ -1305,8 +1306,6 @@ class Detector():
 
         events = pd.concat(events,ignore_index=True)
 
-        print(f'Here 1: {len(events[pd.isna(events.objid)])}')
-
         events['xccd'] = RoundToInt(events['xint'] + cutCornerPx[self.cut-1][0])
         events['yccd'] = RoundToInt(events['yint'] + cutCornerPx[self.cut-1][1])
 
@@ -1324,15 +1323,11 @@ class Detector():
 
         self.events = real_events 
 
-        print(f'Here 2: {len(self.events[pd.isna(self.events.objid)])}')
-
     def _events_physical_units(self):
         from astropy.coordinates import SkyCoord
         import astropy.units as u
 
         events = deepcopy(self.events)
-
-        print(f'Here 3: {len(self.events[pd.isna(self.events.objid)])}')
 
         events['ra'],events['dec'] = self.wcs.all_pix2world(events['xcentroid'],events['ycentroid'],0)
 
@@ -1364,8 +1359,6 @@ class Detector():
         events['mag_min'] = -2.5*np.log10(events['flux_max'])
 
         self.events = events
-
-        print(f'Here 4: {len(self.events[pd.isna(self.events.objid)])}')
         
     def _order_events_columns(self):
 
