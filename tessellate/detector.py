@@ -2331,6 +2331,9 @@ class Detector():
         if brightestframe not in frames:
             frames = np.sort(np.append(frames,brightestframe))
 
+        while len(frames) < 5:
+            frames = np.append(frames,frames[-1]+frame_interval)
+
         frames[frames<0] = 0
         frames[frames>len(self.time)]=len(self.time)-1
         frames = np.unique(frames)
