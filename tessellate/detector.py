@@ -2309,7 +2309,7 @@ class Detector():
 
         return lcs
     
-    def event_frames(self,cut,objid,eventid=None,frame_buffer=1,image_size=11,n_frames=5,plot=False):
+    def event_frames(self,cut,objid,eventid=None,frame_buffer=2,frame_interval=1,image_size=11,plot=True):
 
         # -- Gather data -- #
         if cut != self.cut:
@@ -2323,11 +2323,14 @@ class Detector():
             eventid = events['lc_sig_max'].argmax()+1
         
 
-        frame_range = range(-(n_frames//2),n_frames//2+1)
-
         event = events[events.eventid==eventid]
         brightestframe = event['frame_max']
-        frames = np.array([brightestframe+frame_buffer*n for n in frame_range])
+
+        frames = np.arange(event['frame_start']-frame_buffer,event['frame_end']+1,frame_interval).astype(int)
+
+        if brightestframe not in frames:
+            frames = np.sort(np.append(frames,brightestframe))
+
         frames[frames<0] = 0
         frames[frames>len(self.time)]=len(self.time)-1
         frames = np.unique(frames)
@@ -2345,11 +2348,14 @@ class Detector():
 
         if plot:
             fig,ax = plt.subplots(ncols=5,figsize=(15,15))
+            brightest_loc = np.where(frames==brightestframe)[0][0]
             for i in range(5):
-                ax[i].imshow(images[n_frames//2-2+i],origin='lower',cmap='gray')
-                ax[i].set_title(f'Frame {frames[n_frames//2-2+i]}')
-
-
+                ax[i].imshow(images[brightest_loc-2+i],origin='lower',cmap='gray')
+                if i == 2:
+                    ax[i].set_title(f'Brightest Frame ({brightestframe})')
+                else:
+                    ax[i].set_title(f'Frame ({frames[brightest_loc-2+i]})')
+                
         return images
     
     def object_lc(self,cut,objid):
