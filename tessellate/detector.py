@@ -1007,8 +1007,8 @@ def _Straight_line_asteroid_checker(time,flux,events):
                                     )
 
             if (lines is not None) & (source['psf_like']>=0.8):
-                events.loc[i, 'classification'] = 'Asteroid'
-                events.loc[i, 'prob'] = 0.5
+                events.iloc[i, events.columns.get_loc('classification')] = 'Asteroid'
+                events.iloc[i, events.columns.get_loc('prob')] = 0.5
         
     return events
 
@@ -1271,7 +1271,7 @@ class Detector():
     
 
     def _get_all_independent_events(self,frame_buffer=10,buffer=0.5,base_range=1,cpu=1):
-        from joblib import Parallel, delayed, dump 
+        from joblib import Parallel, delayed 
         from tqdm import tqdm
         from .dataprocessor import DataProcessor
         from .localisation import get_snr_to_localisation_func, get_wcs_uncertainty

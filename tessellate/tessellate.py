@@ -411,6 +411,17 @@ class Tessellate():
             print('\n')
             message += '\n'
 
+        if make_cuts | reduce | search | plot:
+            print(f"   - n (Number of Cuts = n^2) = {self.n}")
+            message += f"   - n (Number of Cuts = n^2) = {self.n}\n"
+    
+            if self.cuts == range(1,17):
+                cut_printout = 'all'
+            else:
+                cut_printout = self.cuts
+            print(f"   - Cut [1-16,all] = {cut_printout}")
+            message += f"   - Cut [1-16,all] = {cut_printout}\n"
+
         if make_cuts:
             print(f"   - Cut Batch Time ['h:mm:ss'] = {self.cut_time}")
             message += f"   - Cut Batch Time ['h:mm:ss'] = {self.cut_time}\n"
