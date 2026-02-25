@@ -2323,7 +2323,7 @@ class Detector():
             eventid = events['lc_sig_max'].argmax()+1
         
 
-        event = events[events.eventid==eventid]
+        event = events[events.eventid==eventid].iloc[0]
         brightestframe = event['frame_max']
 
         frames = np.arange(event['frame_start']-frame_buffer,event['frame_end']+1,frame_interval).astype(int)
