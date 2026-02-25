@@ -153,39 +153,51 @@ class Tessellate():
 
         # -- Allows for no actual initialisation (TessTransient) -- #
         if go:
-            # -- Confirm Run Properties -- #
-            message = self._run_properties() 
+            # -- Initialise and check for previous config file -- #
+            message, load_prev = self._initialise()
 
-            # -- Get time/cpu/memory suggestions depending on sector -- #
-            suggestions = self._sector_suggestions()  
+            if load_prev:
 
-            # -- Ask for which tessellation steps to perform -- #
-            message, download, make_cube, make_cuts, reduce, search, plot, delete = self._which_processes(message,download, make_cube, make_cuts, reduce, search, plot, delete)
+                # -- Run from loaded config -- #
+                message, download, make_cube, make_cuts, reduce, search, plot, delete = self._load_config()
+            
+            else:
 
-            # -- Ask for inputs -- #
-            if download:
-                message = self._download_properties(message)
+                # -- Confirm Run Properties -- #
+                message = self._run_properties() 
 
-            if make_cube:
-                message = self._cube_properties(message,suggestions[0])
-                _Save_space(f'{job_output_path}/tessellate_cubing_logs')
+                # -- Get time/cpu/memory suggestions depending on sector -- #
+                suggestions = self._sector_suggestions()  
 
-            if make_cuts:
-                message = self._cut_properties(message,suggestions[1])
-                _Save_space(f'{job_output_path}/tessellate_cutting_logs')
+                # -- Ask for which tessellation steps to perform -- #
+                message, download, make_cube, make_cuts, reduce, search, plot, delete = self._which_processes(message,download, make_cube, make_cuts, reduce, search, plot, delete)
 
-            if reduce:
-                message = self._reduce_properties(message,make_cuts,suggestions[2])
-                _Save_space(f'{job_output_path}/tessellate_reduction_logs')
+                # -- Ask for inputs -- #
+                if download:
+                    message = self._download_properties(message)
 
-            if search:
-                cutting_reducing = make_cuts | reduce
-                message = self._search_properties(message,cutting_reducing,suggestions[3])
-                _Save_space(f'{job_output_path}/tessellate_search_logs')
+                if make_cube:
+                    message = self._cube_properties(message,suggestions[0])
+                    _Save_space(f'{job_output_path}/tessellate_cubing_logs')
 
-            if plot:
-                message = self._plotting_properties(message,search,suggestions[4])
-                _Save_space(f'{job_output_path}/tessellate_plotting_logs')
+                if make_cuts:
+                    message = self._cut_properties(message,suggestions[1])
+                    _Save_space(f'{job_output_path}/tessellate_cutting_logs')
+
+                if reduce:
+                    message = self._reduce_properties(message,make_cuts,suggestions[2])
+                    _Save_space(f'{job_output_path}/tessellate_reduction_logs')
+
+                if search:
+                    cutting_reducing = make_cuts | reduce
+                    message = self._search_properties(message,cutting_reducing,suggestions[3])
+                    _Save_space(f'{job_output_path}/tessellate_search_logs')
+
+                if plot:
+                    message = self._plotting_properties(message,search,suggestions[4])
+                    _Save_space(f'{job_output_path}/tessellate_plotting_logs')
+
+                self._write_config(download,make_cube, make_cuts, reduce, search, plot, delete)
 
             # -- Check for overwriting -- #
             if overwrite != False:
@@ -218,6 +230,202 @@ class Tessellate():
 
             if delete:
                 delete_files(filetype='ffis',data_path=self.data_path,sector=self.sector,n=self.n,part=False)  
+
+    def _initialise(self):
+
+        message = ''
+        print('\n')
+        print(_Print_buff(50,f'Initialising Tessellation Run'))
+        message += _Print_buff(50,f'Initialising Tessellation Run')+'\n'
+
+        file = f'{self.working_path}/tessellate_config.txt'
+        load_prev = False
+        if os.path.exists(file):
+            load = input(f'Load from previous config ({file})? [y/n] = ') 
+            message += f'Load from previous config ({file})? [y/n] = {load}\n'
+            done = False
+            while not done:
+                if load.lower() == 'y':
+                    load_prev = True
+                    done=True
+                elif load.lower() == 'n':
+                    load_prev = False
+                    done=True
+                else:
+                    load = input(f'  Invalid choice! Load from previous config ({file})? [y/n] = ')
+                    message += f'   Invalid choice! Load from previous config ({file})? [y/n] = {load}\n'
+
+        return message,load_prev
+    
+    def _load_config(self,message):
+
+        import configparser
+        import ast
+
+        print('Loading config')
+        message += 'Loading config\n'
+        print('\n')
+        message += '\n'
+        
+        booldict = {True:'y',False:'n'}
+        config_file = f'{self.working_path}/tessellate_config.txt'
+
+        parser = configparser.ConfigParser()
+        parser.optionxform = str  # preserve case of keys
+        parser.read(config_file)
+        
+        # Helper to evaluate Python literals safely
+        def parse_value(val):
+            val = val.strip()
+            try:
+                # safely evaluate strings like True, False, numbers, lists, tuples
+                return ast.literal_eval(val)
+            except Exception:
+                # fallback to string
+                return val.strip("'").strip('"')
+        
+        # Base section
+        self.sector = parse_value(parser['base'].get('sector'))
+        self.cam = parse_value(parser['base'].get('cam'))
+        self.ccd = parse_value(parser['base'].get('ccd'))
+
+        print(f'   - Sector = {self.sector}')
+        message += f'   - Sector = {self.sector}\n'
+        print(f'   - Cam = {self.cam}')
+        message += f'   - Cam = {self.cam}\n'
+        print(f'   - CCD = {self.ccd}')
+        message += f'   - CCD = {self.ccd}\n'
+        print('\n')
+        message += '\n'
+        
+        # Download
+        if 'download' in parser:
+            download = parse_value(parser['download'].get('download', False))
+            self.download_number = parse_value(parser['download'].get('download_number', None))  
+            print(f'   - Download FFIs? [y/n] = {booldict[download]}')
+            message += f'   - Download FFIs? [y/n] = {booldict[download]}\n'
+        
+        # Make cubes
+        if 'make_cubes' in parser:
+            make_cube = parse_value(parser['make_cubes'].get('make_cubes', False))
+            self.cube_time = parse_value(parser['make_cubes'].get('cube job time', None))
+            self.cube_mem = parse_value(parser['make_cubes'].get('cube job memory', None))
+            self.cube_cpu = parse_value(parser['make_cubes'].get('cube job cpu', None))
+            print(f'   - Make Cube(s)? [y/n] = {booldict[make_cube]}')
+            message += f'   - Make Cube(s)? [y/n] = {booldict[make_cube]}\n'
+        
+        # Cut properties
+        if 'cut_properties' in parser:
+            self.n = parse_value(parser['cut_properties'].get('n', None))
+            self.cuts = parse_value(parser['cut_properties'].get('cuts', None))
+        
+        # Make cuts
+        if 'make_cuts' in parser:
+            make_cuts = parse_value(parser['make_cuts'].get('make_cuts', False))
+            self.cut_time = parse_value(parser['make_cuts'].get('cut job time', None))
+            self.cut_mem = parse_value(parser['make_cuts'].get('cut job memory', None))
+            self.cut_cpu = parse_value(parser['make_cuts'].get('cut job cpu', None))
+            print(f'   - Make Cut(s)? [y/n] = {booldict[make_cuts]}')
+            message += f'   - Make Cut(s)? [y/n] = {booldict[make_cuts]}\n'
+        
+        # Reduce
+        if 'reduce' in parser:
+            reduce = parse_value(parser['reduce'].get('reduce', False))
+            self.reduce_time = parse_value(parser['reduce'].get('reduce job time', None))
+            self.reduce_mem = parse_value(parser['reduce'].get('reduce job memory', None))
+            self.reduce_cpu = parse_value(parser['reduce'].get('reduce job cpu', None))
+            print(f'   - Reduce Cut(s)? [y/n] = {booldict[reduce]}')
+            message += f'   - Reduce Cut(s)? [y/n] = {booldict[reduce]}\n'
+        
+        # Search
+        if 'search' in parser:
+            search = parse_value(parser['search'].get('search', False))
+            self.search_time = parse_value(parser['search'].get('search job time', None))
+            self.search_mem = parse_value(parser['search'].get('search job memory', None))
+            self.search_cpu = parse_value(parser['search'].get('search job cpu', None))
+            self.detect_mode = parse_value(parser['search'].get('search detection mode', None))
+            self.time_bin = parse_value(parser['search'].get('search time bin', None))
+            print(f'   - Run Transient Search on Cut(s)? [y/n] = {booldict[search]}')
+            message += f'   - Run Transient Search on Cut(s)? [y/n] = {booldict[search]}\n'
+        
+        # Plot
+        if 'plot' in parser:
+            plot = parse_value(parser['plot'].get('plot', False))
+            self.plot_time = parse_value(parser['plot'].get('plot job time', None))
+            self.plot_mem = parse_value(parser['plot'].get('plot job memory', None))
+            self.plot_cpu = parse_value(parser['plot'].get('plot job cpu', None))
+            print(f'   - Run Transient Plotting on Cut(s)? [y/n] = {booldict[plot]}')
+            message += f'   - Run Transient Plotting on Cut(s)? [y/n] = {booldict[plot]}\n'
+        
+        # Options
+        if 'options' in parser:
+            self.verbose = parse_value(parser['options'].get('verbose', False))
+            delete = parse_value(parser['options'].get('delete ffis', False))
+            print(f'   - Delete all FFIs upon completion? [y/n] = {booldict[delete]}')
+            message += f'   - Delete all FFIs upon completion? [y/n] = {booldict[delete]}\n'
+
+        print('\n')
+        message += '\n'
+
+        if download:
+            print(f'   - Download Number [int,all] = {self.download_number}')
+            message += f'   - Download Number [int,all] = {self.download_number}\n'
+            print('\n')
+            message += '\n'
+
+        if make_cube:
+            print(f"   - Cube Batch Time ['h:mm:ss'] = {self.cube_time}")
+            message += f"   - Cube Batch Time ['h:mm:ss'] = {self.cube_time}\n"
+            print(f"   - Cube Mem/CPU = {self.cube_mem}")
+            message += f"   - Cube Mem/CPU = {self.cube_mem}\n"
+            print(f"   - Cube Num CPUs Needed = {self.cube_cpu}")
+            message += f"   - Cube Num CPUs Needed = {self.cube_cpu}\n"
+            print('\n')
+            message += '\n'
+
+        if make_cuts:
+            print(f"   - Cut Batch Time ['h:mm:ss'] = {self.cut_time}")
+            message += f"   - Cut Batch Time ['h:mm:ss'] = {self.cut_time}\n"
+            print(f"   - Cut Mem/CPU = {self.cut_mem}")
+            message += f"   - Cut Mem/CPU = {self.cut_mem}\n"
+            print(f"   - Cut Num CPUs Needed = {self.cut_cpu}")
+            message += f"   - Cut Num CPUs Needed = {self.cut_cpu}\n"
+            print('\n')
+            message += '\n'
+
+        if reduce:
+            print(f"   - Reduce Batch Time ['h:mm:ss'] = {self.reduce_time}")
+            message += f"   - Reduce Batch Time ['h:mm:ss'] = {self.reduce_time}\n"
+            print(f"   - Reduce Mem/CPU = {self.reduce_mem}")
+            message += f"   - Reduce Mem/CPU = {self.reduce_mem}\n"
+            print(f"   - Reduce Num CPUs Needed = {self.reduce_cpu}")
+            message += f"   - Reduce Num CPUs Needed = {self.reduce_cpu}\n"
+            print('\n')
+            message += '\n'
+
+        if search:
+            print(f"   - Search Batch Time ['h:mm:ss'] = {self.search_time}")
+            message += f"   - Search Batch Time ['h:mm:ss'] = {self.search_time}\n"
+            print(f"   - Search Mem/CPU = {self.search_mem}")
+            message += f"   - Search Mem/CPU = {self.search_mem}\n"
+            print(f"   - Search Num CPUs Needed = {self.search_cpu}")
+            message += f"   - Search Num CPUs Needed = {self.search_cpu}\n"
+            print('\n')
+            message += '\n'
+
+        if plot:
+            print(f"   - Plotting Batch Time ['h:mm:ss'] = {self.plot_time}")
+            message += f"   - Plotting Batch Time ['h:mm:ss'] = {self.plot_time}\n"
+            print(f"   - Plotting Mem/CPU = {self.plot_mem}")
+            message += f"   - Plotting Mem/CPU = {self.plot_mem}\n"
+            print(f"   - Plotting Num CPUs Needed = {self.plot_cpu}")
+            message += f"   - Plotting Num CPUs Needed = {self.plot_cpu}\n"
+            print('\n')
+            message += '\n'
+
+        sleep(5)        
+
+        return message,download,make_cube,make_cuts,reduce,search,plot,delete
 
     def _sector_suggestions(self):
         """
@@ -306,12 +514,6 @@ class Tessellate():
         """
         Confirm sector, cam, ccd properties.
         """
-
-        message = ''
-
-        print('\n')
-        print(_Print_buff(50,f'Initialising Tessellation Run'))
-        message += _Print_buff(50,f'Initialising Tessellation Run')+'\n'
 
         if self.sector is None:
             sector = input('   - Sector = ')
@@ -1204,6 +1406,103 @@ class Tessellate():
 
         return message
     
+    def _write_config(self,download,make_cube, make_cuts, reduce, search, plot,delete):
+
+        config = {
+            "base": {
+                "sector": self.sector,
+                "cam": self.cam,
+                "ccd": self.ccd,
+            }}
+        
+        if download:
+            config['download'] = {
+                'download' : True,
+                'download_number' : self.download_number}
+        else:
+            config['download'] = {
+                'download' : False
+            }
+
+        if make_cube:
+            config['make_cubes'] = {
+                'make_cubes' : True,
+                'cube job time' : self.cube_time,
+                'cube job memory' : self.cube_mem,
+                'cube job cpu' : self.cube_cpu}
+        else:
+            config['make_cubes'] = {
+                'make_cubes' : False
+            }
+
+        if make_cuts | reduce | search | plot:
+            config['cut_properties'] = {
+                'n' : self.n,
+                'cuts' : self.cuts}
+
+        if make_cuts:
+            config['make_cuts'] = {
+                'make_cuts' : True,
+                'cut job time' : self.cut_time,
+                'cut job memory' : self.cut_mem,
+                'cut job cpu' : self.cut_cpu}
+        else:
+            config['make_cuts'] = {
+                'make_cuts' : False
+            }
+
+        if reduce:
+            config['reduce'] = {
+                'reduce' : True,
+                'reduce job time' : self.reduce_time,
+                'reduce job memory' : self.reduce_mem,
+                'reduce job cpu' : self.reduce_cpu}
+        else:
+            config['reduce'] = {
+                'reduce' : False
+            }
+
+        if search:
+            config['search'] = {
+                'search' : True,
+                'search job time' : self.search_time,
+                'search job memory' : self.search_mem,
+                'search job cpu' : self.search_cpu,
+                'search detection mode' : self.detect_mode,
+                'search time bin' : self.time_bin}
+        else:
+            config['search'] = {
+                'search' : False
+            }
+
+        if plot:
+            config['plot'] = {
+                'plot' : True,
+                'plot job time' : self.plot_time,
+                'plot job memory' : self.plot_mem,
+                'plot job cpu' : self.plot_cpu}
+        else:
+            config['plot'] = {
+                'plot' : False
+            }
+
+        config['options'] = {
+            'verbose' : self.verbose,
+            'delete ffis' : delete}
+        
+        config_file = f'{self.working_path}/tessellate_config.txt'
+        with open(config_file, "w") as f:
+            for section, options in config.items():
+                f.write(f"[{section}]\n")
+                for key, value in options.items():
+                    # Strings get quotes, bools/lists/ints stay as-is
+                    # if isinstance(value, str):
+                    #     f.write(f"{key} = '{value}'\n")
+                    # else:
+                    f.write(f"{key} = {value}\n")
+                f.write("\n")
+
+        
     def _reset_logs(self,message,make_cube,make_cuts,reduce,search,plot):
         """
         Reset slurm job logs in provided output path.

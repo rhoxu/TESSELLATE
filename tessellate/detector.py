@@ -893,18 +893,18 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,snr_to_locali
         
         frame_start,frame_end,n_detections,frames = _Lightcurve_event_checker(sig_lc,eventsources['frame'].values,siglim=3,maxsep=5)
 
-        event['objid'] = objid
-        event['eventid'] = eventID
-        event['sector'] = sector
-        event['camera'] = cam
-        event['ccd'] = ccd
-        event['cut'] = cut
+        event['objid'] = int(objid)
+        event['eventid'] = int(eventID)
+        event['sector'] = int(sector)
+        event['camera'] = int(cam)
+        event['ccd'] = int(ccd)
+        event['cut'] = int(cut)
         event['classification'] = eventsources.iloc[0]['classification']
-        event['frame_start'] = frame_start
-        event['frame_end'] = frame_end
-        event['frame_duration'] = event['frame_end']-event['frame_start']+1
-        event['flux_sign'] = eventsources.iloc[0]['flux_sign']
-        event['n_detections'] = n_detections
+        event['frame_start'] = int(frame_start)
+        event['frame_end'] = int(frame_end)
+        event['frame_duration'] = int(event['frame_end']-event['frame_start']+1)
+        event['flux_sign'] = int(eventsources.iloc[0]['flux_sign'])
+        event['n_detections'] = int(n_detections)
         event['bkg_level'] = weighted_eventsources.iloc[0]['bkg_level']
         event['bkg_std'] = weighted_eventsources.iloc[0]['bkgstd']
 
@@ -942,8 +942,8 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,snr_to_locali
                                                                 [event['xint'],event['yint']],
                                                                 sign,buffer=buffer,base_range=base_range)
 
-        event['frame_max'] = max_frame
-        event['flux_max'] = max_flux
+        event['frame_max'] = int(max_frame)
+        event['flux_max'] = int(max_flux)
         event['image_sig_max'] = np.nanmax(eventsources['sig'].values)
         event['lc_sig_max'] = sig_max
         event['lc_sig_med'] = sig_med
@@ -962,7 +962,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,snr_to_locali
     events_df = pd.concat(dfs, ignore_index=True)
 
     # -- Add to each dataframe row the number of events in the total object -- #
-    events_df['total_events'] = len(events_df)
+    events_df['total_events'] = int(len(events_df))
     
     return events_df 
 
@@ -1253,6 +1253,8 @@ class Detector():
     def _flag_asteroids(self):
 
         events = deepcopy(self.events)
+        
+        print(f'Here 5: {len(events[pd.isna(events.objid)])}')
 
         # -- Generally best, checks for centre of mass movement and light curve Gaussianity -- #
         events = _Threshold_asteroid_checker(self.time,self.flux,events)
@@ -1260,9 +1262,9 @@ class Detector():
         # -- Picks up events with weirdly long event boundaries -- # 
         events = _Straight_line_asteroid_checker(self.time,self.flux,events)
 
-        events.to_csv(f'{self.path}/Cut{self.cut}of16/failed_events.csv',index=False)
-        raise ValueError
         events = self._recheck_asteroid_lcs(events)
+
+        print(f'Here 6: {len(events[pd.isna(events.objid)])}')
 
         self.events = events
     
@@ -1303,6 +1305,8 @@ class Detector():
 
         events = pd.concat(events,ignore_index=True)
 
+        print(f'Here 1: {len(events[pd.isna(events.objid)])}')
+
         events['xccd'] = RoundToInt(events['xint'] + cutCornerPx[self.cut-1][0])
         events['yccd'] = RoundToInt(events['yint'] + cutCornerPx[self.cut-1][1])
 
@@ -1320,11 +1324,15 @@ class Detector():
 
         self.events = real_events 
 
+        print(f'Here 2: {len(self.events[pd.isna(self.events.objid)])}')
+
     def _events_physical_units(self):
         from astropy.coordinates import SkyCoord
         import astropy.units as u
 
         events = deepcopy(self.events)
+
+        print(f'Here 3: {len(self.events[pd.isna(self.events.objid)])}')
 
         events['ra'],events['dec'] = self.wcs.all_pix2world(events['xcentroid'],events['ycentroid'],0)
 
@@ -1356,6 +1364,8 @@ class Detector():
         events['mag_min'] = -2.5*np.log10(events['flux_max'])
 
         self.events = events
+
+        print(f'Here 4: {len(self.events[pd.isna(self.events.objid)])}')
         
     def _order_events_columns(self):
 
