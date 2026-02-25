@@ -1258,12 +1258,8 @@ class Detector():
         # -- Generally best, checks for centre of mass movement and light curve Gaussianity -- #
         events = _Threshold_asteroid_checker(self.time,self.flux,events)
 
-        print(f'Here 1: {len(events[pd.isna(events.objid)])}')
-
         # -- Picks up events with weirdly long event boundaries -- # 
         events = _Straight_line_asteroid_checker(self.time,self.flux,events)
-
-        print(f'Here 2: {len(events[pd.isna(events.objid)])}')
 
         events = self._recheck_asteroid_lcs(events)
 

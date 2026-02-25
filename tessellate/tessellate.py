@@ -157,18 +157,11 @@ class Tessellate():
             message, load_prev = self._initialise()
 
             if load_prev:
-                print('Loading config')
-                message += 'Loading config\n'
-                print('\n')
-                message += '\n'
 
                 # -- Load config -- #
                 message, download, make_cube, make_cuts, reduce, search, plot, delete = self._load_config(message)
             
             else:
-                print('\n')
-                message += '\n'
-
                 # -- Confirm Run Properties -- #
                 message = self._run_properties(message) 
 
@@ -260,6 +253,13 @@ class Tessellate():
                 else:
                     load = input(f'  Invalid choice! Load from previous config ({file})? [y/n] = ')
                     message += f'   Invalid choice! Load from previous config ({file})? [y/n] = {load}\n'
+            
+            if load_prev:
+                print('Loading config')
+                message += 'Loading config\n'
+
+            print('\n')
+            message += '\n'
 
         return message,load_prev
     
