@@ -698,13 +698,21 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
     half_big = big_size // 2
     half_small = small_size // 2
 
+    h, w = flux.shape[1], flux.shape[2]
+
     # try:
-    # --- Find brightest pixel in 3x3 stacked cut --- #
+    # --- Find brightest pixel in 3x3 stacked cut ---
     stacked_flux_3x3 = np.zeros((3, 3), dtype=np.float32)
 
     for i in frames:
-        cut = flux[i, y0-1:y0+2, x0-1:x0+2]
-        stacked_flux_3x3 += sign * cut
+        y1, y2 = y0 - 1, y0 + 2
+        x1, x2 = x0 - 1, x0 + 2
+
+        if y1 < 0 or x1 < 0 or y2 > h or x2 > w:
+            continue
+
+        cut = flux[i, y1:y2, x1:x2] * sign
+        stacked_flux_3x3 += cut
 
     iy, ix = np.unravel_index(np.nanargmax(stacked_flux_3x3), stacked_flux_3x3.shape)
     brightest_y = y0 + (iy - 1)
@@ -713,19 +721,38 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
     event['xint_brightest'] = brightest_x
     event['yint_brightest'] = brightest_y
 
-    # --- Stack big cuts and compute SNRs --- #
+    # --- Stack big cuts with NaN padding ---
     stacked_big = np.zeros((big_size, big_size), dtype=np.float32)
     cuts = []
     snrs = []
 
     for i in frames:
-        cut = flux[
-            i,
-            brightest_y-half_big:brightest_y+half_big+1,
-            brightest_x-half_big:brightest_x+half_big+1,
-        ] * sign
+        # Desired bounds in full image
+        y1 = brightest_y - half_big
+        y2 = brightest_y + half_big + 1
+        x1 = brightest_x - half_big
+        x2 = brightest_x + half_big + 1
 
-        _, _, noise = sigma_clipped_stats(cut, sigma=3)
+        # Clip to image bounds
+        yy1, yy2 = max(0, y1), min(h, y2)
+        xx1, xx2 = max(0, x1), min(w, x2)
+
+        # Create NaN-padded cut
+        cut = np.full((big_size, big_size), np.nan, dtype=np.float32)
+
+        cy1 = yy1 - y1
+        cy2 = cy1 + (yy2 - yy1)
+        cx1 = xx1 - x1
+        cx2 = cx1 + (xx2 - xx1)
+
+        cut[cy1:cy2, cx1:cx2] = flux[i, yy1:yy2, xx1:xx2] * sign
+
+        # Compute noise only on valid pixels
+        valid = cut[~np.isnan(cut)]
+        if valid.size == 0:
+            continue
+
+        _, _, noise = sigma_clipped_stats(valid, sigma=3)
 
         core = cut[
             half_big-half_small:half_big+half_small+1,
@@ -737,14 +764,20 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
 
         cuts.append(cut)
         snrs.append(snr)
-        stacked_big += cut
+        stacked_big += np.nan_to_num(cut, nan=0.0)
 
-    # --- Stacked SNR ---
-    _, _, noise = sigma_clipped_stats(stacked_big, sigma=3)
+    if len(cuts) == 0:
+        raise ValueError("All PSF cutouts were out of bounds.")
+
+    # --- Stacked SNR (ignore NaNs) ---
+    valid = stacked_big[~np.isnan(stacked_big)]
+    _, _, noise = sigma_clipped_stats(valid, sigma=3)
+
     stacked_core = stacked_big[
         half_big-half_small:half_big+half_small+1,
         half_big-half_small:half_big+half_small+1,
     ]
+
     stacked_flux_sum = np.nansum(stacked_core)
     stacked_snr = stacked_flux_sum / (9 * noise)
 
@@ -781,7 +814,6 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
     event['psf_stacked'] = stacked_psf_fit
 
     # except Exception as e:
-    #     # Fail safely
     #     event['xcentroid_psf'] = np.nan
     #     event['ycentroid_psf'] = np.nan
     #     event['centroid_err_psf'] = np.nan
@@ -789,7 +821,7 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
     #     event['psf_like'] = np.nan
     #     event['psf_diff'] = np.nan
     #     event['psf_stacked'] = np.nan
-    #     # Optional debug:
+    #     # Optional:
     #     # print(f"PSF fit failed: {e}")
 
     return event
