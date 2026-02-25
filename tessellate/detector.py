@@ -984,6 +984,13 @@ def _Straight_line_asteroid_checker(time,flux,events):
             fs = np.max((frameStart - 5, 0))
             fe = np.min((frameEnd + 5, len(time)-1))
 
+            fs = int(fs)
+            fe = int(fe)
+            xl = int(xl)
+            yl = int(yl)
+            yu = int(yu)
+            xu = int(xu)
+
             image = flux[fs:fe,yl:yu,xl:xu]
             image = np.nanmax(image,axis=0)
             image = image / image[5,5] * 255
