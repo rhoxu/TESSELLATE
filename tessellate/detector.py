@@ -1260,6 +1260,8 @@ class Detector():
         # -- Picks up events with weirdly long event boundaries -- # 
         events = _Straight_line_asteroid_checker(self.time,self.flux,events)
 
+        events.to_csv(f'{self.path}/Cut{self.cut}of16/failed_events.csv',index=False)
+        raise ValueError
         events = self._recheck_asteroid_lcs(events)
 
         self.events = events
