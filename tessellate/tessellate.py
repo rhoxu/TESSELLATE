@@ -480,6 +480,7 @@ class Tessellate():
                 innerdone = False  
                 while not innerdone:
                     if srs.lower() == 'y':
+                        print('\n')
                         sys.exit(0)
                     elif srs.lower() != 'n':
                         srs = input('         Invalid choice! Cancel? [y/n] = ')
