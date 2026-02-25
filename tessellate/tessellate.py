@@ -267,6 +267,7 @@ class Tessellate():
 
         import configparser
         import ast
+        import sys
 
         config_file = f'{self.working_path}/tessellate_config.txt'
 
@@ -417,12 +418,14 @@ class Tessellate():
             print(f"   - n (Number of Cuts = n^2) = {self.n}")
             message += f"   - n (Number of Cuts = n^2) = {self.n}\n"
     
-            if self.cuts == range(1,17):
+            if self.cuts == list(range(1,17)):
                 cut_printout = 'all'
             else:
                 cut_printout = self.cuts
             print(f"   - Cut [1-16,all] = {cut_printout}")
             message += f"   - Cut [1-16,all] = {cut_printout}\n"
+            print('\n')
+            message += '\n'
 
         if make_cuts:
             print(f"   - Cut Batch Time ['h:mm:ss'] = {self.cut_time}")
@@ -464,7 +467,31 @@ class Tessellate():
             print('\n')
             message += '\n'
 
-        sleep(5)        
+        go = input('   Ready? [y/n] = ')  
+        message += f'   Ready? [y/n] = {go}\n'
+        done = False
+        while not done:
+            if go.lower() == 'y':
+                go = True
+                done=True
+            elif go.lower() == 'n':
+                srs = input('      Cancel? [y/n] = ')
+                message += f'      Cancel? [y/n] = {srs}\n'
+                innerdone = False  
+                while not innerdone:
+                    if srs.lower() == 'y':
+                        sys.exit(0)
+                    elif srs.lower() != 'n':
+                        srs = input('         Invalid choice! Cancel? [y/n] = ')
+                        message += f'         Invalid choice! Cancel? [y/n] = {srs}\n'
+                    else:
+                        innerdone = True
+                go = input('   Ready? [y/n] = ')  
+                message += f'   Ready? [y/n] = {go}\n'
+            else:
+                go = input('      Invalid choice! Ready? [y/n] = ')
+                message += f'      Invalid choice! Ready? [y/n] = {go}\n'
+
 
         return message,download,make_cube,make_cuts,reduce,search,plot,delete
 
