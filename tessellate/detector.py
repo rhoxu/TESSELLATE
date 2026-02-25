@@ -2309,7 +2309,7 @@ class Detector():
 
         return lcs
     
-    def event_frames(self,cut,objid,eventid=None,frame_buffer=1,image_size=11):
+    def event_frames(self,cut,objid,eventid=None,frame_buffer=1,image_size=11,n_frames=5,plot=False):
 
         # -- Gather data -- #
         if cut != self.cut:
@@ -2322,9 +2322,12 @@ class Detector():
             print('No event specificed, using brightest one!')
             eventid = events['lc_sig_max'].argmax()+1
         
+
+        frame_range = range(-(n_frames//2),n_frames//2+1)
+
         event = events[events.eventid==eventid]
         brightestframe = event['frame_max']
-        frames = np.array([brightestframe+frame_buffer*n for n in range(-2,3)])
+        frames = np.array([brightestframe+frame_buffer*n for n in frame_range])
         frames[frames<0] = 0
         frames[frames>len(self.time)]=len(self.time)-1
         frames = np.unique(frames)
@@ -2338,7 +2341,16 @@ class Detector():
         ymin = max(y-image_size//2,0)
         ymax = min(y+image_size//2,self.flux.shape[1])
 
-        return self.flux[frames,ymin:ymax+1,xmin:xmax+1]
+        images = self.flux[frames,ymin:ymax+1,xmin:xmax+1]
+
+        if plot:
+            fig,ax = plt.subplots(ncols=5,figsize=(15,15))
+            for i in range(5):
+                ax[i].imshow(images[n_frames//2-2+i],origin='lower',cmap='gray')
+                ax[i].set_title(f'Frame {frames[n_frames//2-2+i]}')
+
+
+        return images
     
     def object_lc(self,cut,objid):
 
