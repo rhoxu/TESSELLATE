@@ -1226,9 +1226,12 @@ class Detector():
                 frame_start = ast['frame_start']
                 frame_end = ast['frame_end']
 
-                _, _, lc_sig, _, _ = _Check_LC_significance(
-                    self.time, self.flux, frame_start, frame_end, [xint, yint], 1, 0.5, 1
-                )
+                try:
+                    _, _, lc_sig, _, _ = _Check_LC_significance(
+                        self.time, self.flux, frame_start, frame_end, [xint, yint], 1, 0.5, 1
+                    )
+                except:
+                    print(frame_start, frame_end, [xint, yint])
 
                 start, end, _, _ = _Lightcurve_event_checker(
                     lc_sig, np.arange(frame_start, frame_end+1)
