@@ -711,16 +711,16 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
 
     # try:
     # --- Find brightest pixel in 3x3 stacked cut ---
-    x1, x2 = x0 - 1, x0 + 2
-    y1, y2 = y0 - 1, y0 + 2
-    # stacked_flux_3x3 = np.nansum(flux[frames,y1:y2,x1:x2],axis=(0))
+    # x1, x2 = x0 - 1, x0 + 2
+    # y1, y2 = y0 - 1, y0 + 2
+    # # stacked_flux_3x3 = np.nansum(flux[frames,y1:y2,x1:x2],axis=(0))
 
-    stacked_flux_3x3 = np.zeros((3, 3), dtype=np.float32)
-    for i in frames:
-        cut = flux[i, y1:y2, x1:x2] * sign
-        stacked_flux_3x3 += cut
+    # stacked_flux_3x3 = np.zeros((3, 3), dtype=np.float32)
+    # for i in frames:
+    #     cut = flux[i, y1:y2, x1:x2] * sign
+    #     stacked_flux_3x3 += cut
 
-    iy, ix = np.unravel_index(np.nanargmax(stacked_flux_3x3), stacked_flux_3x3.shape)
+    # iy, ix = np.unravel_index(np.nanargmax(stacked_flux_3x3), stacked_flux_3x3.shape)
 
     # except Exception as e:
     #     raise RuntimeError(
@@ -733,6 +733,17 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
     #         {stacked_flux_3x3}
     #         """
     #     ) from e
+
+    stacked_flux_3x3 = np.zeros((3, 3), dtype=np.float32) 
+    for i in frames: 
+        y1, y2 = y0 - 1, y0 + 2 
+        x1, x2 = x0 - 1, x0 + 2 
+        if y1 < 0 or x1 < 0 or y2 > h or x2 > w: 
+            continue 
+        cut = flux[i, y1:y2, x1:x2] * sign 
+        stacked_flux_3x3 += cut 
+        
+    iy, ix = np.unravel_index(np.nanargmax(stacked_flux_3x3), stacked_flux_3x3.shape)
 
 
     brightest_y = y0 + (iy - 1)
@@ -971,9 +982,9 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,snr_to_locali
         _, _, sig_lc, _, _ = _Check_LC_significance(time,flux,eventsources['frame'].min(),eventsources['frame'].max(),
                                                                 [xint,yint],sign,buffer=buffer,base_range=base_range)
         
-        has_data = np.any(np.isfinite(flux), axis=(1, 2))
-        nanframes = np.where(~has_data)[0]
-        sig_lc[nanframes] = np.nan
+        # has_data = np.any(np.isfinite(flux), axis=(1, 2))
+        # nanframes = np.where(~has_data)[0]
+        # sig_lc[nanframes] = np.nan
         
         frame_start,frame_end,n_detections,frames = _Lightcurve_event_checker(sig_lc,eventsources['frame'].values,siglim=3,maxsep=5)
 
@@ -998,17 +1009,15 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,snr_to_locali
         event['ycentroid_det'] = weighted_eventsources.iloc[0]['ycentroid']
 
         if eventID in goodevents:
-            # try:
-            event = _Fit_psf(flux,event,prf,frames,snr_to_localisation_func)
-            # except Exception as e:
-            #     raise RuntimeError(
-            #         f"""
-            #         Failed on event:
-            #         nan_frames = {nanframes}
-            #         sig_lc = {sig_lc}
-            #         frames={frames}
-            #         """
-            #     ) from e
+            try:
+                event = _Fit_psf(flux,event,prf,frames,snr_to_localisation_func)
+            except Exception as e:
+                raise RuntimeError(
+                    f"""
+                    Failed on event:
+                    frames={frames}
+                    """
+                ) from e
         
         
             # event['xcentroid_psf'] = np.nan
