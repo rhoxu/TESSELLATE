@@ -715,6 +715,7 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
     y1, y2 = y0 - 1, y0 + 2
     # stacked_flux_3x3 = np.nansum(flux[frames,y1:y2,x1:x2],axis=(0))
 
+    stacked_flux_3x3 = np.zeros((3, 3), dtype=np.float32)
     for i in frames:
         cut = flux[i, y1:y2, x1:x2] * sign
         stacked_flux_3x3 += cut
