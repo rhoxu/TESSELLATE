@@ -1086,8 +1086,13 @@ def _Straight_line_asteroid_checker(time,flux,events):
             frameStart = source['frame_start']
             frameEnd = source['frame_end']
             x = source['xint']; y = source['yint']
-            xl = np.max((x - 5,0)); xu = np.min((x + 6,flux.shape[2]-1))
-            yl = np.max((y - 5,0)); yu = np.min((y + 6,flux.shape[1]-1))
+            h, w = flux.shape[1], flux.shape[2]
+
+            if (x-5<0)&(y-5<0)&(x+5>=w)&(y+5>=h):
+                continue
+
+            xl = x - 5; xu = x + 6
+            yl = y - 5; yu = y + 6
             fs = np.max((frameStart - 5, 0))
             fe = np.min((frameEnd + 5, len(time)-1))
 
@@ -1100,20 +1105,7 @@ def _Straight_line_asteroid_checker(time,flux,events):
 
             image = flux[fs:fe,yl:yu,xl:xu]
             image = np.nanmax(image,axis=0)
-            try:
-                image = image / image[5,5] * 255
-            except Exception as e:
-                raise RuntimeError(
-                    f"""
-                    Failed on event:
-                    x={x}, y={y}
-                    xl,xu={xl,xu}
-                    yl,yu={yl,yu}
-                    fs,fe={fs,fe}
-                    image=
-                    {image}
-                    """
-                ) from e
+            image = image / image[5,5] * 255
             
             image[image > 255] = 255
             mean, med, std = sigma_clipped_stats(image,maxiters=10,sigma_upper=2)
