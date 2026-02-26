@@ -1670,6 +1670,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 
         # print('Importing .dataprocessor, .catalog_queries')
         from .dataprocessor import DataProcessor
+        from .localisation import CutWCS
         from .catalog_queries import create_external_var_cat, create_external_gaia_cat
         import warnings
         warnings.filterwarnings("ignore")
@@ -1711,20 +1712,23 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                         if os.path.exists(f'{save_path}/variable_catalog.csv') & os.path.exists(f'{save_path}/local_gaia_cat.csv'):
                             completed.append(cut)
                         elif os.path.exists(f'{save_path}/cut.txt'):
-                            import sys
+
+                            wcs = CutWCS(data_path=self.data_path,sector=self.sector,cam=self.cam,ccd=self.ccd,cut=cut,n=self.n)
+
                             #try:
                             print(f'Generating Catalogues {cut}')
                             if os.path.exists(f'{save_path}/local_gaia_cat.csv'):
                                 print('--Gaia catalog already made, skipping.')
                             else:      # its time to move external_save_cat to tessellate, this import takes ages!!             
                                 rad = rad + 2*60/21
-                                cutPath = f'{save_path}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}.fits'
+                                # cutPath = f'{save_path}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}.fits'
 
                                 doneGaia = False
                                 attempt = 1
                                 while not doneGaia:
                                     try:
-                                        create_external_gaia_cat(tpf=cutPath,save_path=save_path,maglim=19,verbose=self.verbose>1) # oversize radius by 2 arcmin in terms of tess pixels
+                                        create_external_gaia_cat(centre=cutCentreCoords[cut-1],size=rad,wcs=wcs,save_path=save_path,maglim=19,verbose=self.verbose>1) # oversize radius by 2 arcmin in terms of tess pixels
+                                        # create_external_gaia_cat(tpf=cutPath,save_path=save_path,maglim=19,verbose=self.verbose>1) # oversize radius by 2 arcmin in terms of tess pixels
                                         doneGaia = True
                                     except Exception as e:
                                         print(f"--GAIA Catalogue Attempt {attempt} failed with error: {e}")

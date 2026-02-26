@@ -125,17 +125,11 @@ def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False)
     #Jmag = Jmag[ind]
     return radecs, Tmag, source
 
-def create_external_gaia_cat(tpf,save_path,maglim,verbose=False):
+def create_external_gaia_cat(centre,size,wcs,save_path,maglim,verbose=False):
 
-	tpfFits = fits.open(tpf)
+	ra,dec = centre
 
-	ra = tpfFits[1].header['RA_OBJ']
-	dec = tpfFits[1].header['DEC_OBJ']
-	size = eval(tpfFits[1].header['TDIM8'])[0] 
-
-	wcsObj = WCS(tpfFits[2].header)
-
-	gp,gm, source = Get_Gaia(ra,dec,size,wcsObj,magnitude_limit=maglim,verbose=verbose)
+	gp,gm, source = Get_Gaia(ra,dec,size,wcs,magnitude_limit=maglim,verbose=verbose)
 	
 	gaia  = pd.DataFrame(np.array([gp[:,0],gp[:,1],gm,source]).T,columns=['ra','dec','mag','Source'])
 

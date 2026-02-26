@@ -17,8 +17,13 @@ class CutWCS():
         self.n = n
 
         wcs_folder = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Cut{cut}of{self.n**2}/wcs_info'
+        folder = glob(f'{wcs_folder}/*corrected.fits')
 
-        self.wcs_path = glob(f'{wcs_folder}/*corrected.fits')[0]
+        if len(folder) == 1:
+            self.wcs_path = folder[0]
+        else:
+            self.wcs_path = glob(f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/*wcs.fits')[0]  # temporary
+
         hdu = fits.open(self.wcs_path)
         self.wcs = WCS(hdu[1].header)
 
