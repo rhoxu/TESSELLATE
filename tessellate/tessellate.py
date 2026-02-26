@@ -1727,7 +1727,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                                 attempt = 1
                                 while not doneGaia:
                                     try:
-                                        create_external_gaia_cat(centre=cutCentreCoords[cut-1],size=rad,wcs=wcs,save_path=save_path,maglim=19,verbose=self.verbose>1) # oversize radius by 2 arcmin in terms of tess pixels
+                                        create_external_gaia_cat(centre=cutCentreCoords[cut-1],size=rad*2,wcs=wcs,save_path=save_path,maglim=19,verbose=self.verbose>1) # oversize radius by 2 arcmin in terms of tess pixels
                                         # create_external_gaia_cat(tpf=cutPath,save_path=save_path,maglim=19,verbose=self.verbose>1) # oversize radius by 2 arcmin in terms of tess pixels
                                         doneGaia = True
                                     except Exception as e:
@@ -1735,18 +1735,22 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                                         sleep(120)
                                         attempt += 1
 
-                            rad2 = rad*21/60**2
-                            doneVar = False
-                            attempt = 1
-                            while not doneVar:
-                                try:
-                                    create_external_var_cat(center=cutCentreCoords[cut-1],
-                                                            size=rad2,save_path=save_path,verbose=self.verbose>1) # This one queries in degrees!!!!
-                                    doneVar = True
-                                except Exception as e:
-                                    print(f"--Variable Catalogue Attempt {attempt} failed with error: {e}")
-                                    sleep(120)
-                                    attempt+=1
+                            
+                            if os.path.exists(f'{save_path}/variable_catalog.csv'):
+                                print('--Variable catalog already made, skipping.')
+                            else:
+                                rad2 = rad*21/60**2
+                                doneVar = False
+                                attempt = 1
+                                while not doneVar:
+                                    try:
+                                        create_external_var_cat(center=cutCentreCoords[cut-1],
+                                                                size=rad2,save_path=save_path,verbose=self.verbose>1) # This one queries in degrees!!!!
+                                        doneVar = True
+                                    except Exception as e:
+                                        print(f"--Variable Catalogue Attempt {attempt} failed with error: {e}")
+                                        sleep(120)
+                                        attempt+=1
 
                             completed.append(cut)
 
