@@ -1003,7 +1003,19 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,snr_to_locali
         event['ycentroid_det'] = weighted_eventsources.iloc[0]['ycentroid']
 
         if eventID in goodevents:
-            event = _Fit_psf(flux,event,prf,frames,snr_to_localisation_func)
+            try:
+                event = _Fit_psf(flux,event,prf,frames,snr_to_localisation_func)
+            except Exception as e:
+                raise RuntimeError(
+                    f"""
+                    Failed on event:
+                    nan_frames = {nanframes}
+                    sig_lc = {sig_lc}
+                    frames={frames}
+                    """
+                ) from e
+        
+        
             # event['xcentroid_psf'] = np.nan
             # event['ycentroid_psf'] = np.nan
             # event['psf_like'] = np.nan
