@@ -713,17 +713,11 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
     # --- Find brightest pixel in 3x3 stacked cut ---
     x1, x2 = x0 - 1, x0 + 2
     y1, y2 = y0 - 1, y0 + 2
-    stacked_flux_3x3 = np.nansum(flux[frames,y1:y2,x1:x2],axis=(0))
+    # stacked_flux_3x3 = np.nansum(flux[frames,y1:y2,x1:x2],axis=(0))
 
-            # for i in frames:
-            #     y1, y2 = y0 - 1, y0 + 2
-            #     x1, x2 = x0 - 1, x0 + 2
-
-            #     if y1 < 0 or x1 < 0 or y2 > h or x2 > w:
-            #         continue
-
-            #     cut = flux[i, y1:y2, x1:x2] * sign
-            #     stacked_flux_3x3 += cut
+    for i in frames:
+        cut = flux[i, y1:y2, x1:x2] * sign
+        stacked_flux_3x3 += cut
 
     iy, ix = np.unravel_index(np.nanargmax(stacked_flux_3x3), stacked_flux_3x3.shape)
 
