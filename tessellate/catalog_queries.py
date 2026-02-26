@@ -99,7 +99,7 @@ def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False)
     ras = result['RA_ICRS']
     decs = result['DE_ICRS']
 
-    # radecs = np.vstack([result['RA_ICRS'], result['DE_ICRS']]).T
+    radecs = np.vstack([result['RA_ICRS'], result['DE_ICRS']]).T
 
     # ras = 
 
@@ -119,8 +119,8 @@ def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False)
         ras = ras[good_coords]
         decs = decs[good_coords]
         result = result.iloc[good_coords]
-
-        # radecs = radecs[good_coords]
+        radecs = radecs[good_coords]
+        
         # result = result.iloc[good_coords]
         coords = wcsObj.all_world2pix(ras,decs, 0) ## TODO, is origin supposed to be zero or one?
 
