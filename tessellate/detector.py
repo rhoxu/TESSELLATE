@@ -713,7 +713,7 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
     # --- Find brightest pixel in 3x3 stacked cut ---
     x1, x2 = x0 - 1, x0 + 2
     y1, y2 = y0 - 1, y0 + 2
-    stacked_flux_3x3 = np.nansum(flux[frames,y1:y2,x1:x2])
+    stacked_flux_3x3 = np.nansum(flux[frames,y1:y2,x1:x2],axis=(0))
 
             # for i in frames:
             #     y1, y2 = y0 - 1, y0 + 2
@@ -1003,17 +1003,17 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,snr_to_locali
         event['ycentroid_det'] = weighted_eventsources.iloc[0]['ycentroid']
 
         if eventID in goodevents:
-            try:
-                event = _Fit_psf(flux,event,prf,frames,snr_to_localisation_func)
-            except Exception as e:
-                raise RuntimeError(
-                    f"""
-                    Failed on event:
-                    nan_frames = {nanframes}
-                    sig_lc = {sig_lc}
-                    frames={frames}
-                    """
-                ) from e
+            # try:
+            event = _Fit_psf(flux,event,prf,frames,snr_to_localisation_func)
+            # except Exception as e:
+            #     raise RuntimeError(
+            #         f"""
+            #         Failed on event:
+            #         nan_frames = {nanframes}
+            #         sig_lc = {sig_lc}
+            #         frames={frames}
+            #         """
+            #     ) from e
         
         
             # event['xcentroid_psf'] = np.nan
