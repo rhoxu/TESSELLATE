@@ -1732,9 +1732,10 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                                         # create_external_gaia_cat(tpf=cutPath,save_path=save_path,maglim=19,verbose=self.verbose>1) # oversize radius by 2 arcmin in terms of tess pixels
                                         doneGaia = True
                                     except Exception as e:
-                                        print(f"--GAIA Catalogue Attempt {attempt} failed with error: {e}")
-                                        sleep(120)
-                                        attempt += 1
+                                        raise e
+                                        # print(f"--GAIA Catalogue Attempt {attempt} failed with error: {e}")
+                                        # sleep(120)
+                                        # attempt += 1
 
                             
                             if os.path.exists(f'{save_path}/variable_catalog.csv'):
