@@ -1088,7 +1088,7 @@ def _Straight_line_asteroid_checker(time,flux,events):
             x = source['xint']; y = source['yint']
             h, w = flux.shape[1], flux.shape[2]
 
-            if (x-5<0)&(y-5<0)&(x+5>=w)&(y+5>=h):
+            if (x-5<0)|(y-5<0)|(x+5>=w)|(y+5>=h):
                 continue
 
             xl = x - 5; xu = x + 6
