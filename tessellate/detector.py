@@ -700,21 +700,30 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
 
     h, w = flux.shape[1], flux.shape[2]
 
-    # try:
-    # --- Find brightest pixel in 3x3 stacked cut ---
-    stacked_flux_3x3 = np.zeros((3, 3), dtype=np.float32)
+    try:
+        # --- Find brightest pixel in 3x3 stacked cut ---
+        stacked_flux_3x3 = np.zeros((3, 3), dtype=np.float32)
 
-    for i in frames:
-        y1, y2 = y0 - 1, y0 + 2
-        x1, x2 = x0 - 1, x0 + 2
+        for i in frames:
+            y1, y2 = y0 - 1, y0 + 2
+            x1, x2 = x0 - 1, x0 + 2
 
-        if y1 < 0 or x1 < 0 or y2 > h or x2 > w:
-            continue
+            if y1 < 0 or x1 < 0 or y2 > h or x2 > w:
+                continue
 
-        cut = flux[i, y1:y2, x1:x2] * sign
-        stacked_flux_3x3 += cut
+            cut = flux[i, y1:y2, x1:x2] * sign
+            stacked_flux_3x3 += cut
 
-    iy, ix = np.unravel_index(np.nanargmax(stacked_flux_3x3), stacked_flux_3x3.shape)
+        iy, ix = np.unravel_index(np.nanargmax(stacked_flux_3x3), stacked_flux_3x3.shape)
+
+    except Exception as e:
+        print(x0,y0)
+        print('\n')
+        print(stacked_flux_3x3)
+        print('\n')
+        raise e
+
+
     brightest_y = y0 + (iy - 1)
     brightest_x = x0 + (ix - 1)
 
