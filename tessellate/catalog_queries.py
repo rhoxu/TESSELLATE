@@ -111,6 +111,8 @@ def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False)
         result = result.iloc[good_coords]
         coords = wcsObj.all_world2pix(radecs, 0) ## TODO, is origin supposed to be zero or one?
 
+    print(coords)
+
     source = result['Source'].values
     Gmag = result['Gmag'].values
     #Jmag = result['Jmag']
