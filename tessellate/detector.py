@@ -717,11 +717,16 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
         iy, ix = np.unravel_index(np.nanargmax(stacked_flux_3x3), stacked_flux_3x3.shape)
 
     except Exception as e:
-        print(x0,y0)
-        print('\n')
-        print(stacked_flux_3x3)
-        print('\n')
-        raise e
+        raise RuntimeError(
+            f"""
+            Failed on event:
+            x0={x0}, y0={y0}
+            frames={frames}
+            sign={sign}
+            stacked_flux_3x3=
+            {stacked_flux_3x3}
+            """
+        ) from e
 
 
     brightest_y = y0 + (iy - 1)
