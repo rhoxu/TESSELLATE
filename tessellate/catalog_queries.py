@@ -96,32 +96,33 @@ def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False)
     if len(result) == 0:
         raise no_targets_found_message
     
-    radecs = np.vstack([result['RA_ICRS'], result['DE_ICRS']]).T
+    ras = result['RA_ICRS']
+    decs = result['DE_ICRS']
 
-    print(result)
-    print('\n')
-    print(radecs)
-    print('\n')
+    # radecs = np.vstack([result['RA_ICRS'], result['DE_ICRS']]).T
+
+    # ras = 
 
     try:
-        coords = wcsObj.all_world2pix(radecs, 0) ## TODO, is origin supposed to be zero or one?
+        coords = wcsObj.all_world2pix(ras,decs, 0) ## TODO, is origin supposed to be zero or one?
     except:
         good_coords = []
-        for i,radec in enumerate(radecs):
+        for i in range(len(ras)):
+            r = ras[i]
+            d = decs[i]
+        # for i,radec in enumerate(radecs):
             try:
-                c = wcsObj.all_world2pix(radec[0],radec[1], 0)
+                c = wcsObj.all_world2pix(r,d, 0)
                 good_coords.append(i)
             except:
                 pass
-        radecs = radecs[good_coords]
+        ras = ras[good_coords]
+        decs = decs[good_coords]
         result = result.iloc[good_coords]
-        coords = wcsObj.all_world2pix(radecs, 0) ## TODO, is origin supposed to be zero or one?
 
-    print(coords[0])
-    print('\n')
-    print(coords[1])
-    print('\n')
-    print(coords[2])
+        # radecs = radecs[good_coords]
+        # result = result.iloc[good_coords]
+        coords = wcsObj.all_world2pix(ras,decs, 0) ## TODO, is origin supposed to be zero or one?
 
     source = result['Source'].values
     Gmag = result['Gmag'].values
