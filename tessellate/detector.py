@@ -914,7 +914,7 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
 
         
 
-def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,snr_to_localisation_func,frame_buffer=5,buffer=1,base_range=1,verbose=False):
+def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,snr_to_localisation_func,nan_frames,frame_buffer=5,buffer=1,base_range=1,verbose=False):
     """_summary_
 
     Args:
@@ -984,7 +984,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,snr_to_locali
         
         # has_data = np.any(np.isfinite(flux), axis=(1, 2))
         # nanframes = np.where(~has_data)[0]
-        # sig_lc[nanframes] = np.nan
+        sig_lc[nan_frames] = np.nan
         
         frame_start,frame_end,n_detections,frames = _Lightcurve_event_checker(sig_lc,eventsources['frame'].values,siglim=3,maxsep=5)
 
@@ -1393,17 +1393,20 @@ class Detector():
         
         snr_to_localisation = get_snr_to_localisation_func(self.data_path,self.sector,self.cam,self.ccd,self.cut)
 
+        has_data = np.any(np.isfinite(self.flux), axis=(1, 2))
+        nan_frames = np.where(~has_data)[0]
+
         ids = np.unique(self.sources['objid'].values).astype(int)
         if cpu > 1:
             length = np.arange(0,len(ids)).astype(int)
             events = Parallel(n_jobs=cpu)(delayed(_Isolate_events)(ids[i],self.time,self.flux,self.sources,
-                                                                   self.sector,self.cam,self.ccd,self.cut,prf,snr_to_localisation,
+                                                                   self.sector,self.cam,self.ccd,self.cut,prf,snr_to_localisation,nan_frames,
                                                                    frame_buffer,buffer,base_range) for i in tqdm(length))
         else:            
             events = []
             for id in ids:
                 e = _Isolate_events(id,self.time,self.flux,self.sources,self.sector,self.cam,
-                                    self.ccd,self.cut,prf,snr_to_localisation,frame_buffer=frame_buffer,
+                                    self.ccd,self.cut,prf,snr_to_localisation,nan_frames,frame_buffer=frame_buffer,
                                     buffer=buffer,base_range=base_range)
                 events += [e]
 
