@@ -1680,6 +1680,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 
         data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
         _,_,cutCentreCoords,rad = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
+        rad = rad + 2*60/21
 
         #image_path = glob(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/*ffic.fits')[0]
 
