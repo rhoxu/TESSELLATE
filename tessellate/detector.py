@@ -691,8 +691,8 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
     from .localisation import PSF_Fitter
     from astropy.stats import sigma_clipped_stats
 
-    x0 = int(np.round(event['xcentroid_det']))
-    y0 = int(np.round(event['ycentroid_det']))
+    x0 = RoundToInt(event['xcentroid_det'])
+    y0 = RoundToInt(event['ycentroid_det'])
     sign = event['flux_sign']
 
     half_big = big_size // 2
@@ -700,33 +700,44 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
 
     h, w = flux.shape[1], flux.shape[2]
 
-    try:
-        # --- Find brightest pixel in 3x3 stacked cut ---
-        stacked_flux_3x3 = np.zeros((3, 3), dtype=np.float32)
+    # lower_big_x = max(0,x0-half_big)
+    # upper_big_x = min(w,x0+half_big)
+    # lower_big_y = max(0,y0-half_big)
+    # upper_big_y = min(h,y0+half_big)
+    # lower_small_x = max(0,x0-half_small)
+    # upper_small_x = min(w,x0+half_small)
+    # lower_small_y = max(0,y0-half_small)
+    # upper_small_y = min(h,y0+half_small)
 
-        for i in frames:
-            y1, y2 = y0 - 1, y0 + 2
-            x1, x2 = x0 - 1, x0 + 2
+    # try:
+    # --- Find brightest pixel in 3x3 stacked cut ---
+    x1, x2 = x0 - 1, x0 + 2
+    y1, y2 = y0 - 1, y0 + 2
+    stacked_flux_3x3 = np.nansum(flux[frames,y1:y2,x1:x2])
 
-            if y1 < 0 or x1 < 0 or y2 > h or x2 > w:
-                continue
+            # for i in frames:
+            #     y1, y2 = y0 - 1, y0 + 2
+            #     x1, x2 = x0 - 1, x0 + 2
 
-            cut = flux[i, y1:y2, x1:x2] * sign
-            stacked_flux_3x3 += cut
+            #     if y1 < 0 or x1 < 0 or y2 > h or x2 > w:
+            #         continue
 
-        iy, ix = np.unravel_index(np.nanargmax(stacked_flux_3x3), stacked_flux_3x3.shape)
+            #     cut = flux[i, y1:y2, x1:x2] * sign
+            #     stacked_flux_3x3 += cut
 
-    except Exception as e:
-        raise RuntimeError(
-            f"""
-            Failed on event:
-            x0={x0}, y0={y0}
-            frames={frames}
-            sign={sign}
-            stacked_flux_3x3=
-            {stacked_flux_3x3}
-            """
-        ) from e
+    iy, ix = np.unravel_index(np.nanargmax(stacked_flux_3x3), stacked_flux_3x3.shape)
+
+    # except Exception as e:
+    #     raise RuntimeError(
+    #         f"""
+    #         Failed on event:
+    #         x0={x0}, y0={y0}
+    #         frames={frames}
+    #         sign={sign}
+    #         stacked_flux_3x3=
+    #         {stacked_flux_3x3}
+    #         """
+    #     ) from e
 
 
     brightest_y = y0 + (iy - 1)
@@ -740,17 +751,19 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
     cuts = []
     snrs = []
 
+
+    # Desired bounds in full image
+    y1 = brightest_y - half_big
+    y2 = brightest_y + half_big + 1
+    x1 = brightest_x - half_big
+    x2 = brightest_x + half_big + 1
+
+    # Clip to image bounds
+    yy1, yy2 = max(0, y1), min(h, y2)
+    xx1, xx2 = max(0, x1), min(w, x2)
+
     for i in frames:
-        # Desired bounds in full image
-        y1 = brightest_y - half_big
-        y2 = brightest_y + half_big + 1
-        x1 = brightest_x - half_big
-        x2 = brightest_x + half_big + 1
-
-        # Clip to image bounds
-        yy1, yy2 = max(0, y1), min(h, y2)
-        xx1, xx2 = max(0, x1), min(w, x2)
-
+        
         # Create NaN-padded cut
         cut = np.full((big_size, big_size), np.nan, dtype=np.float32)
 
@@ -963,7 +976,13 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,snr_to_locali
         _, _, sig_lc, _, _ = _Check_LC_significance(time,flux,eventsources['frame'].min(),eventsources['frame'].max(),
                                                                 [xint,yint],sign,buffer=buffer,base_range=base_range)
         
+        has_data = np.any(np.isfinite(flux), axis=(1, 2))
+        nanframes = np.where(~has_data)[0]
+        sig_lc[nanframes] = np.nan
+        
         frame_start,frame_end,n_detections,frames = _Lightcurve_event_checker(sig_lc,eventsources['frame'].values,siglim=3,maxsep=5)
+
+
 
         event['objid'] = int(objid)
         event['eventid'] = int(eventID)
