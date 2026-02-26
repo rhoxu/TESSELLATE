@@ -1100,7 +1100,21 @@ def _Straight_line_asteroid_checker(time,flux,events):
 
             image = flux[fs:fe,yl:yu,xl:xu]
             image = np.nanmax(image,axis=0)
-            image = image / image[5,5] * 255
+            try:
+                image = image / image[5,5] * 255
+            except Exception as e:
+                raise RuntimeError(
+                    f"""
+                    Failed on event:
+                    x={x}, y={y}
+                    xl,xu={xl,xu}
+                    yl,yu={yl,yu}
+                    fs,fe={fs,fe}
+                    image=
+                    {image}
+                    """
+                ) from e
+            
             image[image > 255] = 255
             mean, med, std = sigma_clipped_stats(image,maxiters=10,sigma_upper=2)
             edges = (image > med + 5*std).astype('uint8')
