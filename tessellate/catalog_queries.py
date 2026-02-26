@@ -97,10 +97,15 @@ def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False)
         raise no_targets_found_message
     
     radecs = np.vstack([result['RA_ICRS'], result['DE_ICRS']]).T
+
+    print(result)
+    print('\n')
+    print(radecs)
+    print('\n')
+
     try:
         coords = wcsObj.all_world2pix(radecs, 0) ## TODO, is origin supposed to be zero or one?
     except:
-        print('here')
         good_coords = []
         for i,radec in enumerate(radecs):
             try:
@@ -112,7 +117,11 @@ def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False)
         result = result.iloc[good_coords]
         coords = wcsObj.all_world2pix(radecs, 0) ## TODO, is origin supposed to be zero or one?
 
-    print(coords.shape)
+    print(coords[0])
+    print('\n')
+    print(coords[1])
+    print('\n')
+    print(coords[2])
 
     source = result['Source'].values
     Gmag = result['Gmag'].values
