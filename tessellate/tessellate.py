@@ -1721,7 +1721,6 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                             if os.path.exists(f'{save_path}/local_gaia_cat.csv'):
                                 print('--Gaia catalog already made, skipping.')
                             else:      # its time to move external_save_cat to tessellate, this import takes ages!!             
-                                rad = rad + 2*60/21
                                 # cutPath = f'{save_path}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}.fits'
 
                                 doneGaia = False
