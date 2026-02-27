@@ -1422,9 +1422,12 @@ class Detector():
         events['yccd'] = RoundToInt(events['yint'] + cutCornerPx[self.cut-1][1])
 
         wcs_unc = get_wcs_uncertainty(self.data_path,self.sector,self.cam,self.ccd,self.cut)
-
-        events['xcentroid_err'] = np.sqrt(events['centroid_err']**2 + wcs_unc[0]**2)
-        events['ycentroid_err'] = np.sqrt(events['centroid_err']**2 + wcs_unc[1]**2)
+        if np.isnan(wcs_unc).any():
+            events['xcentroid_err'] = 0.5
+            events['ycentroid_err'] = 0.5
+        else:
+            events['xcentroid_err'] = np.sqrt(events['centroid_err']**2 + wcs_unc[0]**2)
+            events['ycentroid_err'] = np.sqrt(events['centroid_err']**2 + wcs_unc[1]**2)
 
         fake_events = events[events.frame_duration==1].copy()
         fake_events.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/single_frame_events.csv')

@@ -99,6 +99,8 @@ def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False)
     ras = result['RA_ICRS'].values
     decs = result['DE_ICRS'].values
 
+    print(len(ras))
+
     radecs = np.vstack([result['RA_ICRS'], result['DE_ICRS']]).T
 
     # ras = 
@@ -131,7 +133,11 @@ def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False)
     #Jmag = result['Jmag']
     ind = (((coords[:,0] >= -10) & (coords[:,1] >= -10)) & 
             ((coords[:,0] < (size + 10)) & (coords[:,1] < (size + 10))))
+    
+    print(len(coords))
+
     coords = coords[ind]
+    print(len(coords))
     radecs = radecs[ind]
     Gmag = Gmag[ind]
     source = source[ind]
@@ -141,14 +147,14 @@ def Get_Gaia(ra,dec,size,wcsObj,magnitude_limit = 18, Offset = 10,verbose=False)
     return radecs, Tmag, source
 
 def create_external_gaia_cat(centre,size,wcs,save_path,maglim,verbose=False):
+     
+    ra,dec = centre
+    gp,gm, source = Get_Gaia(ra,dec,size,wcs,magnitude_limit=maglim,verbose=verbose)
+    gaia = pd.DataFrame(np.array([gp[:,0],gp[:,1],gm,source]).T,columns=['ra','dec','mag','Source'])
 
-	ra,dec = centre
+    print(len(gaia))
 
-	gp,gm, source = Get_Gaia(ra,dec,size,wcs,magnitude_limit=maglim,verbose=verbose)
-	
-	gaia  = pd.DataFrame(np.array([gp[:,0],gp[:,1],gm,source]).T,columns=['ra','dec','mag','Source'])
-
-	gaia.to_csv(f'{save_path}/local_gaia_cat.csv',index=False)
+    gaia.to_csv(f'{save_path}/local_gaia_cat.csv',index=False)
 
 
 def search_atlas_var(coords, radius):
