@@ -1714,7 +1714,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                             completed.append(cut)
                         elif os.path.exists(f'{save_path}/cut.txt'):
 
-                            wcs = CutWCS(data_path=self.data_path,sector=self.sector,cam=self.cam,ccd=self.ccd,cut=cut,n=self.n)
+                            wcs = CutWCS(data_path=self.data_path,sector=self.sector,cam=cam,ccd=ccd,cut=cut,n=self.n)
 
                             #try:
                             print(f'Generating Catalogues {cut}')
