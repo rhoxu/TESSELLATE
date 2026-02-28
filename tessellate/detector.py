@@ -2474,16 +2474,17 @@ class Detector():
 
         ccd_events = pd.DataFrame()
         for cut in tqdm(range(1,self.n**2+1),desc=f'S{self.sector}C{self.cam}C{self.ccd}'):
-            self._gather_results(cut,sources=False,objects=False)
-            events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
-                                        lower=lower,upper=upper,image_sig_max=image_sig_max,centroid_err=centroid_err,
-                                        lc_sig_max=lc_sig_max,lc_sig_med=lc_sig_med,min_events=min_events,
-                                        max_events=max_events,bkg_level=bkg_level,boundarykiller=boundarykiller,
-                                        flux_sign=flux_sign,classification=classification,
-                                        psf_like=psf_like,galactic_latitude=galactic_latitude)
-            
-            if len(events) > 0:
-                ccd_events = pd.concat([ccd_events,events],ignore_index=True)
+            if os.path.exists(f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Cut{cut}of{self.n**2}/detected_objects.csv'):
+                self._gather_results(cut,sources=False,objects=False)
+                events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
+                                            lower=lower,upper=upper,image_sig_max=image_sig_max,centroid_err=centroid_err,
+                                            lc_sig_max=lc_sig_max,lc_sig_med=lc_sig_med,min_events=min_events,
+                                            max_events=max_events,bkg_level=bkg_level,boundarykiller=boundarykiller,
+                                            flux_sign=flux_sign,classification=classification,
+                                            psf_like=psf_like,galactic_latitude=galactic_latitude)
+                
+                if len(events) > 0:
+                    ccd_events = pd.concat([ccd_events,events],ignore_index=True)
 
                 # -- Calculates an event density score for remaining events and weeds out events in crowded frames -- #
  
