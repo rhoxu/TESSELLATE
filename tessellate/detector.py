@@ -1848,7 +1848,7 @@ class Detector():
     def filter_objects(self,cut,
                        ra=None,dec=None,distance=40,
                        min_events=None,max_events=None,
-                       classification=None,flux_sign=None,
+                       classification=None,flux_sign=None,centroid_err=None,
                        lc_sig_max=None,psf_like=None,galactic_latitude=None,
                        min_eventlength_frame=None,max_eventlength_frame=None,
                        min_eventlength_mjd=None,max_eventlength_mjd=None):
@@ -1919,6 +1919,9 @@ class Detector():
         if psf_like is not None:
             objects = objects[objects['psf_maxsig']>=psf_like]
 
+        if centroid_err is not None:
+            objects = objects[r['xcentroid_err']**2+r['ycentroid_err']**2 <= 2*centroid_err**2]
+
         if min_eventlength_frame is not None:
             objects = objects[objects['min_eventlength_frame']>=min_eventlength_frame]
         if max_eventlength_frame is not None:
@@ -1933,7 +1936,7 @@ class Detector():
 
     def filter_events(self,cut,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
                       lc_sig_max=None,lc_sig_med=None,min_events=None,max_events=None,bkg_level=None,boundarykiller=None,
-                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
+                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,centroid_err=None):
         
         """
         Returns a dataframe of the events in the cut, with options to filter by various parameters.
@@ -2009,6 +2012,8 @@ class Detector():
             r = r.loc[r['flux_sign'] == flux_sign]
         if psf_like is not None:
             r = r.loc[r['psf_like']>=psf_like]
+        if centroid_err is not None:
+            r = r.loc[(r['xcentroid_err']**2 + r['ycentroid_err']**2) <= 2 * centroid_err**2]
 
         # -- Filter by upper and lower limits on number of detections within each event -- #
         if upper is not None:
@@ -2257,7 +2262,7 @@ class Detector():
         return fig, cat, (ra_obj,dec_obj), wcs,im
 
     def plot_object(self,cut,objid,event='separate',save_name=None,save_path=None,
-                    latex=True,zoo_mode=True,external_phot=False,save_combined_path=None,tess_grid=3):
+                    latex=True,zoo_mode=False,external_phot=False,save_combined_path=None,tess_grid=3):
         """
         Plot a source from the cut data.
         """
@@ -2806,7 +2811,7 @@ class Detector():
                 pass
 
 
-def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=True):
+def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=False):
     """
     Plot a source's light curve and image cutout.
     """
