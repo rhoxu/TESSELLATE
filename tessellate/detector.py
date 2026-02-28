@@ -2473,7 +2473,7 @@ class Detector():
         from .tools import _Save_space
 
         ccd_events = pd.DataFrame()
-        for cut in tqdm(range(1,self.n**2+1)):
+        for cut in tqdm(range(1,self.n**2+1),desc=f'S{self.sector}C{self.cam}C{self.ccd}'):
             self._gather_results(cut,sources=False,objects=False)
             events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
                                         lower=lower,upper=upper,image_sig_max=image_sig_max,centroid_err=centroid_err,
