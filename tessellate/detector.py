@@ -2484,6 +2484,9 @@ class Detector():
                                             psf_like=psf_like,galactic_latitude=galactic_latitude)
                 
                 if len(events) > 0:
+
+                    ccd_events = ccd_events.drop_duplicates(subset=["xccd", "yccd", "frame_max"],keep="first")
+
                     ccd_events = pd.concat([ccd_events,events],ignore_index=True)
 
                 # -- Calculates an event density score for remaining events and weeds out events in crowded frames -- #
