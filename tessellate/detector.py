@@ -2465,7 +2465,7 @@ class Detector():
     
     def collate_filtered_events(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
                       lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_level=None,boundarykiller=None,min_events=None,
-                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,density_score=None):
+                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,centroid_err=None): #,density_score=None):
         
         from tqdm import tqdm
         import os
@@ -2476,7 +2476,7 @@ class Detector():
         for cut in tqdm(range(1,self.n**2+1)):
             self._gather_results(cut,sources=False,objects=False)
             events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
-                                        lower=lower,upper=upper,image_sig_max=image_sig_max,
+                                        lower=lower,upper=upper,image_sig_max=image_sig_max,centroid_err=centroid_err,
                                         lc_sig_max=lc_sig_max,lc_sig_med=lc_sig_med,min_events=min_events,
                                         max_events=max_events,bkg_level=bkg_level,boundarykiller=boundarykiller,
                                         flux_sign=flux_sign,classification=classification,
@@ -2486,45 +2486,47 @@ class Detector():
                 ccd_events = pd.concat([ccd_events,events],ignore_index=True)
 
                 # -- Calculates an event density score for remaining events and weeds out events in crowded frames -- #
+ 
+        #     if (density_score is not None):
+        #         deduped = (
+        #         ccd_events.sort_values("total_events", ascending=False)
+        #             .drop_duplicates(subset=["xint", "yint", "frame_max"], keep="first")
+        #         )
+
+        #         # Keep a mapping from original -> deduped row
+        #         mapping = pd.Series(deduped.index, index=deduped[["xint", "yint", "frame_max"]].apply(tuple, axis=1))
+        #         reverse_map = ccd_events[["xint", "yint", "frame_max"]].apply(tuple, axis=1).map(mapping)
+
+        #         # --- Step 2: Perform scoring on deduplicated events
+        #         frames = np.concatenate([
+        #             np.arange(ev['frame_start'], ev['frame_end'] + 1, dtype=int)
+        #             for _, ev in deduped.iterrows()
+        #         ])
+        #         frame_counts = np.bincount(frames)
+
+        #         scores_deduped = np.array([
+        #             frame_counts[ev['frame_start']:ev['frame_end'] + 1].mean()
+        #             for _, ev in deduped.iterrows()
+        #         ])
+
+        #         mu = np.percentile(scores_deduped, 0.1)
+        #         scores_deduped = scores_deduped / mu
+        #         scores_deduped -= 1
+        #         scores_deduped = scores_deduped * abs(deduped['bkg_level'].values * 
+        #                                             np.nanmax(scores_deduped) / 
+        #                                             np.nanmax(deduped['bkg_level'].values))
+
+        #         if len(deduped) / density_score < 5:
+        #             scores_deduped *= 2
+
+        #         # --- Step 3: Expand scores back to original size
+        #         deduped_scores_series = pd.Series(scores_deduped, index=deduped.index)
+        #         scores = reverse_map.map(deduped_scores_series).to_numpy()
+
+        #         ccd_events = ccd_events.loc[scores <= density_score]
+
         if (len(ccd_events) > 0):
             _Save_space(save_path)
-            if (density_score is not None):
-                deduped = (
-                ccd_events.sort_values("total_events", ascending=False)
-                    .drop_duplicates(subset=["xint", "yint", "frame_max"], keep="first")
-                )
-
-                # Keep a mapping from original -> deduped row
-                mapping = pd.Series(deduped.index, index=deduped[["xint", "yint", "frame_max"]].apply(tuple, axis=1))
-                reverse_map = ccd_events[["xint", "yint", "frame_max"]].apply(tuple, axis=1).map(mapping)
-
-                # --- Step 2: Perform scoring on deduplicated events
-                frames = np.concatenate([
-                    np.arange(ev['frame_start'], ev['frame_end'] + 1, dtype=int)
-                    for _, ev in deduped.iterrows()
-                ])
-                frame_counts = np.bincount(frames)
-
-                scores_deduped = np.array([
-                    frame_counts[ev['frame_start']:ev['frame_end'] + 1].mean()
-                    for _, ev in deduped.iterrows()
-                ])
-
-                mu = np.percentile(scores_deduped, 0.1)
-                scores_deduped = scores_deduped / mu
-                scores_deduped -= 1
-                scores_deduped = scores_deduped * abs(deduped['bkg_level'].values * 
-                                                    np.nanmax(scores_deduped) / 
-                                                    np.nanmax(deduped['bkg_level'].values))
-
-                if len(deduped) / density_score < 5:
-                    scores_deduped *= 2
-
-                # --- Step 3: Expand scores back to original size
-                deduped_scores_series = pd.Series(scores_deduped, index=deduped.index)
-                scores = reverse_map.map(deduped_scores_series).to_numpy()
-
-                ccd_events = ccd_events.loc[scores <= density_score]
 
             if os.path.exists(f'{save_path}/events.csv'):
                 all_events = pd.read_csv(f'{save_path}/events.csv')
