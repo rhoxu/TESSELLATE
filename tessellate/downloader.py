@@ -71,6 +71,7 @@ def Download_cam_ccd_FFIs(path,sector,cam,ccd,time,lower,upper,number=None,singl
     goodlines = Parallel(n_jobs=multiprocessing.cpu_count())(delayed(_find_lines)(file,cam,ccd,time,lower,upper) for file in filelines)
     goodlines = np.array(goodlines)
     goodlines = goodlines[goodlines!=None]
+    goodlines = np.array(sorted(goodlines))
     
     # -- If all are to be downloaded, download in parallel -- #
     if single is not None:
