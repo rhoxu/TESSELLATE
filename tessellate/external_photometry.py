@@ -556,6 +556,20 @@ def check_gaia(cat,gaia):
         cat.loc[catind,'dist_u'] = gaia.loc[gind,'distance_gspphot_upper'].values
         
     return cat
+
+def check_local_gaia(cat,gaia):
+    dist = np.sqrt((gaia['ra'].values[:,np.newaxis] - cat['ra'].values[np.newaxis,:])**2 + (gaia['dec'].values[:,np.newaxis] - cat['dec'].values[np.newaxis,:])**2)*60**2
+    gind, catind = np.where(dist<5)
+    # cat['dist'] = np.nan
+    # cat['dist_l'] = np.nan
+    # cat['dist_u'] = np.nan
+    if len(catind) > 0:
+        cat.loc[catind,'star'] = 1
+        # cat.loc[catind,'dist'] = gaia.loc[gind,'distance_gspphot'].values
+        # cat.loc[catind,'dist_l'] = gaia.loc[gind,'distance_gspphot_lower'].values
+        # cat.loc[catind,'dist_u'] = gaia.loc[gind,'distance_gspphot_upper'].values
+        
+    return cat
     
 
 def _add_sources(fig,cat):
@@ -650,7 +664,7 @@ def event_cutout(coords,size=50,phot=None,check='gaia'):
             return None,None,None,None,None,None
     elif os.path.exists(check):
         gaia = get_gaia_loc(coords[0],coords[1],size/60**2,check)
-        cat = check_gaia(cat,gaia)
+        cat = check_local_gaia(cat,gaia)
 
     if cat is not None:
         fig = _add_sources(fig,cat)
