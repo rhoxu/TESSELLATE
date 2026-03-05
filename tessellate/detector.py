@@ -2303,7 +2303,7 @@ class Detector():
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
-            fig, cat, coord,phot_wcs,im = self.external_photometry(objid,event,tess_grid=tess_grid,phot_check=phot_check)
+            fig, cat, coord,phot_wcs,im = self.external_photometry(objid,event,tess_grid=tess_grid,check=phot_check)
             if fig is None:
                 return obj
             
