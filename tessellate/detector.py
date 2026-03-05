@@ -2303,6 +2303,8 @@ class Detector():
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
+            if phot_check == 'local':
+                phot_check = f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
             fig, cat, coord,phot_wcs,im = self.external_photometry(objid,event,tess_grid=tess_grid,check=phot_check)
             if fig is None:
                 return obj
