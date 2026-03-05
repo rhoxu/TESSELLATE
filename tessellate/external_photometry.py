@@ -15,6 +15,7 @@ import pandas as pd
 from matplotlib.patches import Ellipse
 from skimage.transform import rotate
 from astropy.stats import sigma_clipped_stats
+import os
 
 
 fig_width_pt = 240.0  # Get this from LaTeX using \showthe\columnwidth
@@ -535,6 +536,13 @@ def get_gaia(ra,dec,size):
     j.loc[(j['classprob_dsc_combmod_quasar'] > 0.9) | (j['classprob_dsc_combmod_galaxy'] > 0.9),'star'] = 0
     return j
 
+def get_gaia_loc(ra,dec,size,path):
+    import pandas as pd
+
+    gaia = pd.read_csv(path)
+    gaia = gaia[(abs(gaia.ra-ra)<size)&(abs(gaia.dec-dec)<size)]
+    return gaia
+
 def check_gaia(cat,gaia):
     dist = np.sqrt((gaia['ra'].values[:,np.newaxis] - cat['ra'].values[np.newaxis,:])**2 + (gaia['dec'].values[:,np.newaxis] - cat['dec'].values[np.newaxis,:])**2)*60**2
     gind, catind = np.where(dist<5)
@@ -640,7 +648,10 @@ def event_cutout(coords,size=50,phot=None,check='gaia'):
         elif phot == 'SkyMapper':
             print('Something failed getting Skymapper sources.')
             return None,None,None,None,None,None
-    
+    elif os.path.exists(check):
+        gaia = get_gaia_loc(coords[0],coords[1],size/60**2,check)
+        cat = check_gaia(cat,gaia)
+
     if cat is not None:
         fig = _add_sources(fig,cat)
 
