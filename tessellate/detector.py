@@ -2136,7 +2136,7 @@ class Detector():
 
         Save_LC(self.time,self.flux,self.events,id,save_path=save_name)    
 
-    def external_photometry(self,objid,event,tess_grid=5,sigma=3,phot=None):
+    def external_photometry(self,objid,event,tess_grid=5,sigma=3,phot=None,check='gaia'):
 
         from .external_photometry import event_cutout
 
@@ -2178,7 +2178,7 @@ class Detector():
         # error = [10 / 60**2,10 / 60**2] # just set error to 10 arcsec. The calculated values are unrealistically small.
         
 
-        fig, wcs, size, photometry,cat,im = event_cutout((RA,DEC),20*tess_grid,phot=phot)
+        fig, wcs, size, photometry,cat,im = event_cutout((RA,DEC),20*tess_grid,phot=phot,check=check)
         if fig is None:
             return None,None,None,None,None
         axes = fig.get_axes()
@@ -2261,7 +2261,7 @@ class Detector():
 
         return fig, cat, (ra_obj,dec_obj), wcs,im
 
-    def plot_object(self,cut,objid,event='separate',save_name=None,save_path=None,
+    def plot_object(self,cut,objid,event='separate',save_name=None,save_path=None,phot_check='gaia',
                     latex=True,zoo_mode=False,external_phot=False,save_combined_path=None,tess_grid=3):
         """
         Plot a source from the cut data.
@@ -2303,7 +2303,7 @@ class Detector():
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
-            fig, cat, coord,phot_wcs,im = self.external_photometry(objid,event,tess_grid=tess_grid)
+            fig, cat, coord,phot_wcs,im = self.external_photometry(objid,event,tess_grid=tess_grid,phot_check=phot_check)
             if fig is None:
                 return obj
             
