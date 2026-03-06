@@ -2475,7 +2475,7 @@ class Detector():
         from .tools import _Save_space
 
         ccd_events = pd.DataFrame()
-        for cut in tqdm(range(1,self.n**2+1),desc=f'S{self.sector}C{self.cam}C{self.ccd}'):
+        for cut in tqdm(range(1,self.n**2+1),position=0, leave=True,dynamic_ncols=False,ascii=True,desc=f'S{self.sector}C{self.cam}C{self.ccd}'):
             if os.path.exists(f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Cut{cut}of{self.n**2}/detected_objects.csv'):
                 self._gather_results(cut,sources=False,objects=False)
                 events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
