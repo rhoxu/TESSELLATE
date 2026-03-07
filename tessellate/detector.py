@@ -2542,7 +2542,7 @@ class Detector():
             all_events = pd.concat([all_events,ccd_events],ignore_index=True)
             all_events.to_csv(f'{save_path}/events.csv',index=False)
 
-    def plot_filtered_events(self,save_path,tess_grid,external_phot=True):
+    def plot_filtered_events(self,save_path,tess_grid,external_phot=True,phot_check='gaia'):
         import os
 
         if os.path.exists(f'{save_path}/events.csv'):
@@ -2561,7 +2561,7 @@ class Detector():
                 eventid = event['eventid']
                 if not os.path.exists(f'{save_path}/S{self.sector}C{self.cam}C{self.ccd}C{cut}O{objid}E{eventid}.png'):
                     print(f'Event {count} of {len(ccd_events)}')
-                    self.plot_object(event['cut'],event['objid'],event=event['eventid'],tess_grid=tess_grid,
+                    self.plot_object(event['cut'],event['objid'],event=event['eventid'],tess_grid=tess_grid,phot_check=phot_check,
                                     latex=True,zoo_mode=False,external_phot=external_phot,save_combined_path=save_path)
                     print('\n')
                 
