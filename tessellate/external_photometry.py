@@ -523,6 +523,8 @@ def check_simbad(cat,sbad):
 
 def get_gaia(ra,dec,size):
     from astroquery.gaia import Gaia
+    Gaia.login(user='hroxburg', password='ga!aRhoxu135')
+
     from astropy.coordinates import SkyCoord
     import astropy.units as u
     Gaia.ROW_LIMIT = -1  # Ensure the default row limit.
