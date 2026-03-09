@@ -527,7 +527,6 @@ def get_gaia(ra, dec, size):
     import astropy.units as u
 
     Gaia.ROW_LIMIT = -1
-
     coord = SkyCoord(ra=ra, dec=dec, unit=(u.degree, u.degree), frame='icrs')
 
     try:
@@ -536,7 +535,13 @@ def get_gaia(ra, dec, size):
         j = Gaia.cone_search_async(coord, radius=u.Quantity(100, u.arcsec))
         j = j.get_results()
     except Exception as e:
-        print(f"Async query failed ({e}), falling back to synchronous...")
+        print(f"Async query failed ({e}), falling back to anonymous synchronous...")
+        try:
+            Gaia.logout()  # Clear broken session state
+        except Exception:
+            pass
+        # Reset to anonymous session with no login
+        Gaia.reset_tap_plus()  # Fresh connection, no auth
         j = Gaia.cone_search(coord, radius=u.Quantity(100, u.arcsec))
         j = j.get_results()
 
