@@ -521,21 +521,29 @@ def check_simbad(cat,sbad):
         cat.loc[catind,'otype'] = sbad.loc[sind,'otype'].values
     return cat
 
-def get_gaia(ra,dec,size):
+def get_gaia(ra, dec, size):
     from astroquery.gaia import Gaia
-    Gaia.login(user='hroxburg', password='ga!aRhoxu135')
-
     from astropy.coordinates import SkyCoord
     import astropy.units as u
-    Gaia.ROW_LIMIT = -1  # Ensure the default row limit.
+
+    Gaia.ROW_LIMIT = -1
 
     coord = SkyCoord(ra=ra, dec=dec, unit=(u.degree, u.degree), frame='icrs')
 
-    j = Gaia.cone_search_async(coord, radius=u.Quantity(100, u.arcsec))
-    j = j.get_results().to_pandas()
+    try:
+        # Try authenticated async first
+        Gaia.login(user='hroxburg', password='ga!aRhoxu135')
+        j = Gaia.cone_search_async(coord, radius=u.Quantity(100, u.arcsec))
+        j = j.get_results()
+    except Exception as e:
+        print(f"Async query failed ({e}), falling back to synchronous...")
+        j = Gaia.cone_search(coord, radius=u.Quantity(100, u.arcsec))
+        j = j.get_results()
+
+    j = j.to_pandas()
     j['star'] = 1
-    j.loc[(j['classprob_dsc_combmod_quasar'] > 0.7) | (j['classprob_dsc_combmod_galaxy'] > 0.7),'star'] = 2
-    j.loc[(j['classprob_dsc_combmod_quasar'] > 0.9) | (j['classprob_dsc_combmod_galaxy'] > 0.9),'star'] = 0
+    j.loc[(j['classprob_dsc_combmod_quasar'] > 0.7) | (j['classprob_dsc_combmod_galaxy'] > 0.7), 'star'] = 2
+    j.loc[(j['classprob_dsc_combmod_quasar'] > 0.9) | (j['classprob_dsc_combmod_galaxy'] > 0.9), 'star'] = 0
     return j
 
 def get_gaia_loc(ra,dec,size,path):
@@ -544,6 +552,12 @@ def get_gaia_loc(ra,dec,size,path):
     gaia = pd.read_csv(path)
     gaia = gaia[(abs(gaia.ra-ra)<size)&(abs(gaia.dec-dec)<size)]
     return gaia
+
+# def get_gaia_vizier(ra,dec,size):
+
+#     catalog = "I/345/gaia2"
+#     result = Vizier.query_region(c1, catalog=[catalog],
+# 							 		 radius=Angle(size * pix_scale + 60, "arcsec"),column_filters={'Gmag':'<19'},cache=False)
 
 def check_gaia(cat,gaia):
     dist = np.sqrt((gaia['ra'].values[:,np.newaxis] - cat['ra'].values[np.newaxis,:])**2 + (gaia['dec'].values[:,np.newaxis] - cat['dec'].values[np.newaxis,:])**2)*60**2
