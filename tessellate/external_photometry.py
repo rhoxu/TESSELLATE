@@ -522,7 +522,7 @@ def check_simbad(cat,sbad):
     return cat
 
 def get_gaia(ra, dec, size):
-    from astroquery.gaia import Gaia
+    from astroquery.gaia import Gaia, GaiaClass
     from astropy.coordinates import SkyCoord
     import astropy.units as u
 
@@ -530,18 +530,18 @@ def get_gaia(ra, dec, size):
     coord = SkyCoord(ra=ra, dec=dec, unit=(u.degree, u.degree), frame='icrs')
 
     try:
-        # Try authenticated async first
         Gaia.login(user='hroxburg', password='ga!aRhoxu135')
         j = Gaia.cone_search_async(coord, radius=u.Quantity(100, u.arcsec))
         j = j.get_results()
     except Exception as e:
         print(f"Async query failed ({e}), falling back to anonymous synchronous...")
         try:
-            Gaia.logout()  # Clear broken session state
+            Gaia.logout()
         except Exception:
             pass
-        # Reset to anonymous session with no login
-        Gaia.reset_tap_plus()  # Fresh connection, no auth
+        # Reinitialise entirely to clear broken session
+        Gaia = GaiaClass()
+        Gaia.ROW_LIMIT = -1
         j = Gaia.cone_search(coord, radius=u.Quantity(100, u.arcsec))
         j = j.get_results()
 
