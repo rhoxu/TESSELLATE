@@ -27,6 +27,11 @@ class CutWCS():
         hdu = fits.open(self.wcs_path)
         self.wcs = WCS(hdu[1].header)
 
+        if os.path.exists(f'{wcs_folder}/tesscut_offset.npy'):
+            self.tesscut_offset = np.load(f'{wcs_folder}/tesscut_offset.npy')
+        else:
+            self.tesscut_offset = np.array([0,0])
+
         self._get_corner()
 
     def _get_corner(self):
@@ -37,7 +42,7 @@ class CutWCS():
         cutCorners = np.meshgrid(cutCornersX,cutCornersY)
         cutCorners = np.floor(np.stack((cutCorners[0],cutCorners[1]),axis=2).reshape(self.n**2,2))
         
-        self.corner = cutCorners[self.cut-1]
+        self.corner = cutCorners[self.cut-1] + self.tesscut_offset
 
     def all_world2pix(self,ra,dec,origin=0):
 
