@@ -558,11 +558,24 @@ def get_gaia_loc(ra,dec,size,path):
     gaia = gaia[(abs(gaia.ra-ra)<size)&(abs(gaia.dec-dec)<size)]
     return gaia
 
-# def get_gaia_vizier(ra,dec,size):
 
-#     catalog = "I/345/gaia2"
-#     result = Vizier.query_region(c1, catalog=[catalog],
-# 							 		 radius=Angle(size * pix_scale + 60, "arcsec"),column_filters={'Gmag':'<19'},cache=False)
+def get_gaia_vizier(ra, dec, size):
+    from astroquery.vizier import Vizier
+    import astropy.units as u
+    from astropy.coordinates import SkyCoord
+    v = Vizier(columns=['RA_ICRS', 'DE_ICRS', 'Gmag', 
+                        'PGal', 'PQso'], 
+               row_limit=-1)
+    coord = SkyCoord(ra=ra, dec=dec, unit=u.degree)
+    result = v.query_region(coord, 
+                            radius=100*u.arcsec, 
+                            catalog='I/355/gaiadr3')
+    if result:
+        j = result[0].to_pandas()
+        j['star'] = 1
+        j.loc[(j['PQso'] > 0.7) | (j['PGal'] > 0.7), 'star'] = 2
+        j.loc[(j['PQso'] > 0.9) | (j['PGal'] > 0.9), 'star'] = 0
+        return j
 
 def check_gaia(cat,gaia):
     dist = np.sqrt((gaia['ra'].values[:,np.newaxis] - cat['ra'].values[np.newaxis,:])**2 + (gaia['dec'].values[:,np.newaxis] - cat['dec'].values[np.newaxis,:])**2)*60**2
@@ -591,6 +604,7 @@ def check_local_gaia(cat,gaia):
         # cat.loc[catind,'dist_u'] = gaia.loc[gind,'distance_gspphot_upper'].values
         
     return cat
+    
     
 
 def _add_sources(fig,cat):

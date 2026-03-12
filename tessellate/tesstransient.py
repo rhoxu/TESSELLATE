@@ -249,6 +249,22 @@ class TessTransient():
         ellipse = np.array(errpixels)
 
         return ellipse
+
+    def get_impacted_cuts(self,cam=None,ccd=None):
+
+        if cam is None:
+            cam = self.cam
+        if ccd is None:
+            ccd = self.ccd
+
+        ellipse = self.find_error_ellipse(cam,ccd,plot=False)
+        d = DataProcessor(sector=self.sector,path=self.data_path)
+        cutCorners, cutCentrePx, cutCentreCoords, cutSize = d.find_cuts(cam,ccd,self.n,plot=False,verbose=False)
+        intersects,inside = self._find_impacted_cuts(ellipse,cutCorners,cutSize,cutCentrePx)
+        interesting = np.union1d(intersects,inside)
+
+        return interesting
+
         
     def find_error_ellipse(self,cam=None,ccd=None,plot=True,proj=True,coord=None):
 
@@ -735,6 +751,8 @@ class TessTransient():
             ccd = self.ccd
 
         suggestions = self._sector_suggestions()
+        cuts = self.get_impacted_cuts(cam,ccd)
+
         cubing = suggestions[0]
         cutting = suggestions[1]
         reducing = suggestions[2]
@@ -742,7 +760,7 @@ class TessTransient():
         plotting = suggestions[4]
 
         run = Tessellate(data_path=self.data_path,working_path=self.working_path,job_output_path=self.job_output_path,
-                        sector=self.sector,cam=cam,ccd=ccd,n=self.n,cuts='all',
+                        sector=self.sector,cam=cam,ccd=ccd,n=self.n,cuts=cuts,
                         download=self.download,download_number='all',
                         make_cube=True,cube_time=cubing[0],cube_mem=int(cubing[1][:-1]),
                         make_cuts=True,cut_time=cutting[0],cut_mem=int(cutting[1][:-1]),
