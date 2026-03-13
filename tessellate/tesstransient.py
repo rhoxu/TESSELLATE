@@ -263,7 +263,7 @@ class TessTransient():
         intersects,inside = self._find_impacted_cuts(ellipse,cutCorners,cutSize,cutCentrePx)
         interesting = np.union1d(intersects,inside)
 
-        return list(interesting.astype(int))
+        return list(interesting.astype(int)+1)
 
         
     def find_error_ellipse(self,cam=None,ccd=None,plot=True,proj=True,coord=None):

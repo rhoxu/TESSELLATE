@@ -1561,7 +1561,7 @@ class Detector():
             try:
                 self.sources = pd.read_csv(f'{path}/detected_sources.csv')    # raw detection results
             except:
-                print('No detected events file found')
+                print('No detected sources file found')
                 self.sources = None
 
         if events:
