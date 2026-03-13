@@ -1397,7 +1397,7 @@ class Detector():
         prf = TESS_PRF(cam=self.cam,ccd=self.ccd,sector=self.sector,
                        colnum=column,rownum=row,localdatadir=datadir+'Sectors4+')
         
-        snr_to_localisation = get_snr_to_localisation_func(self.data_path,self.sector,self.cam,self.ccd,self.cut)
+        snr_to_localisation = get_snr_to_localisation_func(self.data_path,self.sector,self.cam,self.ccd,self.cut,self.n)
 
         has_data = np.any(np.isfinite(self.flux), axis=(1, 2))
         nan_frames = np.where(~has_data)[0]
@@ -1421,7 +1421,7 @@ class Detector():
         events['xccd'] = RoundToInt(events['xint'] + cutCornerPx[self.cut-1][0])
         events['yccd'] = RoundToInt(events['yint'] + cutCornerPx[self.cut-1][1])
 
-        wcs_unc = get_wcs_uncertainty(self.data_path,self.sector,self.cam,self.ccd,self.cut)
+        wcs_unc = get_wcs_uncertainty(self.data_path,self.sector,self.cam,self.ccd,self.cut,self.n)
         if np.isnan(wcs_unc).any():
             events['xcentroid_err'] = 0.5
             events['ycentroid_err'] = 0.5
