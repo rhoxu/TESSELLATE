@@ -174,7 +174,7 @@ def gen_and_fit_source(snr,shift,image_size,prf):
 
     return [PSF_fitter.source_x,PSF_fitter.source_y]
 
-def simulate_cut_psf_fitting(path,sector,cam,ccd,cut,nfits=1000,nMedians=20,image_size=7,plot=False):
+def simulate_cut_psf_fitting(path,sector,cam,ccd,cut,n=4,nfits=1000,nMedians=20,image_size=7,plot=False):
 
     from .dataprocessor import DataProcessor
     from PRF import TESS_PRF
@@ -187,7 +187,7 @@ def simulate_cut_psf_fitting(path,sector,cam,ccd,cut,nfits=1000,nMedians=20,imag
 
 
     dp = DataProcessor(sector=sector,path='/fred/oz335/TESSdata')
-    _, cutCentrePx, _, _ = dp.find_cuts(cam=cam,ccd=ccd,n=4,plot=False)
+    _, cutCentrePx, _, _ = dp.find_cuts(cam=cam,ccd=ccd,n=n,plot=False)
 
     if sector>3:
         prf = TESS_PRF(sector=sector,cam=cam,ccd=ccd,colnum=cutCentrePx[cut-1][0],rownum=cutCentrePx[cut-1][1],localdatadir=datadir+'Sectors4+')

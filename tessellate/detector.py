@@ -1803,7 +1803,7 @@ class Detector():
             from .localisation import simulate_cut_psf_fitting
 
             print('-------Simulating PSF fit accuracy (see progress in errors log file)-------')
-            simulate_cut_psf_fitting(self.data_path,self.sector,self.cam,self.ccd,cut,nfits=10000,nMedians=10)
+            simulate_cut_psf_fitting(self.data_path,self.sector,self.cam,self.ccd,cut,n=self.n,nfits=10000,nMedians=10)
             print('\n')
 
         # -- self.events contains all individual events, grouped by time and space -- #  
