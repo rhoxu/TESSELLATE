@@ -952,7 +952,10 @@ class Tessellate():
         elif self.cuts in range(1,self.n**2+1):
             print(f'   - Cut = {self.cuts}')
             message += f'   - Cut = {self.cuts}\n'
-            self.cuts = [self.cuts]  
+            self.cuts = [self.cuts]
+        elif type(self.cuts) == list:
+            print(f'   - Cut = {self.cuts}')
+            message += f'   - Cut = {self.cuts}\n'  
         else:
             e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
             raise ValueError(e)
@@ -1089,6 +1092,9 @@ class Tessellate():
                 print(f'   - Cut = {self.cuts}')
                 message += f'   - Cut = {self.cuts}\n'
                 self.cuts = [self.cuts]  
+            elif type(self.cuts) == list:
+                print(f'   - Cut = {self.cuts}')
+                message += f'   - Cut = {self.cuts}\n'
             else:
                 e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
                 raise ValueError(e)
@@ -1219,7 +1225,10 @@ class Tessellate():
             elif self.cuts in range(1,self.n**2+1):
                 print(f'   - Cut = {self.cuts}')
                 message += f'   - Cut = {self.cuts}\n'
-                self.cuts = [self.cuts]  
+                self.cuts = [self.cuts]
+            elif type(self.cuts) == list:
+                print(f'   - Cut = {self.cuts}')
+                message += f'   - Cut = {self.cuts}\n'  
             else:
                 e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
                 raise ValueError(e)
@@ -1350,7 +1359,10 @@ class Tessellate():
             elif self.cuts in range(1,self.n**2+1):
                 print(f'   - Cut = {self.cuts}')
                 message += f'   - Cut = {self.cuts}\n'
-                self.cuts = [self.cuts]  
+                self.cuts = [self.cuts]
+            elif type(self.cuts) == list:
+                print(f'   - Cut = {self.cuts}')
+                message += f'   - Cut = {self.cuts}\n'  
             else:
                 e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
                 raise ValueError(e)
