@@ -619,7 +619,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
     Groups sources for given objid into temporally separated events.
     """
 
-    # from .tools import pandas_weighted_avg
+    from .tools import pandas_weighted_avg
 
     # -- Select all sources grouped to this objid -- #
     source = sources[sources['objid']==objid]
@@ -1137,7 +1137,7 @@ class Detector():
         """
 
         from .dataprocessor import DataProcessor
-        from .catalog_queries import match_result_to_cat #,find_variables, gaia_stars,
+        # from .catalog_queries import match_result_to_cat #,find_variables, gaia_stars,
         from .tools import pandas_weighted_avg,Frame_Bin
         
         save_folder = f'{self.path}/Cut{self.cut}of{self.n**2}'

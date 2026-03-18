@@ -6,7 +6,7 @@ import pandas as pd
 from time import time as clock
 from copy import deepcopy
 
-from .tools import RoundToInt, Generate_LC
+from .tools import RoundToInt, Generate_LC, Frame_Bin
 
 class Navigator():
 
@@ -302,8 +302,6 @@ class Navigator():
         Extract an aperture light curve for a desired event (objid/eventid pair).
         """
 
-        from .tools import Frame_Bin
-
         # -- Gather data -- #
         if cut != self.cut:
             self.gather_data(cut)
@@ -351,6 +349,8 @@ class Navigator():
 
         # -- Isolate event -- #
         event = self.events[(self.events.objid==objid)&(self.events.eventid==eventid)].iloc[0]
+
+        time, flux = (Frame_Bin(self.time, self.flux, event.frame_bin) if event.frame_bin > 1 else (self.time, self.flux))
     
         # -- Find frames to be included based on buffer and interval, ensuring brightest is included -- #
         brightest_frame = RoundToInt(event.frame_max)
@@ -360,18 +360,18 @@ class Navigator():
         while len(frames) < 5:
             frames = np.append(frames,frames[-1]+frame_interval)
         frames[frames<0] = 0
-        frames[frames>len(self.time)]=len(self.time)-1
+        frames[frames>len(time)]=len(time)-1
         frames = np.unique(frames)
 
         # -- Define cutout -- #
         x = RoundToInt(event.xint) 
         y = RoundToInt(event.yint) 
         xmin = max(x-image_size//2,0)
-        xmax = min(x+image_size//2,self.flux.shape[1])
+        xmax = min(x+image_size//2,flux.shape[1])
         ymin = max(y-image_size//2,0)
-        ymax = min(y+image_size//2,self.flux.shape[1])
+        ymax = min(y+image_size//2,flux.shape[1])
 
-        images = self.flux[frames,ymin:ymax+1,xmin:xmax+1]
+        images = flux[frames,ymin:ymax+1,xmin:xmax+1]
 
         # -- Plot 5 images around the brightest frame -- #
         if plot:
@@ -379,10 +379,13 @@ class Navigator():
             brightest_loc = np.where(frames==brightest_frame)[0][0]
             for i in range(5):
                 ax[i].imshow(images[brightest_loc-2+i],origin='lower',cmap='gray')
+                
+                add = ' Stacked ' if event.frame_bin > 1 else ' '
+
                 if i == 2:
-                    ax[i].set_title(f'Brightest Frame ({brightest_frame})')
+                    ax[i].set_title(f'Brightest{add}Frame ({brightest_frame})')
                 else:
-                    ax[i].set_title(f'Frame ({frames[brightest_loc-2+i]})')
+                    ax[i].set_title(f'{add}Frame ({frames[brightest_loc-2+i]})')
                 
         return images
 
@@ -401,7 +404,10 @@ class Navigator():
         obj = self.objects[self.objects['objid']==objid].iloc[0]
         x = RoundToInt(obj['xcentroid'])     # x coordinate of the source
         y = RoundToInt(obj['ycentroid'])     # x coordinate of the source
-        t,f = Generate_LC(self.time,self.flux,x,y)
+
+        time, flux = (Frame_Bin(self.time, self.flux, obj.frame_bin) if obj.frame_bin > 1 else (self.time, self.flux))
+
+        t,f = Generate_LC(time,flux,x,y)
 
         return t,f
     
