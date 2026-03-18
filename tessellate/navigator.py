@@ -544,7 +544,7 @@ class Navigator():
     
 
     @staticmethod
-    def Plot_Object_LC_Frame(times,flux,events,objid,eventtype,save_path=None,latex=True,zoo_mode=False):
+    def Plot_Object_LC_Frame(rawtimes,rawflux,events,objid,eventtype,save_path=None,latex=True,zoo_mode=False):
         """
         Plot an object's light curve and image cutout.
         """
@@ -559,7 +559,8 @@ class Navigator():
         # -- Select sources associated with the object id -- #
         events =  events[events.objid==objid]      
         total_events = RoundToInt(np.nanmean(events.total_events.values))   #  Number of events associated with the object id
-        
+
+        frame_bin = int(events.iloc[0].frame_bin)
                                                 
         # -- Compile source list based on if plotted source contains all in one -- #
         if type(eventtype) == str:
@@ -601,6 +602,10 @@ class Navigator():
             raise ValueError(m)
 
 
+        # -- Bin time if event is binned -- #
+        times, flux = (Frame_Bin(rawtimes, rawflux, frame_bin) if frame_bin > 1 else (rawtimes, rawflux))
+
+
         # -- Generates time for plotting and finds breaks in the time series based on the median and standard deviation - #
         time = times - times[0]             
         med = np.nanmedian(np.diff(time))           
@@ -609,6 +614,15 @@ class Navigator():
         break_ind = np.append(break_ind,len(time)) 
         break_ind += 1
         break_ind = np.insert(break_ind,0,0)
+
+        if frame_bin > 1:
+            rawtime = rawtimes - rawtimes[0]             
+            med = np.nanmedian(np.diff(rawtime))           
+            std = np.nanstd(np.diff(rawtime))              
+            raw_break_ind = np.where(np.diff(rawtime) > med+1*std)[0]
+            raw_break_ind = np.append(raw_break_ind,len(rawtime)) 
+            raw_break_ind += 1
+            raw_break_ind = np.insert(raw_break_ind,0,0)
 
 
         # -- Iterates over each source in the events dataframe and generates plot -- #
@@ -652,6 +666,11 @@ class Navigator():
             # Plot each segment of the light curve in black, with breaks in the time series #
             for i in range(len(break_ind)-1):
                 ax[1].plot(time[break_ind[i]:break_ind[i+1]],f[break_ind[i]:break_ind[i+1]],'k',alpha=0.8)
+                if frame_bin > 1:
+                    ax[1].plot(rawtimes[raw_break_ind[i]:raw_break_ind[i+1]],f[raw_break_ind[i]:raw_break_ind[i+1]],
+                               'k',alpha=0.1,marker='.',ls='')
+
+
             ylims = ax[1].get_ylim()
             ax[1].set_ylim(ylims[0],ylims[1]+(abs(ylims[0]-ylims[1])))
             ax[1].set_xlim(np.min(time),np.max(time))
@@ -690,6 +709,10 @@ class Navigator():
                     axins.plot(time[break_ind[i]:break_ind[i+1]],f[break_ind[i]:break_ind[i+1]],'k',alpha=0.8)
                 else:
                     axins.plot(time[break_ind[i]:break_ind[i+1]],f[break_ind[i]:break_ind[i+1]],'k',alpha=0.8,marker='.')
+
+                if frame_bin > 1:
+                    axins.plot(rawtimes[raw_break_ind[i]:raw_break_ind[i+1]],f[raw_break_ind[i]:raw_break_ind[i+1]],
+                               'k',alpha=0.1,marker='.',ls='')
 
             # Change the x and y limits of the inset axes to focus on the event #
             if (frame_end - frame_start) > 2:

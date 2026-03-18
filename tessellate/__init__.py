@@ -11,4 +11,7 @@ def __getattr__(name):
     elif name == "TessTransient":
         from .tesstransient import TessTransient
         return TessTransient
+    elif name == "Navigator":
+        from .navigator import Navigator
+        return Navigator
     raise AttributeError(f"module 'tessellate' has no attribute '{name}'")
