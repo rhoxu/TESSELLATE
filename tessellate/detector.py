@@ -1403,7 +1403,7 @@ class Detector():
                 inside = gaia[(abs(gaia.ra-event.ra) < sigma*event.ra_err)&
                             (abs(gaia.dec-event.dec) < sigma*event.dec_err)]
                 if len(inside) > 0:
-                    events.loc[i,'GaiaID'] = inside[inside.mag==inside.mag.max()].Source
+                    events.loc[i,'GaiaID'] = inside[inside.mag==inside.mag.min()].iloc[0].Source
         
         # -- Cross matches location to variable catalog -- #
         variables = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/variable_catalog.csv')
