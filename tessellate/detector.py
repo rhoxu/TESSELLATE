@@ -712,8 +712,8 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
         event['lc_sig_med'] = sig_med
 
         # -- Miscellaneous info -- #
-        event['peak_freq'] = peak_freq[0]
-        event['peak_power'] = peak_power[0]
+        # event['peak_freq'] = peak_freq[0]
+        # event['peak_power'] = peak_power[0]
         event['source_mask'] = eventsources.iloc[0]['source_mask']
         # event['cf_class'] = cf_classification
         # event['cf_prob'] = cf_prob
