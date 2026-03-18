@@ -1295,7 +1295,7 @@ class Detector():
                                         self.ccd,self.cut,prf,snr_to_localisation,nan_frames,frame_buffer=frame_buffer,
                                         buffer=buffer,base_range=base_range)
                     bin_events += [e]
-
+                bin_events = pd.concat(bin_events)
             events = pd.concat([events,bin_events],ignore_index=True)
 
         # -- Provide CCD-relative location -- #
