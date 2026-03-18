@@ -312,7 +312,12 @@ class Navigator():
 
         return objects
 
+    def crossbin_events(self,crossbin_id):
+        """
+        Isolate events that are matched at different time binning.
+        """
 
+        return self.events[self.events['crossbin_ids'].apply(lambda x: crossbin_id in x)]
 
     # ----------------------------- Extracting light curves / images of events ----------------------------- #
 
@@ -688,7 +693,7 @@ class Navigator():
             for i in range(len(break_ind)-1):
                 ax[1].plot(time[break_ind[i]:break_ind[i+1]],f[break_ind[i]:break_ind[i+1]],'k',alpha=0.8)
                 if frame_bin > 1:
-                    ax[1].plot(rawtimes[raw_break_ind[i]:raw_break_ind[i+1]],rawf[raw_break_ind[i]:raw_break_ind[i+1]],
+                    ax[1].plot(rawtime[raw_break_ind[i]:raw_break_ind[i+1]],rawf[raw_break_ind[i]:raw_break_ind[i+1]],
                                'k',alpha=0.3,marker='.',ls='')
 
 
@@ -732,7 +737,7 @@ class Navigator():
                     axins.plot(time[break_ind[i]:break_ind[i+1]],f[break_ind[i]:break_ind[i+1]],'k',alpha=0.8,marker='.')
 
                 if frame_bin > 1:
-                    axins.plot(rawtimes[raw_break_ind[i]:raw_break_ind[i+1]],rawf[raw_break_ind[i]:raw_break_ind[i+1]],
+                    axins.plot(rawtime[raw_break_ind[i]:raw_break_ind[i+1]],rawf[raw_break_ind[i]:raw_break_ind[i+1]],
                                'k',alpha=0.3,marker='.',ls='')
 
             # Change the x and y limits of the inset axes to focus on the event #
