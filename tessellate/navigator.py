@@ -47,6 +47,7 @@ class Navigator():
         """
 
         from .localisation import CutWCS
+        import ast
 
         path = f'{self.path}/Cut{cut}of{self.n**2}'
 
@@ -60,6 +61,9 @@ class Navigator():
         if events:
             try:
                 self.events = pd.read_csv(f'{path}/detected_events.csv')    # temporally located with same object id
+                self.events['crossbin_ids'] = self.events['crossbin_ids'].apply(
+                    lambda x: ast.literal_eval(x) if isinstance(x, str) else x
+                )
             except:
                 print('No detected events file found')
                 self.events = None
