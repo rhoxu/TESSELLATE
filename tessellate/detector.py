@@ -1165,7 +1165,7 @@ class Detector():
             single_isolated_detections.to_csv(f'{save_folder}/single_isolated_detections.csv',index=False)
         
         # -- Add wcs, time, ccd info to the results dataframe -- #
-        results = self._wcs_time_info(results,time,self.wcs)
+        results = self._wcs_time_info(results)
         results['xccd'] = deepcopy(results['xcentroid'] + cut_corners[self.cut-1][0])
         results['yccd'] = deepcopy(results['ycentroid'] + cut_corners[self.cut-1][1])
         
