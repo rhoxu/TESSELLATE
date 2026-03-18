@@ -396,9 +396,8 @@ class Navigator():
 
         # -- Gather data -- #
         if cut != self.cut:
-            self._gather_data(cut)
-            self._gather_results(cut)
-            self.cut = cut
+            self.gather_data(cut)
+            self.gather_results(cut)
         
         # -- Isolate object and generate light curve -- #
         obj = self.objects[self.objects['objid']==objid].iloc[0]
@@ -418,9 +417,8 @@ class Navigator():
 
         # -- Gather data -- #
         if cut != self.cut:
-            self._gather_data(cut)
-            self._gather_results(cut)
-            self.cut = cut
+            self.gather_data(cut)
+            self.gather_results(cut)
 
         # -- Isolate object and define image boundary -- #
         obj = self.objects[self.objects.objid==objid].iloc[0]
@@ -433,7 +431,9 @@ class Navigator():
         ymin = max(y-image_size//2,0)
         ymax = min(y+image_size//2,self.flux.shape[1])
 
-        return self.flux[:,ymin:ymax+1,xmin:xmax+1]
+        time, flux = (Frame_Bin(self.time, self.flux, obj.frame_bin) if obj.frame_bin > 1 else (self.time, self.flux))
+
+        return flux[:,ymin:ymax+1,xmin:xmax+1]
 
 
 

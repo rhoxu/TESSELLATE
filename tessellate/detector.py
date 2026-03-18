@@ -672,7 +672,6 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
         event['camera'] = int(cam)
         event['ccd'] = int(ccd)
         event['cut'] = int(cut)
-        event['classification'] = eventsources.iloc[0]['classification']
         event['frame_start'] = int(frame_start)
         event['frame_end'] = int(frame_end)
         event['frame_duration'] = int(event['frame_end']-event['frame_start']+1)
