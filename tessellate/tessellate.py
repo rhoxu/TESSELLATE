@@ -455,6 +455,8 @@ class Tessellate():
             message += f"   - Search Mem/CPU = {self.search_mem}\n"
             print(f"   - Search Num CPUs Needed = {self.search_cpu}")
             message += f"   - Search Num CPUs Needed = {self.search_cpu}\n"
+            print(f"   - Search Time Bins = {self.time_bins}")
+            message += f"   - Search Time Bins = {self.time_bins}\n"
             print('\n')
             message += '\n'
 
