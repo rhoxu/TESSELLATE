@@ -302,6 +302,8 @@ class Navigator():
         Extract an aperture light curve for a desired event (objid/eventid pair).
         """
 
+        from .tools import Frame_Bin
+
         # -- Gather data -- #
         if cut != self.cut:
             self.gather_data(cut)
@@ -318,16 +320,21 @@ class Navigator():
         frame_start = np.max([frame_start-frame_buffer,0])
         frame_end = np.min([frame_end+frame_buffer+1,len(self.time)-1])
 
-        t,f = Generate_LC(self.time,self.flux,x,y,frame_start,frame_end,radius=1.5)
+        time, flux = (Frame_Bin(self.time, self.flux, event.frame_bin) if event.frame_bin > 1 else (self.time, self.flux))
+
+        t,f = Generate_LC(time,flux,x,y,frame_start,frame_end,radius=1.5)
 
         # -- Plot lightcurve -- #
         if plot:
-
+            
             fig,ax = plt.subplots()
-            ax.plot(t,f,'x',c='k')
+            ax.plot(t,f,'x-',c='k')
             ax.axvspan(t[frame_buffer],t[frame_buffer + (frame_end-frame_start)],color='C1',alpha=0.4)
             ax.set_xlabel('Time (MJD)')
             ax.set_ylabel('TESS Counts')
+            if event.frame_bin > 1:
+                rawt,rawf = Generate_LC(self.time,self.flux,x,y,frame_start*event.frame_bin,frame_end*event.frame_bin,radius=1.5)
+                ax.plot(rawt,rawf,'.',c='k',alpha=0.2)
         
         return t,f
     

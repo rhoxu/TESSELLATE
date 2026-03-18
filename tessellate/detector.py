@@ -1237,7 +1237,7 @@ class Detector():
         # -- Reset objid so each objid,frame_bin pair is unique -- #
         sources['objid'] = pd.factorize(sources['objid'].astype(str) + '_' + sources['frame_bin'].astype(str))[0]
 
-        sources = self.sources
+        self.sources = sources
 
         self.sources.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_sources.csv',index=False)
 
