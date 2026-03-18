@@ -336,22 +336,20 @@ def Generate_LC(time,flux,x,y,frame_start=None,frame_end=None,method='sum',radiu
 
 
 
-def Frame_Bin(time, flux, frame_bin):
+def Frame_Bin(time, flux=None, frame_bin=1):
     break_idx = np.argmax(np.diff(time)) + 1
 
-    def _bin_segment(t, f):
+    def _bin_segment(t, f=None):
         points = np.arange(0, len(t), frame_bin)
-        binned_flux = np.array([
-            np.nanmean(f[i:i+frame_bin], axis=0)
-            for i in points
-        ])
-        binned_time = np.array([
-            np.nanmean(t[i:i+frame_bin])
-            for i in points
-        ])
+        binned_time = np.array([np.nanmean(t[i:i+frame_bin]) for i in points])
+        if f is None:
+            return binned_time
+        binned_flux = np.array([np.nanmean(f[i:i+frame_bin], axis=0) for i in points])
         return binned_time, binned_flux
 
+    if flux is None:
+        return np.concatenate([_bin_segment(time[:break_idx]), _bin_segment(time[break_idx:])])
+    
     time_a, flux_a = _bin_segment(time[:break_idx], flux[:break_idx])
     time_b, flux_b = _bin_segment(time[break_idx:], flux[break_idx:])
-
     return np.concatenate([time_a, time_b]), np.concatenate([flux_a, flux_b])
