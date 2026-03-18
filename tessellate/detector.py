@@ -1002,7 +1002,7 @@ class Detector():
         if os.path.exists(f'{path}/detected_events.csv'):
             self.events = pd.read_csv(f'{path}/detected_events.csv')    # raw detection results
         else:
-            print('No detected soueventsrces file found')
+            print('No detected events file found')
             self.events = None
             
 
@@ -1149,10 +1149,12 @@ class Detector():
         row = cut_centre_px[self.cut-1][1]
 
         # -- Rebin time and flux by given factor -- #
-        isolate_single_detections = True
         if frame_bin > 1:
             time,flux = Frame_Bin(self.time,self.flux,frame_bin)
             isolate_single_detections = False
+        else:
+            time = self.time; flux = self.flux
+            isolate_single_detections = True
 
         # -- Run the detection algorithm, generates dataframe -- #
         results,single_isolated_detections = self._find_sources_in_images(flux,column=column,row=row,mode=self.mode,datadir=self.prf_path,
