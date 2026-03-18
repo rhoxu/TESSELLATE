@@ -1157,7 +1157,7 @@ class Detector():
             isolate_single_detections = True
 
         # -- Run the detection algorithm, generates dataframe -- #
-        results,single_isolated_detections = self._find_sources_in_images(flux,column=column,row=row,mode=self.mode,datadir=self.prf_path,
+        results,single_isolated_detections = self._find_sources_in_images(flux,column=column,row=row,datadir=self.prf_path,
                                                                  isolate_single_detections=isolate_single_detections)
         
         # -- Save out single detections which are isolated in space in time, probably noise, maybe cool -- #
