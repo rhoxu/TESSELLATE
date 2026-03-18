@@ -285,3 +285,73 @@ def RoundToInt(num):
 def Exp_func(x,a,b,c):
    e = np.exp(a)*np.exp(-x/np.exp(b)) + np.exp(c)
    return e
+
+
+
+
+
+
+def Generate_LC(time,flux,x,y,frame_start=None,frame_end=None,method='sum',radius=1.5):
+    
+    from photutils.aperture import CircularAperture, RectangularAnnulus, ApertureStats, aperture_photometry
+    from scipy.signal import fftconvolve
+    
+    t = time
+    f = flux
+
+    if frame_start is not None:
+        if frame_end is not None:
+            t = t[frame_start:frame_end+1]
+            f = f[frame_start:frame_end+1]
+        else:
+            t = t[frame_start:]
+            f = f[frame_start:]   
+    elif frame_end is not None:
+        t = t[:frame_end+1]
+        f = f[:frame_end+1]     
+
+    if method.lower() == 'aperture':
+        aperture = CircularAperture([x, y], radius)
+        annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=20,h_out=20)
+        flux = []
+        flux_err = []
+        for i in range(len(f)):
+            m = sigma_clip(data,masked=True,sigma=5).mask
+            mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
+            aperstats_sky = ApertureStats(f[i], annulus_aperture,mask = mask)
+            phot_table = aperture_photometry(f[i], aperture)
+            bkg_std = aperstats_sky.std
+            flux_err += [aperture.area * bkg_std]
+            flux += [phot_table['aperture_sum'].value[0]]
+        flux = np.array(flux)
+        flux_err = np.array(flux_err)
+        return t, flux, flux_err
+    elif method.lower() == 'sum':
+        xint = int(np.round(x,0))
+        yint = int(np.round(y,0))
+        buffer = np.floor(radius).astype(int)
+        f = np.nansum(f[:,yint-buffer:yint+buffer+1,xint-buffer:xint+buffer+1],axis=(1,2))
+
+        return t,f
+
+
+
+def Frame_Bin(time, flux, frame_bin):
+    break_idx = np.argmax(np.diff(time)) + 1
+
+    def _bin_segment(t, f):
+        points = np.arange(0, len(t), frame_bin)
+        binned_flux = np.array([
+            np.nanmean(f[i:i+frame_bin], axis=0)
+            for i in points
+        ])
+        binned_time = np.array([
+            np.nanmean(t[i:i+frame_bin])
+            for i in points
+        ])
+        return binned_time, binned_flux
+
+    time_a, flux_a = _bin_segment(time[:break_idx], flux[:break_idx])
+    time_b, flux_b = _bin_segment(time[break_idx:], flux[break_idx:])
+
+    return np.concatenate([time_a, time_b]), np.concatenate([flux_a, flux_b])

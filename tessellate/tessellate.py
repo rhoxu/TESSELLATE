@@ -4,6 +4,7 @@ from time import sleep
 
 from glob import glob
 import os
+import re
 
 import numpy as np
 # print(f'Imported easy functions ({ts-t():.0f}s)')
@@ -24,7 +25,7 @@ class Tessellate():
                  reduce_time=None,reduce_cpu=None,search_time=None,search_cpu=None,
                  plot_time=None,plot_cpu=None,
                  download=None,make_cube=None,make_cuts=None,reduce=None,search=None,
-                 plot=None,delete=None,overwrite=None,reset_logs=None,detect_mode='both',time_bin=None,
+                 plot=None,delete=None,overwrite=None,reset_logs=None,detect_mode='both',time_bins=None,
                  go=True):
         
         """
@@ -147,7 +148,7 @@ class Tessellate():
         self.plot_mem = None
         self.plot_cpu = plot_cpu
         self.detect_mode = detect_mode
-        self.time_bin = time_bin
+        self.time_bins = time_bins
 
         self.skip = []
 
@@ -363,7 +364,7 @@ class Tessellate():
             self.search_mem = parse_value(parser['search'].get('search job memory', None))
             self.search_cpu = parse_value(parser['search'].get('search job cpu', None))
             self.detect_mode = parse_value(parser['search'].get('search detection mode', None))
-            self.time_bin = parse_value(parser['search'].get('search time bin', None))
+            self.time_bins = parse_value(parser['search'].get('search time bins', None))
             print(f'   - Run Transient Search on Cut(s)? [y/n] = y')
             message += f'   - Run Transient Search on Cut(s)? [y/n] = y\n'
         else:
@@ -522,6 +523,7 @@ class Tessellate():
             search_time_sug = '20:00'
             search_cpu_sug = '32'
             search_mem_req = 50
+            search_time_bins = ['30min']
             
             plot_time_sug = '10:00'
             plot_cpu_sug = '32'
@@ -543,6 +545,7 @@ class Tessellate():
             search_time_sug = '30:00'
             search_cpu_sug = '32'
             search_mem_req = 64
+            search_time_bins = ['10min']
             
             plot_time_sug = '10:00'
             plot_cpu_sug = '32'
@@ -566,6 +569,7 @@ class Tessellate():
             search_time_sug = '1:00:00'
             search_cpu_sug = '32'
             search_mem_req = 60
+            search_time_bins = ['200sec']
             
             plot_time_sug = '10:00'
             plot_cpu_sug = '32'
@@ -574,7 +578,7 @@ class Tessellate():
         suggestions = [[cube_time_sug,cube_mem_sug,cube_mem_req],
                        [cut_time_sug,cut_mem_sug,cut_mem_req],
                        [reduce_time_sug,reduce_cpu_sug,reduce_mem_req],
-                       [search_time_sug,search_cpu_sug,search_mem_req],
+                       [search_time_sug,search_cpu_sug,search_mem_req,search_time_bins],
                        [plot_time_sug,plot_cpu_sug,plot_mem_req]]
         
         return suggestions
@@ -1303,6 +1307,25 @@ class Tessellate():
             print(f'   - Search Mem/CPU Needed = {self.search_mem}')
             message += f'   - Search Mem/CPU Needed = {self.search_mem}\n'  
 
+        
+        if self.time_bins is None:
+            time_bins = input(f"   - Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = ")
+            message += f"   - Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = {time_bins}\n"
+            done = False
+            while not done:
+                if ',' in time_bins:
+                    time_bins = time_bins.split(',')
+                else:
+                    time_bins = [time_bins]
+
+                pattern = r'^\d+(\.\d+)?(sec|min|hr|day)s?$'
+                if all(re.match(pattern, t) for t in time_bins):
+                    done = True
+                else:
+                    time_bins = input(f"      Invalid format! Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = ")
+                    message += f"      Invalid choice! Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = {time_bins}\n"
+
+
         print('\n')
         message += '\n'
 
@@ -1534,7 +1557,7 @@ class Tessellate():
                 'search job memory' : self.search_mem,
                 'search job cpu' : self.search_cpu,
                 'search detection mode' : self.detect_mode,
-                'search time bin' : self.time_bin}
+                'search time bins' : self.time_bins}
 
         if plot:
             config['plot'] = {
@@ -2003,13 +2026,13 @@ if part:\n\
     path2 = '{self.data_path}/{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/detected_events.csv'\n\
     if not os.path.exists(path1):\n\
         detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},part=1)\n\
-        detector.source_detect(cut={cut},mode='{self.detect_mode}',time_bin={self.time_bin})\n\
+        detector.transient_search(cut={cut},mode='{self.detect_mode}',time_bins={self.time_bins})\n\
     if not os.path.exists(path2):\n\
         detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},part=2)\n\
-        detector.source_detect(cut={cut},mode='{self.detect_mode}',time_bin={self.time_bin})\n\
+        detector.transient_search(cut={cut},mode='{self.detect_mode}',time_bins={self.time_bins})\n\
 else:\n\
     detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
-    detector.source_detect(cut={cut},mode='{self.detect_mode}',time_bin={self.time_bin})"
+    detector.transient_search(cut={cut},mode='{self.detect_mode}',time_bins={self.time_bins})"
                     
         with open(f"{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
             python_file.write(python_text)

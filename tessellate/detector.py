@@ -1,8 +1,8 @@
-# -- A good number of functions are imported only in the functions they get utilised -- #
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+from time import time as clock
 from copy import deepcopy
+import multiprocessing
 import warnings
 warnings.filterwarnings("ignore")
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
@@ -10,61 +10,13 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 from .tools import RoundToInt
 
 
-global_flux = None
-
-# Reused LC Generation Function
-
-def Generate_LC(time,flux,x,y,frame_start=None,frame_end=None,method='sum',
-                radius=1.5):
-    
-    from photutils.aperture import CircularAperture, RectangularAnnulus, ApertureStats, aperture_photometry
-    from scipy.signal import fftconvolve
-    
-    t = time
-    f = flux
-
-    if frame_start is not None:
-        if frame_end is not None:
-            t = t[frame_start:frame_end+1]
-            f = f[frame_start:frame_end+1]
-        else:
-            t = t[frame_start:]
-            f = f[frame_start:]   
-    elif frame_end is not None:
-        t = t[:frame_end+1]
-        f = f[:frame_end+1]     
-
-    if method.lower() == 'aperture':
-        aperture = CircularAperture([x, y], radius)
-        annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=20,h_out=20)
-        flux = []
-        flux_err = []
-        for i in range(len(f)):
-            m = sigma_clip(data,masked=True,sigma=5).mask
-            mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
-            aperstats_sky = ApertureStats(f[i], annulus_aperture,mask = mask)
-            phot_table = aperture_photometry(f[i], aperture)
-            bkg_std = aperstats_sky.std
-            flux_err += [aperture.area * bkg_std]
-            flux += [phot_table['aperture_sum'].value[0]]
-        flux = np.array(flux)
-        flux_err = np.array(flux_err)
-        return t, flux, flux_err
-    elif method.lower() == 'sum':
-        xint = int(np.round(x,0))
-        yint = int(np.round(y,0))
-        buffer = np.floor(radius).astype(int)
-        f = np.nansum(f[:,yint-buffer:yint+buffer+1,xint-buffer:xint+buffer+1],axis=(1,2))
-
-        return t,f
-
 # ----------------------------------------------------------------------------------------------------------------------------- #
 # ----------------------------------------------------------------------------------------------------------------------------- # 
 # ------------------------------------------------- Source Detection functions ------------------------------------------------ #
 # ----------------------------------------------------------------------------------------------------------------------------- #
 # ----------------------------------------------------------------------------------------------------------------------------- #
 
-def _Spatial_group(result,min_samples=1,distance=0.5,njobs=-1):
+def _Spatial_group(result,colname='objid',min_samples=1,distance=0.5,njobs=-1):
     """
     Groups events based on proximity.
     """
@@ -76,11 +28,14 @@ def _Spatial_group(result,min_samples=1,distance=0.5,njobs=-1):
     labels = cluster.labels_
     unique_labels = set(labels)
     for label in unique_labels:
-        result.loc[label == labels,'objid'] = label + 1
-    result['objid'] = result['objid'].astype(int)
+        result.loc[label == labels,colname] = label + 1
+    result[colname] = result[colname].astype(int)
     return result
 
 def _Star_finding_procedure(data,prf,sig_limit = 2):
+    """
+    Use StarFinder to find stars with different PSF shapes depending on subpixel shift.
+    """
 
     from photutils.detection import StarFinder
     from astropy.stats import sigma_clipped_stats
@@ -126,6 +81,9 @@ def _Star_finding_procedure(data,prf,sig_limit = 2):
 
 
 def _Find_stars(data,prf,fwhmlim=7,siglim=2.5,bkgstd_lim=50,negative=False):
+    """
+    Find stars in image.
+    """
 
     from scipy.signal import fftconvolve
     from photutils.aperture import RectangularAperture, RectangularAnnulus, ApertureStats, aperture_photometry
@@ -153,9 +111,6 @@ def _Find_stars(data,prf,fwhmlim=7,siglim=2.5,bkgstd_lim=50,negative=False):
     if len(pos)<1:
         return None
     aperture = RectangularAperture(pos, 3.0, 3.0)
-    # except:
-    #     e = f'Position error occured: pos = {pos}'
-    #     raise ValueError(e)
     annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=20,h_out=20)
     m = sigma_clip(data,masked=True,sigma=5).mask
     mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
@@ -204,6 +159,9 @@ def _Frame_detection(data,prf,frameNum):
     return star
 
 def _Source_mask(res,mask):
+    """
+    Add source mask value at each source location.
+    """
 
     xInts = res['xint'].values
     yInts = res['yint'].values
@@ -213,6 +171,9 @@ def _Source_mask(res,mask):
     return res
 
 def _Count_detections(result):
+    """
+    Count number of source detections per objid.
+    """
 
     ids = result['objid'].values
     unique = np.unique(ids, return_counts=True)
@@ -230,6 +191,9 @@ def _Count_detections(result):
 
 
 def _Do_photometry(star,data,siglim=3,bkgstd_lim=50):
+    """
+    Do aperture photometry on each source.
+    """
 
     from scipy.signal import fftconvolve
     from photutils.aperture import RectangularAnnulus, CircularAperture, ApertureStats, aperture_photometry
@@ -265,6 +229,9 @@ def _Do_photometry(star,data,siglim=3,bkgstd_lim=50):
 
 
 def _Source_detect(flux,cpu,siglim=2,bkgstd=50,maxattempts=5):
+    """
+    Run source detect on each image.
+    """
     
     from sourcedetect import SourceDetect
     from joblib import Parallel, delayed 
@@ -290,6 +257,9 @@ def _Source_detect(flux,cpu,siglim=2,bkgstd=50,maxattempts=5):
     return res
 
 def _Make_dataframe(results,data):
+    """
+    Collate results into a dataframe.
+    """
 
     # -- Collates results into a dataframe -- #
     frame = None
@@ -307,49 +277,15 @@ def _Make_dataframe(results,data):
     frame = frame[ind]
 
     return frame
+
+def _Collate_frame(results):
+    """
+    Collate result dataframe to be more managable.
+    """
     
-def _Main_detection(flux,prf,inputNum,mode='both'):
 
-    from time import time as t
-    import multiprocessing
-    from joblib import Parallel, delayed 
-    from tqdm import tqdm
-
-    
-    print('    Starting source detection')
-    length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
-    if mode == 'starfind':
-        results = Parallel(n_jobs=int(multiprocessing.cpu_count()*3/4))(delayed(_Frame_detection)(flux[i],prf,inputNum+i) for i in tqdm(length))
-        print('found sources')
-        results = _Make_dataframe(results,flux[0])
-        results['method'] = 'starfind'
-    elif mode == 'sourcedetect':
-        results = _Source_detect(flux,int(multiprocessing.cpu_count()*3/4))
-        results['method'] = 'sourcedetect'
-        results = results[~pd.isna(results['xcentroid'])]
-    elif mode == 'both':
-        t1 = t()
-        results = Parallel(n_jobs=int(multiprocessing.cpu_count()*2/3))(delayed(_Frame_detection)(flux[i],prf,inputNum+i) for i in tqdm(length))
-        star = _Make_dataframe(results,flux[0])
-        star['method'] = 'starfind'
-        print(f'        Done Starfind: {(t()-t1):.1f} sec')
-        t1 = t()
-        machine = _Source_detect(flux,int(multiprocessing.cpu_count()*3/4))
-        machine = machine[~pd.isna(machine['xcentroid'])]
-        machine['method'] = 'sourcedetect'
-        print(f'        Done Sourcedetect: {(t()-t1):.1f} sec')
-
-        results = pd.concat([
-            star.assign(method='SF'),
-            machine.assign(method='SD')
-        ], ignore_index=True)
-
-    return results
-
-def _Collate_frame(frame):
-
-    frame_sf = frame[frame['method'] == 'SF'].copy()
-    frame_sd = frame[frame['method'] == 'SD'].copy()
+    frame_sf = results[results['method'] == 'SF'].copy()
+    frame_sd = results[results['method'] == 'SD'].copy()
 
     frame_sf = frame_sf.rename(columns={
         'xcentroid': 'xcentroid_SF',
@@ -390,6 +326,9 @@ def _Collate_frame(frame):
     return frame_merged
 
 def _Brightest_Px(flux,frame):
+    """
+    Find the brightest pixel.
+    """
 
     brightest_xint = []
     brightest_yint = []
@@ -409,60 +348,8 @@ def _Brightest_Px(flux,frame):
 
     return frame
 
-def Detect(flux,cam,ccd,sector,column,row,mask,inputNums=None,corlim=0.6,psfdifflim=0.7,mode='starfind',
-            datadir='/fred/oz335/_local_TESS_PRFs/'):
-    """
-    Main Function.
-    """
 
-    from PRF import TESS_PRF
-    from time import time as t
 
-    if inputNums is not None:
-        flux = flux[inputNums]
-        inputNum = inputNums[-1]
-    else:
-        inputNum = 0
-            
-    if sector < 4:
-        prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir=datadir+'Sectors1_2_3')
-    else:
-        prf = TESS_PRF(cam,ccd,sector,column,row,localdatadir=datadir+'Sectors4+')
-
-    t1 = t()
-    frame = _Main_detection(flux,prf,inputNum,mode=mode)
-    print(f'    Main Search: {(t()-t1):.1f} sec')
-
-    t1 = t()
-    frame = _Spatial_group(frame,distance=0.5,min_samples=1)        # groupd based on distance
-    print(f'    Spatial Group: {(t()-t1):.1f} sec')
-
-    t1 = t()
-    frame = _Collate_frame(frame)                   # prefer SourceDetect results
-    print(f'    Collate Frame: {(t()-t1):.1f} sec')
-
-    frame = frame.drop('objid',axis=1)
-
-    t1 = t()
-    frame = _Spatial_group(frame,distance=0.5,min_samples=2)                   # prefer SourceDetect results
-    print(f'    Collate Frame: {(t()-t1):.1f} sec')
-
-    single_isolated_detections = frame[frame['objid']==0]
-    frame = frame[frame['objid']>0].reset_index(drop=True)
-
-    t1 = t()
-    frame = _Brightest_Px(flux,frame)               # Find brightest pixels around each source
-    print(f'    Brightest Px: {(t()-t1):.1f} sec')
-
-    t1 = t()
-    frame = _Source_mask(frame,mask)                # Add in TessReduce source mask value
-    print(f'    Source Mask: {(t()-t1):.1f} sec')
-
-    t1 = t()
-    frame = _Count_detections(frame)                # Count num detections for each objid
-    print(f'    Count Detections: {(t()-t1):.1f} sec')
-
-    return frame,single_isolated_detections
 
 # ----------------------------------------------------------------------------------------------------------------------------- #
 # ----------------------------------------------------------------------------------------------------------------------------- # 
@@ -505,6 +392,8 @@ def _Get_temporal_events(df, max_gap=2, frame_col='frame', id_col='eventid',star
 
 
 def _Check_LC_significance(time,flux,start,end,pos,flux_sign,buffer = 0.5,base_range=1):
+
+    from .tools import Generate_LC
 
     time_per_frame = time[1] - time[0]
     buffer = int(buffer/time_per_frame)
@@ -551,99 +440,7 @@ def _Check_LC_significance(time,flux,start,end,pos,flux_sign,buffer = 0.5,base_r
     return sig_max, sig_med, lc_sig * flux_sign, max_flux, max_frame
 
 
-def _Fit_period(time,flux,source,significance=3):
-
-    from scipy.optimize import curve_fit
-    from scipy.signal import find_peaks
-    import lightkurve as lk
-    from astropy.stats import sigma_clipped_stats
-    import astropy.units as u
-    from astropy.time import Time
-    from .tools import Exp_func
-
-    x = RoundToInt(source['xint_brightest'])
-    y = RoundToInt(source['yint_brightest'])
-    
-    t,f = Generate_LC(time,flux,x,y,radius=1.5)
-    # f = np.nansum(flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
-    # t = time
-    finite = np.isfinite(f) & np.isfinite(t)
-    
-    #ap = CircularAperture([source.xcentroid,source.ycentroid],1.5)
-    #phot_table = aperture_photometry(data, aperture)
-    #phot_table = phot_table.to_pandas()
-    unit = u.electron / u.s
-    t = time
-    finite = np.isfinite(f) & np.isfinite(t)
-    light = lk.LightCurve(time=Time(t[finite], format='mjd'),flux=(f[finite] - np.nanmedian(f[finite]))*unit)
-    period = light.to_periodogram()
-
-    x = period.frequency.value
-    y = period.power.value
-    finite = np.isfinite(x) & np.isfinite(y)
-    x = x[finite]; y = y[finite]
-    ind = (x < 6e-6)
-    #ind[:np.where(x < 2)[0][-1]] = False
-    try:
-        for i in range(2):
-            popt, pcov = curve_fit(Exp_func, x[ind], y[ind])
-            fit = Exp_func(x, *popt)
-            m,med,std = sigma_clipped_stats(y - fit)
-            ind = (y - fit) < (5 * std + med)
-
-        norm = y/Exp_func(x, *popt)
-        a = find_peaks(norm,prominence=3,distance=50,wlen=300,height=significance)
-        peak_power = y[a[0]]
-        peak_freq = x[a[0]]
-        peak_freq = peak_freq[peak_power>1] 
-        peak_power = peak_power[peak_power>1] 
-        if peak_power is None:
-            peak_power = [0]
-            peak_freq = [0]
-        elif len(peak_power) < 1:
-            peak_power = [0]
-            peak_freq = [0]
-    except:
-        peak_power = [0]
-        peak_freq = [0]
-    if peak_power is None:
-            peak_power = [0]
-            peak_freq = [0]
-    return peak_freq, peak_power
-
-def _Check_classifind(time,flux,source):
-    import joblib
-    from .temp_classifind import classifind as cf 
-    import os
-
-    package_directory = os.path.dirname(os.path.abspath(__file__))
-
-    x = RoundToInt(source['xint_brightest'])
-    y = RoundToInt(source['yint_brightest'])
-    t,f = Generate_LC(time,flux,x,y,radius=1.5)
-    # f = np.nansum(flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
-    # t = time
-    finite = np.isfinite(f) & np.isfinite(t)
-    lc = [np.column_stack((t[finite],f[finite]))]
-    
-    classes = {'Eclipsing Binary':'EB','Delta Scuti':'DSCT','RR Lyrae':'RRLyr','Cepheid':'Cep','Long-Period':'LPV',
-                'Non-Variable':'Non-V','Non-Variable-B':'Non-V','Non-Variable-N':'Non-V'}
-    try:
-        model_path = os.path.join(package_directory,'rfc_files','RFC_model.joblib')
-        classifier = joblib.load(model_path)
-        cmodel = cf(lc,model=classifier,classes=list(classes.keys()))
-        classification = classes[cmodel.class_preds[0]]
-        if classification in ['Non-Variable','Non-Variable-B','Non-Variable-N']:
-            prob = np.sum(cmodel.class_probs[0][-3:])
-        else:
-            prob = np.max(cmodel.class_probs)
-    except:
-        classification = 'Non-V'
-        prob = 0.80001
-    return classification, prob
-
 def _Lightcurve_event_checker(lc_sig,triggers,siglim=3,maxsep=5):
-    from .tools import consecutive_points
 
     triggers = list(triggers)
     start = np.nanmin(triggers)
@@ -687,6 +484,10 @@ def _Lightcurve_event_checker(lc_sig,triggers,siglim=3,maxsep=5):
 
 
 def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size=5):
+    """
+    Generate an cutout around an event and fit PSF. 
+    Chooses the frame based on the highest SNR between stack through event and individual frames.
+    """
 
     from .localisation import PSF_Fitter
     from astropy.stats import sigma_clipped_stats
@@ -700,40 +501,7 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
 
     h, w = flux.shape[1], flux.shape[2]
 
-    # lower_big_x = max(0,x0-half_big)
-    # upper_big_x = min(w,x0+half_big)
-    # lower_big_y = max(0,y0-half_big)
-    # upper_big_y = min(h,y0+half_big)
-    # lower_small_x = max(0,x0-half_small)
-    # upper_small_x = min(w,x0+half_small)
-    # lower_small_y = max(0,y0-half_small)
-    # upper_small_y = min(h,y0+half_small)
-
-    # try:
-    # --- Find brightest pixel in 3x3 stacked cut ---
-    # x1, x2 = x0 - 1, x0 + 2
-    # y1, y2 = y0 - 1, y0 + 2
-    # # stacked_flux_3x3 = np.nansum(flux[frames,y1:y2,x1:x2],axis=(0))
-
-    # stacked_flux_3x3 = np.zeros((3, 3), dtype=np.float32)
-    # for i in frames:
-    #     cut = flux[i, y1:y2, x1:x2] * sign
-    #     stacked_flux_3x3 += cut
-
-    # iy, ix = np.unravel_index(np.nanargmax(stacked_flux_3x3), stacked_flux_3x3.shape)
-
-    # except Exception as e:
-    #     raise RuntimeError(
-    #         f"""
-    #         Failed on event:
-    #         x0={x0}, y0={y0}
-    #         frames={frames}
-    #         sign={sign}
-    #         stacked_flux_3x3=
-    #         {stacked_flux_3x3}
-    #         """
-    #     ) from e
-
+    # -- Generate a stacked 3x3 aperture to identify and lock onto brightest pixel -- #
     stacked_flux_3x3 = np.zeros((3, 3), dtype=np.float32) 
     for i in frames: 
         y1, y2 = y0 - 1, y0 + 2 
@@ -745,33 +513,28 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
         
     iy, ix = np.unravel_index(np.nanargmax(stacked_flux_3x3), stacked_flux_3x3.shape)
 
-
     brightest_y = y0 + (iy - 1)
     brightest_x = x0 + (ix - 1)
 
     event['xint_brightest'] = brightest_x
     event['yint_brightest'] = brightest_y
 
-    # --- Stack big cuts with NaN padding ---
+
+    # --- Produce big_size cutouts with NaN padding and add to stack --- #
     stacked_big = np.zeros((big_size, big_size), dtype=np.float32)
     cuts = []
     snrs = []
 
-
-    # Desired bounds in full image
-    y1 = brightest_y - half_big
+    y1 = brightest_y - half_big        # Desired bounds in full image
     y2 = brightest_y + half_big + 1
     x1 = brightest_x - half_big
     x2 = brightest_x + half_big + 1
 
-    # Clip to image bounds
-    yy1, yy2 = max(0, y1), min(h, y2)
+    yy1, yy2 = max(0, y1), min(h, y2)   # Clip to image bounds
     xx1, xx2 = max(0, x1), min(w, x2)
 
     for i in frames:
-        
-        # Create NaN-padded cut
-        cut = np.full((big_size, big_size), np.nan, dtype=np.float32)
+        cut = np.full((big_size, big_size), np.nan, dtype=np.float32)   # Create NaN-padded cut
 
         cy1 = yy1 - y1
         cy2 = cy1 + (yy2 - yy1)
@@ -780,19 +543,17 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
 
         cut[cy1:cy2, cx1:cx2] = flux[i, yy1:yy2, xx1:xx2] * sign
 
-        # Compute noise only on valid pixels
-        valid = cut[~np.isnan(cut)]
+        valid = cut[~np.isnan(cut)]     # Compute noise only on valid pixels
         if valid.size == 0:
             continue
-
         _, _, noise = sigma_clipped_stats(valid, sigma=3)
 
-        core = cut[
-            half_big-half_small:half_big+half_small+1,
+        core = cut[                         
+            half_big-half_small:half_big+half_small+1,      # 3x3 aperture around core
             half_big-half_small:half_big+half_small+1,
         ]
 
-        flux_sum = np.nansum(core)
+        flux_sum = np.nansum(core)      # Estimate the snr from core
         snr = flux_sum / (9 * noise)
 
         cuts.append(cut)
@@ -802,7 +563,8 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
     if len(cuts) == 0:
         raise ValueError("All PSF cutouts were out of bounds.")
 
-    # --- Stacked SNR (ignore NaNs) ---
+
+    # --- Stacked SNR (ignore NaNs) --- #
     valid = stacked_big[~np.isnan(stacked_big)]
     _, _, noise = sigma_clipped_stats(valid, sigma=3)
 
@@ -814,7 +576,7 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
     stacked_flux_sum = np.nansum(stacked_core)
     stacked_snr = stacked_flux_sum / (9 * noise)
 
-    # --- Choose best cut or stacked ---
+    # --- Choose best image or stacked through event --- #
     if np.max(snrs) > stacked_snr:
         idx = int(np.argmax(snrs))
         centred_flux = cuts[idx][
@@ -828,7 +590,7 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
         snr = stacked_snr
         stacked_psf_fit = 1
 
-    # --- PSF fit ---
+    # --- PSF fit --- #
     unc = uncertainty_func(snr)
 
     fitter = PSF_Fitter(small_size, prf)
@@ -846,108 +608,36 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
     event['psf_diff'] = np.nansum(np.abs(norm_flux - fitter.psf))
     event['psf_stacked'] = stacked_psf_fit
 
-    # except Exception as e:
-    #     event['xcentroid_psf'] = np.nan
-    #     event['ycentroid_psf'] = np.nan
-    #     event['centroid_err_psf'] = np.nan
-    #     event['snr_psf'] = np.nan
-    #     event['psf_like'] = np.nan
-    #     event['psf_diff'] = np.nan
-    #     event['psf_stacked'] = np.nan
-    #     # Optional:
-    #     # print(f"PSF fit failed: {e}")
-
     return event
 
 
 
-# def _Fit_psf(flux,event,prf,frames):
-#     from .localisation import PSF_Fitter
-
-#     xint_trial = np.round(event['xcentroid_det']).astype(int)
-#     yint_trial = np.round(event['ycentroid_det']).astype(int)
-
-#     try:
-#         stacked_flux = np.zeros((3, 3), dtype=np.float32)
-#         for i in frames:  # or whatever your cap is
-#             cut = flux[i, yint_trial-1:yint_trial+2, xint_trial-1:xint_trial+2]
-#             stacked_flux += event['flux_sign'] * cut
-
-#         iy, ix = np.unravel_index(np.nanargmax(stacked_flux), stacked_flux.shape)
-#         brightesty = yint_trial + (iy - 1)  # shift from 3x3 center
-#         brightestx = xint_trial + (ix - 1)
-
-#         event['xint_brightest'] = brightestx
-#         event['yint_brightest'] = brightesty
-
-#         centred_flux = np.zeros((5, 5), dtype=np.float32)
-#         for i in frames:  # or whatever your cap is
-#             cut = flux[i, brightesty-2:brightesty+3, brightestx-2:brightestx+3]
-#             centred_flux += event['flux_sign'] * cut
-
-#         PSF_fitter = PSF_Fitter(5,prf)
-#         PSF_fitter.fit_psf(centred_flux,limx=0.5,limy=0.5)
-
-#         event['xcentroid_psf'] = PSF_fitter.source_x + brightestx
-#         event['ycentroid_psf'] = PSF_fitter.source_y + brightesty
-
-#         # event['e_xcentroid_psf'] = PSF_fitter.source_x_err
-#         # event['e_ycentroid_psf'] = PSF_fitter.source_y_err
-
-#         r = np.corrcoef(centred_flux.flatten(), PSF_fitter.psf.flatten())
-#         r = r[0,1]
-#         event['psf_like'] = r
-#         event['psf_diff'] = np.nansum(abs(centred_flux/np.nansum(centred_flux)-PSF_fitter.psf))
-#     except:
-#         event['xcentroid_psf'] = np.nan
-#         event['ycentroid_psf'] = np.nan
-#         event['psf_like'] = np.nan
-#         event['psf_diff'] = np.nan
-
-#     # plt.figure()
-#     # plt.imshow(centred_flux,origin='lower',cmap='gray',vmin=np.nanmin(centred_flux),vmax=np.nanmax(centred_flux))
-#     # plt.scatter(PSF_fitter.source_x+2,PSF_fitter.source_y+2)
-#     # plt.scatter(event['xcentroid_det']-(brightestx-2),event['ycentroid_det']-(brightesty-2))
-#     # plt.xlabel(event['flux_sign'])
-
-#     return event
-
-        
-
-def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,snr_to_localisation_func,nan_frames,frame_buffer=5,buffer=1,base_range=1,verbose=False):
-    """_summary_
-
-    Args:
-        objid (int): ID for source to isolate individual events.
-        frame_buffer: number of break frames permitted for continous events.
-        buffer (float, optional): Space between event and baseline in days. Defaults to 0.5.
-        duration (int, optional): Duration of time either side of event to create baseline in days. Defaults to 1.
-
-    Returns:
-        events
+def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
+                    snr_to_localisation_func,nan_frames,
+                    frame_buffer=5,buffer=1,base_range=1):
+    """
+    Groups sources for given objid into temporally separated events.
     """
 
-    from .tools import pandas_weighted_avg
-    from time import time as t
+    # from .tools import pandas_weighted_avg
 
     # -- Select all sources grouped to this objid -- #
     source = sources[sources['objid']==objid]
     
     all_labelled_sources = []
 
-
     # -- For this objid, separate positive and negative detections -- #
     startingID=1
     for sign in source['flux_sign'].unique():
         signed_sources = source[source['flux_sign']==sign]
 
-        weighted_signedsources = pandas_weighted_avg(signed_sources)
+        # weighted_signedsources = pandas_weighted_avg(signed_sources)
 
-        # -- Look for any regular variability -- #
-        peak_freq, peak_power = _Fit_period(time,flux,weighted_signedsources.iloc[0])
+        # # -- Look for any regular variability -- #
+        # peak_freq, peak_power = _Fit_period(time,flux,weighted_signedsources.iloc[0])
 
-        # -- Run RFC Classification -- #
-        cf_classification, cf_prob = _Check_classifind(time,flux,weighted_signedsources.iloc[0])
+        # # -- Run RFC Classification -- #
+        # cf_classification, cf_prob = _Check_classifind(time,flux,weighted_signedsources.iloc[0])
 
         labelled_sources = _Get_temporal_events(signed_sources,max_gap=frame_buffer,startingID=startingID)
         all_labelled_sources.append(labelled_sources)
@@ -955,22 +645,9 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,snr_to_locali
     
     all_labelled_sources = pd.concat(all_labelled_sources, ignore_index=True)
     
-    n_events = np.nanmax(all_labelled_sources['eventid'])
-
-    if verbose:
-        print(f"Objid: {objid} , n_events: {n_events}")
-
-    # goodevents=[]
-    # for eventID,group in all_labelled_sources.groupby('eventid'):
-    #     if len(group[group.sig>5]) != 0:
-    #         goodevents.append(eventID)
-
-    goodevents = all_labelled_sources['eventid'].unique()
-
+    # -- Iterate through eventids -- #
     dfs = []
     for eventID in all_labelled_sources['eventid'].unique():
-        if verbose:
-            print(f'Event {eventID} of {n_events}')
         event = {}
         eventsources = deepcopy(all_labelled_sources[all_labelled_sources['eventid']==eventID])
         weighted_eventsources = pandas_weighted_avg(eventsources)
@@ -982,14 +659,13 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,snr_to_locali
         _, _, sig_lc, _, _ = _Check_LC_significance(time,flux,eventsources['frame'].min(),eventsources['frame'].max(),
                                                                 [xint,yint],sign,buffer=buffer,base_range=base_range)
         
-        # has_data = np.any(np.isfinite(flux), axis=(1, 2))
-        # nanframes = np.where(~has_data)[0]
+
         sig_lc[nan_frames] = np.nan
         
+        # -- Extend the event duration based on time spent above significance threshold -- #
         frame_start,frame_end,n_detections,frames = _Lightcurve_event_checker(sig_lc,eventsources['frame'].values,siglim=3,maxsep=5)
 
-
-
+        # -- Initialise event information -- #
         event['objid'] = int(objid)
         event['eventid'] = int(eventID)
         event['sector'] = int(sector)
@@ -1008,30 +684,10 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,snr_to_locali
         event['xcentroid_det'] = weighted_eventsources.iloc[0]['xcentroid']
         event['ycentroid_det'] = weighted_eventsources.iloc[0]['ycentroid']
 
-        if eventID in goodevents:
-            try:
-                event = _Fit_psf(flux,event,prf,frames,snr_to_localisation_func)
-            except Exception as e:
-                raise RuntimeError(
-                    f"""
-                    Failed on event:
-                    frames={frames}
-                    """
-                ) from e
+        # -- Fit PSF -- #
+        event = _Fit_psf(flux,event,prf,frames,snr_to_localisation_func)
         
-        
-            # event['xcentroid_psf'] = np.nan
-            # event['ycentroid_psf'] = np.nan
-            # event['psf_like'] = np.nan
-            # event['xint_brightest'] = RoundToInt(weighted_eventsources.iloc[0]['xint_brightest'])
-            # event['yint_brightest'] = RoundToInt(weighted_eventsources.iloc[0]['yint_brightest']) 
-        else:
-            event['xcentroid_psf'] = np.nan
-            event['ycentroid_psf'] = np.nan
-            event['psf_like'] = np.nan
-            event['xint_brightest'] = RoundToInt(weighted_eventsources.iloc[0]['xint_brightest'])
-            event['yint_brightest'] = RoundToInt(weighted_eventsources.iloc[0]['yint_brightest'])
-
+        # -- If event is quite PSF-like, centroid likely good -- #
         if event['psf_like']>0.6:
             event['xcentroid'] = event['xcentroid_psf']
             event['ycentroid'] = event['ycentroid_psf']
@@ -1044,6 +700,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,snr_to_locali
         event['xint'] = RoundToInt(event['xcentroid'])
         event['yint'] = RoundToInt(event['ycentroid'])
 
+        # -- Calculate and save LC statistics -- #
         sig_max, sig_med, _, max_flux, max_frame = _Check_LC_significance(time,flux,
                                                                 event['frame_start'],event['frame_end'],
                                                                 [event['xint'],event['yint']],
@@ -1055,14 +712,13 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,snr_to_locali
         event['lc_sig_max'] = sig_max
         event['lc_sig_med'] = sig_med
 
+        # -- Miscellaneous info -- #
         event['peak_freq'] = peak_freq[0]
         event['peak_power'] = peak_power[0]
-        event['cf_class'] = cf_classification
-        event['cf_prob'] = cf_prob
-        event['GaiaID'] = eventsources.iloc[0]['GaiaID']
         event['source_mask'] = eventsources.iloc[0]['source_mask']
+        # event['cf_class'] = cf_classification
+        # event['cf_prob'] = cf_prob
 
- 
         df = pd.DataFrame([event])
         dfs.append(df)
 
@@ -1076,16 +732,19 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,snr_to_locali
 
     
 def _Straight_line_asteroid_checker(time,flux,events):
+    """
+    Check if a stacked image makes an identifiable straight line. Only operates on maximum resolution events.
+    """
     from astropy.stats import sigma_clipped_stats
     import cv2
 
     events = deepcopy(events)
     for i in range(len(events)):
-        source = events.iloc[i]
-        if source['classification'] != 'Asteroid':                
-            frameStart = source['frame_start']
-            frameEnd = source['frame_end']
-            x = source['xint']; y = source['yint']
+        event = events.iloc[i]
+        if (event['classification'] != 'Asteroid') & (event['frame_bin']==events['frame_bin'].min()):                
+            frameStart = event['frame_start']
+            frameEnd = event['frame_end']
+            x = event['xint']; y = event['yint']
             h, w = flux.shape[1], flux.shape[2]
 
             if (x-5<0)|(y-5<0)|(x+5>=w)|(y+5>=h):
@@ -1119,9 +778,9 @@ def _Straight_line_asteroid_checker(time,flux,events):
                                     maxLineGap=0 # Max allowed gap between line for joining them
                                     )
 
-            if (lines is not None) & (source['psf_like']>=0.8):
+            if (lines is not None) & (event['psf_like']>=0.8):
                 events.iloc[i, events.columns.get_loc('classification')] = 'Asteroid'
-                events.iloc[i, events.columns.get_loc('prob')] = 0.5
+                # events.iloc[i, events.columns.get_loc('prob')] = 0.5
         
     return events
 
@@ -1202,17 +861,22 @@ def _Gaussian_score(time,flux,candidates):
     return candidates
 
 def _Threshold_asteroid_checker(time,flux,events,com_motion_thresholds=[1, 0.75, 0.5], gaussian_score_thresholds=[0, 0.7, 0.9]):
+    """
+    Check the centre of mass motion and gaussianity of light curve. Only searches fastest time resolution.
+    """
 
     events = deepcopy(events)
 
     # -- Identify candidates to actually compute on -- #
-    candidates = events[(events['frame_duration']>=2)&(events['frame_duration']<=50)]
-    candidates = candidates[(candidates['lc_sig_max']>=5)&(candidates['flux_sign']==1)]
-    # candidates = self.filter_events(self.cut, lower=2, upper=50, sig_lc=5, sign=1)
+    candidates = events[(events['frame_duration']>=2)&
+                        (events['frame_duration']<=50)&
+                        (events['lc_sig_max']>=5)&
+                        (events['flux_sign']==1)&
+                        (events['frame_bin']<=events['frame_bin'].min())]
 
     candidate_indices = candidates.index
 
-    # -- #Run motion and Gaussian score only on those candidates -- #
+    # -- Run motion and Gaussian score only on those candidates -- #
     candidates = _Calculate_xcom_motion(flux,candidates)
     candidates = _Gaussian_score(time,flux,candidates)
 
@@ -1223,22 +887,67 @@ def _Threshold_asteroid_checker(time,flux,events,com_motion_thresholds=[1, 0.75,
     events.loc[candidate_indices, 'gaussian_score'] = candidates['gaussian_score'].values
 
     # -- Flagging loop -- #
+    events['classification'] = '-'
     for com_thresh, gauss_thresh in zip(com_motion_thresholds, gaussian_score_thresholds):
         mask = (
             (events['com_motion'] >= com_thresh) &
             (events['gaussian_score'] >= gauss_thresh)
         )
         events.loc[mask, 'classification'] = 'Asteroid'
-        events.loc[mask, 'prob'] = 0.8
+        # events.loc[mask, 'prob'] = 0.8
 
     return events
 
 
+def _Recheck_asteroid_lcs(time,flux,events):
+    """
+    I actually don't remember why this is in here.
+    """
+
+    asteroids = events[events['classification']=='Asteroid']
+    if len (asteroids) > 0:
+        for _, ast in asteroids.iterrows():
+            objid = int(ast['objid'])
+            eventid = int(ast['eventid'])
+            frame_bin = int(ast['frame_bin'])
+            xint = int(ast['xint'])
+            yint = int(ast['yint'])
+            frame_start = int(ast['frame_start'])
+            frame_end = int(ast['frame_end'])
+
+            
+            _, _, lc_sig, _, _ = _Check_LC_significance(
+                time, flux, frame_start, frame_end, [xint, yint], 1, 0.5, 1
+            )
+            
+
+            start, end, _, _ = _Lightcurve_event_checker(
+                lc_sig, np.arange(frame_start, frame_end+1)
+            )
+
+            n_detections = np.nansum([frame_start - start, end - frame_end])
+
+            # Update self.events
+            event_mask = (events['objid'] == objid) & (events['eventid'] == eventid) &  (events['frame_bin'] == frame_bin)
+            events.loc[event_mask, 'frame_start'] = start
+            events.loc[event_mask, 'frame_end'] = end
+            events.loc[event_mask, 'mjd_start'] = time[start]
+            events.loc[event_mask, 'mjd_end'] = time[end]
+            events.loc[event_mask, 'frame_duration'] = end - start
+            events.loc[event_mask, 'mjd_duration'] = time[end] - time[start]
+            events.loc[event_mask, 'n_detections'] += n_detections
+
+    return events
+
 
 class Detector():
 
-    def __init__(self,sector,cam,ccd,data_path='/fred/oz335/TESSdata',n=4,
-                 match_variables=True,mode='both',part=None,time_bin=None):
+    def __init__(self,sector,cam,ccd,data_path='/fred/oz335/TESSdata',n=8,
+                 match_variables=True,mode='both',part=None,cpu=multiprocessing.cpu_count()):
+        
+        """
+        Tessellate Detection Class.
+        """
 
         self.sector = sector
         self.cam = cam
@@ -1246,7 +955,9 @@ class Detector():
         self.data_path = data_path
         self.n = n
         self.match_variables = match_variables
-        self.time_bin = time_bin
+        self.mode = mode
+
+        self.cpu = cpu
 
         self.flux = None
         self.ref = None
@@ -1257,9 +968,6 @@ class Detector():
         self.objects = None   #temporally and spatially combined
         self.cut = None
         self.bkg = None
-        
-
-        self.mode = mode
 
         if part is None:
             self.path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}'
@@ -1271,156 +979,329 @@ class Detector():
             e = 'Invalid Part Parameter!'
             raise AttributeError(e)
 
-    def _wcs_time_info(self,result,cut):
+
         
-        from .localisation import CutWCS
+    # ------------------------------ Gathering data and cached results ------------------------------ #
 
-        times = np.load(f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}_Times.npy')
+    def gather_results(self,cut):
+        """
+        Gather pre-existing sources / events csvs.
+        """
 
-        self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
-        coords = self.wcs.all_pix2world(result['xcentroid'],result['ycentroid'],0)
-        result['ra'] = coords[0]
-        result['dec'] = coords[1]
-        result['mjd'] = times[result['frame']]
- 
-        return result
-    
-    def _gather_data(self,cut,flux=True,time=True,wcs=True,bkg=False,mask=False,ref=False):
+        import os
+
+        self.objects = None
+        path = f'{self.path}/Cut{cut}of{self.n**2}'
+
+        if os.path.exists(f'{path}/detected_sources.csv'):
+            self.sources = pd.read_csv(f'{path}/detected_sources.csv')    # raw detection results
+        else:
+            print('No detected sources file found')
+            self.sources = None
+
+        if os.path.exists(f'{path}/detected_events.csv'):
+            self.events = pd.read_csv(f'{path}/detected_events.csv')    # raw detection results
+        else:
+            print('No detected soueventsrces file found')
+            self.events = None
+            
+
+    def gather_data(self,cut,flux=True,time=True,bkg=False,mask=False,ref=False,verbose=True):
+        """
+        Gather reduced data.
+        """
 
         from .localisation import CutWCS
         
+        if verbose:
+            ts = clock()
+            print(f'Loading Cut {cut} Data...',end='\r')
+
         base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'
-        self.base_name = base
 
         if flux:
-            print('Loading Data...')
             self.flux = np.load(base + '_ReducedFlux.npy')
             self.cut = cut
-        if ref:
-            self.ref = np.load(base + '_Ref.npy')
-        if bkg:
-            try:
-                self.bkg = np.load(base + '_Background.npy')
-            except:
-                pass
-        if mask:
-            self.mask = np.load(base + '_Mask.npy')
+
         if time:
             self.time = np.load(base + '_Times.npy')
-            if self.time_bin is not None:
-                self._rebin_data()
-        if wcs:
-            self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
 
-    def _rebin_data(self):
-        points = np.arange(self.time[0]+self.time_bin*.5,self.time[-1],self.time_bin)
-        flux = []
-        bkg = []
-        for i in range(len(points)):
-            ind = abs(points[i] - self.time) <= self.time_bin/2
-            flux += [np.nanmean(self.flux[ind])]
-            bkg += [np.nanmean(self.bkg[ind])]
-        flux = np.array(flux)
-        bkg = np.array(bkg)
+        if ref:
+            self.ref = np.load(base + '_Ref.npy')
+
+        if bkg:
+            self.bkg = np.load(base + '_Background.npy')
+
+        if mask:
+            self.mask = np.load(base + '_Mask.npy')
+
         
-        self.time = points
-        self.flux = flux
-        self.bkg = bkg
+        self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
+
+        if verbose:
+            print(f'Loading Cut {cut} Data -- done! ({clock()-ts:.0f}s')
+
     
-    def _recheck_asteroid_lcs(self,events):
 
-        asteroids = events[events['classification']=='Asteroid']
-        if len (asteroids) > 0:
-            for _, ast in asteroids.iterrows():
-                objid = int(ast['objid'])
-                eventid = int(ast['eventid'])
-                xint = int(ast['xint'])
-                yint = int(ast['yint'])
-                frame_start = int(ast['frame_start'])
-                frame_end = int(ast['frame_end'])
 
+    # ------------------------------ Source finding functions ------------------------------ #
+
+    def _find_sources_in_images(self,flux,column,row,inputNums=None,
+                                isolate_single_detections=True,datadir='/fred/oz335/_local_TESS_PRFs'):
+        """
+        Detect sources in flux and collate information.
+        """
+
+        from joblib import Parallel, delayed 
+        from tqdm import tqdm
+        from PRF import TESS_PRF
+
+        if inputNums is not None:
+            flux = flux[inputNums]
+            inputNum = inputNums[-1]
+        else:
+            inputNum = 0
                 
-                _, _, lc_sig, _, _ = _Check_LC_significance(
-                    self.time, self.flux, frame_start, frame_end, [xint, yint], 1, 0.5, 1
-                )
-                
+        if self.sector < 4:
+            prf = TESS_PRF(self.cam,self.ccd,self.sector,column,row,localdatadir=f'{datadir}/Sectors1_2_3')
+        else:
+            prf = TESS_PRF(self.cam,self.ccd,self.sector,column,row,localdatadir=f'{datadir}/Sectors1_2_3')
 
-                start, end, _, _ = _Lightcurve_event_checker(
-                    lc_sig, np.arange(frame_start, frame_end+1)
-                )
-
-                n_detections = np.nansum([frame_start - start, end - frame_end])
-
-                # Update self.events
-                event_mask = (events['objid'] == objid) & (events['eventid'] == eventid)
-                events.loc[event_mask, 'frame_start'] = start
-                events.loc[event_mask, 'frame_end'] = end
-                events.loc[event_mask, 'mjd_start'] = self.time[start]
-                events.loc[event_mask, 'mjd_end'] = self.time[end]
-                events.loc[event_mask, 'frame_duration'] = end - start
-                events.loc[event_mask, 'mjd_duration'] = self.time[end] - self.time[start]
-                events.loc[event_mask, 'n_detections'] += n_detections
-
-        return events
+        # -- Run source detection on each frame -- #
+        length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
+        if self.mode == 'starfind':
+            sources = Parallel(n_jobs=self.cpu)(delayed(_Frame_detection)(flux[i],prf,inputNum+i) for i in tqdm(length))
             
-    def _flag_asteroids(self):
+            sources = _Make_dataframe(sources,flux[0])
+            sources['method'] = 'starfind'
 
-        events = deepcopy(self.events)
+        elif self.mode == 'sourcedetect':
+            sources = _Source_detect(flux,self.cpu)
+            sources['method'] = 'sourcedetect'
+            sources = sources[~pd.isna(sources['xcentroid'])]
+
+        elif self.mode == 'both':
+            results = Parallel(n_jobs=self.cpu)( delayed(_Frame_detection)(flux[i],prf,inputNum+i) for i in tqdm(length))
+            
+            star = _Make_dataframe(results,flux[0])
+            star['method'] = 'starfind'
+
+            machine = _Source_detect(flux,self.cpu)
+            machine = machine[~pd.isna(machine['xcentroid'])]
+            machine['method'] = 'sourcedetect'
+
+            sources = pd.concat([star.assign(method='SF'), machine.assign(method='SD')], ignore_index=True)
+
+        # -- Group based on distance -- #
+        sources = _Spatial_group(sources,distance=0.5,min_samples=1)        
+
+        # -- Prefer SourceDetect results -- #
+        sources = _Collate_frame(sources)                  
+
+        sources = sources.drop('objid',axis=1)
+
+        # -- Group based on distance -- #
+        sources = _Spatial_group(sources,distance=0.5,min_samples=2)   # prefer SourceDetect results
+
+        # -- Separate source detections with no companion -- #
+        single_isolated_detections = None
+        if isolate_single_detections:
+            single_isolated_detections = sources[sources['objid']==0]
+            sources = sources[sources['objid']>0].reset_index(drop=True)
+
+        # --  Find brightest pixels around each source -- #
+        sources = _Brightest_Px(flux,sources)               
+
+        # -- Add in TessReduce source mask value -- #
+        sources = _Source_mask(sources,self.mask)                
+
+        # -- Count num detections for each objid -- #
+        sources = _Count_detections(sources)               
+
+        return sources,single_isolated_detections
+
+
+    def _wcs_time_info(self,result):
+        """
+        Physical units for sources.
+        """
         
-        
-        # -- Generally best, checks for centre of mass movement and light curve Gaussianity -- #
-        events = _Threshold_asteroid_checker(self.time,self.flux,events)
-
-        # -- Picks up events with weirdly long event boundaries -- # 
-        events = _Straight_line_asteroid_checker(self.time,self.flux,events)
-
-        events = self._recheck_asteroid_lcs(events)
-
-        self.events = events
+        result['ra'],result['dec'] = self.wcs.all_pix2world(result['xcentroid'],result['ycentroid'],0)
+        result['mjd'] = self.time[result['frame']]
     
+        return result
 
-    def _get_all_independent_events(self,frame_buffer=10,buffer=0.5,base_range=1,cpu=1):
+    def _run_find_sources(self,frame_bin):
+        """
+        Run the source finding on this specific frame_binning.
+        """
+
+        from .dataprocessor import DataProcessor
+        from .catalog_queries import match_result_to_cat #,find_variables, gaia_stars,
+        from .tools import pandas_weighted_avg,Frame_Bin
+        
+        save_folder = f'{self.path}/Cut{self.cut}of{self.n**2}'
+
+        # -- Access information about the cut with respect to the original ccd -- #        
+        processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=2)
+        cut_corners, cut_centre_px, _, _ = processor.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
+        column = cut_centre_px[self.cut-1][0]
+        row = cut_centre_px[self.cut-1][1]
+
+        # -- Rebin time and flux by given factor -- #
+        isolate_single_detections = True
+        if frame_bin > 1:
+            time,flux = Frame_Bin(self.time,self.flux,frame_bin)
+            isolate_single_detections = False
+
+        # -- Run the detection algorithm, generates dataframe -- #
+        results,single_isolated_detections = self._find_sources_in_images(flux,column=column,row=row,mode=self.mode,datadir=self.prf_path,
+                                                                 isolate_single_detections=isolate_single_detections)
+        
+        # -- Save out single detections which are isolated in space in time, probably noise, maybe cool -- #
+        if isolate_single_detections:
+            single_isolated_detections.to_csv(f'{save_folder}/single_isolated_detections.csv',index=False)
+        
+        # -- Add wcs, time, ccd info to the results dataframe -- #
+        results = self._wcs_time_info(results,time,self.wcs)
+        results['xccd'] = deepcopy(results['xcentroid'] + cut_corners[self.cut-1][0])
+        results['yccd'] = deepcopy(results['ycentroid'] + cut_corners[self.cut-1][1])
+        
+        # -- For each source, finds the average position based on the weighted average of the flux -- #
+        av_var = pandas_weighted_avg(results[['objid','sig','xcentroid','ycentroid','ra','dec','xccd','yccd']])
+        av_var = av_var.rename(columns={'xcentroid':'x_source',
+                                        'ycentroid':'y_source',
+                                        'e_xcentroid':'e_x_source',
+                                        'e_ycentroid':'e_y_source',
+                                        'ra':'ra_source',
+                                        'dec':'dec_source',
+                                        'e_ra':'e_ra_source',
+                                        'e_dec':'e_dec_source',
+                                        'xccd':'xccd_source',
+                                        'yccd':'yccd_source',
+                                        'e_xccd':'e_xccd_source',
+                                        'e_yccd':'e_yccd_source'})
+        av_var = av_var.drop(['sig','e_sig'],axis=1)
+        results = results.merge(av_var, on='objid', how='left')
+
+        # -- Calculates the background level for each source -- #
+        results['bkg_level'] = 0
+        if self.bkg is not None:
+            f = results['frame'].values
+            x = results['xint'].values; y = results['yint'].values
+            b = []
+            for i in range(3):
+                i-=1
+                for j in range(3):
+                    j-=1
+                    b += [self.bkg[f,y-i,x+j]]
+            b = np.array(b)
+            b = np.nansum(b,axis=0)
+            results['bkg_level'] = b
+
+        results['frame_bin'] = frame_bin
+
+        return results
+    
+    def _parse_time_bins(self, bins):
+        import re
+
+        conversions = {'sec':1/86400,'min': 1/1440, 'hr': 1/24, 'day': 1}
+        max_resolution = np.nanmedian(np.diff(self.time))
+        
+        frame_bins = []
+        for bin in bins:
+            v, u = re.match(r'([\d.]+)(\w+)', bin).groups()
+            resolution = float(v) * conversions[u]
+            frame_bins.append(RoundToInt(resolution/max_resolution))
+
+        return frame_bins
+
+    def find_sources(self,time_bins):
+        """
+        Find sources.
+        """
+
+        # -- Turn time_bins into frame_bins -- #
+        frame_bins = self._parse_time_bins(time_bins)
+
+        # -- Iteratate over frame_bins and run source detection -- #
+        sources = pd.DataFrame()
+        for frame_bin in frame_bins:
+            ts = clock()
+            sources = pd.concat([sources,self._run_find_sources(frame_bin)]) 
+            print(f'    Run with time bin = {frame_bin} ({clock()-ts:.0f}s)')
+            
+        # -- Reset objid so each objid,frame_bin pair is unique -- #
+        sources['objid'] = pd.factorize(sources['objid'].astype(str) + '_' + sources['frame_bin'].astype(str))[0]
+
+        sources = self.sources
+
+        self.sources.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_sources.csv',index=False)
+
+
+
+
+    # ------------------------------ Event finding functions ------------------------------ #
+
+    def _get_all_independent_events(self,frame_buffer=10,buffer=0.5,base_range=1):
+        """
+        Isolate sources into individual temporal events.
+        """
+
         from joblib import Parallel, delayed 
         from tqdm import tqdm
         from .dataprocessor import DataProcessor
         from .localisation import get_snr_to_localisation_func, get_wcs_uncertainty
+        from .tools import Frame_Bin
         from PRF import TESS_PRF
-        import os
+        
     
-
+        # -- Generate PRF -- #
         dp = DataProcessor(self.sector,path=self.data_path)
         cutCornerPx, cutCentrePx, _, _ = dp.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
         column = cutCentrePx[self.cut-1][0]
         row = cutCentrePx[self.cut-1][1]
-
-        datadir='/fred/oz335/_local_TESS_PRFs/'
-        prf = TESS_PRF(cam=self.cam,ccd=self.ccd,sector=self.sector,
-                       colnum=column,rownum=row,localdatadir=datadir+'Sectors4+')
+        if self.sector < 4:
+            prf = TESS_PRF(self.cam,self.ccd,self.sector,column,row,localdatadir=f'{self.prf_path}/Sectors1_2_3')
+        else:
+            prf = TESS_PRF(self.cam,self.ccd,self.sector,column,row,localdatadir=f'{self.prf_path}/Sectors4+')
         
+        # -- Retrieve cut localisation quality -- #
         snr_to_localisation = get_snr_to_localisation_func(self.data_path,self.sector,self.cam,self.ccd,self.cut,self.n)
 
-        has_data = np.any(np.isfinite(self.flux), axis=(1, 2))
-        nan_frames = np.where(~has_data)[0]
+        # -- Iterate over frame bins -- #
+        frame_bins = np.unique(self.sources.frame_bin)
+        events = pd.DataFrame()
+        for frame_bin in frame_bins:
+            sources = self.sources[self.sources.frame_bin == frame_bin]
+            time,flux = Frame_Bin(self.time,self.flux,frame_bin)
 
-        ids = np.unique(self.sources['objid'].values).astype(int)
-        if cpu > 1:
-            length = np.arange(0,len(ids)).astype(int)
-            events = Parallel(n_jobs=cpu)(delayed(_Isolate_events)(ids[i],self.time,self.flux,self.sources,
-                                                                   self.sector,self.cam,self.ccd,self.cut,prf,snr_to_localisation,nan_frames,
-                                                                   frame_buffer,buffer,base_range) for i in tqdm(length))
-        else:            
-            events = []
-            for id in ids:
-                e = _Isolate_events(id,self.time,self.flux,self.sources,self.sector,self.cam,
-                                    self.ccd,self.cut,prf,snr_to_localisation,nan_frames,frame_buffer=frame_buffer,
-                                    buffer=buffer,base_range=base_range)
-                events += [e]
+            has_data = np.any(np.isfinite(flux), axis=(1, 2))      # Identify nan_frames 
+            nan_frames = np.where(~has_data)[0]
 
-        events = pd.concat(events,ignore_index=True)
+            # -- Iterate over objids to separate into discrete events -- #
+            objids = np.unique(sources['objid'].values).astype(int)
+            if self.cpu > 1:
+                length = np.arange(0,len(objids)).astype(int)
+                bin_events = Parallel(n_jobs=self.cpu)(delayed(_Isolate_events)(objids[i],time,flux,sources,
+                                                                    self.sector,self.cam,self.ccd,self.cut,prf,snr_to_localisation,nan_frames,
+                                                                    frame_buffer,buffer,base_range) for i in tqdm(length))
+            else:            
+                bin_events = []
+                for objid in objids:
+                    e = _Isolate_events(objid,time,flux,sources,self.sector,self.cam,
+                                        self.ccd,self.cut,prf,snr_to_localisation,nan_frames,frame_buffer=frame_buffer,
+                                        buffer=buffer,base_range=base_range)
+                    bin_events += [e]
 
+            events = pd.concat([events,bin_events],ignore_index=True)
+
+        # -- Provide CCD-relative location -- #
         events['xccd'] = RoundToInt(events['xint'] + cutCornerPx[self.cut-1][0])
         events['yccd'] = RoundToInt(events['yint'] + cutCornerPx[self.cut-1][1])
 
+        # -- Pull the uncertainty on WCS and combine with PSF fit centroid error -- #
         wcs_unc = get_wcs_uncertainty(self.data_path,self.sector,self.cam,self.ccd,self.cut,self.n)
         if np.isnan(wcs_unc).any():
             events['xcentroid_err'] = 0.5
@@ -1429,6 +1310,7 @@ class Detector():
             events['xcentroid_err'] = np.sqrt(events['centroid_err']**2 + wcs_unc[0]**2)
             events['ycentroid_err'] = np.sqrt(events['centroid_err']**2 + wcs_unc[1]**2)
 
+        # -- Remove all events with single frame durations -- #
         fake_events = events[events.frame_duration==1].copy()
         fake_events.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/single_frame_events.csv')
 
@@ -1439,6 +1321,9 @@ class Detector():
         self.events = real_events 
 
     def _events_physical_units(self):
+        """
+        Give physical values to event.
+        """
         from astropy.coordinates import SkyCoord
         import astropy.units as u
 
@@ -1474,12 +1359,122 @@ class Detector():
         events['mag_min'] = -2.5*np.log10(events['flux_max'])
 
         self.events = events
+
+    def _flag_asteroids(self,frame_bins):
+        """
+        Flag asteroids in events.
+        """
+
+        from .tools import Frame_Bin
+
+        events = deepcopy(self.events)
         
+        
+        # -- Generally best, checks for centre of mass movement and light curve Gaussianity -- #
+        events = _Threshold_asteroid_checker(self.time,self.flux,events)
+
+        # -- Picks up events with weirdly long event boundaries -- # 
+        events = _Straight_line_asteroid_checker(self.time,self.flux,events)
+
+        # -- I don't remember why this is here -- #
+        frame_bins = np.unique(events.frame_bin)
+        events_list = []
+        for frame_bin in frame_bins:
+            evs = events[events.frame_bin == frame_bin]
+            time,flux = Frame_Bin(self.time,self.flux,frame_bin)
+            evs = _Recheck_asteroid_lcs(time,flux,evs)
+            events_list.append(evs)
+
+        self.events = pd.concat(events_list)
+
+    def _catalogue_crossmatch(self,sigma=3):
+        """
+        Crossmatch events with stars / variables.
+        """
+        
+        events = deepcopy(self.events)
+
+        # -- Cross matches location to Gaia -- #
+        gaia = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/local_gaia_cat.csv')
+        for i,event in events.iterrows():
+            if event.classification != 'Asteroid':
+                inside = gaia[(abs(gaia.ra-event.ra) < sigma*event.ra_err)&
+                            (abs(gaia.dec-event.dec) < sigma*event.dec_err)]
+                if len(inside) > 0:
+                    events.loc[i,'GaiaID'] = inside[inside.mag==inside.mag.max()].Source
+        
+        # -- Cross matches location to variable catalog -- #
+        variables = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/variable_catalog.csv')
+        for i,event in events.iterrows():
+            if event.classification != 'Asteroid':
+                inside = variables[(abs(variables.ra-event.ra) < sigma*event.ra_err)&
+                            (abs(variables.dec-event.dec) < sigma*event.dec_err)]
+                if len(inside) > 0:
+                    events.loc[i,'classification'] = inside.iloc[0].Type
+
+        self.events = events
+
+    def _crossmatch_framebin(self):
+        """
+        Crossmatch between time_bins.
+        """
+
+        events = deepcopy(self.events)
+        events['crossbin_ids'] = [[] for _ in range(len(events))]
+
+        # -- Group spatially -- #
+        events = _Spatial_group(events, colname='crossbin_group', distance=0.5, min_samples=1)
+
+        # -- Iterate through spatial groups -- # 
+        for group in np.unique(events.crossbin_group):
+            group_df = events[events.crossbin_group == group].sort_values('frame_bin')
+
+            for i, row in group_df.iterrows():
+                # If this event has no ID yet, assign its own
+                if not events.at[i, 'crossbin_ids']:
+                    events.at[i, 'crossbin_ids'] = [i]
+
+                current_ids = events.at[i, 'crossbin_ids']
+
+                # Look upward to coarser bins
+                coarser = group_df[group_df['frame_bin'] > row['frame_bin']]
+                for j, upper in coarser.iterrows():
+                    consistent = (
+                        (row['frame_start'] * row['frame_bin'] <= upper['frame_end'] * upper['frame_bin'] + upper['frame_bin']) &
+                        (row['frame_end'] * row['frame_bin'] >= upper['frame_start'] * upper['frame_bin'] - upper['frame_bin'])
+                    )
+                    if consistent:
+                        # Merge IDs, avoiding duplicates
+                        merged = list(set(events.at[j, 'crossbin_ids'] + current_ids))
+                        events.at[j, 'crossbin_ids'] = merged
+
+        events = events.drop(columns=['crossbin_group'])
+
+        # -- Find which indices are present more than once -- #
+        all_ids = [i for ids in events['crossbin_ids'] for i in ids]
+        all_referenced = set(i for i in all_ids if all_ids.count(i) > 1)
+
+        # -- Clear solo crossbin_ids -- #
+        events['crossbin_ids'] = events.apply(
+            lambda row: [] if not any(i in all_referenced for i in row['crossbin_ids']) else row['crossbin_ids'], axis=1
+        )
+
+        # -- Remap crossbin_ids -- #
+        id_map = {old: new for new, old in enumerate(sorted(all_referenced))}
+        events['crossbin_ids'] = events['crossbin_ids'].apply(
+            lambda x: [id_map[i] for i in x if i in id_map]
+        )
+
+        self.events = events
+
     def _order_events_columns(self):
+        """
+        Order events columns.
+        """
 
         ordered_cols = [
             # Primary Identification
-            'objid', 'eventid', 'classification', 'TSS Catalogue',
+            'frame_bin','objid', 'eventid', 'classification', 'TSS Catalogue',
             'sector', 'camera', 'ccd', 'cut',
 
             # Centroid Positions
@@ -1504,11 +1499,11 @@ class Detector():
             # Morphology
             'psf_like', 'psf_diff','psf_stacked','com_motion','gaussian_score',
 
-            # Frequency Domain
-            'peak_freq', 'peak_power',
+            # # Frequency Domain
+            # 'peak_freq', 'peak_power',
 
             # Secondary Identification
-            'prob','GaiaID', 'cf_class', 'cf_prob', 'source_mask',
+            'source_mask', 'GaiaID', 'crossbin_ids', # 'prob', 'GaaID', 'cf_class', 'cf_prob', 
 
             # Miscellaneous
             'n_detections','total_events'
@@ -1516,9 +1511,11 @@ class Detector():
 
         # Safely apply ordering
         self.events = self.events[[col for col in ordered_cols if col in self.events.columns]]
-    
 
     def _TSS_catalogue_names(self):
+        """
+        Generate a TSS style catalogue name for each event.
+        """
 
         from astropy.coordinates import SkyCoord
         import astropy.units as u
@@ -1545,161 +1542,56 @@ class Detector():
             tss_names.append(tss_name)
         self.events['TSS Catalogue'] = tss_names
 
-    def _gather_results(self,cut,sources=True,events=True,objects=True):
-        """
-        Gather the results of the source detection for a given cut.
-        """
 
-        import multiprocessing
-        from .localisation import CutWCS
-
-        self.objects = None
-        # self.cut = cut
-        path = f'{self.path}/Cut{cut}of{self.n**2}'
-
-        if sources:
-            try:
-                self.sources = pd.read_csv(f'{path}/detected_sources.csv')    # raw detection results
-            except:
-                print('No detected sources file found')
-                self.sources = None
-
-        if events:
-            try:
-                self.events = pd.read_csv(f'{path}/detected_events.csv')    # temporally located with same object id
-            except:
-                print('No detected events file found')
-                self.events = None
-
-        if objects: 
-            try:
-                self.objects = pd.read_csv(f'{path}/detected_objects.csv')    # temporally and spatially located with same object id
-            except:
-                print('No detected objects file found')
-                self.objects = None
-        
-        self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
-
-    def _find_sources(self,mode,prf_path):
-
-        from .dataprocessor import DataProcessor
-        from .catalog_queries import match_result_to_cat #,find_variables, gaia_stars,
-        from .tools import pandas_weighted_avg
-        
-        # -- Access information about the cut with respect to the original ccd -- #        
-        processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=2)
-        cutCorners, cutCentrePx, _, _ = processor.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
-        column = cutCentrePx[self.cut-1][0]
-        row = cutCentrePx[self.cut-1][1]
-
-        # -- Run the detection algorithm, generates dataframe -- #
-        results,single_isolated_detections = Detect(self.flux,cam=self.cam,ccd=self.ccd,sector=self.sector,column=column,
-                         row=row,mask=self.mask,inputNums=None,mode=mode,datadir=prf_path)
-        
-        # -- Save out single detections which are isolated in space in time, probably noise, maybe cool -- #
-        single_isolated_detections.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/single_isolated_detections.csv',index=False)
-        
-        # -- Add wcs, time, ccd info to the results dataframe -- #
-        results = self._wcs_time_info(results,self.cut)
-        results['xccd'] = deepcopy(results['xcentroid'] + cutCorners[self.cut-1][0])
-        results['yccd'] = deepcopy(results['ycentroid'] + cutCorners[self.cut-1][1])
-        
-        # -- For each source, finds the average position based on the weighted average of the flux -- #
-        av_var = pandas_weighted_avg(results[['objid','sig','xcentroid','ycentroid','ra','dec','xccd','yccd']])
-        av_var = av_var.rename(columns={'xcentroid':'x_source',
-                                        'ycentroid':'y_source',
-                                        'e_xcentroid':'e_x_source',
-                                        'e_ycentroid':'e_y_source',
-                                        'ra':'ra_source',
-                                        'dec':'dec_source',
-                                        'e_ra':'e_ra_source',
-                                        'e_dec':'e_dec_source',
-                                        'xccd':'xccd_source',
-                                        'yccd':'yccd_source',
-                                        'e_xccd':'e_xccd_source',
-                                        'e_yccd':'e_yccd_source'})
-        av_var = av_var.drop(['sig','e_sig'],axis=1)
-        results = results.merge(av_var, on='objid', how='left')
-        
-        # -- Cross matches location to Gaia -- #
-        gaia = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/local_gaia_cat.csv')
-        results = match_result_to_cat(deepcopy(results),gaia,columns=['Source'])
-        results = results.rename(columns={'Source': 'GaiaID'})
-
-        # -- Cross matches location to variable catalog -- #
-        variables = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/variable_catalog.csv')
-        results = match_result_to_cat(deepcopy(results),variables,columns=['Type','Prob'])
-
-        # -- Calculates the background level for each source -- #
-        results['bkg_level'] = 0
-        if self.bkg is not None:
-            f = results['frame'].values
-            x = results['xint'].values; y = results['yint'].values
-            bkg = self.bkg
-            b = []
-            for i in range(3):
-                i-=1
-                for j in range(3):
-                    j-=1
-                    b += [bkg[f,y-i,x+j]]
-            b = np.array(b)
-            b = np.nansum(b,axis=0)
-            results['bkg_level'] = b
-
-        results.loc[results['GaiaID'] == 0, 'GaiaID'] = '-'
-        results.loc[results['Type'] == 0, 'Prob'] = '-'
-        results.loc[results['Type'] == 0, 'Type'] = '-'
-        results = results.rename(columns={'Type': 'classification'})
-        results = results.rename(columns={'Prob': 'prob'})
-
-        # Save detected sources out.
-        if self.time_bin is None:
-            results.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_sources.csv',index=False)
-        else:
-            results.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_sources_tbin{self.time_bin_name}d.csv',index=False)
-
-        self.sources = results
-    
-    def _find_events(self):
-        from time import time as t
-        import multiprocessing        
+    def find_events(self):
 
         # -- Group these sources into unique objects based on the objid -- #
-        t2 = t()
-        print('    Separating into individual events...',end='\r')
-        self._get_all_independent_events(cpu = int(multiprocessing.cpu_count()))
-        print(f'   Separating into individual events... Done in {(t()-t2):.1f} sec')
+        ts = clock()
+        self._get_all_independent_events()
+        print(f'   Separated into individual events -- Done ({(clock()-ts):.0f}s)')
 
-        t2 = t()
-        print('    Getting time/coords/flux information...',end='\r')
+        # -- Get physical units for events -- #
         self._events_physical_units()
-        print(f'   Getting time/coords/flux information... Done in {(t()-t2):.1f} sec')
+        print(f'   Getting time/coords/flux information -- Done')
 
         # -- Tag asteroids -- #
-        t2 = t()
-        print('    Checking for asteroids...',end='\r')
+        ts = clock()
         self._flag_asteroids()
-        print(f'   Checking for asteroids... Done in {(t()-t2):.1f} sec')
+        print(f'   Checking for asteroids -- Done ({(clock()-ts):.0f}s)')
 
-        # -- Get TSS Catalogues Names -- #        
-        print('    Getting TSS Catalogue Names...',end='\r')
+        # -- Tag asteroids -- #
+        ts = clock()
+        self._catalogue_crossmatch()
+        print(f'   Crossmatching with Gaia and Variables -- Done ({(clock()-ts):.0f}s)')
+
+        # -- Tag asteroids -- #
+        ts = clock()
+        self._crossmatch_framebin()
+        print(f'   Crossmatching between time bins -- Done ({(clock()-ts):.0f}s)')
+
+        # -- Get TSS Catalogue Names -- #        
         self._TSS_catalogue_names()
-        print(f'   Getting TSS Catalogue Names... Done!')
+        print(f'   Getting TSS Catalogue Names -- Done')
 
+        # -- Order nicely -- #
         self._order_events_columns()  
 
-        # -- Save out results to csv files -- #
-        if self.time_bin is None:
-            self.events.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_events.csv',index=False)
-        else:
-            self.events.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_events_tbin{self.time_bin_name}d.csv',index=False)
+        # -- Save out results to csv file -- #
+        self.events.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_events.csv',index=False)
+        
 
-    def _find_objects(self):
+
+    # ------------------------------ Object finding function ------------------------------ #
+
+    def find_objects(self):
+        """
+        Extract spatial objects.
+        """
 
         objids = self.events['objid'].unique()
 
         columns = [
-            'objid', 'sector', 'cam', 'ccd', 'cut', 'xcentroid', 'ycentroid', 
+            'frame_bin','objid', 'sector', 'cam', 'ccd', 'cut', 'xcentroid', 'ycentroid', 
             'ra', 'dec', 'gal_l', 'gal_b', 'xcentroid_err','ycentroid_err','ra_err','dec_err',
             'lc_sig_max', 'flux_maxsig', 'frame_maxsig',
             'mjd_maxsig','psf_maxsig','flux_sign', 'n_events',
@@ -1722,6 +1614,7 @@ class Detector():
                 classification = 'VRRLyr'
 
             row_data = {
+                'frame_bin':  maxevent['frame_bin'],
                 'objid': objid,
                 'xcentroid': maxevent['xcentroid'],
                 'ycentroid': maxevent['ycentroid'],
@@ -1759,44 +1652,31 @@ class Detector():
 
         self.objects = objects
 
-        if self.time_bin is None:
-            self.objects.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_objects.csv',index=False)
-        else:
-            self.objects.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_objects_tbin{self.time_bin_name}d.csv',index=False)
+        self.objects.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_objects.csv',index=False)
+        
+        
+    # ------------------------------ Main search function ------------------------------ #
 
-    def source_detect(self,cut,mode='starfind',prf_path='/fred/oz335/_local_TESS_PRFs/',time_bin=None):
-        """
-        Run the source detection algorithm on the data for a given cut.
-        """
+    def transient_search(self,cut,mode='starfind',prf_path='/fred/oz335/_local_TESS_PRFs',time_bins=['10min']):
 
         import os
 
         # -- Check if using starfinder and/or sourcedetect for detection -- #
-        if mode is None:
-            mode = self.mode
-        if (mode == 'both') | (mode == 'starfind') | (mode == 'sourcedetect'):
-            pass
-        else:
-            m = 'Mode must be one of the following: both, starfind, sourcedetect.'
-            raise ValueError(m)
+        self.mode = mode
+        self.prf_path = prf_path
         
         # -- Gather time/flux data for the cut -- #
+        print('-------Preloading sources / events-------')
         if cut != self.cut:
-            self._gather_data(cut,bkg=True,mask=True,ref=True)
-            self.cut = cut
+            self.gather_data(cut,bkg=True,mask=True,ref=True)
 
         # -- Preload self.sources and self.events if they're already made, self.objects can't be made otherwise this function wouldn't be called -- #
-        print('Preloading sources / events')
-        self._gather_results(cut=cut,objects=False)  
+        self.gather_results(cut=cut)
         print('\n') 
 
-        if time_bin is not None:
-            self.time_bin = time_bin
-
-        # -- self.sources contains all individual sources found in all frames -- #
         if self.sources is None:
             print('-------Source finding (see progress in errors log file)-------')
-            self._find_sources(mode,prf_path)
+            self.find_sources(mode,prf_path,time_bins)
             print('\n')
 
         if not os.path.exists(f'{self.path}/Cut{cut}of{self.n**2}/wcs_info/snr_localisation_coeffs.pkl'):
@@ -1809,1378 +1689,9 @@ class Detector():
         # -- self.events contains all individual events, grouped by time and space -- #  
         if self.events is None:
             print('-------Event finding (see progress in errors log file)-------')
-            self._find_events()
+            self.find_events()
             print('\n')
 
         # -- self.objects contains all individual spatial objects -- #  
         print('-------Object finding-------')
-        self._find_objects()
-
-
-    def display_source_locations(self,cut):
-        """
-        Overlays the source locations on the first frame of the cut.
-        """
-
-        if cut != self.cut:
-            self._gather_data(cut,mask=True)
-            self._gather_results(cut)
-            self.cut = cut
-
-        fig,ax = plt.subplots(figsize=(12,6),ncols=2)
-        ax[0].scatter(self.sources['xcentroid'],self.sources['ycentroid'],c=self.sources['frame'],s=5)
-        ax[0].imshow(self.flux[0],cmap='gray',origin='lower',vmin=-10,vmax=10)
-        ax[0].set_xlabel(f'Frame 0')
-
-        newmask = deepcopy(self.mask)
-
-        c1 = newmask.shape[0]//2
-        c2 = newmask.shape[1]//2
-
-        newmask[c1-2:c1+3,c2-2:c2+3] -= 1
-
-        ax[1].imshow(newmask,origin='lower')
-
-        ax[1].scatter(self.sources['xcentroid'],self.sources['ycentroid'],c=self.sources['source_mask'],s=5,cmap='Reds')
-        ax[1].set_xlabel('Source Mask')
-
-
-    def filter_objects(self,cut,
-                       ra=None,dec=None,distance=40,
-                       min_events=None,max_events=None,
-                       classification=None,flux_sign=None,centroid_err=None,
-                       lc_sig_max=None,psf_like=None,galactic_latitude=None,
-                       min_eventlength_frame=None,max_eventlength_frame=None,
-                       min_eventlength_mjd=None,max_eventlength_mjd=None):
-        
-        """
-        Filter self.objects based on these main things.
-        """
-        
-        from astropy.coordinates import SkyCoord
-        import astropy.units as u
-        
-        # -- Gather results and data -- #
-        # if (cut != self.cut) | :
-            # self._gather_data(cut)
-        self._gather_results(cut)
-            # self.cut = cut
-
-        objects = deepcopy(self.objects)
-
-        if (ra is not None) & (dec is not None):
-            if type(ra) == float:
-                target_coord = SkyCoord(ra=ra*u.degree,dec=dec*u.degree)
-            elif 'd' in dec:
-                SkyCoord(ra=ra,dec=dec)
-            else:
-                e = 'Please specify coordinates in (deg,deg) or (hms,dms)!'
-                raise ValueError(e)
-            
-            source_coords = SkyCoord(ra=objects['ra'].values*u.degree, 
-                                     dec=objects['dec'].values*u.degree)
-            separations = target_coord.separation(source_coords)
-            objects = objects[separations<distance*u.arcsec]
-
-        if min_events is not None:
-            objects = objects[objects['n_events']>=min_events]
-        if max_events is not None:
-            objects = objects[objects['n_events']<=max_events]
-
-        if galactic_latitude is not None:
-            if type(galactic_latitude) == float:
-                galactic_latitude = [galactic_latitude,90]
-            elif type(galactic_latitude) == list:
-                pass
-            else:
-                e = 'Galactic latitude must be a float or a list of floats!'
-                raise ValueError(e)
-            r = r.loc[(abs(r['gal_b']) >= min(galactic_latitude)) & (abs(r['gal_b']) <= max(galactic_latitude))]
-
-        if classification is not None:
-            is_negation = classification.startswith(('!', '~'))
-            classification_stripped = classification.lstrip('!~').lower()
-            if classification_stripped in ['var', 'variable']:
-                classification = classification = ['VCR', 'VRRLyr', 'VEB','VLPV','VST','VAGN','VRM','VMSO']  # Replace with variable classes
-            else:
-                classification = [classification_stripped]
-
-            if is_negation:
-                objects = objects[~objects['classification'].str.lower().isin([classification[i].lower() for i in range(len(classification))])]
-            else:
-                objects = objects[objects['classification'].str.lower().isin([classification[i].lower() for i in range(len(classification))])]
-
-        if flux_sign is not None:
-            objects = objects[objects['flux_sign']==flux_sign]
-        
-        if lc_sig_max is not None:
-            objects = objects[objects['lc_sig_max']>=lc_sig_max]
-
-        if psf_like is not None:
-            objects = objects[objects['psf_maxsig']>=psf_like]
-
-        if centroid_err is not None:
-            objects = objects[r['xcentroid_err']**2+r['ycentroid_err']**2 <= 2*centroid_err**2]
-
-        if min_eventlength_frame is not None:
-            objects = objects[objects['min_eventlength_frame']>=min_eventlength_frame]
-        if max_eventlength_frame is not None:
-            objects = objects[objects['max_eventlength_frame']<=max_eventlength_frame]
-        
-        if min_eventlength_mjd is not None:
-            objects = objects[objects['min_eventlength_mjd']>=min_eventlength_mjd]
-        if max_eventlength_mjd is not None:
-            objects = objects[objects['max_eventlength_mjd']<=max_eventlength_mjd]
-
-        return objects
-
-    def filter_events(self,cut,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
-                      lc_sig_max=None,lc_sig_med=None,min_events=None,max_events=None,bkg_level=None,boundarykiller=None,
-                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,centroid_err=None):
-        
-        """
-        Returns a dataframe of the events in the cut, with options to filter by various parameters.
-        """
-
-        # -- Gather results and data -- #
-            # if cut != self.cut:
-            # self._gather_data(cut)
-        self._gather_results(cut)
-            # self.cut = cut
-
-        # -- If true, remove events near sources in reduction source mask (ie. stars) -- #
-        if starkiller:
-            r = self.events.loc[self.events['source_mask']==0]
-        else:
-            r = self.events
-
-        # # -- If true, remove asteroids from the results -- #
-        if asteroidkiller:
-            r = r.loc[~(r['classification'] == 'Asteroid')]
-            if 'Asteroid' in r.keys():
-                r = r.loc[r['Asteroid'] == 0]
-
-        if boundarykiller:
-            self._gather_data(cut,flux=False,wcs=False)
-            boundaryFrames = [0,np.argmax(np.diff(self.time)),
-                    np.argmax(np.diff(self.time))+1, len(self.time)-1,
-                    np.argmax(np.diff(self.time))-1, len(self.time)-2]
-            
-            mask = ~r.apply(
-                lambda row: any(frame in range(row['frame_start'], row['frame_end'] + 1) for frame in boundaryFrames),
-                axis=1
-            )
-            r = r[mask]
-
-        if galactic_latitude is not None:
-            if type(galactic_latitude) == float:
-                galactic_latitude = [galactic_latitude,90]
-            elif type(galactic_latitude) == list:
-                pass
-            else:
-                e = 'Galactic latitude must be a float or a list of floats!'
-                raise ValueError(e)
-            r = r.loc[(abs(r['gal_b']) >= min(galactic_latitude)) & (abs(r['gal_b']) <= max(galactic_latitude))]
-
-        if classification is not None:
-            is_negation = classification.startswith(('!', '~'))
-            classification_stripped = classification.lstrip('!~').lower()
-            if classification_stripped in ['var', 'variable']:
-                classification = classification = ['VCR', 'VRRLyr', 'VEB','VLPV','VST','VAGN','VRM','VMSO','RRLyrae']  
-            else:
-                classification = [classification_stripped]
-
-            if is_negation:
-                r = r[~r['classification'].str.lower().isin([classification[i].lower() for i in range(len(classification))])]
-            else:
-                r = r[r['classification'].str.lower().isin([classification[i].lower() for i in range(len(classification))])]
-
-        # -- Filter by various parameters -- #
-        if lc_sig_max is not None:
-            r = r.loc[r['lc_sig_max']>=lc_sig_max]
-        if lc_sig_med is not None:
-            r = r.loc[r['lc_sig_med']>=lc_sig_med]
-        if image_sig_max is not None:
-            r = r.loc[r['image_sig_max'] >= image_sig_max]
-        if min_events is not None:
-            r = r.loc[r['total_events'] >= min_events]
-        if max_events is not None:
-            r = r.loc[r['total_events'] <= max_events]
-        if bkg_level is not None:
-            r = r.loc[r['bkg_level'] <= bkg_level]
-        if flux_sign is not None:
-            r = r.loc[r['flux_sign'] == flux_sign]
-        if psf_like is not None:
-            r = r.loc[r['psf_like']>=psf_like]
-        if centroid_err is not None:
-            r = r.loc[(r['xcentroid_err']**2 + r['ycentroid_err']**2) <= 2 * centroid_err**2]
-
-        # -- Filter by upper and lower limits on number of detections within each event -- #
-        if upper is not None:
-            if lower is not None:
-                r = r.loc[(r['frame_duration'] <= upper) & (r['frame_duration'] >= lower)]
-            else:
-                r = r.loc[(r['frame_duration'] <= upper)]
-        elif lower is not None:
-            r = r.loc[(r['frame_duration'] >= lower)]
-
-        return r
-
-
-    def lc_ALL(self,cut,save_path=None,lower=2,max_events=None,starkiller=False,
-                 image_sig_max=3,lc_sig_max=2.5,bkg_lim=100,flux_sign=None,compress=True):
-        """
-        Generates all light curves for the detections in the cut to a zip file of csvs.
-        """
-        
-        import multiprocessing
-        from joblib import Parallel, delayed 
-        import os
-        from .tools import _Check_dirs
-
-        # -- Gather detections to be considered for plotting -- #
-        detections = self.filter_events(cut=cut,lower=lower,max_events=max_events,
-                                        flux_sign=flux_sign,starkiller=starkiller,
-                                        lc_sig_max=lc_sig_max,image_sig_max=image_sig_max,
-                                        bkg_level=bkg_lim)
-        
-        self._gather_data(cut=cut,wcs=False)
-        
-        # -- Generate save path and name -- #
-        if save_path is None:
-            save_path = self.path + f'/Cut{cut}of{self.n**2}/lcs/'
-            print('LC path: ',save_path)
-            _Check_dirs(save_path)
-            save_name = save_path + f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}'
-        inds = detections['objid'].unique()
-
-        # -- Run the saving in parallel -- #
-        print('Total lcs to create: ', len(inds))
-        events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(Save_LC)(self.time,self.flux,detections,ind,save_name) for ind in inds)
-        print('LCs complete!')
-
-        # -- Now zips files and then deletes the directory to save inodes -- #
-        if compress:
-            cwd = os.getcwd()
-            os.chdir(f'{save_path}/..')
-            print('Zipping...')
-            cmd = f"zip -r lcs.zip lcs > /dev/null 2>&1"
-            os.system(cmd)
-            print('Zip complete!')
-            os.chdir(cwd)
-
-            print('Deleting...')
-            os.system(f'rm -r {save_path}')
-            print('Delete complete!')
-
-    
-    def plot_ALL(self,cut,save_path=None,lower=3,max_events=30,starkiller=False,
-                 image_sig_max=3,lc_sig_max=2.5,bkgstd_lim=100,flux_sign=1,time_bin=None):
-        """
-        Generates all source plots for the detections in the cut to a zip file of pngs
-        """
-        
-        import multiprocessing
-        from joblib import Parallel, delayed 
-        import os
-        from .tools import _Check_dirs
-
-        # if time_bin is not None:
-        #     self.time_bin = time_bin
-
-        # -- Gather detections to be considered for plotting -- #
-        detections = self.filter_events(cut=cut,lower=lower,max_events=max_events,
-                                        flux_sign=flux_sign,starkiller=starkiller,
-                                        lc_sig_max=lc_sig_max,image_sig_max=image_sig_max)
-        
-        self._gather_data(cut=cut)
-
-        # -- Generate save path and name -- #
-        if save_path is None:
-            save_path = self.path + f'/Cut{cut}of{self.n**2}/figs/'
-            print('Figure path: ',save_path)
-            _Check_dirs(save_path)
-            save_name = save_path + f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}'
-
-        # -- Count unique object IDs in detections -- #
-        inds = detections['objid'].unique()
-        print('Total events to plot: ', len(detections))
-
-        # -- Run the plotting in parallel -- #
-        events = Parallel(n_jobs=int(multiprocessing.cpu_count()))(delayed(Plot_Object)(self.time,self.flux,detections,
-                                                                                        ind,event='separate',latex=True,
-                                                                                        save_path=save_name,zoo_mode=True) for ind in inds)
-        print('Plot complete!')
-
-        # -- Now zips files and then deletes the directory to save inodes -- #
-        print('Zipping...')
-        cmd = f"find {save_path} -type f -name '*.png' -exec zip {save_path}/../figs.zip -j {{}} + > /dev/null 2>&1"
-        os.system(cmd)
-        print('Zip complete!')
-        print('Deleting...')
-        os.system(f'rm -r {save_path}')
-        print('Delete complete!')
-
-    def save_lc(self,cut,id,save_path=None):
-        from .tools import _Check_dirs
-
-        if cut != self.cut:
-            self._gather_data(cut)
-            self._gather_results(cut)
-            self.cut = cut
-
-        if save_path is None:
-            save_path = self.path + f'/Cut{cut}of{self.n**2}/lcs/'
-            _Check_dirs(save_path)
-            save_name = save_path + f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}'
-
-        Save_LC(self.time,self.flux,self.events,id,save_path=save_name)    
-
-    def external_photometry(self,objid,event,tess_grid=5,sigma=3,phot=None,check='gaia'):
-
-        from .external_photometry import event_cutout
-
-        print('Getting Photometry...')
-
-        theta = np.linspace(0, 2*np.pi, np.ceil(50/tess_grid).astype(int))
-        if type(event) == int:
-            e = self.events[(self.events['objid']==objid) & (self.events['eventid']==event)].iloc[0] 
-            xint = RoundToInt(e['xcentroid'])
-            yint = RoundToInt(e['ycentroid'])
-            ra_obj = e['ra']
-            dec_obj = e['dec']
-
-            error_x_rad = min(sigma*e['xcentroid_err'],0.5)
-            error_y_rad = min(sigma*e['ycentroid_err'],0.5)
-
-            errorX = e['xcentroid'] + error_x_rad*np.cos(theta)
-            errorY = e['ycentroid'] + error_y_rad*np.sin(theta)
-        else:
-            obj = self.objects[self.objects['objid']==objid].iloc[0]
-            xint = RoundToInt(obj['xcentroid'])
-            yint = RoundToInt(obj['ycentroid'])
-            ra_obj = obj['ra']
-            dec_obj = obj['dec']
-
-            error_x_rad = min(sigma*obj['xcentroid_err'],0.5)
-            error_y_rad = min(sigma*obj['ycentroid_err'],0.5)
-
-            errorX = obj['xcentroid'] + error_x_rad*np.cos(theta)
-            errorY = obj['ycentroid'] + error_y_rad*np.sin(theta)
-
-        RA,DEC = self.wcs.all_pix2world(xint,yint,0)
-        errorRA,errorDEC = self.wcs.all_pix2world(errorX,errorY,0)
-
-        # ra_obj,dec_obj = self.wcs.all_pix2world(obj['xcentroid'],obj['ycentroid'],0)
-        
-        #error = (source.e_xccd * 21 /60**2,source.e_yccd * 21/60**2) # convert to deg
-        #error = np.nanmax([source.e_xccd,source.e_yccd])
-        # error = [10 / 60**2,10 / 60**2] # just set error to 10 arcsec. The calculated values are unrealistically small.
-        
-
-        fig, wcs, size, photometry,cat,im = event_cutout((RA,DEC),20*tess_grid,phot=phot,check=check)
-        if fig is None:
-            return None,None,None,None,None
-        axes = fig.get_axes()
-        axes[0].set_xlim(size,0)
-        axes[0].set_ylim(0,size)
-        
-        if len(axes) == 1:
-            wcs = [wcs]
-
-        # if photometry == 'DESI':
-
-
-
-        axes[0].scatter(ra_obj,dec_obj, transform=axes[0].get_transform('fk5'),
-                    edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
-        # elif photometry == 'SkyMapper':
-        #     loc = wcs[0].all_world2pix(ra_obj,dec_obj,0)
-        #     ydiff = loc[1] - im.shape[1]//2
-        #     loc[1] = im.shape[1]//2 - ydiff
-        #     axes[0].scatter(loc[0],loc[1],edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
-            # yRange = yRange[::-1]
-           
-        number = tess_grid//2 + 1
-
-        xRange = np.arange(xint-number,xint+number)
-        yRange = np.arange(yint-number,yint+number)
-
-        lines = []
-        for x in xRange:
-            line = np.linspace((x,yRange[0]),(x,yRange[-1]),100)
-            lines.append(line)
-
-        for y in yRange:
-            line = np.linspace((xRange[0],y),(xRange[-1],y),100)
-            lines.append(line)
-
-        # -- Plot the TESS pixel edges on the axes -- #
-        for i,ax in enumerate(axes): 
-            ys = []
-            for j,line in enumerate(lines):
-                if j in [0,2*number]:
-                    color = 'red'
-                    lw = 5
-                    alpha = 0.7
-                elif j in [2*number-1,4*number-1]:
-                    color = 'cyan'
-                    lw = 5
-                    alpha = 0.7
-                else:
-                    color='white'
-                    lw = 2
-                    alpha = 0.3
-
-                ra,dec = self.wcs.all_pix2world(line[:,0]+0.5,line[:,1]+0.5,0)
-                if wcs[i].naxis == 3:
-                    x,y,_ = wcs[i].all_world2pix(ra,dec,0,0)
-                    xError,yError,_ = wcs[i].all_world2pix(errorRA,errorDEC,0,0)
-                else:
-                    x,y = wcs[i].all_world2pix(ra,dec,0)
-                    xError,yError = wcs[i].all_world2pix(errorRA,errorDEC,0)
-                    # if photometry == 'SkyMapper':
-                    #     ydiff = y - im.shape[1]//2
-                    #     y = im.shape[1]//2 - ydiff
-                    #     ydiff = yError - im.shape[1]//2
-                    #     yError = im.shape[1]//2 - ydiff
-
-                if j in [0,5]:
-                    ys.append(np.mean(y))
-                good = (x>0)&(y>0)&(x<size)&(y<size)
-                x = x[good]
-                y = y[good]
-                if len(x) > 0:
-                    ax.plot(x,y,color=color,alpha=alpha,lw=lw)
-
-                ax.scatter(xError,yError,color='red',s=15,marker='.',lw=1)
-        
-            legend = ax.legend(loc=2,facecolor="black",fontsize=10)
-            for text in legend.get_texts():
-                    text.set_color("white")
-
-        return fig, cat, (ra_obj,dec_obj), wcs,im
-
-    def plot_object(self,cut,objid,event='separate',save_name=None,save_path=None,phot_check='gaia',
-                    latex=True,zoo_mode=False,external_phot=False,save_combined_path=None,tess_grid=3):
-        """
-        Plot a source from the cut data.
-        """
-            
-        if (save_combined_path is not None) & (not external_phot):
-            print('Warning: save_combined_path is given, but external_phot is False. This will not save the photometry cutout.')
-            print('Setting save_combined_path to None.')
-            save_combined_path = None
-
-
-        # -- Use Latex in the plots -- #
-        if latex:
-            plt.rc('text', usetex=latex)
-            plt.rc('font', family='serif')
-                                                    #else:
-                                                        #plt.rc('text', usetex=False)
-                                                        #plt.rc('font', family='sans-serif')
-
-        # -- Gather data -- #
-        if cut != self.cut:
-            self._gather_data(cut)
-            self._gather_results(cut)
-            self.cut = cut
-
-        # -- If saving is desired -- #
-        if save_path is not None:
-            from .tools import _Check_dirs
-
-            if save_path[-1] != '/':
-                save_path+='/'
-            _Check_dirs(save_path)
-            if save_name is None:
-                save_name = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}'
-            save_path = save_path + save_name
-
-        obj = self.objects[self.objects['objid']==objid].iloc[0]
-        obj.lc,obj.cutout,obj.lc_fig = Plot_Object(self.time,self.flux,self.events,objid,event,save_path,latex,zoo_mode) 
-
-        # -- If external photometry is requested, generate the WCS and cutout -- #
-        if external_phot:
-            if phot_check == 'local':
-                phot_check = f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
-            fig, cat, coord,phot_wcs,im = self.external_photometry(objid,event,tess_grid=tess_grid,check=phot_check)
-            if fig is None:
-                return obj
-            
-            obj.photometry = fig
-            obj.cat = cat
-            obj.coord = coord
-
-        if save_combined_path is not None:
-            from .tools import _Save_space
-            import io
-            from PIL import Image
-
-            _Save_space(save_combined_path)
-
-            buf1 = io.BytesIO()
-            buf2 = io.BytesIO()
-            obj.lc_fig.savefig(buf1, format='png', dpi=150,bbox_inches='tight')
-            obj.photometry.savefig(buf2, format='png', dpi=150,bbox_inches='tight')
-
-            # Load with Pillow
-            img1 = Image.open(buf1)
-            img2 = Image.open(buf2)
-
-            # Match heights instead of widths
-            max_height = max(img1.height, img2.height)
-            if img1.height != max_height:
-                img1 = img1.resize((int(img1.width * max_height / img1.height), max_height), Image.LANCZOS)
-            if img2.height != max_height:
-                img2 = img2.resize((int(img2.width * max_height / img2.height), max_height), Image.LANCZOS)
-
-            # Combine horizontally
-            combined_width = int((img1.width + img2.width)*1.05)
-            combined_img = Image.new('RGB', (combined_width, max_height), (255, 255, 255))
-            combined_img.paste(img1, (0, 0))
-            combined_img.paste(img2, (int(img1.width+combined_width/22), 0))
-
-            # Save final combined PNG
-            combined_img.save(f"{save_combined_path}/S{self.sector}C{self.cam}C{self.ccd}C{self.cut}O{objid}E{event}.png", dpi=(150,150))
-        
-        return obj
-    
-    def event_lc(self,cut,objid,eventid=None,frame_buffer=10):
-
-        # -- Gather data -- #
-        if cut != self.cut:
-            self._gather_data(cut)
-            self._gather_results(cut)
-            self.cut = cut
-        
-        events = self.events[self.events['objid']==objid]
-        if eventid is not None:
-            eventid = [eventid]
-        else:
-            eventid = range(1,len(events)+1)
-        
-        lcs = []
-        for id in eventid:
-            e = events[events['eventid']==id].iloc[0]
-            x = int(e['xint'])     # x coordinate of the source
-            y = int(e['yint'])      # y coordinate of the source
-            frameStart = int(e['frame_start'])        # Start frame of the event
-            frameEnd = int(e['frame_end'])            # End frame of the event
-
-            frameStart = np.max([frameStart-frame_buffer,0])
-            frameEnd = np.min([frameEnd+frame_buffer+1,len(self.time)-1])
-
-            t,f = Generate_LC(self.time,self.flux,x,y,frameStart,frameEnd,radius=1.5)
-            lcs.append((t,f))
-
-        return lcs
-    
-    def event_frames(self,cut,objid,eventid=None,frame_buffer=2,frame_interval=1,image_size=11,plot=True):
-
-        # -- Gather data -- #
-        if cut != self.cut:
-            self._gather_data(cut)
-            self._gather_results(cut)
-            self.cut = cut
-
-        events = self.events[self.events['objid']==objid]
-        if eventid is None:
-            print('No event specificed, using brightest one!')
-            eventid = events['lc_sig_max'].argmax()+1
-        
-
-        event = events[events.eventid==eventid].iloc[0]
-        brightestframe = event['frame_max']
-
-        frames = np.arange(event['frame_start']-frame_buffer,event['frame_end']+1,frame_interval).astype(int)
-
-        if brightestframe not in frames:
-            frames = np.sort(np.append(frames,brightestframe))
-
-        while len(frames) < 5:
-            frames = np.append(frames,frames[-1]+frame_interval)
-
-        frames[frames<0] = 0
-        frames[frames>len(self.time)]=len(self.time)-1
-        frames = np.unique(frames)
-
-        x = int(event['xint']) 
-        y = int(event['yint']) 
-
-        xmin = max(x-image_size//2,0)
-        xmax = min(x+image_size//2,self.flux.shape[1])
-
-        ymin = max(y-image_size//2,0)
-        ymax = min(y+image_size//2,self.flux.shape[1])
-
-        images = self.flux[frames,ymin:ymax+1,xmin:xmax+1]
-
-        if plot:
-            fig,ax = plt.subplots(ncols=5,figsize=(15,15))
-            brightest_loc = np.where(frames==brightestframe)[0][0]
-            for i in range(5):
-                ax[i].imshow(images[brightest_loc-2+i],origin='lower',cmap='gray')
-                if i == 2:
-                    ax[i].set_title(f'Brightest Frame ({brightestframe})')
-                else:
-                    ax[i].set_title(f'Frame ({frames[brightest_loc-2+i]})')
-                
-        return images
-    
-    def object_lc(self,cut,objid):
-
-        # -- Gather data -- #
-        if cut != self.cut:
-            self._gather_data(cut)
-            self._gather_results(cut)
-            self.cut = cut
-        
-        obj = self.objects[self.objects['objid']==objid].iloc[0]
-        x = RoundToInt(obj['xcentroid'])     # x coordinate of the source
-        y = RoundToInt(obj['ycentroid'])     # x coordinate of the source
-        t,f = Generate_LC(self.time,self.flux,x,y)
-
-        return t,f
-    
-    def object_frames(self,cut,objid,image_size=11):
-
-        # -- Gather data -- #
-        if cut != self.cut:
-            self._gather_data(cut)
-            self._gather_results(cut)
-            self.cut = cut
-
-        obj = self.objects[self.objects['objid']==objid].iloc[0]
-
-        x = RoundToInt(obj['xcentroid']) 
-        xmin = max(x-image_size//2,0)
-        xmax = min(x+image_size//2,self.flux.shape[1])
-
-        y = RoundToInt(obj['ycentroid']) 
-        ymin = max(y-image_size//2,0)
-        ymax = min(y+image_size//2,self.flux.shape[1])
-
-        return self.flux[:,ymin:ymax+1,xmin:xmax+1]
-
-    
-    def collate_filtered_events(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
-                      lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_level=None,boundarykiller=None,min_events=None,
-                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,centroid_err=None): #,density_score=None):
-        
-        from tqdm import tqdm
-        import os
-        import pandas as pd
-        from .tools import _Save_space
-
-        ccd_events = pd.DataFrame()
-        for cut in tqdm(range(1,self.n**2+1),position=0, leave=True,dynamic_ncols=False,ascii=True,desc=f'S{self.sector}C{self.cam}C{self.ccd}'):
-            if os.path.exists(f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Cut{cut}of{self.n**2}/detected_objects.csv'):
-                self._gather_results(cut,sources=False,objects=False)
-                events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
-                                            lower=lower,upper=upper,image_sig_max=image_sig_max,centroid_err=centroid_err,
-                                            lc_sig_max=lc_sig_max,lc_sig_med=lc_sig_med,min_events=min_events,
-                                            max_events=max_events,bkg_level=bkg_level,boundarykiller=boundarykiller,
-                                            flux_sign=flux_sign,classification=classification,
-                                            psf_like=psf_like,galactic_latitude=galactic_latitude)
-                
-                if len(events) > 0:
-
-                    ccd_events = ccd_events.drop_duplicates(subset=["xccd", "yccd", "frame_max"],keep="first")
-
-                    ccd_events = pd.concat([ccd_events,events],ignore_index=True)
-
-                # -- Calculates an event density score for remaining events and weeds out events in crowded frames -- #
- 
-        #     if (density_score is not None):
-        #         deduped = (
-        #         ccd_events.sort_values("total_events", ascending=False)
-        #             .drop_duplicates(subset=["xint", "yint", "frame_max"], keep="first")
-        #         )
-
-        #         # Keep a mapping from original -> deduped row
-        #         mapping = pd.Series(deduped.index, index=deduped[["xint", "yint", "frame_max"]].apply(tuple, axis=1))
-        #         reverse_map = ccd_events[["xint", "yint", "frame_max"]].apply(tuple, axis=1).map(mapping)
-
-        #         # --- Step 2: Perform scoring on deduplicated events
-        #         frames = np.concatenate([
-        #             np.arange(ev['frame_start'], ev['frame_end'] + 1, dtype=int)
-        #             for _, ev in deduped.iterrows()
-        #         ])
-        #         frame_counts = np.bincount(frames)
-
-        #         scores_deduped = np.array([
-        #             frame_counts[ev['frame_start']:ev['frame_end'] + 1].mean()
-        #             for _, ev in deduped.iterrows()
-        #         ])
-
-        #         mu = np.percentile(scores_deduped, 0.1)
-        #         scores_deduped = scores_deduped / mu
-        #         scores_deduped -= 1
-        #         scores_deduped = scores_deduped * abs(deduped['bkg_level'].values * 
-        #                                             np.nanmax(scores_deduped) / 
-        #                                             np.nanmax(deduped['bkg_level'].values))
-
-        #         if len(deduped) / density_score < 5:
-        #             scores_deduped *= 2
-
-        #         # --- Step 3: Expand scores back to original size
-        #         deduped_scores_series = pd.Series(scores_deduped, index=deduped.index)
-        #         scores = reverse_map.map(deduped_scores_series).to_numpy()
-
-        #         ccd_events = ccd_events.loc[scores <= density_score]
-
-        if (len(ccd_events) > 0):
-            _Save_space(save_path)
-
-            if os.path.exists(f'{save_path}/events.csv'):
-                all_events = pd.read_csv(f'{save_path}/events.csv')
-            else:
-                all_events = pd.DataFrame()
-
-            all_events = pd.concat([all_events,ccd_events],ignore_index=True)
-            all_events.to_csv(f'{save_path}/events.csv',index=False)
-
-    def plot_filtered_events(self,save_path,tess_grid,external_phot=True,phot_check='gaia'):
-        import os
-
-        if os.path.exists(f'{save_path}/events.csv'):
-            all_events = pd.read_csv(f'{save_path}/events.csv')
-        else:
-            e = 'No events found in the save path!'
-            raise FileNotFoundError(e)
-        
-        ccd_events = all_events[(all_events['camera'] == self.cam) & (all_events['ccd'] == self.ccd) & (all_events['sector'] == self.sector)]
-        count = 0
-        for _,event in ccd_events.iterrows():
-            if (event['camera'] == self.cam) & (event['ccd'] == self.ccd) & (event['sector'] == self.sector):
-                count += 1
-                cut = event['cut']
-                objid = event['objid']
-                eventid = event['eventid']
-                if not os.path.exists(f'{save_path}/S{self.sector}C{self.cam}C{self.ccd}C{cut}O{objid}E{eventid}.png'):
-                    print(f'Event {count} of {len(ccd_events)}')
-                    self.plot_object(event['cut'],event['objid'],event=event['eventid'],tess_grid=tess_grid,phot_check=phot_check,
-                                    latex=True,zoo_mode=False,external_phot=external_phot,save_combined_path=save_path)
-                    print('\n')
-                
-    def lc_filtered_events(self,save_path,phot_method='aperture',aperture_rad=1.5,ref=False):
-        import os
-        from .tools import _Check_dirs
-        if os.path.exists(f'{save_path}/events.csv'):
-            all_events = pd.read_csv(f'{save_path}/events.csv')
-        else:
-            e = 'No events found in the save path!'
-            raise FileNotFoundError(e)
-        
-        save_path = save_path + f'/lcs/'
-        print('LC path: ',save_path)
-        _Check_dirs(save_path)
-        save_name = save_path + f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}'
-        
-        ccd_events = all_events[(all_events['camera'] == self.cam) & (all_events['ccd'] == self.ccd) & (all_events['sector'] == self.sector)]
-        ccd_events = ccd_events.loc[(ccd_events['camera'] == self.cam) & (ccd_events['ccd'] == self.ccd) & (ccd_events['sector'] == self.sector)]
-        objids = np.unique(ccd_events['objid'].values)
-        print('Total lcs to create: ', len(inds))
-        for objid in objids:
-            obj = ccd_events.loc[ccd_events['objid'] == objid]
-            name = f"{save_path}/S{obj['sector'].iloc[0]}C{obj['cam'].iloc[0]}C{obj['ccd'].iloc[0]}C{obj['cut'].iloc[0]}O{objid}.csv"
-            if not os.path.exists(name):
-                if self.cut != obj['cut'].iloc[0]:
-                    self._gather_data(cut=obj['cut'].iloc[0])
-                if ref:
-                    data = self.flux + self.ref
-                else:
-                    data = self.flux
-                # -- Run the saving in parallel -- #
-                savename = f"{save_path}/S{obj['sector'].iloc[0]}C{obj['cam'].iloc[0]}C{obj['ccd'].iloc[0]}C{obj['cut'].iloc[0]}"
-                Save_LC(self.time,data,obj,objid,savename)
-                
-        
-                    
-                # def filter_and_save(self,save_path,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
-                #                   lc_sig_max=None,lc_sig_med=None,max_events=None,bkg_std=None,boundarykiller=None,
-                #                   flux_sign=None,classification=None,psf_like=None,galactic_latitude=None):
-                    
-                #     from tqdm import tqdm
-                #     import os
-                #     import pandas as pd
-
-
-                #     if os.path.exists(f'{save_path}/events.csv'):
-                #         all_events = pd.read_csv(f'{save_path}/events.csv')
-                #     else:
-                #         all_events = pd.DataFrame()
-
-                #     for cut in tqdm(range(1,self.n**2+1)):
-                #         self._gather_results(cut)
-                #         events = self.filter_events(cut=cut,starkiller=starkiller,asteroidkiller=asteroidkiller,
-                #                                 lower=lower,upper=upper,image_sig_max=image_sig_max,
-                #                                 lc_sig_max=lc_sig_max,lc_sig_med=lc_sig_med,
-                #                                 max_events=max_events,bkg_std=bkg_std,boundarykiller=boundarykiller,
-                #                                 flux_sign=flux_sign,classification=classification,
-                #                                 psf_like=psf_like,galactic_latitude=galactic_latitude)
-                        
-                #         if len(events) > 0:
-                #             all_events = pd.concat([df,all_events],ignore_index=True)
-                    
-
-                #     for _,event in all_events.iterrows():
-
-                #         self.plot_object(cut,event['objid'],event=event['eventid'],
-                #                         latex=True,zoo_mode=False,external_phot=True,save_combined=save_path)
-                            
-                #             all_events = pd.concat([all_events,events],ignore_index=True)
-                    
-                #     if os.path.exists(f'{save_path}/events.csv'):
-                #         df = pd.read_csv(f'{save_path}/events.csv')
-                #         all_events = pd.concat([df,all_events],ignore_index=True)
-                #     all_events.to_csv(f'{save_path}/events.csv',index=False)
-
-    def object_periodogram(self,cut,objid,plot=True):
-
-        from astropy.timeseries import LombScargle
-        from scipy.signal import find_peaks,peak_prominences        
-
-        # -- Gather data -- #
-        if cut != self.cut:
-            self._gather_data(cut)
-            self._gather_results(cut)
-            self.cut = cut
-
-        obj_events = self.events[self.events.objid==objid]
-        psf_best = np.where(obj_events['psf_like']==np.nanmax(obj_events['psf_like']))[0][0]
-
-        t,f = self.event_lc(cut=self.cut,objid=objid,eventid=psf_best+1,frame_buffer=10000)[0]
-
-        dt = np.median(np.diff(np.sort(self.time*24*60)))
-        min_period = 2 * dt 
-
-        max_freq = 1.0 / min_period
-
-        # Consider full
-        frequency, power = LombScargle(t*24*60, f, np.ones_like(f)).autopower(maximum_frequency=max_freq,
-                                                                        nyquist_factor=5,
-                                                                        samples_per_peak=5)
-
-        peaks = find_peaks(power,distance=30,prominence=0.05)[0]
-
-        period = 1/frequency
-
-        peaks_interesting = peaks[period[peaks]<=1e4]
-
-        peak_period = None
-        peak_power = None
-
-        if len(peaks_interesting) > 0:
-            prominences = peak_prominences(power, peaks_interesting)[0]
-            if len(prominences[prominences>0.1]) == 0:
-                #split into quarters
-                split = np.argmax(np.diff(t)) + 1
-                index = np.array([[0,split//2],[split//2,split],[split,(len(t)+split)//2],[(len(t)+split)//2,len(t)]])
-                for j,idx in enumerate(index):
-                    i1 = idx[0]
-                    i2 = idx[1]
-                    t_sub = t[i1:i2]
-                    f_sub = f[i1:i2]
-                    freq_sub, power_sub = LombScargle(t_sub*24*60, f_sub, np.ones_like(f_sub)).autopower(maximum_frequency=max_freq,
-                                                                        nyquist_factor=5,
-                                                                        samples_per_peak=5)
-
-                    period_sub = 1/freq_sub
-
-                    peaks_sub = find_peaks(power_sub,distance=30,prominence=0.1)[0]     
-                    peaks_sub_interesting = peaks_sub[period_sub[peaks_sub]<=1e4]
-                    prominences_interesting = peak_prominences(power_sub, peaks_sub_interesting)[0]
-
-                    if (len(peaks_sub_interesting)>0) & (np.argmax(power_sub)!=0): 
-                        if plot:
-                            fig,ax = plt.subplots(ncols=2,nrows=2,figsize=(14,8))
-                            ax = ax.flatten()
-                            ax[0].plot(t,f)
-                            ax[1].plot(period,power)
-                            ax[1].set_xscale('log')
-                            ax[1].set_xlabel('Period (min)')
-                            for peak in peaks_interesting:
-                                ax[1].axvline(period[peak],color='r',alpha=0.2)
-
-                            ax[2].plot(t_sub,f_sub)
-                            ax[3].plot(period_sub,power_sub)
-                            ax[3].set_xscale('log')
-                            ax[3].set_xlabel('Period (min)')
-                            for peak in peaks_sub_interesting:
-                                ax[3].axvline(period_sub[peak],color='r',alpha=0.2)
-
-                        sorted_peaks = [p for _, p in sorted(zip(prominences_interesting, peaks_sub_interesting), reverse=True)]
-                        peak_period = period_sub[sorted_peaks[0]]
-                        peak_power = power_sub[sorted_peaks[0]]
-
-                        break
-                    elif j == 3:
-                        print('Not Interesting')
-                        if plot:
-                            fig,ax = plt.subplots(ncols=2,figsize=(14,4))
-                            ax[1].plot(1/frequency,power)
-                            ax[0].plot(t,f)
-                            ax[1].set_xscale('log')
-                            ax[1].set_xlabel('Period (min)')
-
-            else:
-                sorted_peaks = [p for _, p in sorted(zip(prominences, peaks_interesting), reverse=True)]
-                peak_period = period[sorted_peaks[0]]
-                peak_power = power[sorted_peaks[0]]
-
-                if plot:
-                    fig,ax = plt.subplots(ncols=2,figsize=(14,4))
-                    ax[1].plot(1/frequency,power)
-                    ax[0].plot(t,f)
-                    ax[1].set_xscale('log')
-                    ax[1].set_xlabel('Period (min)')
-                    for peak in peaks_interesting:
-                        ax[1].axvline(period[peak],color='r',alpha=0.2)
-
-        elif period[np.argmax(power)] < 1e4:
-            peaks = find_peaks(power,distance=30,prominence=0.03)[0]
-            peaks_interesting = peaks[period[peaks]<=1e4]
-
-            if plot:
-                fig,ax = plt.subplots(ncols=2,figsize=(14,4))
-                ax[1].plot(1/frequency,power)
-                ax[0].plot(t,f)
-                ax[1].set_xscale('log')
-                ax[1].set_xlabel('Period (min)')
-
-            if len(peaks_interesting) ==0:
-                print('Not Interesting')
-            else:
-                peak_period = period[np.argmax(power)]
-                peak_power = power[np.argmax(power)]
-
-                if plot:
-                    for peak in peaks_interesting:
-                        ax[1].axvline(period[peak],color='r',alpha=0.2)
-        else:
-            print('Not Interesting')
-
-            if plot:
-                fig,ax = plt.subplots(ncols=2,figsize=(14,4))
-                ax[1].plot(1/frequency,power)
-                ax[0].plot(t,f)
-                ax[1].set_xscale('log')
-                ax[1].set_xlabel('Period (min)')
-
-        return peak_period,peak_power                                          
-
-
-    def locate_transient(self,cut,xcentroid,ycentroid,threshold=3):
-
-        if cut != self.cut:
-            self._gather_data(cut)
-            self._gather_results(cut)
-            self.cut = cut
-
-        return self.events[(self.events['ycentroid'].values < ycentroid+threshold) & (self.events['ycentroid'].values > ycentroid-threshold) & (self.events['xcentroid'].values < xcentroid+threshold) & (self.events['xcentroid'].values > xcentroid-threshold)]
-
-    def full_ccd(self,psflike_lim=0,psfdiff_lim=1,savename=None):
-
-        import matplotlib.patches as patches
-        from .dataprocessor import DataProcessor
-
-        p = DataProcessor(sector=self.sector,path=self.data_path)
-        lb,_,_,_ = p.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
-
-        cutCorners, cutCentrePx, cutCentreCoords, cutSize = p.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
-
-        fig,ax = plt.subplots(figsize=(10,10))
-        ax.set_xlim(44,2076)
-        ax.set_ylim(0,2048)
-
-        # -- Adds cuts -- #
-        #colours = iter(plt.cm.rainbow(np.linspace(0, 1, self.n**2)))
-        for corner in cutCorners:
-            #c = next(colours)
-            c='black'
-            rectangle = patches.Rectangle(corner,2*cutSize,2*cutSize,edgecolor=c,
-                                            facecolor='none',alpha=1)
-            ax.add_patch(rectangle)
-
-        for cut in range(1,17):
-            try:
-                path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Cut{cut}of{self.n**2}'
-                r = pd.read_csv(f'{path}/detected_sources.csv')
-                r = r.loc[(r.psfdiff < psfdiff_lim) & (r.psflike > psflike_lim)]
-                r['xcentroid'] += lb[cut-1][0]
-                r['ycentroid'] += lb[cut-1][1]
-                ax.scatter(r['xcentroid'],r['ycentroid'],c=r['frame'],s=5)
-                if savename is not None:
-                    plt.savefig(savename)
-            except:
-                pass
-
-
-def Plot_Object(times,flux,events,id,event,save_path=None,latex=True,zoo_mode=False):
-    """
-    Plot a source's light curve and image cutout.
-    """
-    from matplotlib.lines import Line2D
-    import matplotlib.patches as patches
-    from mpl_toolkits.axes_grid1.inset_locator import mark_inset
-    
-    # -- Use Latex in the plots -- #
-    if latex:
-        plt.rc('text', usetex=latex)
-        plt.rc('font', family='serif')
-                                                #else:
-                                                    #plt.rc('text', usetex=False)
-                                                    #plt.rc('font', family='sans-serif')
-
-    # -- Select sources associated with the object id -- #
-    events =  events[events['objid']==id]      # not sources, events, but 
-    total_events = int(np.nanmean(events['total_events'].values))   #  Number of events associated with the object id
-    
-                                                # if type(objectid_bin) == str:
-                                                #     if total_events > 5:
-                                                #         objectid_bin = True
-                                                #     else:
-                                                #         objectid_bin = False
-
-    # -- Compile source list based on if plotted source contains all in one -- #
-    if type(event) == str:
-        if event.lower() == 'separate':
-            pass
-        elif event.lower() == 'all':
-
-            frame_starts = events['frame_start'].values
-            frame_ends = events['frame_end'].values
-
-            # Sets this one "event" to include all the times between first and last detection #
-            e = deepcopy(events.iloc[0])
-            e['frame_start'] = events['frame_start'].min()
-            e['mjd_start'] = events['mjd_start'].min()
-            e['frame_end'] = events['frame_end'].max()
-            e['mjd_end'] = events['mjd_end'].min()
-            e['mjd_duration'] = e['mjd_end'] - e['mjd_start']
-            e['frame'] = (e['frame_end'] + e['frame_start']) / 2 
-            e['mjd'] = (e['mjd_end'] + e['mjd_start']) / 2 
-
-            # Sets the x and y coordinates to the brightest source in the event #
-            brightest = np.where(events['image_sig_max']==np.nanmax(events['image_sig_max']))[0][0]
-            brightest = deepcopy(events.iloc[brightest])
-            e['xccd'] = brightest['xccd']
-            e['yccd'] = brightest['yccd']
-            e['xint'] = brightest['xint']
-            e['yint'] = brightest['yint']
-            e['xcentroid'] = brightest['xcentroid']
-            e['ycentroid'] = brightest['ycentroid']
-
-            events = e.to_frame().T       # "events" in now a single event
-            
-    elif type(event) == int:
-        events = deepcopy(events.iloc[events['eventid'].values == event])
-    elif type(event) == list:
-        events = deepcopy(events.iloc[events['eventid'].isin(event).values])
-    else:
-        m = "No valid option selected, input either 'all', 'separate', an integer event id, or list of integers."
-        raise ValueError(m)
-
-    # -- Generates time for plotting and finds breaks in the time series based on the median and standard deviation - #
-    time = times - times[0]             
-    med = np.nanmedian(np.diff(time))           
-    std = np.nanstd(np.diff(time))              
-    break_ind = np.where(np.diff(time) > med+1*std)[0]
-    break_ind = np.append(break_ind,len(time)) 
-    break_ind += 1
-    break_ind = np.insert(break_ind,0,0)
-
-    eventtype = event       # just for use down the line as we redefine what event is
-
-    # -- Iterates over each source in the events dataframe and generates plot -- #
-    for i in range(len(events)):
-        event_id = events['eventid'].iloc[i]          # Select event ID
-        event = deepcopy(events.iloc[i])             # Select source 
-        x = RoundToInt(event['xcentroid'])      # x coordinate of the source
-        y = RoundToInt(event['ycentroid'])      # y coordinate of the source
-        frameStart = int(event['frame_start'])        # Start frame of the event
-        frameEnd = int(event['frame_end'])            # End frame of the event
-
-        _,f = Generate_LC(times,flux,x,y,radius=1.5)
-        # f = np.nansum(flux[:,y-1:y+2,x-1:x+2],axis=(2,1))    # Sum the flux in a 3x3 pixel box around the source
-
-        # Find brightest frame in the event #
-        if frameEnd - frameStart >= 2:
-            brightestframe = frameStart + np.where(abs(f[frameStart:frameEnd]) == np.nanmax(abs(f[frameStart:frameEnd])))[0][0]
-        else:
-            brightestframe = frameStart
-        try:
-            brightestframe = int(brightestframe)
-        except:
-            brightestframe = int(brightestframe[0])
-        if brightestframe >= len(flux):   # If the brightest frame is out of bounds, set it to the last frame
-            brightestframe -= 1
-        if frameEnd >= len(flux):         # If the frame end is out of bounds, set it to the last frame
-            frameEnd -= 1
-
-        # Generate light curve around event #
-        fstart = frameStart-20
-        if fstart < 0:
-            fstart = 0
-        zoom = f[fstart:frameEnd+20]
-
-        
-                                        # if include_periodogram:
-                                        #     fig,ax = plt.subplot_mosaic([[1,1,1,2,2],[1,1,1,3,3],[4,4,4,4,4]],figsize=(7,9),constrained_layout=True)
-                                        #     fig,ax = plt.subplot_mosaic([[1,1,1,2,2],[1,1,1,3,3],[4,4,4,4,4]],figsize=(7,9),constrained_layout=True)
-                                        # else:
-
-        # Create the figure and axes for the plot #
-        fig,ax = plt.subplot_mosaic([[1,1,1,2,2],[1,1,1,3,3]],figsize=(7*1.1,5.5*1.1),constrained_layout=True)
-
-        # Invisibly plot event into main panel to extract ylims for zoom inset plot # 
-        ax[1].plot(time[fstart:frameEnd+20],zoom,'k',alpha=0)          
-        insert_ylims = ax[1].get_ylim()
-
-        # Plot each segment of the light curve in black, with breaks in the time series #
-        for i in range(len(break_ind)-1):
-            ax[1].plot(time[break_ind[i]:break_ind[i+1]],f[break_ind[i]:break_ind[i+1]],'k',alpha=0.8)
-        ylims = ax[1].get_ylim()
-        ax[1].set_ylim(ylims[0],ylims[1]+(abs(ylims[0]-ylims[1])))
-        ax[1].set_xlim(np.min(time),np.max(time))
-
-        # Differences between Zooniverse mode and normal mode #
-        if zoo_mode:
-            ax[1].set_title('Is there a transient in the orange region?',fontsize=15)   
-            ax[1].set_ylabel('Brightness',fontsize=15,labelpad=10)
-            ax[1].set_xlabel('Time (days)',fontsize=15)
-            
-            axins = ax[1].inset_axes([0.02, 0.55, 0.96, 0.43])      # add inset axes for zoomed in view of the event
-            axins.yaxis.set_tick_params(labelleft=False,left=False)
-            axins.xaxis.set_tick_params(labelbottom=False,bottom=False)
-            ax[1].yaxis.set_tick_params(labelleft=False,left=False)
-
-        else:
-            ax[1].set_title(f"{event['TSS Catalogue']}   |   ObjID: {event['objid']}",fontsize=15)   
-            ax[1].set_ylabel('Counts (e/s)',fontsize=15,labelpad=10)
-            ax[1].set_xlabel(f'Time (MJD - {np.round(times[0],3)})',fontsize=15)
-
-            axins = ax[1].inset_axes([0.1, 0.55, 0.86, 0.43])       # add inset axes for zoomed in view of the event
-    
-
-        # Generate a coloured span during the event #
-        cadence = np.median(np.diff(time))
-
-        if eventtype == 'all':
-            for i in range(len(frame_starts)):
-                axins.axvspan(time[frame_starts[i]]-cadence/2,time[frame_ends[i]]+cadence/2,color='C1',alpha=0.4)
-        else:
-            axins.axvspan(time[frameStart]-cadence/2,time[frameEnd]+cadence/2,color='C1',alpha=0.4)
-
-        # axins.axvspan(time[frameStart]-cadence/2,time[frameEnd]+cadence/2,color='C1',alpha=0.4)
-
-        # Plot full light curve in inset axes #
-        for i in range(len(break_ind)-1):
-            if zoo_mode:
-                axins.plot(time[break_ind[i]:break_ind[i+1]],f[break_ind[i]:break_ind[i+1]],'k',alpha=0.8)
-            else:
-                axins.plot(time[break_ind[i]:break_ind[i+1]],f[break_ind[i]:break_ind[i+1]],'k',alpha=0.8,marker='.')
-
-        # Change the x and y limits of the inset axes to focus on the event #
-        if (frameEnd - frameStart) > 2:
-            duration = time[frameEnd] - time[frameStart]
-        else:
-            duration = 2
-        fe = frameEnd + 20
-        if fe >= len(time):
-            fe = len(time) - 1
-        duration = int(event['frame_duration'])
-        if duration < 4:
-            duration = 4
-        xmin = frameStart - 3*duration
-        xmax = frameEnd + 3*duration
-        if xmin < 0:
-            xmin = 0
-        if xmax >= len(time):
-            xmax = len(time) - 1
-        xmin = time[frameStart] - (3*duration * cadence)
-        xmax = time[frameEnd] + (3*duration * cadence)
-        if xmin <= 0:
-            xmin = 0
-        if xmax >= np.nanmax(time):
-            xmax = np.nanmax(time)
-        axins.set_xlim(xmin,xmax)
-        axins.set_ylim(insert_ylims[0],insert_ylims[1])
-
-        # Colour the inset axes spines #
-        mark_inset(ax[1], axins, loc1=3, loc2=4, fc="none", ec="r",lw=2)
-        plt.setp(axins.spines.values(), color='r',lw=2)
-        plt.setp([axins.get_xticklines(), axins.get_yticklines()], color='C3')
-
-
-        # Define max and min brightness for frame plot based on closer 5x5 cutout of brightest frame #
-        bright_frame = flux[brightestframe,y-1:y+2,x-1:x+2]   
-        vmin = np.percentile(flux[brightestframe],16)
-        try:
-            vmax = np.percentile(bright_frame,80)
-        except:
-            vmax = vmin + 20
-        if vmin >= vmax:
-            vmin = vmax - 5
-
-        # Define and imshow the cutout image (19x19) #
-        ymin = y - 9
-        if ymin < 0:
-            ymin = 0 
-        xmin = x -9
-        if xmin < 0:
-            xmin = 0
-        cutout_image = flux[:,ymin:y+10,xmin:x+10]
-        ax[2].imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
-        ax[2].scatter(event['xcentroid'] - xmin, event['ycentroid'] - ymin, color='r', s=50, marker='x', lw=2)
-
-        # Add labels, remove axes #
-        ax[2].set_title('Brightest image',fontsize=15)
-        ax[2].get_xaxis().set_visible(False)
-        ax[2].get_yaxis().set_visible(False)
-        ax[3].get_xaxis().set_visible(False)
-        ax[3].get_yaxis().set_visible(False)
-        
-        # Find the first frame after the brightest frame that is at least 1 hour later #
-        try:
-            tdiff = np.where(time-time[brightestframe] >= 1/24)[0][0]
-        except:
-            tdiff = np.where(time[brightestframe] - time >= 1/24)[0][-1]
-        after = tdiff
-        if after >= len(cutout_image):
-            after = len(cutout_image) - 1 
-
-        # Plot the cutout image 1 hour later #
-        ax[3].imshow(cutout_image[after],
-                    cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
-        
-        ax[3].set_title('1 hour later',fontsize=15)
-        ax[3].annotate('', xy=(0.2, 1.15), xycoords='axes fraction', xytext=(0.2, 1.), 
-                            arrowprops=dict(arrowstyle="<|-", color='r',lw=3))
-        ax[3].annotate('', xy=(0.8, 1.15), xycoords='axes fraction', xytext=(0.8, 1.), 
-                            arrowprops=dict(arrowstyle="<|-", color='r',lw=3))
-        
-                                            # if include_periodogram:
-                                            #     frequencies = periodogram(period,axis=ax[4])
-                                            #     unit = u.electron / u.s
-                                            #     light = lk.LightCurve(time=Time(self.time, format='mjd'),flux=(f - np.nanmedian(f))*unit)
-                                            #     period = light.to_periodogram()
-
-        # Add 3x3 rectangle around the centre of the cutout image #
-        if zoo_mode:
-            rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin),5,5, linewidth=3, edgecolor='r', facecolor='none')
-            ax[2].add_patch(rect)
-            rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin),5,5, linewidth=3, edgecolor='r', facecolor='none')
-            ax[3].add_patch(rect)
-        else:
-            # Draw base square with left/bottom red
-            rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin), 5, 5,linewidth=3, edgecolor='r', facecolor='none')
-            ax[2].add_patch(rect)
-            # Overlay cyan top/right edge
-            ax[2].add_line(Line2D([x - 2.5 - xmin, x + 2.5 - xmin],[y + 2.5 - ymin, y + 2.5 - ymin],color='c', linewidth=3))
-            ax[2].add_line(Line2D([x + 2.5 - xmin, x + 2.5 - xmin],[y - 2.5 - ymin, y + 2.5 - ymin],color='c', linewidth=3))
-            
-            rect = patches.Rectangle((x-2.5 - xmin, y-2.5 - ymin), 5, 5,linewidth=3, edgecolor='r', facecolor='none')
-            ax[3].add_patch(rect)
-            # Overlay cyan top/right edge
-            ax[3].add_line(Line2D([x - 2.5 - xmin, x + 2.5 - xmin],[y + 2.5 - ymin, y + 2.5 - ymin],color='c', linewidth=3))
-            ax[3].add_line(Line2D([x + 2.5 - xmin, x + 2.5 - xmin],[y - 2.5 - ymin, y + 2.5 - ymin],color='c', linewidth=3))
-            
-        # Save the figure if a save path is provided #
-        if save_path is not None:
-            save_name = f'{save_path}_object{id}'
-
-                                            # if star_bin: 
-                                            #     if source['GaiaID'] > 0:
-                                            #         extension = 'star'
-                                            #     else:
-                                            #         extension = 'no_star'
-                                            #     sp += '/' + extension
-                                            #splc += '/' + extension
-
-                                            # if period_bin:
-                                            #     if type_bin:
-                                            #         if source['Prob'] > 0:
-                                            #             extension = source['Type']
-                                            #         else:
-                                            #             extension = self.period_bin(source['peak_freq'],source['peak_power'])
-                                            #     if type(extension) != str:
-                                            #         extension = 'none'
-                                            #     sp += '/' + extension
-                                            #     _Check_dirs(sp)
-                                            #     #splc += '/' + extension
-                                            #     #_Check_dirs(splc)
-                                                
-                                            # if objectid_bin:
-                                            #     extension = f'{self.sector}_{self.cam}_{self.ccd}_{self.cut}_{id}'
-                                            #     sp += '/' + extension
-                                            #     _Check_dirs(sp)
-                                                #splc += '/' + extension
-                                                #_Check_dirs(splc)
-                                                                        
-            if eventtype == 'all':
-                plt.savefig(f'{save_name}_all_events.png', bbox_inches = "tight")
-            else:
-                plt.savefig(f'{save_name}_event{event_id}of{total_events}.png', 
-                            bbox_inches = "tight")
-                
-                                            # if save_lc:
-                                            #     headers = ['mjd','counts','event']
-                                            #     lc = pd.DataFrame(data=lc,columns=headers)
-                                            #     if event == 'all':
-                                            #         if self.time_bin is None:
-                                            #             lc.to_csv(splc+'/'+savename+'_all_events.csv', index=False)
-                                            #         else:
-                                            #             lc.to_csv(splc+'/'+savename+f'_all_events_tbin{self.time_bin_name}d.csv', index=False)
-                                            #     else:
-                                            #         if self.time_bin is None:
-                                            #             lc.to_csv(splc+'/'+savename+f'_event{event_id}of{total_events}.csv', index=False)
-                                            #         else:
-                                            #             lc.to_csv(splc+'/'+savename+f'_event{event_id}of{total_events}_tbin{str(self.time_bin)}d.csv', index=False)
-                                            #np.save(save_path+'/'+savename+'_lc.npy',[time,f])
-                                            #np.save(save_path+'/'+savename+'_cutout.npy',cutout_image)
-
-    return [times,f], cutout_image, fig
-
-def Save_LC(times,flux,events,id,save_path,phot_method='aperture',radius=1.5):
-    """
-    Save the light curve for a given object id to a csv.
-    """
-
-    # -- Get source list for the object id -- #
-    sources =  events[events['objid']==id]
-    total_events = int(np.nanmean(sources['total_events'].values))
-
-    # -- Initialize arrays for frames, positive and negative flux -- #
-    frames = np.zeros_like(times,dtype=int)
-    frame_counter = np.arange(len(times))
-    pe = np.zeros_like(times,dtype=int)
-    ne = np.zeros_like(times,dtype=int)
-    for i in range(total_events):
-        s = sources.loc[sources['eventid'] == i+1]
-        if len(s) > 0:
-            frameStart = int(np.nanmean(s['frame_start'].values)) #min(source['frame'].values)
-            frameEnd = int(np.nanmean(s['frame_end'].values)) #max(source['frame'].values)
-            frames[(frame_counter >= frameStart) & (frame_counter <= frameEnd)] = int(i + 1)
-            if s['flux_sign'].values > 0:
-                pe[(frame_counter >= frameStart) & (frame_counter <= frameEnd)] = int(s['flux_sign'].values)
-            else:
-                ne[(frame_counter >= frameStart) & (frame_counter <= frameEnd)] = int(s['flux_sign'].values)
-    
-    #x = int(np.round(np.nanmedian(sources['xcentroid'])))
-    #y = int(np.round(np.nanmedian(sources['ycentroid'])))
-    x = np.nanmedian(sources['xcentroid'])
-    y = np.nanmedian(sources['ycentroid'])
-
-    times,f,fe = Generate_LC(times,flux,x,y,radius=radius,phot_method=phot_method)
-
-    # f = np.nansum(flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
-    
-    lc = np.array([times,f,fe,frames,pe,ne]).T
-    headers = ['mjd','counts','e_counts','event','positive','negative']
-    lc = pd.DataFrame(data=lc,columns=headers)
-    
-    lc.to_csv(f'{save_path}O{id}.csv',index = False)
+        self.find_objects() 
