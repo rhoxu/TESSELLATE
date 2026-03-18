@@ -5,6 +5,10 @@ plt.rc('font', family='serif')
 import pandas as pd
 from time import time as clock
 from copy import deepcopy
+import warnings
+warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", category=RuntimeWarning) 
+
 
 from .tools import RoundToInt, Generate_LC, Frame_Bin
 
@@ -102,7 +106,7 @@ class Navigator():
         self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
 
         if verbose:
-            print(f'Loading Cut {cut} Data -- done! ({clock()-ts:.0f}s')
+            print(f'Loading Cut {cut} Data -- done! ({clock()-ts:.0f}s)')
 
 
 
@@ -110,7 +114,7 @@ class Navigator():
 
     # ----------------------------- Filtering sources, events, objects ----------------------------- #
 
-    def filter_events(self,cut,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,
+    def filter_events(self,cut,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,frame_bin=None,
                       lc_sig_max=None,lc_sig_med=None,min_events=None,max_events=None,bkg_level=None,boundary_buffer=None,
                       flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,centroid_err=None):
         
@@ -132,25 +136,36 @@ class Navigator():
             if 'Asteroid' in events.keys():
                 events = events.loc[events.Asteroid == 0]
 
+        # -- Pick out frame bins -- #
+        if frame_bin is not None:
+            events = events.loc[events.frame_bin == frame_bin]
+
         # -- Remove events within 'boundary_buffer' of the boundary -- #
         if boundary_buffer is not None:
-            self.gather_data(cut,flux=False)
-            break_idx = np.argmax(np.diff(self.time))
-            last_idx = len(self.time) - 1
+            self.gather_data(cut, flux=False, verbose=False)
 
-            boundaries = [0, break_idx, break_idx + 1, last_idx]
+            mask = pd.Series(True, index=events.index)
+            for frame_bin in np.unique(events.frame_bin):
+                bin_events = events[events.frame_bin == frame_bin]
+                time = Frame_Bin(self.time, frame_bin=frame_bin)
+                break_idx = np.argmax(np.diff(time))
+                last_idx = len(time) - 1
 
-            boundary_frames = set()
-            for b in boundaries:
-                for offset in range(-boundary_buffer, boundary_buffer + 1):
-                    idx = b + offset
-                    if 0 <= idx <= last_idx:
-                        boundary_frames.add(idx)
-            
-            mask = ~events.apply(
-                lambda row: any(frame in range(row.frame_start, row.frame_end + 1) for frame in boundary_frames),
-                axis=1
-            )
+                boundaries = [0, break_idx, break_idx + 1, last_idx]
+
+                boundary_frames = set()
+                for b in boundaries:
+                    for offset in range(int(-boundary_buffer/frame_bin), int(boundary_buffer/frame_bin) + 1):
+                        idx = b + offset
+                        if 0 <= idx <= last_idx:
+                            boundary_frames.add(idx)
+
+                bin_mask = ~bin_events.apply(
+                    lambda row: any(frame in range(row.frame_start, row.frame_end + 1) for frame in boundary_frames),
+                    axis=1
+                )
+                mask[bin_events.index] = bin_mask
+
             events = events[mask]
 
         # -- Restrict to galactic latitudes higher than given value -- #
@@ -179,13 +194,15 @@ class Navigator():
                 events = events[events.classification.str.lower().isin([classification[i].lower() for i in range(len(classification))])]
 
         # -- Filter by upper and lower limits on number of detections within each event -- #
-        if upper is not None:
-            if lower is not None:
-                events = events.loc[(events.frame_duration <= upper) & (events.frame_duration >= lower)]
-            else:
-                events = events.loc[(events.frame_duration <= upper)]
-        elif lower is not None:
-            events = events.loc[(events.frame_duration >= lower)]
+        if upper is not None or lower is not None:
+            mask = pd.Series(True, index=events.index)
+            for frame_bin in np.unique(events.frame_bin):
+                bin_idx = events[events.frame_bin == frame_bin].index
+                if upper is not None:
+                    mask[bin_idx] &= events.loc[bin_idx, 'frame_duration'] <= upper / frame_bin
+                if lower is not None:
+                    mask[bin_idx] &= events.loc[bin_idx, 'frame_duration'] >= lower / frame_bin
+            events = events[mask]
 
         # -- Filter by various parameters -- #
         if lc_sig_max is not None:
@@ -211,7 +228,7 @@ class Navigator():
 
     def filter_objects(self,cut,
                        ra=None,dec=None,distance=40,
-                       min_events=None,max_events=None,
+                       min_events=None,max_events=None,frame_bin=None,
                        classification=None,flux_sign=None,centroid_err=None,
                        lc_sig_max=None,psf_like=None,galactic_latitude=None,
                        min_eventlength_frame=None,max_eventlength_frame=None,
@@ -274,6 +291,8 @@ class Navigator():
                 objects = objects[objects.classification.str.lower().isin([classification[i].lower() for i in range(len(classification))])]
 
         # -- Filter by various parameters -- #
+        if frame_bin is not None:
+            objects = objects.loc[objects.frame_bin == frame_bin]
         if flux_sign is not None:
             objects = objects[objects.flux_sign==flux_sign]
         if lc_sig_max is not None:
@@ -309,30 +328,30 @@ class Navigator():
         
         # -- Isolate and extract event with frame buffer either side -- #
         event = self.events[(self.events.objid==objid)&(self.events.eventid==eventid)].iloc[0]
-    
+
+        time, flux = (Frame_Bin(self.time, self.flux, event.frame_bin) if event.frame_bin > 1 else (self.time, self.flux))
+
         x = RoundToInt(event.xint)     # x coordinate of the source
         y = RoundToInt(event.yint)      # y coordinate of the source
         frame_start = RoundToInt(event.frame_start)        # Start frame of the event
         frame_end = RoundToInt(event.frame_end)            # End frame of the event
 
         frame_start = np.max([frame_start-frame_buffer,0])
-        frame_end = np.min([frame_end+frame_buffer+1,len(self.time)-1])
-
-        time, flux = (Frame_Bin(self.time, self.flux, event.frame_bin) if event.frame_bin > 1 else (self.time, self.flux))
+        frame_end = np.min([frame_end+frame_buffer+1,len(time)-1])
 
         t,f = Generate_LC(time,flux,x,y,frame_start,frame_end,radius=1.5)
 
         # -- Plot lightcurve -- #
         if plot:
-            
+            cadence = np.median(np.diff(time))
             fig,ax = plt.subplots()
             ax.plot(t,f,'x-',c='k')
-            ax.axvspan(t[frame_buffer],t[frame_buffer + (frame_end-frame_start)],color='C1',alpha=0.4)
+            ax.axvspan(t[frame_buffer]-cadence/2,t[-frame_buffer]+cadence/2,color='C1',alpha=0.4)
             ax.set_xlabel('Time (MJD)')
             ax.set_ylabel('TESS Counts')
             if event.frame_bin > 1:
                 rawt,rawf = Generate_LC(self.time,self.flux,x,y,frame_start*event.frame_bin,frame_end*event.frame_bin,radius=1.5)
-                ax.plot(rawt,rawf,'.',c='k',alpha=0.2)
+                ax.plot(rawt,rawf,'.',c='k',alpha=0.3)
         
         return t,f
     
@@ -667,8 +686,8 @@ class Navigator():
             for i in range(len(break_ind)-1):
                 ax[1].plot(time[break_ind[i]:break_ind[i+1]],f[break_ind[i]:break_ind[i+1]],'k',alpha=0.8)
                 if frame_bin > 1:
-                    ax[1].plot(rawtimes[raw_break_ind[i]:raw_break_ind[i+1]],f[raw_break_ind[i]:raw_break_ind[i+1]],
-                               'k',alpha=0.1,marker='.',ls='')
+                    ax[1].plot(rawtimes[raw_break_ind[i]:raw_break_ind[i+1]],rawflux[raw_break_ind[i]:raw_break_ind[i+1]],
+                               'k',alpha=0.3,marker='.',ls='')
 
 
             ylims = ax[1].get_ylim()
@@ -711,8 +730,8 @@ class Navigator():
                     axins.plot(time[break_ind[i]:break_ind[i+1]],f[break_ind[i]:break_ind[i+1]],'k',alpha=0.8,marker='.')
 
                 if frame_bin > 1:
-                    axins.plot(rawtimes[raw_break_ind[i]:raw_break_ind[i+1]],f[raw_break_ind[i]:raw_break_ind[i+1]],
-                               'k',alpha=0.1,marker='.',ls='')
+                    axins.plot(rawtimes[raw_break_ind[i]:raw_break_ind[i+1]],rawflux[raw_break_ind[i]:raw_break_ind[i+1]],
+                               'k',alpha=0.3,marker='.',ls='')
 
             # Change the x and y limits of the inset axes to focus on the event #
             if (frame_end - frame_start) > 2:
