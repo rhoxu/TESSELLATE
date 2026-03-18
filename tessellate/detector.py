@@ -666,6 +666,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
         frame_start,frame_end,n_detections,frames = _Lightcurve_event_checker(sig_lc,eventsources['frame'].values,siglim=3,maxsep=5)
 
         # -- Initialise event information -- #
+        event['frame_bin'] = int(eventsources.iloc[0].frame_bin)
         event['objid'] = int(objid)
         event['eventid'] = int(eventID)
         event['sector'] = int(sector)
