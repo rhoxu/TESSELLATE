@@ -1361,7 +1361,7 @@ class Detector():
 
         self.events = events
 
-    def _flag_asteroids(self,frame_bins):
+    def _flag_asteroids(self):
         """
         Flag asteroids in events.
         """
