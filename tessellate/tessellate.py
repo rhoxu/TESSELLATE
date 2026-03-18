@@ -1309,7 +1309,7 @@ class Tessellate():
             print(f'   - Search Mem/CPU Needed = {self.search_mem}')
             message += f'   - Search Mem/CPU Needed = {self.search_mem}\n'  
 
-        
+        pattern = r'^\d+(\.\d+)?(sec|min|hr|day)s?$'
         if self.time_bins is None:
             time_bins = input(f"   - Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = ")
             message += f"   - Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = {time_bins}\n"
@@ -1320,12 +1320,19 @@ class Tessellate():
                 else:
                     time_bins = [time_bins]
 
-                pattern = r'^\d+(\.\d+)?(sec|min|hr|day)s?$'
                 if all(re.match(pattern, t) for t in time_bins):
+                    self.time_bins = time_bins
                     done = True
                 else:
                     time_bins = input(f"      Invalid format! Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = ")
                     message += f"      Invalid choice! Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = {time_bins}\n"
+        
+        elif all(re.match(pattern, t) for t in self.time_bins):
+            print(f'   - Search Time Bins = {self.time_bins}')
+            message += f'   - Search Time Bins = {self.time_bins}\n'
+        else:
+            e = f'Invalid Search Time Bins Input of {self.time_bins}\n'
+            raise ValueError(e)
 
 
         print('\n')
