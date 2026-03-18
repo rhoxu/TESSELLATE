@@ -1039,7 +1039,7 @@ class Detector():
         self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
 
         if verbose:
-            print(f'Loading Cut {cut} Data -- done! ({clock()-ts:.0f}s')
+            print(f'Loading Cut {cut} Data -- done! ({clock()-ts:.0f}s)')
 
     
 
@@ -1548,30 +1548,30 @@ class Detector():
         # -- Group these sources into unique objects based on the objid -- #
         ts = clock()
         self._get_all_independent_events()
-        print(f'   Separated into individual events -- Done ({(clock()-ts):.0f}s)')
+        print(f'   Separated into individual events -- done! ({(clock()-ts):.0f}s)')
 
         # -- Get physical units for events -- #
         self._events_physical_units()
-        print(f'   Getting time/coords/flux information -- Done')
+        print(f'   Getting time/coords/flux information -- done!')
 
         # -- Tag asteroids -- #
         ts = clock()
         self._flag_asteroids()
-        print(f'   Checking for asteroids -- Done ({(clock()-ts):.0f}s)')
+        print(f'   Checking for asteroids -- done! ({(clock()-ts):.0f}s)')
 
         # -- Tag asteroids -- #
         ts = clock()
         self._catalogue_crossmatch()
-        print(f'   Crossmatching with Gaia and Variables -- Done ({(clock()-ts):.0f}s)')
+        print(f'   Crossmatching with Gaia and Variables -- done! ({(clock()-ts):.0f}s)')
 
         # -- Tag asteroids -- #
         ts = clock()
         self._crossmatch_framebin()
-        print(f'   Crossmatching between time bins -- Done ({(clock()-ts):.0f}s)')
+        print(f'   Crossmatching between time bins -- done! ({(clock()-ts):.0f}s)')
 
         # -- Get TSS Catalogue Names -- #        
         self._TSS_catalogue_names()
-        print(f'   Getting TSS Catalogue Names -- Done')
+        print(f'   Getting TSS Catalogue Names -- done!')
 
         # -- Order nicely -- #
         self._order_events_columns()  
@@ -1676,7 +1676,7 @@ class Detector():
 
         if self.sources is None:
             print('-------Source finding (see progress in errors log file)-------')
-            self.find_sources(mode,prf_path,time_bins)
+            self.find_sources(time_bins)
             print('\n')
 
         if not os.path.exists(f'{self.path}/Cut{cut}of{self.n**2}/wcs_info/snr_localisation_coeffs.pkl'):

@@ -523,7 +523,7 @@ class Tessellate():
             search_time_sug = '20:00'
             search_cpu_sug = '32'
             search_mem_req = 50
-            search_time_bins = ['30min']
+            search_time_bins = '30min'
             
             plot_time_sug = '10:00'
             plot_cpu_sug = '32'
@@ -545,7 +545,7 @@ class Tessellate():
             search_time_sug = '30:00'
             search_cpu_sug = '32'
             search_mem_req = 64
-            search_time_bins = ['10min']
+            search_time_bins = '10min'
             
             plot_time_sug = '10:00'
             plot_cpu_sug = '32'
@@ -569,7 +569,7 @@ class Tessellate():
             search_time_sug = '1:00:00'
             search_cpu_sug = '32'
             search_mem_req = 60
-            search_time_bins = ['200sec']
+            search_time_bins = '200sec'
             
             plot_time_sug = '10:00'
             plot_cpu_sug = '32'
