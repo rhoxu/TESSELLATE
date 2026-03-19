@@ -1502,11 +1502,12 @@ class Detector():
 
         ordered_cols = [
             # Primary Identification
-            'objid', 'eventid', 'classification', 'TSS Catalogue',
-            'sector', 'camera', 'ccd', 'cut',
+            'objid', 'eventid', 'classification',
+            'sector', 'camera', 'ccd', 'cut','xcentroid', 'ycentroid',
+            'frame_max',
 
             # Centroid Positions
-            'xcentroid', 'ycentroid', 'xcentroid_err','ycentroid_err',
+            'xcentroid_err','ycentroid_err',
             'xint', 'yint','xccd', 'yccd',
             'xcentroid_det', 'ycentroid_det', 
             'xcentroid_psf', 'ycentroid_psf','centroid_err_psf',
@@ -1516,7 +1517,7 @@ class Detector():
             'gal_l', 'gal_b',
 
             # Time and Frame Info
-            'frame_start', 'frame_end', 'frame_max', 'frame_duration',
+            'frame_start', 'frame_end', 'frame_duration',
             'mjd_start', 'mjd_end', 'mjd_max', 'mjd_duration',
 
             # Photometry
@@ -1534,7 +1535,7 @@ class Detector():
             'source_mask', 'GaiaID', 'crossbin_ids', # 'prob', 'GaaID', 'cf_class', 'cf_prob', 
 
             # Miscellaneous
-            'n_detections','total_events','frame_bin'
+            'n_detections','total_events','frame_bin', 'TSS Catalogue'
         ]
 
         # Safely apply ordering

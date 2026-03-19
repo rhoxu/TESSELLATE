@@ -573,7 +573,7 @@ class Navigator():
 
             if j in [0,5]:
                 ys.append(np.mean(y))
-            good = (line_x)&(line_y>0)&(line_x<size)&(line_y<size)
+            good = (line_x>0)&(line_y>0)&(line_x<size)&(line_y<size)
             line_x = line_x[good]
             line_y = line_y[good]
             if len(line_x) > 0:
