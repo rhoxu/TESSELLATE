@@ -416,8 +416,10 @@ class Navigator():
         if plot:
             fig,ax = plt.subplots(ncols=5,figsize=(15,15))
             brightest_loc = np.where(frames==brightest_frame)[0][0]
+            vmax = np.percentile(images[brightest_loc],80)
+            vmin = np.percentile(images[brightest_loc],16)
             for i in range(5):
-                ax[i].imshow(images[brightest_loc-2+i],origin='lower',cmap='gray')
+                ax[i].imshow(images[brightest_loc-2+i],origin='lower',cmap='gray',vmax=vmax,vmin=vmin)
                 
                 add = ' Stacked ' if event.frame_bin > 1 else ' '
 
