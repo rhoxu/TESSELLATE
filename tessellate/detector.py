@@ -1502,7 +1502,7 @@ class Detector():
 
         ordered_cols = [
             # Primary Identification
-            'frame_bin','objid', 'eventid', 'classification', 'TSS Catalogue',
+            'objid', 'eventid', 'classification', 'TSS Catalogue',
             'sector', 'camera', 'ccd', 'cut',
 
             # Centroid Positions
@@ -1534,7 +1534,7 @@ class Detector():
             'source_mask', 'GaiaID', 'crossbin_ids', # 'prob', 'GaaID', 'cf_class', 'cf_prob', 
 
             # Miscellaneous
-            'n_detections','total_events'
+            'n_detections','total_events','frame_bin'
         ]
 
         # Safely apply ordering

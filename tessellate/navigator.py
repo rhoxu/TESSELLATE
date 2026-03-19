@@ -146,7 +146,7 @@ class Navigator():
 
         # -- Remove anything picked up at a different resolution -- #
         if not crossbins:
-            events = events[events['crossbin_ids'].apply(lambda x: len(x) > 0)]
+            events = events[events['crossbin_ids'].apply(lambda x: len(x) == 0)]
 
         # -- Remove events within 'boundary_buffer' of the boundary -- #
         if boundary_buffer is not None:
