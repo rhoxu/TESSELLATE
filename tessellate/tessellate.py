@@ -229,7 +229,7 @@ class Tessellate():
                 self.transient_plot(searching=search)
 
             if delete:
-                delete_files(filetype='ffis',data_path=self.data_path,sector=self.sector,n=self.n,part=False)  
+                delete_files(filetype='ffis',data_path=self.data_path,sector=self.sector,part=False)  
 
     def _initialise(self):
 

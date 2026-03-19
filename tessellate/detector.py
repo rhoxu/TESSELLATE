@@ -815,7 +815,7 @@ def _Calculate_xcom_motion(flux,candidates):
 
 def _Gaussian_score(time,flux,candidates):
 
-    from .tools import Gaussian
+    from .tools import Gaussian, Generate_LC
     from scipy.optimize import curve_fit
     from sklearn.metrics import r2_score
 
@@ -871,8 +871,8 @@ def _Threshold_asteroid_checker(time,flux,events,com_motion_thresholds=[1, 0.75,
     candidates = events[(events['frame_duration']>=2)&
                         (events['frame_duration']<=50)&
                         (events['lc_sig_max']>=5)&
-                        (events['flux_sign']==1)&
-                        (events['frame_bin']<=events['frame_bin'].min())]
+                        (events['flux_sign']==1)& 
+                        (events['frame_bin']==events.frame_bin.min())]
 
     candidate_indices = candidates.index
 
@@ -901,7 +901,7 @@ def _Threshold_asteroid_checker(time,flux,events,com_motion_thresholds=[1, 0.75,
 
 def _Recheck_asteroid_lcs(time,flux,events):
     """
-    I actually don't remember why this is in here.
+    Asteroids move their centroids a lot in PSF fitting, so often their light curve is now off. This correts for that.
     """
 
     asteroids = events[events['classification']=='Asteroid']
@@ -1375,22 +1375,33 @@ class Detector():
         from .tools import Frame_Bin
 
         events = deepcopy(self.events)
-        
-        
-        # -- Generally best, checks for centre of mass movement and light curve Gaussianity -- #
-        events = _Threshold_asteroid_checker(self.time,self.flux,events)
 
-        # -- Picks up events with weirdly long event boundaries -- # 
-        events = _Straight_line_asteroid_checker(self.time,self.flux,events)
-
-        # -- I don't remember why this is here -- #
+        # -- Correct light curves of asteroids whose locations change -- #
         frame_bins = np.unique(events.frame_bin)
         events_list = []
         for frame_bin in frame_bins:
             evs = events[events.frame_bin == frame_bin]
             time,flux = Frame_Bin(self.time,self.flux,frame_bin)
-            evs = _Recheck_asteroid_lcs(time,flux,evs)
+            evs = _Threshold_asteroid_checker(time,flux,evs)        # Generally best, checks for centre of mass movement and light curve Gaussianity 
+            evs = _Straight_line_asteroid_checker(time,flux,evs)    # Picks up events with weirdly long event boundaries  
+            evs = _Recheck_asteroid_lcs(time,flux,evs)              # Correct light curves of asteroids whose locations change -- #
             events_list.append(evs)
+        
+        
+        # # -- Generally best, checks for centre of mass movement and light curve Gaussianity -- #
+        # events = _Threshold_asteroid_checker(self.time,self.flux,events)
+
+        # # -- Picks up events with weirdly long event boundaries -- # 
+        # events = _Straight_line_asteroid_checker(self.time,self.flux,events)
+
+        # # -- Correct light curves of asteroids whose locations change -- #
+        # frame_bins = np.unique(events.frame_bin)
+        # events_list = []
+        # for frame_bin in frame_bins:
+        #     evs = events[events.frame_bin == frame_bin]
+        #     time,flux = Frame_Bin(self.time,self.flux,frame_bin)
+        #     evs = _Recheck_asteroid_lcs(time,flux,evs)
+        #     events_list.append(evs)
 
         self.events = pd.concat(events_list)
 
@@ -1431,7 +1442,8 @@ class Detector():
         events['crossbin_ids'] = [[] for _ in range(len(events))]
 
         # -- Group spatially -- #
-        events = _Spatial_group(events, colname='crossbin_group', distance=0.5, min_samples=1)
+        events = _Spatial_group(events, colname='crossbin_group', distance=1, min_samples=1)
+        events = _Spatial_group(events, colname='asteroid_crossbin_group', distance=4, min_samples=1)
 
         # -- Iterate through spatial groups -- # 
         for group in np.unique(events.crossbin_group):
@@ -1444,8 +1456,16 @@ class Detector():
 
                 current_ids = events.at[i, 'crossbin_ids']
 
-                # Look upward to coarser bins
-                coarser = group_df[group_df['frame_bin'] > row['frame_bin']]
+                # For asteroids, use the wider spatial group to find coarser bin candidates
+                if row['classification'] == 'Asteroid':
+                    asteroid_group = events.at[i, 'asteroid_crossbin_group']
+                    coarser = events[
+                        (events['asteroid_crossbin_group'] == asteroid_group) &
+                        (events['frame_bin'] > row['frame_bin'])
+                    ].sort_values('frame_bin')
+                else:
+                    coarser = group_df[group_df['frame_bin'] > row['frame_bin']]
+
                 for j, upper in coarser.iterrows():
                     consistent = (
                         (row['frame_start'] * row['frame_bin'] <= upper['frame_end'] * upper['frame_bin'] + upper['frame_bin']) &
@@ -1456,7 +1476,7 @@ class Detector():
                         merged = list(set(events.at[j, 'crossbin_ids'] + current_ids))
                         events.at[j, 'crossbin_ids'] = merged
 
-        events = events.drop(columns=['crossbin_group'])
+        events = events.drop(columns=['crossbin_group', 'asteroid_crossbin_group'])
 
         # -- Find which indices are present more than once -- #
         all_ids = [i for ids in events['crossbin_ids'] for i in ids]
@@ -1474,7 +1494,7 @@ class Detector():
         )
 
         self.events = events
-
+ 
     def _order_events_columns(self):
         """
         Order events columns.
@@ -1566,6 +1586,8 @@ class Detector():
         ts = clock()
         self._flag_asteroids()
         print(f'   Checking for asteroids -- done! ({(clock()-ts):.0f}s)')
+
+        self.events = self.events.drop_duplicates(subset=['frame_bin','xint','yint','frame_max'],keep=False)
 
         # -- Tag asteroids -- #
         ts = clock()
