@@ -120,7 +120,7 @@ class Navigator():
 
     def filter_events(self,cut,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,frame_bin=None,
                       lc_sig_max=None,lc_sig_med=None,min_events=None,max_events=None,bkg_level=None,boundary_buffer=None,
-                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,centroid_err=None):
+                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,centroid_err=None,crossbins=True):
         
         """
         Returns a dataframe of the events in the cut, with options to filter by various parameters.
@@ -143,6 +143,10 @@ class Navigator():
         # -- Pick out frame bins -- #
         if frame_bin is not None:
             events = events.loc[events.frame_bin == frame_bin]
+
+        # -- Remove anything picked up at a different resolution -- #
+        if not crossbins:
+            events = events[events['crossbin_ids'].apply(lambda x: len(x) > 0)]
 
         # -- Remove events within 'boundary_buffer' of the boundary -- #
         if boundary_buffer is not None:
@@ -316,12 +320,19 @@ class Navigator():
 
         return objects
 
-    def crossbin_events(self,crossbin_id):
+    def crossbin_events(self,crossbin_id=None,objid=None,eventid=None):
         """
         Isolate events that are matched at different time binning.
         """
 
-        return self.events[self.events['crossbin_ids'].apply(lambda x: crossbin_id in x)]
+        if crossbin_id is not None:
+            return self.events[self.events['crossbin_ids'].apply(lambda x: crossbin_id in x)]
+        elif (objid is not None)&(eventid is not None):
+            event = self.events[(self.events.objid==objid)&(self.events.eventid==eventid)].iloc[0]
+            matches = pd.DataFrame()
+            for crossbin_id in event.crossbin_ids:
+                matches = pd.concat([matches,self.crossbin_events(crossbin_id)])
+            return matches.drop_duplicates()
 
     # ----------------------------- Extracting light curves / images of events ----------------------------- #
 

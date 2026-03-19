@@ -1235,7 +1235,12 @@ class Detector():
             print(f'    Run with time bin = {frame_bin} ({clock()-ts:.0f}s)')
             
         # -- Reset objid so each objid,frame_bin pair is unique -- #
-        sources['objid'] = pd.factorize(sources['objid'].astype(str) + '_' + sources['frame_bin'].astype(str))[0]
+        matched = sources[sources['objid'] != 0]
+        unmatched = sources[sources['objid'] == 0]
+        matched['objid'] = pd.factorize(matched['objid'].astype(str) + '_' + matched['frame_bin'].astype(str))[0]+1
+        unmatched['objid'] = np.arange(matched['objid'].max() + 1, matched['objid'].max() + 1 + len(unmatched))
+
+        sources = pd.concat([matched, unmatched])
 
         self.sources = sources
 
@@ -1398,6 +1403,7 @@ class Detector():
 
         # -- Cross matches location to Gaia -- #
         gaia = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/local_gaia_cat.csv')
+        events['GaiaID'] = '-'
         for i,event in events.iterrows():
             if event.classification != 'Asteroid':
                 inside = gaia[(abs(gaia.ra-event.ra) < sigma*event.ra_err)&
