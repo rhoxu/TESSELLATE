@@ -376,7 +376,7 @@ class Navigator():
         return t,f
     
 
-    def event_frames(self,cut,objid,eventid,frame_buffer=2,frame_interval=1,image_size=11,plot=True):
+    def event_frames(self,cut,objid,eventid,frame_buffer=2,frame_interval=1,image_size=11,plot=True,frame_bin=None):
         """
         Extract cutout images for chosen event.
         """
@@ -389,11 +389,23 @@ class Navigator():
         # -- Isolate event -- #
         event = self.events[(self.events.objid==objid)&(self.events.eventid==eventid)].iloc[0]
 
-        time, flux = (Frame_Bin(self.time, self.flux, event.frame_bin) if event.frame_bin > 1 else (self.time, self.flux))
+        if frame_bin is None:
+            frame_bin = event.frame_bin
+            brightest_frame = RoundToInt(event.frame_max)
+            frame_start =  RoundToInt(event.frame_start)
+            frame_end =  RoundToInt(event.frame_end)
+            frame_interval =  RoundToInt(frame_interval * frame_bin)
+        else:
+            brightest_frame = RoundToInt(event.frame_max*event.frame_bin/frame_bin)
+            frame_start =  RoundToInt(event.frame_start *event.frame_bin/frame_bin)
+            frame_end =  RoundToInt(event.frame_end * event.frame_bin/frame_bin)
+            frame_interval =  RoundToInt(frame_interval * frame_bin * event.frame_bin/frame_bin)
+            frame_buffer = RoundToInt(frame_buffer * event.frame_bin/frame_bin)
+
+        time, flux = (Frame_Bin(self.time, self.flux, event.frame_bin) if frame_bin > 1 else (self.time, self.flux))
     
         # -- Find frames to be included based on buffer and interval, ensuring brightest is included -- #
-        brightest_frame = RoundToInt(event.frame_max)
-        frames = np.arange(event.frame_start-frame_buffer, event.frame_end+1,frame_interval).astype(int)
+        frames = np.arange(frame_start-frame_buffer, frame_end+1,frame_interval).astype(int)
         if brightest_frame not in frames:
             frames = np.sort(np.append(frames,brightest_frame))
         while len(frames) < 5:
