@@ -431,15 +431,16 @@ class Navigator():
             vmax = np.percentile(images[brightest_loc,image_size//2-1:image_size//2+2,image_size//2-1:image_size//2+2],80)
             vmin = np.percentile(images[brightest_loc,image_size//2-1:image_size//2+2,image_size//2-1:image_size//2+2],16)
             for i in range(5):
-                ax[i].imshow(images[brightest_loc-2+i],origin='lower',cmap='gray',vmax=vmax,vmin=vmin)
+                im = ax[i].imshow(images[brightest_loc-2+i],origin='lower',cmap='gray',vmax=vmax,vmin=vmin)
                 
-                add = ' Stacked ' if event.frame_bin > 1 else ' '
+                add = ' Stacked ' if frame_bin > 1 else ' '
 
                 if i == 2:
                     ax[i].set_title(f'Brightest{add}Frame ({brightest_frame})')
                 else:
                     ax[i].set_title(f'{add}Frame ({frames[brightest_loc-2+i]})')
-                
+            fig.colorbar(im, ax=ax[4], fraction=0.046, pad=0.04)    
+            
         return images
 
     def object_lc(self,cut,objid):
