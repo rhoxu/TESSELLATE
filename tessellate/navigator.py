@@ -509,7 +509,6 @@ class Navigator():
         print('Getting Photometry...')
 
         # -- Define the localisation and error points in RA,Dec space -- #
-        theta = np.linspace(0, 2*np.pi, np.ceil(50/tess_grid).astype(int))
         if type(eventid) == int:
             event = self.events[(self.events.objid==objid) & (self.events.eventid==eventid)].iloc[0] 
 
@@ -522,6 +521,8 @@ class Navigator():
             # error_y_rad = min(sigma*event.ycentroid_err,0.5)
             error_x_rad = sigma*event.xcentroid_err
             error_y_rad = sigma*event.ycentroid_err
+            theta = np.linspace(0, 2*np.pi, np.ceil(error_x_rad*50).astype(int))
+
             errorX = event.xcentroid + error_x_rad*np.cos(theta)
             errorY = event.ycentroid + error_y_rad*np.sin(theta)
 
@@ -537,6 +538,7 @@ class Navigator():
             # error_y_rad = min(sigma*obj.ycentroid_err,0.5)
             error_x_rad = sigma*obj.xcentroid_err
             error_y_rad = sigma*obj.ycentroid_err
+            theta = np.linspace(0, 2*np.pi, np.ceil(error_x_rad*50).astype(int))
             errorX = obj.xcentroid + error_x_rad*np.cos(theta)
             errorY = obj.ycentroid + error_y_rad*np.sin(theta)
     
@@ -559,7 +561,7 @@ class Navigator():
                     edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
         
         axes[0].scatter(errorRA,errorDEC, transform=axes[0].get_transform('fk5'),
-                    edgecolors='red',marker='.',s=error_x_rad*60,lw=1)
+                    edgecolors='red',marker='.',s=15,lw=1)
 
         legend = axes[0].legend(loc=2,facecolor="black",fontsize=10)
         for text in legend.get_texts():
