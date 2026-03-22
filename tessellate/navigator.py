@@ -535,8 +535,8 @@ class Navigator():
 
             # error_x_rad = min(sigma*obj.xcentroid_err,0.5)
             # error_y_rad = min(sigma*obj.ycentroid_err,0.5)
-            error_x_rad = sigma*event.xcentroid_err
-            error_y_rad = sigma*event.ycentroid_err
+            error_x_rad = sigma*obj.xcentroid_err
+            error_y_rad = sigma*obj.ycentroid_err
             errorX = obj.xcentroid + error_x_rad*np.cos(theta)
             errorY = obj.ycentroid + error_y_rad*np.sin(theta)
     
