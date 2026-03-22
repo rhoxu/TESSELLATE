@@ -518,8 +518,10 @@ class Navigator():
             ra_obj = event.ra
             dec_obj = event.dec
             
-            error_x_rad = min(sigma*event.xcentroid_err,0.5)
-            error_y_rad = min(sigma*event.ycentroid_err,0.5)
+            # error_x_rad = min(sigma*event.xcentroid_err,0.5)
+            # error_y_rad = min(sigma*event.ycentroid_err,0.5)
+            error_x_rad = sigma*event.xcentroid_err
+            error_y_rad = sigma*event.ycentroid_err
             errorX = event.xcentroid + error_x_rad*np.cos(theta)
             errorY = event.ycentroid + error_y_rad*np.sin(theta)
 
@@ -531,8 +533,10 @@ class Navigator():
             ra_obj = obj.ra
             dec_obj = obj.dec
 
-            error_x_rad = min(sigma*obj.xcentroid_err,0.5)
-            error_y_rad = min(sigma*obj.ycentroid_err,0.5)
+            # error_x_rad = min(sigma*obj.xcentroid_err,0.5)
+            # error_y_rad = min(sigma*obj.ycentroid_err,0.5)
+            error_x_rad = sigma*event.xcentroid_err
+            error_y_rad = sigma*event.ycentroid_err
             errorX = obj.xcentroid + error_x_rad*np.cos(theta)
             errorY = obj.ycentroid + error_y_rad*np.sin(theta)
     
