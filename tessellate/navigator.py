@@ -559,7 +559,7 @@ class Navigator():
                     edgecolors='red',marker='x',s=50,facecolors="red",linewidths=2,label='Target')
         
         axes[0].scatter(errorRA,errorDEC, transform=axes[0].get_transform('fk5'),
-                    edgecolors='red',marker='.',s=15,lw=1)
+                    edgecolors='red',marker='.',s=error_x_rad*60,lw=1)
 
         legend = axes[0].legend(loc=2,facecolor="black",fontsize=10)
         for text in legend.get_texts():
