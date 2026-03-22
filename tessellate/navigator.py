@@ -494,12 +494,17 @@ class Navigator():
 
     # ----------------------------- Figure Generation ----------------------------- #
 
-    def external_photometry(self,objid,eventid=None,tess_grid=5,sigma=3,phot=None,check='gaia'):
+    def external_photometry(self,cut,objid,eventid=None,tess_grid=5,sigma=3,phot=None,check='gaia'):
         """
         Look up legacy imaging for region around object/event location.
         """
 
         from .external_photometry import event_cutout
+
+        # -- Gather data -- #
+        if cut != self.cut:
+            self.gather_data(cut)
+            self.gather_results(cut)
 
         print('Getting Photometry...')
 
@@ -536,7 +541,9 @@ class Navigator():
 
 
         # -- Extract a cutout of the region -- #
-        fig, wcs, size, photometry,cat,im = event_cutout((RA,DEC),20*tess_grid,phot=phot,check=check)
+        if check == 'gaia_local':
+            path = f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
+        fig, wcs, size, photometry,cat,im = event_cutout((RA,DEC),20*tess_grid,phot=phot,check=path)
         if fig is None:
             return None,None,None,None,None
         axes = fig.get_axes()
@@ -926,7 +933,7 @@ class Navigator():
         if external_phot:
             if phot_check == 'local':
                 phot_check = f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
-            fig, cat, coord,_,_ = self.external_photometry(objid,event,tess_grid=tess_grid,check=phot_check)
+            fig, cat, coord,_,_ = self.external_photometry(cut,objid,event,tess_grid=tess_grid,check=phot_check)
             if fig is None:
                 return obj
             
