@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import pandas as pd
 
 class CutWCS():
 
@@ -16,33 +17,52 @@ class CutWCS():
         self.cut = cut
         self.n = n
 
-        wcs_folder = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Cut{cut}of{self.n**2}/wcs_info'
-        folder = glob(f'{wcs_folder}/*corrected.fits')
+        self._get_corner()
 
-        if len(folder) == 1:
-            self.wcs_path = folder[0]
+        # wcs_folder = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Cut{cut}of{self.n**2}/wcs_info'
+        # folder = glob(f'{wcs_folder}/*corrected.fits')
+        wcs_path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/wcs/ref/corrected.fits'
+
+        self.tesscut_offset = np.array([0,0])
+        if os.path.exists(wcs_path):
+            self.wcs_path = wcs_path
+            self._get_median_offsets()
         else:
-            self.wcs_path = glob(f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/*wcs.fits')[0]  # temporary
+            wcs_folder = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Cut{cut}of{self.n**2}/wcs_info'
+            if len(glob(f'{wcs_folder}/*corrected.fits')) > 0:
+                self.wcs_path = glob(f'{wcs_folder}/*corrected.fits')[0]
+                if os.path.exists(f'{wcs_folder}/tesscut_offset.npy'):
+                    self.tesscut_offset = np.load(f'{wcs_folder}/tesscut_offset.npy')
+            else:    
+                self.wcs_path = glob(f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/*wcs.fits')[0]  # temporary
+
+            self.dx = self.dy = 0
 
         hdu = fits.open(self.wcs_path)
         self.wcs = WCS(hdu[1].header)
 
-        if os.path.exists(f'{wcs_folder}/tesscut_offset.npy'):
-            self.tesscut_offset = np.load(f'{wcs_folder}/tesscut_offset.npy')
-        else:
-            self.tesscut_offset = np.array([0,0])
-
-        self._get_corner()
-
     def _get_corner(self):
 
         intervals = 2048/self.n
-        cutCornersX = [44 + i*intervals for i in range(self.n)]
-        cutCornersY = [i*intervals for i in range(self.n)]
-        cutCorners = np.meshgrid(cutCornersX,cutCornersY)
-        cutCorners = np.floor(np.stack((cutCorners[0],cutCorners[1]),axis=2).reshape(self.n**2,2))
+        cut_cornersX = [44 + i*intervals for i in range(self.n)]
+        cut_cornersY = [i*intervals for i in range(self.n)]
+        cut_corners = np.meshgrid(cut_cornersX,cut_cornersY)
+        cut_corners = np.floor(np.stack((cut_corners[0],cut_corners[1]),axis=2).reshape(self.n**2,2))
         
-        self.corner = cutCorners[self.cut-1] + self.tesscut_offset
+        self.corner = cut_corners[self.cut-1] + self.tesscut_offset
+
+    def _get_median_offsets(self):
+
+        sources = pd.read_csv(f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/wcs/ref/ccd_sourcesfits.csv')
+        cut_size = 2048/self.n
+        cut_sources = sources[(sources.xPSF>self.corner[0])&(sources.xPSF<self.corner[0]+cut_size)&
+                              (sources.yPSF>self.corner[1])&(sources.yPSF<self.corner[1]+cut_size)]
+        
+        self.dx = np.nanmedian(cut_sources.xPSF-cut_sources.xFinal)
+        self.dy = np.nanmedian(cut_sources.yPSF-cut_sources.yFinal)
+
+        del(sources)
+        del(cut_sources)
 
     def all_world2pix(self,ra,dec,origin=0):
 
@@ -50,13 +70,13 @@ class CutWCS():
         Convert RA and Dec to pixel coordinates for the cut WCS.
         """
         x, y = self.wcs.all_world2pix(ra, dec, origin)
-        return x - self.corner[0], y - self.corner[1]
+        return x - self.corner[0] + self.dx, y - self.corner[1] + self.dy
     
     def all_pix2world(self, x, y, origin=0):
         """
         Convert pixel coordinates to RA and Dec for the cut WCS.
         """
-        ra, dec = self.wcs.all_pix2world(x + self.corner[0], y + self.corner[1], origin)
+        ra, dec = self.wcs.all_pix2world(x + self.corner[0] - self.dx, y + self.corner[1] - self.dy, origin)
         return ra, dec
 
     def __str__(self):

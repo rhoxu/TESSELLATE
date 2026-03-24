@@ -402,7 +402,7 @@ class DataProcessor():
         from astrocut import CutoutFactory
 
         try:
-            _, _, cutCentreCoords, cutSize = self.find_cuts(cam=cam,ccd=ccd,n=n,plot=False)
+            _, cutCentrePx, _, cutSize = self.find_cuts(cam=cam,ccd=ccd,n=n,plot=False)
         except:
             print('Something wrong with finding cuts!')
             return
@@ -413,7 +413,7 @@ class DataProcessor():
             return
         
         if part:
-            self._make_part_cuts(cam,ccd,n,cut,file_path,cutCentreCoords,cutSize)
+            self._make_part_cuts(cam,ccd,n,cut,file_path,cutCentrePx,cutSize)
         else:   
             # -- Generate Cube Path -- #
             cube_name = f'sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits'
@@ -427,14 +427,14 @@ class DataProcessor():
                 print(f'Cutting Cam {cam} CCD {ccd} cut {cut} (of {n**2})')
             
             my_cutter = CutoutFactory() # astrocut class
-            coords = cutCentreCoords[cut-1]
+            px = cutCentrePx[cut-1]
 
             _Save_space(f'{file_path}/Cut{cut}of{n**2}')
                             
             # -- Cut -- #
             self.cut_file = my_cutter.cube_cut(cube_path, 
-                                                f"{coords[0]} {coords[1]}", 
-                                                (cutSize*2,cutSize*2), 
+                                                xy_pos=f"{px[0]} {px[1]}", 
+                                                cutout_size=(cutSize*2,cutSize*2), 
                                                 output_path = f'{file_path}/Cut{cut}of{n**2}',
                                                 target_pixel_file = name,
                                                 verbose=(self.verbose>1)) 
@@ -518,6 +518,9 @@ class DataProcessor():
             cutName = f'sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}.fits'
             cutPath = f'{cutFolder}/{cutName}'
 
+            with open(f'{self.path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/wcs/ref/reference.txt') as reffile:
+                ref_ind = int(reffile.readlines()[0].split(': ')[-1])
+
             # fluxName = f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_ReducedFlux.npy'
 
             # if os.path.exists(fluxName):
@@ -534,7 +537,7 @@ class DataProcessor():
             # -- reduce -- #
             tessreduce = tr.tessreduce(tpf=cutPath,sector=self.sector,reduce=True,corr_correction=True,
                                         calibrate=False,catalogue_path=f'{cutFolder}/local_gaia_cat.csv',
-                                        prf_path='/fred/oz335/_local_TESS_PRFs')
+                                        prf_path='/fred/oz335/_local_TESS_PRFs',ref_ind=ref_ind,_quality_bitmask='hard')
             
             if self.verbose > 0:
                 print(f'--Reduction Complete (Time: {((t()-ts)/60):.2f} mins)--')

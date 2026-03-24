@@ -1716,6 +1716,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
         from .dataprocessor import DataProcessor
         from .localisation import CutWCS
         from .catalog_queries import create_external_var_cat, create_external_gaia_cat
+        import pandas as pd
         import warnings
         warnings.filterwarnings("ignore")
         # print('Done!')
@@ -1723,8 +1724,8 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 
 
         data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
-        _,_,cutCentreCoords,rad = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
-        rad = rad + 2*60/21
+        cutCorners,cutCentrePx,cutCentreCoords,cutRadPx = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
+        rad = cutRadPx + 2*60/21
 
         #image_path = glob(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/*ffic.fits')[0]
 
@@ -1737,6 +1738,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
             seconds = 42300
 
         # -- Waits for cuts to be completed. If max time exceeded , return not done so cut process is restarted -- #
+        gaia_ccd = None
         completed = []
         message = 'Waiting for Cuts'
         timeStart = t()
@@ -1767,17 +1769,28 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                             else:      # its time to move external_save_cat to tessellate, this import takes ages!!             
                                 # cutPath = f'{save_path}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}.fits'
 
-                                doneGaia = False
-                                attempt = 1
-                                while not doneGaia:
-                                    try:
-                                        create_external_gaia_cat(centre=cutCentreCoords[cut-1],size=rad*2,wcs=wcs,save_path=save_path,maglim=19,verbose=self.verbose>1) # oversize radius by 2 arcmin in terms of tess pixels
+                                if gaia_ccd is None:
+                                    gaia_ccd = pd.read_csv(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/ccd_gaia_cat.csv')
+
+                                # doneGaia = False
+                                # attempt = 1
+                                # while not doneGaia:
+                                    # try:
+                                gaia_ccd['x'],gaia_ccd['y'] = wcs.all_world2pix(gaia_ccd.ra,gaia_ccd.dec,0)
+                                gaia_cut = gaia_ccd[(gaia_ccd.x > cutCorners[cut-1][0]-2)&
+                                                    (gaia_ccd.x < cutCorners[cut-1][0]+cutRadPx+2)&
+                                                    (gaia_ccd.y > cutCorners[cut-1][1])&
+                                                    (gaia_ccd.y < cutCorners[cut-1][1]+cutRadPx+2)]
+                                gaia_cut.to_csv(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/local_gaia_cat.csv',index=False)
+                                    
+
+                                        # create_external_gaia_cat(centre=cutCentreCoords[cut-1],size=rad*2,wcs=wcs,save_path=save_path,maglim=19,verbose=self.verbose>1) # oversize radius by 2 arcmin in terms of tess pixels
                                         # create_external_gaia_cat(tpf=cutPath,save_path=save_path,maglim=19,verbose=self.verbose>1) # oversize radius by 2 arcmin in terms of tess pixels
-                                        doneGaia = True
-                                    except Exception as e:
-                                        print(f"--GAIA Catalogue Attempt {attempt} failed with error: {e}")
-                                        sleep(120)
-                                        attempt += 1
+                                    # doneGaia = True
+                                    # except Exception as e:
+                                    #     print(f"--GAIA Catalogue Attempt {attempt} failed with error: {e}")
+                                    #     sleep(120)
+                                    #     attempt += 1
 
                             
                             if os.path.exists(f'{save_path}/variable_catalog.csv'):
