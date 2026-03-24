@@ -438,7 +438,7 @@ class DataProcessor():
                             
             # -- Cut -- #
             self.cut_file = my_cutter.cube_cut(cube_path, 
-                                                xy_pos=f"{px[0]} {px[1]}", 
+                                                xy_pos=(px[0],px[1]), 
                                                 cutout_size=(cutSize*2,cutSize*2), 
                                                 output_path = f'{file_path}/Cut{cut}of{n**2}',
                                                 target_pixel_file = name,
