@@ -870,7 +870,7 @@ class TessTransient():
     def plot_candidate(self,event,save=False):
 
         navigator = Navigator(sector=self.sector,cam=event.camera,ccd=event.ccd,n=self.n,data_path=self.data_path)
-        navigator.gather_data(cut=event.cut)
+        navigator.gather_data(cut=event.cut,verbose=False)
         navigator.gather_results(cut=event.cut,sources=False)
 
 
