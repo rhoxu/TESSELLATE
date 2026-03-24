@@ -1065,7 +1065,7 @@ class Detector():
         if self.sector < 4:
             prf = TESS_PRF(self.cam,self.ccd,self.sector,column,row,localdatadir=f'{datadir}/Sectors1_2_3')
         else:
-            prf = TESS_PRF(self.cam,self.ccd,self.sector,column,row,localdatadir=f'{datadir}/Sectors1_2_3')
+            prf = TESS_PRF(self.cam,self.ccd,self.sector,column,row,localdatadir=f'{datadir}/Sectors4+')
 
         # -- Run source detection on each frame -- #
         length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
