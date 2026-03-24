@@ -4,38 +4,38 @@ from time import time as t
 
 from .tools import _Save_space, _Remove_emptys, _Extract_fits, _Print_buff
     
-def _get_wcs(path,wcs_path_check,verbose=1):
-    """
-    Get WCS data from a file in the path
-    """
+# def _get_wcs(path,wcs_path_check,verbose=1):
+#     """
+#     Get WCS data from a file in the path
+#     """
 
-    import shutil
-    from glob import glob
-    from astropy.wcs import WCS
+#     import shutil
+#     from glob import glob
+#     from astropy.wcs import WCS
 
-    if os.path.exists(wcs_path_check):
-        wcsFile = _Extract_fits(wcs_path_check)
-        wcsItem = WCS(wcsFile[1].header)
-    else:
-        if glob(f'{path}/*ffic.fits'):
-            done = False
-            i = 0
-            while not done:
-                filepath = glob(f'{path}/*ffic.fits')[i]
-                file = _Extract_fits(filepath)
-                wcsItem = WCS(file[1].header)
-                file.close()
-                if wcsItem.get_axis_types()[0]['coordinate_type'] == 'celestial':
-                    done = True
-                    shutil.copy2(filepath,wcs_path_check)
-                else:
-                    i += 1
-        else:
-            if verbose>0:
-                print('No Data!')
-            return
+#     if os.path.exists(wcs_path_check):
+#         wcsFile = _Extract_fits(wcs_path_check)
+#         wcsItem = WCS(wcsFile[1].header)
+#     else:
+#         if glob(f'{path}/*ffic.fits'):
+#             done = False
+#             i = 0
+#             while not done:
+#                 filepath = glob(f'{path}/*ffic.fits')[i]
+#                 file = _Extract_fits(filepath)
+#                 wcsItem = WCS(file[1].header)
+#                 file.close()
+#                 if wcsItem.get_axis_types()[0]['coordinate_type'] == 'celestial':
+#                     done = True
+#                     shutil.copy2(filepath,wcs_path_check)
+#                 else:
+#                     i += 1
+#         else:
+#             if verbose>0:
+#                 print('No Data!')
+#             return
 
-    return wcsItem
+#     return wcsItem
 
 def _cut_properties(wcsItem,n): 
 
@@ -161,9 +161,14 @@ class DataProcessor():
 
         import matplotlib.patches as patches
         import matplotlib.pyplot as plt
+        from astropy.wcs import WCS
+        from astropy.io import fits
 
         newpath = f'{self.path}/Cam{cam}/Ccd{ccd}'
-        wcsItem = _get_wcs(f'{newpath}/image_files',f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits') 
+
+        wcsItem = WCS(fits.open(f'{newpath}/wcs/ref/corrected.fits')[1].header)
+
+        # wcsItem = _get_wcs(f'{newpath}/image_files',f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits') 
         # if not os.path.exists(f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits'):
         #     wcs_save = wcsItem.to_fits()
         #     wcs_save.writeto(f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits')
