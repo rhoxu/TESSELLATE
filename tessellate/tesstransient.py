@@ -800,7 +800,7 @@ class TessTransient():
 
         events = navigator.events
 
-        events = events[(events['mjd_start'].values > timestart) & (events['mjd_start'].values < timeend) & ((events['mjd_end']-events['mjd_start']) < eventduration)]
+        events = events[(events['mjd_start'].values > timestart) & (events['mjd_start'].values < timeend) & ((events['mjd_duration']) < eventduration)]
 
         cut_array = np.ones_like(events['mjd_start'].values)*cut
         events['Cut'] = cut_array.astype(int)
@@ -818,7 +818,7 @@ class TessTransient():
 
         events = navigator.events
 
-        events = events[(events['mjd_start'].values > timestart) & (events['mjd_start'].values < timeend) & ((events['mjd_end']-events['mjd_start']) < eventduration)]
+        events = events[(events['mjd_start'].values > timestart) & (events['mjd_start'].values < timeend) & ((events['mjd_duration']) < eventduration)]
 
         events = events.reset_index()
 
@@ -865,7 +865,7 @@ class TessTransient():
         if significanceCut is None:
             significanceCut = 0
 
-        return tables[tables['lc_sig']>significanceCut]
+        return tables[tables['lc_sig_max']>significanceCut]
     
     def plot_candidate(self,event,save=False):
 
