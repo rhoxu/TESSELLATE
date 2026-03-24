@@ -17,8 +17,6 @@ class CutWCS():
         self.cut = cut
         self.n = n
 
-        self._get_corner()
-
         # wcs_folder = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Cut{cut}of{self.n**2}/wcs_info'
         # folder = glob(f'{wcs_folder}/*corrected.fits')
         wcs_path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/wcs/ref/corrected.fits'
@@ -37,6 +35,8 @@ class CutWCS():
                 self.wcs_path = glob(f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/*wcs.fits')[0]  # temporary
 
             self.dx = self.dy = 0
+
+        self._get_corner()
 
         hdu = fits.open(self.wcs_path)
         self.wcs = WCS(hdu[1].header)
