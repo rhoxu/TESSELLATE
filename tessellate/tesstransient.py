@@ -873,10 +873,11 @@ class TessTransient():
         navigator.gather_data(cut=event.cut)
         navigator.gather_results(cut=event.cut,sources=False)
 
-        t,f = navigator.event_lc(cut=event.cut,objid=event.objid,eventid=event.eventid,frame_buffer=10000)
 
         x = (event['xint']+0.5).astype(int)
         y = (event['yint']+0.5).astype(int)
+
+        f = np.nansum(navigator.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
 
         frameStart = int(event['frame_start']) #min(source['frame'].values)
         frameEnd = int(event['frame_end']) #max(source['frame'].values)
