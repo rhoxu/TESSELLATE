@@ -908,7 +908,7 @@ class TessTransient():
         ax1.set_xlabel('Time (days)',fontsize=15)
         ylims = ax1.get_ylim()
         ax1.set_ylim(ylims[0],ylims[1]+(abs(ylims[0]-ylims[1])))
-        ax1.set_xlim(np.min(navigator.time),np.max(d.time))
+        ax1.set_xlim(np.min(navigator.time),np.max(navigator.time))
         axins = ax1.inset_axes([0.1, 0.55, 0.86, 0.43])
 
         axins.axvspan(navigator.time[frameStart],navigator.time[frameEnd],color='C1',alpha=0.2)
@@ -976,7 +976,7 @@ class TessTransient():
             brightestframe = int(brightestframe)
         except:
             brightestframe = int(brightestframe[0])
-        if brightestframe >= len(d.flux):
+        if brightestframe >= len(navigator.flux):
             brightestframe -= 1
 
         ymin = y - 9
@@ -985,12 +985,12 @@ class TessTransient():
         xmin = x -9
         if xmin < 0:
             xmin = 0
-        bright_frame = d.flux[brightestframe,y-1:y+2,x-1:x+2]
-        vmin = np.percentile(d.flux[brightestframe],16)
+        bright_frame = navigator.flux[brightestframe,y-1:y+2,x-1:x+2]
+        vmin = np.percentile(navigator.flux[brightestframe],16)
         vmax = np.percentile(bright_frame,80)
         if vmin >= vmax:
             vmin = vmax - 5
-        cutout_image = d.flux[:,ymin:y+10,xmin:x+10]
+        cutout_image = navigator.flux[:,ymin:y+10,xmin:x+10]
         ax2.imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
         if save:
             fig.savefig(f"TessTransientS{self.sector}C{event['camera']}C{event['ccd']}C{event['Cut']}O{event['objid']}.pdf",dpi=200,bbox_inches='tight')
