@@ -791,7 +791,7 @@ class TessTransient():
 
     def _cut_events_inside_ellipse(self,cam,ccd,cut,timestart,timeend,eventduration,part):
         
-        navigator = Navigator(sector=self.sector,cam=cam,ccd=ccd,n=self.n,data_path=self.data_path,part=part)
+        navigator = Navigator(sector=self.sector,cam=cam,ccd=ccd,n=self.n,data_path=self.data_path)#,part=part)
         try:
             navigator.gather_results(cut,sources=False)
         except:
@@ -809,7 +809,7 @@ class TessTransient():
 
     def _cut_events_intersecting_ellipse(self,cam,ccd,cut,ellipse,timestart,timeend,eventduration,part):
         
-        navigator = Navigator(sector=self.sector,cam=cam,ccd=ccd,n=self.n,data_path=self.data_path,part=part)
+        navigator = Navigator(sector=self.sector,cam=cam,ccd=ccd,n=self.n,data_path=self.data_path)#,part=part)
         try:
             navigator.gather_results(cut,sources=False)
         except:
