@@ -818,7 +818,7 @@ class TessTransient():
 
         events = navigator.events
 
-        events = events[(events['mjd'].values > timestart) & (events['mjd'].values < timeend) & ((events['mjd_end']-events['mjd_start']) < eventduration)]
+        events = events[(events['mjd_start'].values > timestart) & (events['mjd_start'].values < timeend) & ((events['mjd_end']-events['mjd_start']) < eventduration)]
 
         events = events.reset_index()
 
