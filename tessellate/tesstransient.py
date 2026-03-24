@@ -19,7 +19,7 @@ from astropy.time import Time
 
 from .tessellate import Tessellate
 from .dataprocessor import DataProcessor,_get_wcs
-from .detector import Detector
+from .navigator import Navigator
 
 from shapely.geometry.polygon import Polygon
 from shapely.geometry.point import Point
@@ -72,6 +72,7 @@ class TessTransient():
         self.download = download
 
         self._location_observed()
+        _ = self._sector_suggestions()
 
         self.ErrorEllipse = None
         self.neighbours = None
@@ -736,8 +737,8 @@ class TessTransient():
 
         self.part = t.part
 
-        suggestions = np.array(suggestions)
-        suggestions = suggestions[:,:2]
+        # suggestions = np.array(suggestions)
+        # suggestions = suggestions[:,:2]
 
         return suggestions
         
@@ -790,14 +791,14 @@ class TessTransient():
 
     def _cut_events_inside_ellipse(self,cam,ccd,cut,timestart,timeend,eventduration,part):
         
-        detector = Detector(sector=self.sector,cam=cam,ccd=ccd,n=self.n,data_path=self.data_path,part=part)
+        navigator = Navigator(sector=self.sector,cam=cam,ccd=ccd,n=self.n,data_path=self.data_path,part=part)
         try:
-            detector._gather_results(cut)
+            navigator.gather_results(cut,sources=False)
         except:
             print(f'No detection tables for Cam {cam} CCD {ccd} Cut {cut}!')
             return None
 
-        events = detector.events
+        events = navigator.events
 
         events = events[(events['mjd_start'].values > timestart) & (events['mjd_start'].values < timeend) & ((events['mjd_end']-events['mjd_start']) < eventduration)]
 
@@ -808,14 +809,14 @@ class TessTransient():
 
     def _cut_events_intersecting_ellipse(self,cam,ccd,cut,ellipse,timestart,timeend,eventduration,part):
         
-        detector = Detector(sector=self.sector,cam=cam,ccd=ccd,n=self.n,data_path=self.data_path,part=part)
+        navigator = Navigator(sector=self.sector,cam=cam,ccd=ccd,n=self.n,data_path=self.data_path,part=part)
         try:
-            detector._gather_results(cut)
+            navigator.gather_results(cut,sources=False)
         except:
             print(f'No detection tables for Cam {cam} CCD {ccd} Cut {cut}!')
             return None
 
-        events = detector.events
+        events = navigator.events
 
         events = events[(events['mjd'].values > timestart) & (events['mjd'].values < timeend) & ((events['mjd_end']-events['mjd_start']) < eventduration)]
 
@@ -868,13 +869,13 @@ class TessTransient():
     
     def plot_candidate(self,event,save=False):
 
-        d = Detector(sector=self.sector,cam=event['camera'],ccd=event['ccd'],data_path=self.data_path,n=self.n)
-        d._gather_data(cut=event['Cut'])
+        navigator = Navigator(sector=self.sector,cam=event.camera,ccd=event.ccd,n=self.n,data_path=self.data_path)
+        navigator.gather_data(cut=event.cut)
+
+        t,f = navigator.event_lc(cut=event.cut,objid=event.objid,eventid=event.eventid,frame_buffer=10000)
 
         x = (event['xint']+0.5).astype(int)
         y = (event['yint']+0.5).astype(int)
-
-        f = np.nansum(d.flux[:,y-1:y+2,x-1:x+2],axis=(2,1))
 
         frameStart = int(event['frame_start']) #min(source['frame'].values)
         frameEnd = int(event['frame_end']) #max(source['frame'].values)
@@ -893,9 +894,9 @@ class TessTransient():
         ax.set_xlabel(' ')
         ax.set_ylabel(' ')
 
-        ax1.plot(d.time[fstart:frameEnd+20],zoom,'k',alpha=0)
+        ax1.plot(navigator.time[fstart:frameEnd+20],zoom,'k',alpha=0)
         insert_ylims = ax1.get_ylim()
-        tn = deepcopy(d.time)
+        tn = deepcopy(navigator.time)
         fn = deepcopy(f)
         b = np.where(np.diff(tn) > 0.5)[0]
         timen = np.insert(tn,b,np.nan)
@@ -905,15 +906,15 @@ class TessTransient():
         ax1.set_xlabel('Time (days)',fontsize=15)
         ylims = ax1.get_ylim()
         ax1.set_ylim(ylims[0],ylims[1]+(abs(ylims[0]-ylims[1])))
-        ax1.set_xlim(np.min(d.time),np.max(d.time))
+        ax1.set_xlim(np.min(navigator.time),np.max(d.time))
         axins = ax1.inset_axes([0.1, 0.55, 0.86, 0.43])
 
-        axins.axvspan(d.time[frameStart],d.time[frameEnd],color='C1',alpha=0.2)
+        axins.axvspan(navigator.time[frameStart],navigator.time[frameEnd],color='C1',alpha=0.2)
         axins.plot(timen,fn,'k',alpha=0.8)
         fe = frameEnd + 20
-        if fe >= len(d.time):
-            fe = len(d.time) - 1
-        axins.set_xlim(d.time[fstart],d.time[fe])
+        if fe >= len(navigator.time):
+            fe = len(navigator.time) - 1
+        axins.set_xlim(navigator.time[fstart],navigator.time[fe])
         axins.set_ylim(insert_ylims[0],insert_ylims[1])
         mark_inset(ax1, axins, loc1=3, loc2=4, fc="none", ec="r",lw=2)
         plt.setp(axins.spines.values(), color='r',lw=2)
@@ -992,14 +993,14 @@ class TessTransient():
         if save:
             fig.savefig(f"TessTransientS{self.sector}C{event['camera']}C{event['ccd']}C{event['Cut']}O{event['objid']}.pdf",dpi=200,bbox_inches='tight')
 
-    def _find_which_part(self):
+    # def _find_which_part(self):
 
-        d = Detector(sector=self.sector,cam=self.cam,ccd=self.ccd,data_path=self.data_path,n=self.n,part=1)
-        d._gather_data(cut=1)
-        if d.time[0] < self.eventtime < d.time[1]:
-            return 1
-        else:
-            return 2
+    #     d = Detector(sector=self.sector,cam=self.cam,ccd=self.ccd,data_path=self.data_path,n=self.n,part=1)
+    #     d._gather_data(cut=1)
+    #     if d.time[0] < self.eventtime < d.time[1]:
+    #         return 1
+    #     else:
+    #         return 2
 
     def candidate_events(self,timeStartBuffer=120,eventDuration=12,significanceCut=None,num_plot=10,save=False):
         """
@@ -1013,20 +1014,20 @@ class TessTransient():
         else:
             all_ccds = [(self.cam,self.ccd)]
 
-        part = None
-        if self.part:
-            part = self._find_which_part()
+        # part = None
+        # if self.part:
+        #     part = self._find_which_part()
 
         table = []
         for cam,ccd in all_ccds:
             try:
-                table.append(self._gather_detection_tables(cam,ccd,timeStartBuffer,eventDuration/24,significanceCut,part))
+                table.append(self._gather_detection_tables(cam,ccd,timeStartBuffer,eventDuration/24,significanceCut,None))
             except:
                 print(f'Something failed in Cam {cam} Ccd {ccd}. Check if all TESSELLATE steps are completed.')
 
 
         table = pd.concat(table)
-        table = table.sort_values('lc_sig',ascending=False)   
+        table = table.sort_values('lc_sig_max',ascending=False)   
 
         done = []
         skip=1
