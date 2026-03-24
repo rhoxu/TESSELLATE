@@ -871,6 +871,7 @@ class TessTransient():
 
         navigator = Navigator(sector=self.sector,cam=event.camera,ccd=event.ccd,n=self.n,data_path=self.data_path)
         navigator.gather_data(cut=event.cut)
+        navigator.gather_results(cut=event.cut,sources=False)
 
         t,f = navigator.event_lc(cut=event.cut,objid=event.objid,eventid=event.eventid,frame_buffer=10000)
 
