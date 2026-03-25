@@ -270,7 +270,7 @@ def simulate_cut_psf_fitting(path,sector,cam,ccd,cut,n=4,nfits=1000,nMedians=20,
         plt.xscale('log')
 
 
-    with open(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/wcs_info/snr_localisation_coeffs.pkl', 'wb') as file:
+    with open(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/snr_localisation_coeffs.pkl', 'wb') as file:
         pickle.dump(popt, file)
     print('    SNR to localisation accuracy model generated')
 
@@ -279,7 +279,7 @@ def get_snr_to_localisation_func(path,sector,cam,ccd,cut,n=4):
 
     import pickle
 
-    with open(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/wcs_info/snr_localisation_coeffs.pkl', 'rb') as file:
+    with open(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/snr_localisation_coeffs.pkl', 'rb') as file:
         popt = pickle.load(file)
 
     def func(snr):
@@ -289,4 +289,4 @@ def get_snr_to_localisation_func(path,sector,cam,ccd,cut,n=4):
 
 def get_wcs_uncertainty(path,sector,cam,ccd,cut,n=4):
 
-    return np.load(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/wcs_info/wcs_uncertainty.npy')
+    return np.load(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/wcs_uncertainty.npy')
