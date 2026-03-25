@@ -53,7 +53,7 @@ class CutWCS():
 
     def _get_median_offsets(self):
 
-        sources = pd.read_csv(f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/wcs/ref/ccd_sourcesfits.csv')
+        sources = pd.read_csv(f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/wcs/ref/ccd_sourcefits.csv')
         cut_size = 2048/self.n
         cut_sources = sources[(sources.xPSF>self.corner[0])&(sources.xPSF<self.corner[0]+cut_size)&
                               (sources.yPSF>self.corner[1])&(sources.yPSF<self.corner[1]+cut_size)]
