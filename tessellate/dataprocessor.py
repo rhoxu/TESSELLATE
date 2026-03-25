@@ -82,14 +82,14 @@ def _parallel_cuts(sector,cam,ccd,cut,n,cube_path,file_path,coords,size,verbose)
 
 class DataProcessor():
 
-    def __init__(self,sector,verbose=1,path=None) -> None:
+    def __init__(self,sector,verbose=1,data_path=None) -> None:
 
         self.sector = sector
         self.verbose = verbose
 
-        if path[-1] == '/':
-            path = path[:-1]
-        self.path = path
+        if data_path[-1] == '/':
+            data_path = data_path[:-1]
+        self.data_path = data_path
 
         self._make_path(False)
 
@@ -102,8 +102,8 @@ class DataProcessor():
             _Save_space('temporary',delete=delete)
             self.path = './temporary'
         else:
-            _Save_space(f'{self.path}/Sector{self.sector}')
-            self.path = f'{self.path}/Sector{self.sector}'
+            _Save_space(f'{self.data_path}/Sector{self.sector}')
+            self.path = f'{self.data_path}/Sector{self.sector}'
 
     def download(self,cam,ccd,number='all',time=None,single=None):
         """
@@ -523,7 +523,7 @@ class DataProcessor():
             cutName = f'sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}.fits'
             cutPath = f'{cutFolder}/{cutName}'
 
-            with open(f'{self.path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/wcs/ref/reference.txt') as reffile:
+            with open(f'{self.path}/Cam{cam}/Ccd{ccd}/wcs/ref/reference.txt') as reffile:
                 ref_ind = int(reffile.readlines()[0].split(': ')[-1])
 
             # fluxName = f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_ReducedFlux.npy'

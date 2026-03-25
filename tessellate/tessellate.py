@@ -1633,7 +1633,7 @@ class Tessellate():
                     print('\n')
                 else:
                     tDownload = t()
-                    data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
+                    data_processor = DataProcessor(sector=self.sector,data_path=self.data_path,verbose=self.verbose)
                     data_processor.download(cam=cam,ccd=ccd,number=self.download_number)
                     os.system('clear')
                     print(message)
@@ -1675,7 +1675,7 @@ class Tessellate():
                     python_text = f"\
 from tessellate import DataProcessor\n\
 \n\
-processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
+processor = DataProcessor(sector={self.sector},data_path='{self.data_path}',verbose=2)\n\
 processor.make_cube(cam={cam},ccd={ccd},part={self.part})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', 'w') as file:\n\
     file.write('Cubed!')"   
@@ -1723,7 +1723,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
         # print('\n')
 
 
-        data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=self.verbose)
+        data_processor = DataProcessor(sector=self.sector,data_path=self.data_path,verbose=self.verbose)
         cutCorners,cutCentrePx,cutCentreCoords,cutRadPx = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
         rad = cutRadPx + 2*60/21
 
@@ -1781,6 +1781,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                                                     (gaia_ccd.x < cutCorners[cut-1][0]+cutRadPx+2)&
                                                     (gaia_ccd.y > cutCorners[cut-1][1])&
                                                     (gaia_ccd.y < cutCorners[cut-1][1]+cutRadPx+2)]
+                                gaia_cut = gaia_cut.drop(['x','y'])
                                 gaia_cut.to_csv(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/local_gaia_cat.csv',index=False)
                                     
 
@@ -1895,7 +1896,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 from tessellate import DataProcessor\n\
 \n\
 part = {self.part}\n\
-processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
+processor = DataProcessor(sector={self.sector},data_path='{self.data_path}',verbose=2)\n\
 processor.make_cuts(cam={cam},ccd={ccd},n={self.n},cut={cut},part=part)\n\
 if not part:\n\
     with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/cut.txt', 'w') as file:\n\
@@ -1999,7 +2000,7 @@ from tessellate import DataProcessor\n\
 import os\n\
 \n\
 part={self.part}\n\
-processor = DataProcessor(sector={self.sector},path='{self.data_path}',verbose=2)\n\
+processor = DataProcessor(sector={self.sector},data_path='{self.data_path}',verbose=2)\n\
 processor.reduce(cam={cam},ccd={ccd},n={self.n},cut={cut},part=part)\n\
 if not part:\n\
     if os.path.exists('{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Shifts.npy'):\n\

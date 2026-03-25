@@ -212,7 +212,7 @@ def simulate_cut_psf_fitting(path,sector,cam,ccd,cut,n=4,nfits=1000,nMedians=20,
     import pickle
 
 
-    dp = DataProcessor(sector=sector,path='/fred/oz335/TESSdata')
+    dp = DataProcessor(sector=sector,data_path='/fred/oz335/TESSdata')
     _, cutCentrePx, _, _ = dp.find_cuts(cam=cam,ccd=ccd,n=n,plot=False)
 
     if sector>3:

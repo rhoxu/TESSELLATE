@@ -258,7 +258,7 @@ class TessTransient():
             ccd = self.ccd
 
         ellipse = self.find_error_ellipse(cam,ccd,plot=False)
-        d = DataProcessor(sector=self.sector,path=self.data_path)
+        d = DataProcessor(sector=self.sector,data_path=self.data_path)
         cutCorners, cutCentrePx, cutCentreCoords, cutSize = d.find_cuts(cam,ccd,self.n,plot=False,verbose=False)
         intersects,inside = self._find_impacted_cuts(ellipse,cutCorners,cutSize,cutCentrePx)
         interesting = np.union1d(intersects,inside)
@@ -277,7 +277,7 @@ class TessTransient():
         
         if not os.path.exists(f'{data_path}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits'):
             if len(glob(f'{data_path}/image_files/*ffic.fits')) == 0:
-                data_processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=0)
+                data_processor = DataProcessor(sector=self.sector,data_path=self.data_path,verbose=0)
                 data_processor.download(cam=cam,ccd=ccd,number=1)
             
             
@@ -287,7 +287,7 @@ class TessTransient():
         
         if plot:
 
-            d = DataProcessor(sector=self.sector,path=self.data_path)
+            d = DataProcessor(sector=self.sector,data_path=self.data_path)
             cutCorners, cutCentrePx, cutCentreCoords, cutSize = d.find_cuts(cam,ccd,self.n,plot=False,verbose=False)
 
             intersects,inside = self._find_impacted_cuts(ellipse,cutCorners,cutSize,cutCentrePx)
@@ -844,7 +844,7 @@ class TessTransient():
         data_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}'
         wcsItem = _get_wcs(f'{data_path}/image_files',f'{data_path}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits',verbose=0)
         ellipse = self._gen_ellipse(wcsItem)
-        d = DataProcessor(sector=self.sector,path=self.data_path)
+        d = DataProcessor(sector=self.sector,data_path=self.data_path)
         cutCorners, cutCentrePx, cutCentreCoords, cutSize = d.find_cuts(cam,ccd,self.n,plot=False,verbose=0)
         intersects,inside = self._find_impacted_cuts(ellipse,cutCorners,cutSize,cutCentrePx)
 
@@ -924,7 +924,7 @@ class TessTransient():
         axins.axvline(self.eventtime,linestyle='--',lw=2,color='dodgerblue')
 
         ellipse = self.find_error_ellipse(cam=event['camera'],ccd=event['ccd'],plot=False)
-        dp = DataProcessor(sector=self.sector,path=self.data_path)
+        dp = DataProcessor(sector=self.sector,data_path=self.data_path)
         cutCorners, cutCentrePx, cutCentreCoords, cutSize = dp.find_cuts(event['camera'],event['ccd'],self.n,plot=False,verbose=False)
 
         intersects,inside = self._find_impacted_cuts(ellipse,cutCorners,cutSize,cutCentrePx)

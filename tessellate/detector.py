@@ -1143,7 +1143,7 @@ class Detector():
         save_folder = f'{self.path}/Cut{self.cut}of{self.n**2}'
 
         # -- Access information about the cut with respect to the original ccd -- #        
-        processor = DataProcessor(sector=self.sector,path=self.data_path,verbose=2)
+        processor = DataProcessor(sector=self.sector,data_path=self.data_path,verbose=2)
         cut_corners, cut_centre_px, _, _ = processor.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
         column = cut_centre_px[self.cut-1][0]
         row = cut_centre_px[self.cut-1][1]
@@ -1265,7 +1265,7 @@ class Detector():
         
     
         # -- Generate PRF -- #
-        dp = DataProcessor(self.sector,path=self.data_path)
+        dp = DataProcessor(self.sector,data_path=self.data_path)
         cutCornerPx, cutCentrePx, _, _ = dp.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
         column = cutCentrePx[self.cut-1][0]
         row = cutCentrePx[self.cut-1][1]
