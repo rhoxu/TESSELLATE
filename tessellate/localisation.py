@@ -22,6 +22,8 @@ class CutWCS():
         wcs_path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/wcs/ref/corrected.fits'
 
         self.tesscut_offset = np.array([0,0])
+        self._get_corner()
+
         if os.path.exists(wcs_path):
             self.wcs_path = wcs_path
             self._get_median_offsets()
@@ -36,7 +38,7 @@ class CutWCS():
 
             self.dx = self.dy = 0
 
-        self._get_corner()
+        self.corner += self.tesscut_offset
 
         hdu = fits.open(self.wcs_path)
         self.wcs = WCS(hdu[1].header)
@@ -49,7 +51,7 @@ class CutWCS():
         cut_corners = np.meshgrid(cut_cornersX,cut_cornersY)
         cut_corners = np.floor(np.stack((cut_corners[0],cut_corners[1]),axis=2).reshape(self.n**2,2))
         
-        self.corner = cut_corners[self.cut-1] + self.tesscut_offset
+        self.corner = cut_corners[self.cut-1] 
 
     def _get_median_offsets(self):
 
