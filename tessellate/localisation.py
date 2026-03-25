@@ -26,6 +26,8 @@ class CutWCS():
 
         if os.path.exists(wcs_path):
             self.wcs_path = wcs_path
+            hdu = fits.open(self.wcs_path)
+            self.wcs = WCS(hdu[1].header)
             self._get_median_offsets()
         else:
             wcs_folder = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Cut{cut}of{self.n**2}/wcs_info'
@@ -36,12 +38,12 @@ class CutWCS():
             else:    
                 self.wcs_path = glob(f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/*wcs.fits')[0]  # temporary
 
+            hdu = fits.open(self.wcs_path)
+            self.wcs = WCS(hdu[1].header)
+
             self.dx = self.dy = 0
 
         self.corner += self.tesscut_offset
-
-        hdu = fits.open(self.wcs_path)
-        self.wcs = WCS(hdu[1].header)
 
     def _get_corner(self):
 
