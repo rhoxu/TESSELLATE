@@ -98,7 +98,7 @@ class DataProcessor():
         Creates a folder for the path. 
         """
 
-        if self.path is None:
+        if self.data_path is None:
             _Save_space('temporary',delete=delete)
             self.path = './temporary'
         else:
