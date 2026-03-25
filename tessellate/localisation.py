@@ -60,8 +60,10 @@ class CutWCS():
         cut_sources = sources[(sources.xPSF>self.corner[0])&(sources.xPSF<self.corner[0]+cut_size)&
                               (sources.yPSF>self.corner[1])&(sources.yPSF<self.corner[1]+cut_size)]
         
-        self.dx = np.nanmedian(cut_sources.xPSF-cut_sources.xFinal)
-        self.dy = np.nanmedian(cut_sources.yPSF-cut_sources.yFinal)
+        xFinal,yFinal = self.wcs.all_world2pix(cut_sources.ra,cut_sources.dec,0)
+
+        self.dx = np.nanmedian(cut_sources.xPSF-xFinal)
+        self.dy = np.nanmedian(cut_sources.yPSF-yFinal)
 
         del(sources)
         del(cut_sources)
