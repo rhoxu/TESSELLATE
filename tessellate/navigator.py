@@ -375,8 +375,8 @@ class Navigator():
 
             if frame_bin is not None and frame_bin > event.frame_bin:
                 largertime, largerflux = (Frame_Bin(self.time, self.flux, frame_bin))
-                rawt,rawf = Generate_LC(largertime,largerflux,x,y,frame_start*frame_bin/event.frame_bin,frame_end*frame_bin/event.frame_bin,radius=1.5)
-                ax.plot(rawt,rawf,'^',c='r',alpha=0.8)
+                largert,largerf = Generate_LC(largertime,largerflux,x,y,int(frame_start*frame_bin/event.frame_bin),int(frame_end*frame_bin/event.frame_bin),radius=1.5)
+                ax.plot(largert, largerf, '^', c='r', alpha=0.8)
 
         
         return t,f
