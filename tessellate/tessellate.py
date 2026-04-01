@@ -146,7 +146,7 @@ class Tessellate():
         self.search_cpu = search_cpu
         self.detect_mode = detect_mode
         self.time_bins = time_bins
-        
+
         self.plot_time = plot_time
         self.plot_mem = None
         self.plot_cpu = plot_cpu
@@ -1792,9 +1792,9 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                                     # try:
                                 gaia_ccd['x'],gaia_ccd['y'] = wcs.all_world2pix(gaia_ccd.ra,gaia_ccd.dec,0)
                                 gaia_cut = gaia_ccd[(gaia_ccd.x > cutCorners[cut-1][0]-2)&
-                                                    (gaia_ccd.x < cutCorners[cut-1][0]+cutRadPx+2)&
+                                                    (gaia_ccd.x < cutCorners[cut-1][0]+cutRadPx*2+2)&
                                                     (gaia_ccd.y > cutCorners[cut-1][1])&
-                                                    (gaia_ccd.y < cutCorners[cut-1][1]+cutRadPx+2)]
+                                                    (gaia_ccd.y < cutCorners[cut-1][1]+cutRadPx*2+2)]
                                 gaia_cut = gaia_cut.drop(columns=['x','y'])
                                 gaia_cut.to_csv(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/local_gaia_cat.csv',index=False)
                                     
