@@ -1344,12 +1344,22 @@ class Tessellate():
                     time_bins = input(f"      Invalid format! Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = ")
                     message += f"      Invalid choice! Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = {time_bins}\n"
         
-        elif all(re.match(pattern, t) for t in self.time_bins):
-            print(f'   - Search Time Bins = {self.time_bins}')
-            message += f'   - Search Time Bins = {self.time_bins}\n'
         else:
-            e = f'Invalid Search Time Bins Input of {self.time_bins}\n'
-            raise ValueError(e)
+            if type(self.time_bins) == str:
+                self.time_bins = self.time_bins.split(',')
+                if re.match(pattern, self.time_bins):
+                    print(f'   - Search Time Bin = {self.time_bins}')
+                    message += f'   - Search Time Bin = {self.time_bins}\n'
+                else:
+                    e = f'Invalid Search Time Bin Input of {self.time_bins}\n'
+                    raise ValueError(e)
+            
+            elif all(re.match(pattern, t) for t in self.time_bins):
+                print(f'   - Search Time Bins = {self.time_bins}')
+                message += f'   - Search Time Bins = {self.time_bins}\n'
+            else:
+                e = f'Invalid Search Time Bins Input of {self.time_bins}\n'
+                raise ValueError(e)
 
 
         print('\n')
