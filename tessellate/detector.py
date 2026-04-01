@@ -1588,7 +1588,7 @@ class Detector():
         self._flag_asteroids()
         print(f'   Checking for asteroids -- done! ({(clock()-ts):.0f}s)')
 
-        self.events = self.events.drop_duplicates(subset=['frame_bin','xint','yint','frame_max'],keep=False)
+        self.events = self.events.drop_duplicates(subset=['frame_bin','xint','yint','frame_max'],keep='first')
 
         # -- Tag asteroids -- #
         ts = clock()
