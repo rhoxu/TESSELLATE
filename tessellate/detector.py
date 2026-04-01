@@ -32,6 +32,62 @@ def _Spatial_group(result,colname='objid',min_samples=1,distance=0.5,njobs=-1):
     result[colname] = result[colname].astype(int)
     return result
 
+def _Spatio_temporal_group(result,colname='objid',min_samples=1,distance=0.5,frame_gap=5,njobs=-1):
+    """
+    Groups events based on proximity in both space and time, 
+    then groups their median positions to identify repeating sources.
+    This helps prevent moving items from creating large trailed artifact groups.
+    """
+    if len(result) == 0:
+        return result
+
+    from sklearn.cluster import DBSCAN
+
+    # -- 1. Spatio-Temporal Clustering --
+    # Scale frame distance so that a gap of `frame_gap` equals `distance` in DBSCAN 
+    # Use max to avoid zero division if frame_gap is set to 0
+    frame_scale = distance / max(1e-5, frame_gap)
+    
+    # Fallback to regular spatial group if no frame info is available
+    if 'frame' not in result.columns:
+        return _Spatial_group(result, colname=colname, min_samples=min_samples, distance=distance, njobs=njobs)
+        
+    scaled_frames = result['frame'].values * frame_scale
+    
+    pos_3d = np.array([result['xcentroid'].values, result['ycentroid'].values, scaled_frames]).T
+    
+    st_cluster = DBSCAN(eps=distance, min_samples=min_samples, n_jobs=njobs).fit(pos_3d)
+    st_labels = st_cluster.labels_.copy() # Make a copy to mutate
+    
+    # Handle noise (-1) from DBSCAN by giving them distinct unique labels 
+    # so they can still participate in median clustering individually
+    max_label = st_labels.max()
+    noise_mask = st_labels == -1
+    if noise_mask.sum() > 0:
+        st_labels[noise_mask] = np.arange(max_label + 1, max_label + 1 + noise_mask.sum())
+    
+    result = result.copy()
+    result['st_group'] = st_labels
+
+    # -- 2. Cluster the median positions --
+    medians = result.groupby('st_group')[['xcentroid', 'ycentroid']].median()
+    
+    pos_2d = medians[['xcentroid', 'ycentroid']].values
+    spatial_cluster = DBSCAN(eps=distance, min_samples=1, n_jobs=njobs).fit(pos_2d)
+    
+    medians['final_label'] = spatial_cluster.labels_
+    
+    # Join labels back using st_group as the index mapping to medians index
+    result = result.merge(medians[['final_label']], left_on='st_group', right_index=True, how='left')
+    
+    # Apply 1-indexed labeling identical to the original strategy
+    result[colname] = (result['final_label'] + 1).fillna(0).astype(int)
+    
+    # Strip intermediate fields to maintain identical output structure
+    result = result.drop(columns=['st_group', 'final_label'])
+    
+    return result
+
 def _Star_finding_procedure(data,prf,sig_limit = 2):
     """
     Use StarFinder to find stars with different PSF shapes depending on subpixel shift.
