@@ -19,9 +19,10 @@ class Tessellate():
     """
 
     def __init__(self,data_path,sector=None,cam=None,ccd=None,n=None,
-                 verbose=2,download_number=None,cuts=None,
+                 verbose=2,ask_config=True,save_config=True,
                  job_output_path=None,working_path=None,
-                 cube_time=None,cube_mem=None,cut_time=None,cut_mem=None,
+                 download_number=None,cube_time=None,cube_mem=None,
+                 cuts=None,cut_time=None,cut_mem=None,
                  reduce_time=None,reduce_cpu=None,
                  search_time=None,search_cpu=None,detect_mode='both',time_bins=None,
                  plot_time=None,plot_cpu=None,
@@ -151,7 +152,7 @@ class Tessellate():
         self.plot_mem = None
         self.plot_cpu = plot_cpu
 
-
+        self.ask_config = ask_config
         self.skip = []
 
         # -- Allows for no actual initialisation (TessTransient) -- #
@@ -199,7 +200,8 @@ class Tessellate():
                     message = self._plotting_properties(message,search,suggestions[4])
                     _Save_space(f'{job_output_path}/tessellate_plotting_logs')
 
-                self._write_config(download,make_cube, make_cuts, reduce, search, plot, delete)
+                if save_config:
+                    self._write_config(download,make_cube, make_cuts, reduce, search, plot, delete)
 
             # -- Check for overwriting -- #
             if overwrite != False:
@@ -240,29 +242,30 @@ class Tessellate():
         print(_Print_buff(50,f'Initialising Tessellation Run'))
         message += _Print_buff(50,f'Initialising Tessellation Run')+'\n'
 
-        file = f'{self.working_path}/tessellate_config.txt'
-        load_prev = False
-        if os.path.exists(file):
-            load = input(f'Load from previous config ({file})? [y/n] = ') 
-            message += f'Load from previous config ({file})? [y/n] = {load}\n'
-            done = False
-            while not done:
-                if load.lower() == 'y':
-                    load_prev = True
-                    done=True
-                elif load.lower() == 'n':
-                    load_prev = False
-                    done=True
-                else:
-                    load = input(f'  Invalid choice! Load from previous config ({file})? [y/n] = ')
-                    message += f'   Invalid choice! Load from previous config ({file})? [y/n] = {load}\n'
-            
-            if load_prev:
-                print('Loading config')
-                message += 'Loading config\n'
+        if self.ask_config:
+            file = f'{self.working_path}/tessellate_config.txt'
+            load_prev = False
+            if os.path.exists(file):
+                load = input(f'Load from previous config ({file})? [y/n] = ') 
+                message += f'Load from previous config ({file})? [y/n] = {load}\n'
+                done = False
+                while not done:
+                    if load.lower() == 'y':
+                        load_prev = True
+                        done=True
+                    elif load.lower() == 'n':
+                        load_prev = False
+                        done=True
+                    else:
+                        load = input(f'  Invalid choice! Load from previous config ({file})? [y/n] = ')
+                        message += f'   Invalid choice! Load from previous config ({file})? [y/n] = {load}\n'
+                
+                if load_prev:
+                    print('Loading config')
+                    message += 'Loading config\n'
 
-            print('\n')
-            message += '\n'
+        print('\n')
+        message += '\n'
 
         return message,load_prev
     

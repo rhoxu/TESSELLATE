@@ -769,7 +769,7 @@ class TessTransient():
                         reduce=True,reduce_time=reducing[0],reduce_cpu=int(reducing[1]),
                         search=True,search_time=searching[0],search_cpu=int(searching[1]),time_bins=searching[3],
                         plot=False,plot_time=plotting[0],plot_cpu=int(plotting[1]),
-                        delete=False,reset_logs=False,overwrite=False)
+                        delete=False,reset_logs=False,overwrite=False,ask_config=False,save_config=False)
         
     def run(self):
 
