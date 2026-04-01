@@ -543,7 +543,7 @@ class DataProcessor():
             tessreduce = tr.tessreduce(tpf=cutPath,sector=self.sector,reduce=True,corr_correction=True,
                                         calibrate=False,catalogue_path=f'{cutFolder}/local_gaia_cat.csv',
                                         prf_path='/fred/oz335/_local_TESS_PRFs',vector_path='/fred/oz335/_local_TESS_vectors',
-                                        ref_ind=ref_ind,quality_bitmask='hard',shift_method='difference',smooth_motion=False)
+                                        ref_ind=ref_ind,quality_bitmask='hard',shift_method='sep_core',smooth_motion=False)
             
             if self.verbose > 0:
                 print(f'--Reduction Complete (Time: {((t()-ts)/60):.2f} mins)--')
