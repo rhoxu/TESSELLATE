@@ -1347,7 +1347,7 @@ class Tessellate():
         else:
             if type(self.time_bins) == str:
                 self.time_bins = self.time_bins.split(',')
-                if re.match(pattern, self.time_bins):
+                if all(re.match(pattern, t) for t in self.time_bins):
                     print(f'   - Search Time Bin = {self.time_bins}')
                     message += f'   - Search Time Bin = {self.time_bins}\n'
                 else:
