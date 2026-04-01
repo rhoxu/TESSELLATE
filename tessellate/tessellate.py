@@ -242,9 +242,9 @@ class Tessellate():
         print(_Print_buff(50,f'Initialising Tessellation Run'))
         message += _Print_buff(50,f'Initialising Tessellation Run')+'\n'
 
+        load_prev = False
         if self.ask_config:
             file = f'{self.working_path}/tessellate_config.txt'
-            load_prev = False
             if os.path.exists(file):
                 load = input(f'Load from previous config ({file})? [y/n] = ') 
                 message += f'Load from previous config ({file})? [y/n] = {load}\n'
