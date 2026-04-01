@@ -200,7 +200,7 @@ def gen_and_fit_source(snr,shift,image_size,prf):
 
     return [PSF_fitter.source_x,PSF_fitter.source_y]
 
-def simulate_cut_psf_fitting(path,sector,cam,ccd,cut,n=4,nfits=1000,nMedians=20,image_size=7,plot=False):
+def simulate_cut_psf_fitting(path,sector,cam,ccd,cut,n=8,nfits=1000,nMedians=20,image_size=7,plot=False):
 
     from .dataprocessor import DataProcessor
     from PRF import TESS_PRF
@@ -275,7 +275,7 @@ def simulate_cut_psf_fitting(path,sector,cam,ccd,cut,n=4,nfits=1000,nMedians=20,
     print('    SNR to localisation accuracy model generated')
 
 
-def get_snr_to_localisation_func(path,sector,cam,ccd,cut,n=4):
+def get_snr_to_localisation_func(path,sector,cam,ccd,cut,n=8):
 
     import pickle
 
@@ -287,6 +287,22 @@ def get_snr_to_localisation_func(path,sector,cam,ccd,cut,n=4):
 
     return func
 
-def get_wcs_uncertainty(path,sector,cam,ccd,cut,n=4):
+def get_wcs_uncertainty(path,sector,cam,ccd,cut,n=8):
 
-    return np.load(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/wcs_uncertainty.npy')
+    ccd_sources = pd.read_csv(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/wcs/ref/ccd_sourcefits.csv')
+    cut_wcs = CutWCS(path,sector,cam,ccd,cut,n)
+
+    corner = cut_wcs.corner
+    size = 2048/n
+
+    cut_sources = ccd_sources[(ccd_sources.xPSF>corner[0])&(ccd_sources.xPSF<corner[0]+size)&
+                              (ccd_sources.yPSF>corner[1])&(ccd_sources.yPSF<corner[1]+size)]
+
+    x,y = cut_wcs.all_world2pix(cut_sources.ra,cut_sources.dec,0)
+
+    dx = cut_sources.xPSF - x
+    dy = cut_sources.yPSF - y
+    xstd = np.percentile(np.abs(dx),68)
+    ystd = np.percentile(np.abs(dy),68)
+
+    return xstd, ystd
