@@ -1741,7 +1741,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
 
 
         data_processor = DataProcessor(sector=self.sector,data_path=self.data_path,verbose=self.verbose)
-        cutCorners,cutCentrePx,cutCentreCoords,cutRadPx = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
+        _,_,cutCentreCoords,cutRadPx = data_processor.find_cuts(cam=cam,ccd=ccd,n=self.n,plot=False)
         rad = cutRadPx + 2*60/21
 
         #image_path = glob(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/*ffic.fits')[0]
@@ -1794,10 +1794,10 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py"
                                 # while not doneGaia:
                                     # try:
                                 gaia_ccd['x'],gaia_ccd['y'] = wcs.all_world2pix(gaia_ccd.ra,gaia_ccd.dec,0)
-                                gaia_cut = gaia_ccd[(gaia_ccd.x > cutCorners[cut-1][0]-2)&
-                                                    (gaia_ccd.x < cutCorners[cut-1][0]+cutRadPx*2+2)&
-                                                    (gaia_ccd.y > cutCorners[cut-1][1])&
-                                                    (gaia_ccd.y < cutCorners[cut-1][1]+cutRadPx*2+2)]
+                                gaia_cut = gaia_ccd[(gaia_ccd.x > -2)&
+                                                    (gaia_ccd.x < cutRadPx*2+2)&
+                                                    (gaia_ccd.y > -2)&
+                                                    (gaia_ccd.y < cutRadPx*2+2)]
                                 gaia_cut = gaia_cut.drop(columns=['x','y'])
                                 gaia_cut.to_csv(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/local_gaia_cat.csv',index=False)
                                     
