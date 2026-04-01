@@ -144,13 +144,13 @@ class Tessellate():
         self.search_time = search_time
         self.search_mem = None
         self.search_cpu = search_cpu
-        self.search_bins = search_bins
+        self.detect_mode = detect_mode
+        self.time_bins = time_bins
         
         self.plot_time = plot_time
         self.plot_mem = None
         self.plot_cpu = plot_cpu
-        self.detect_mode = detect_mode
-        self.time_bins = time_bins
+
 
         self.skip = []
 
