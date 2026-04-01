@@ -336,7 +336,7 @@ class Navigator():
 
     # ----------------------------- Extracting light curves / images of events ----------------------------- #
 
-    def event_lc(self,cut,objid,eventid,frame_buffer=10,plot=True):
+    def event_lc(self,cut,objid,eventid,frame_buffer=10,plot=True,frame_bin=None):
         """
         Extract an aperture light curve for a desired event (objid/eventid pair).
         """
@@ -372,6 +372,12 @@ class Navigator():
             if event.frame_bin > 1:
                 rawt,rawf = Generate_LC(self.time,self.flux,x,y,frame_start*event.frame_bin,frame_end*event.frame_bin,radius=1.5)
                 ax.plot(rawt,rawf,'.',c='k',alpha=0.3)
+
+            if frame_bin is not None and frame_bin > event.frame_bin:
+                largertime, largerflux = (Frame_Bin(self.time, self.flux, frame_bin))
+                rawt,rawf = Generate_LC(largertime,largerflux,x,y,frame_start*frame_bin/event.frame_bin,frame_end*frame_bin/event.frame_bin,radius=1.5)
+                ax.plot(rawt,rawf,'^',c='r',alpha=0.8)
+
         
         return t,f
     
