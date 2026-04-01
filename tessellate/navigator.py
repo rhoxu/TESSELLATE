@@ -408,7 +408,7 @@ class Navigator():
             frame_interval =  RoundToInt(frame_interval * frame_bin * event.frame_bin/frame_bin)
             frame_buffer = RoundToInt(frame_buffer * event.frame_bin/frame_bin)
 
-        time, flux = (Frame_Bin(self.time, self.flux, event.frame_bin) if frame_bin > 1 else (self.time, self.flux))
+        time, flux = (Frame_Bin(self.time, self.flux, frame_bin) if frame_bin > 1 else (self.time, self.flux))
     
         # -- Find frames to be included based on buffer and interval, ensuring brightest is included -- #
         frames = np.arange(frame_start-frame_buffer, frame_end+1,frame_interval).astype(int)
