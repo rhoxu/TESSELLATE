@@ -14,11 +14,12 @@ import math
 import scipy
 
 from time import time as t
-
+from astropy.wcs import WCS
 from astropy.time import Time
+from astropy.io import fits
 
 from .tessellate import Tessellate
-from .dataprocessor import DataProcessor,_get_wcs
+from .dataprocessor import DataProcessor
 from .navigator import Navigator
 
 from shapely.geometry.polygon import Polygon
@@ -281,7 +282,8 @@ class TessTransient():
                 data_processor.download(cam=cam,ccd=ccd,number=1)
             
             
-        wcsItem = _get_wcs(f'{data_path}/image_files',f'{data_path}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits',verbose=0)
+        # wcsItem = _get_wcs(f'{data_path}/image_files',f'{data_path}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits',verbose=0)
+        wcsItem = WCS(fits.open(f'{data_path}/wcs/ref/corrected.fits')[1].header)    
         
         ellipse = self._gen_ellipse(wcsItem)
         
@@ -842,7 +844,10 @@ class TessTransient():
         """
 
         data_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}'
-        wcsItem = _get_wcs(f'{data_path}/image_files',f'{data_path}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits',verbose=0)
+        # wcsItem = _get_wcs(f'{data_path}/image_files',f'{data_path}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits',verbose=0)
+        
+        wcsItem = WCS(fits.open(f'{data_path}/wcs/ref/corrected.fits')[1].header)    
+        
         ellipse = self._gen_ellipse(wcsItem)
         d = DataProcessor(sector=self.sector,data_path=self.data_path)
         cutCorners, cutCentrePx, cutCentreCoords, cutSize = d.find_cuts(cam,ccd,self.n,plot=False,verbose=0)
@@ -886,7 +891,9 @@ class TessTransient():
             fstart = 0
         zoom = f[fstart:frameEnd+20]
 
-        wcsItem = _get_wcs(f"{self.data_path}/Sector{self.sector}/Cam{event['camera']}/Ccd{event['ccd']}/image_files",f"{self.data_path}/sector{self.sector}_cam{event['camera']}_ccd{event['ccd']}_wcs.fits",verbose=0)
+    
+        # wcsItem = _get_wcs(f"{self.data_path}/Sector{self.sector}/Cam{event['camera']}/Ccd{event['ccd']}/image_files",f"{self.data_path}/sector{self.sector}_cam{event['camera']}_ccd{event['ccd']}_wcs.fits",verbose=0)
+        wcsItem = WCS(fits.open(f"{self.data_path}/Sector{self.sector}/Cam{event.camera}/Ccd{event.ccd}/wcs/ref/corrected.fits")[1].header)
 
         fig = plt.figure(figsize=(12,4),constrained_layout=True)
         fig.suptitle(f"Cam {event['camera']} CCD {event['ccd']} Cut {event['Cut']} Object {event['objid']}", fontsize=16)
