@@ -300,8 +300,8 @@ def get_wcs_uncertainty(path,sector,cam,ccd,cut,n=8):
 
     x,y = cut_wcs.all_world2pix(cut_sources.ra,cut_sources.dec,0)
 
-    dx = cut_sources.xPSF - x
-    dy = cut_sources.yPSF - y
+    dx = cut_sources.xPSF - (x+corner[0])
+    dy = cut_sources.yPSF - (y+corner[1])
     xstd = np.percentile(np.abs(dx),68)
     ystd = np.percentile(np.abs(dy),68)
 
