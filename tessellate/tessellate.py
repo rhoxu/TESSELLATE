@@ -536,18 +536,30 @@ class Tessellate():
             cube_mem_sug = '20G'
             cube_mem_req = 140
 
-            cut_time_sug = '2:00:00'
+            # cut_time_sug = '2:00:00'
+            # cut_mem_sug = '20G'
+            # cut_mem_req = 60
+
+            cut_time_sug = '15:00'
             cut_mem_sug = '20G'
             cut_mem_req = 60
 
-            reduce_time_sug = '1:15:00'
-            reduce_cpu_sug = '32'
-            reduce_mem_req = 160
+            # reduce_time_sug = '1:15:00'
+            # reduce_cpu_sug = '32'
+            # reduce_mem_req = 160
 
-            search_time_sug = '30:00'
+            reduce_time_sug = '30:00'
+            reduce_cpu_sug = '32'
+            reduce_mem_req = 64
+
+            # search_time_sug = '30:00'
+            # search_cpu_sug = '32'
+            # search_mem_req = 64
+            # search_time_bins = '10min'
+            search_time_sug = '15:00'
             search_cpu_sug = '32'
-            search_mem_req = 64
-            search_time_bins = '10min'
+            search_mem_req = 32
+            search_time_bins = '10min,30min,2hr,1day'
             
             plot_time_sug = '10:00'
             plot_cpu_sug = '32'
