@@ -867,7 +867,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
     for eventID in all_labelled_sources['eventid'].unique():
         event = {}
         eventsources = deepcopy(all_labelled_sources[all_labelled_sources['eventid']==eventID])
-        weighted_eventsources = pandas_weighted_avg(eventsources)
+        weighted_eventsources = pandas_weighted_avg(eventsources,'snr')
 
         xint = RoundToInt(weighted_eventsources.iloc[0]['xint_brightest'])
         yint = RoundToInt(weighted_eventsources.iloc[0]['yint_brightest'])
