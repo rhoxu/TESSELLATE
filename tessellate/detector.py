@@ -869,7 +869,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
         event['flux_sign'] = int(eventsources.iloc[0]['flux_sign'])
         event['n_detections'] = int(n_detections)
         # event['bkg_level'] = weighted_eventsources.iloc[0]['bkg_level']
-        event['bkg_std'] = weighted_eventsources.iloc[0]['bkg_std']
+        # event['bkg_std'] = weighted_eventsources.iloc[0]['bkg_std']
         event['neg_extent'] = weighted_eventsources.iloc[0]['neg_extent']
         event['fwhm'] = weighted_eventsources.iloc[0]['fwhm']
         event['ellipticity'] = weighted_eventsources.iloc[0]['ellipticity']
@@ -1287,6 +1287,7 @@ class Detector():
 
         # elif self.mode == 'claudefinder':
         sources = Parallel(n_jobs=self.cpu)( delayed(_TESS_sourcefinder)(flux[i],inputNum+i) for i in tqdm(length))
+
         sources = _Make_dataframe(sources,flux[0])
 
         # -- Group based on distance -- #
@@ -1306,9 +1307,11 @@ class Detector():
             single_isolated_detections = sources[sources['objid']==0]
             sources = sources[sources['objid']>0].reset_index(drop=True)
 
+        print('Brightest Px')
         # --  Find brightest pixels around each source -- #
         sources = _Brightest_Px(flux,sources)               
 
+        print('Brightest Px')
         # -- Add in TessReduce source mask value -- #
         sources = _Source_mask(sources,self.mask)                
 
@@ -1384,26 +1387,26 @@ class Detector():
         # results = results.merge(av_var, on='objid', how='left')
 
         # -- Calculates the background stddev for each source -- #        
-        f = results['frame'].values
-        x = results['xint'].values
-        y = results['yint'].values
+        # f = results['frame'].values
+        # x = results['xint'].values
+        # y = results['yint'].values
 
-        r_outer = 11
-        r_inner = 2
+        # r_outer = 11
+        # r_inner = 2
 
-        dy, dx = np.mgrid[-r_outer:r_outer+1, -r_outer:r_outer+1]
-        mask = (dy**2 + dx**2) > r_inner**2
-        dy = dy[mask].ravel()
-        dx = dx[mask].ravel()
+        # dy, dx = np.mgrid[-r_outer:r_outer+1, -r_outer:r_outer+1]
+        # mask = (dy**2 + dx**2) > r_inner**2
+        # dy = dy[mask].ravel()
+        # dx = dx[mask].ravel()
 
-        H, W = flux.shape[1], flux.shape[2]
+        # H, W = flux.shape[1], flux.shape[2]
 
-        yy = (y[np.newaxis, :] + dy[:, np.newaxis]).clip(0, H - 1)
-        xx = (x[np.newaxis, :] + dx[:, np.newaxis]).clip(0, W - 1)
+        # yy = (y[np.newaxis, :] + dy[:, np.newaxis]).clip(0, H - 1)
+        # xx = (x[np.newaxis, :] + dx[:, np.newaxis]).clip(0, W - 1)
 
-        patch = flux[f[np.newaxis, :], yy, xx]
+        # patch = flux[f[np.newaxis, :], yy, xx]
 
-        results['bkg_std'] = np.nanstd(patch, axis=0)
+        # results['bkg_std'] = np.nanstd(patch, axis=0)
 
         # results['bkg_level'] = 0
         # if self.bkg is not None:
@@ -1740,7 +1743,7 @@ class Detector():
 
             # Photometry
             'flux_max', 'mag_min','flux_sign',
-            'image_sig_max', 'lc_sig_max', 'lc_sig_med','bkg_std',
+            'image_sig_max', 'lc_sig_max', 'lc_sig_med',#'bkg_std',
             'snr_psf',
 
             # Morphology
