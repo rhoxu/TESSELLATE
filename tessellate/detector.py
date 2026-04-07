@@ -1611,10 +1611,19 @@ class Detector():
         events['gal_l'] = coords.galactic.l.value
         events['gal_b'] = coords.galactic.b.value
 
-        events['mjd_start'] = self.time[events['frame_start']*events['frame_bin']]
-        events['mjd_end'] = self.time[events['frame_end']*events['frame_bin']]
+        startframes = events['frame_start'] * events['frame_bin']
+        startframes[startframes>=len(self.time)] = len(self.time)-1
+        events['mjd_start'] = self.time[startframes]
+
+        endframes = events['frame_end'] * events['frame_bin']
+        endframes[endframes>=len(self.time)] = len(self.time)-1
+        events['mjd_start'] = self.time[endframes]
+
+        maxframes = events['frame_max'] * events['frame_bin']
+        maxframes[maxframes>=len(self.time)] = len(self.time)-1
+        events['mjd_max'] = self.time[maxframes]
+
         events['mjd_duration'] = events['mjd_end'] - events['mjd_start']
-        events['mjd_max'] = self.time[events['frame_max']*events['frame_bin']]
 
         events['mag_min'] = -2.5*np.log10(events['flux_max'])
 
