@@ -1367,6 +1367,8 @@ class Detector():
         if isolate_single_detections:
             single_isolated_detections.to_csv(f'{save_folder}/single_isolated_detections.csv',index=False)
         
+        results['frame_bin'] = frame_bin
+
         # -- Add wcs, time, ccd info to the results dataframe -- #
         results = self._wcs_time_info(results)
         results['xccd'] = deepcopy(results['xcentroid'] + cut_corners[self.cut-1][0])
@@ -1424,8 +1426,6 @@ class Detector():
         #     b = np.array(b)
         #     b = np.nansum(b,axis=0)
         #     results['bkg_level'] = b
-
-        results['frame_bin'] = frame_bin
 
         return results
     
