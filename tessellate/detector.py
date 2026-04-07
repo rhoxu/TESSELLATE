@@ -1286,13 +1286,13 @@ class Detector():
         #     sources = pd.concat([star.assign(method='SF'), machine.assign(method='SD')], ignore_index=True)
 
         # elif self.mode == 'claudefinder':
-        print('Source Finding')
+        # print('Source Finding')
         sources = Parallel(n_jobs=self.cpu)(delayed(_TESS_sourcefinder)(flux[i],inputNum+i) for i in tqdm(length))
 
-        print('Making DataFrame')
+        # print('Making DataFrame')
         sources = _Make_dataframe(sources,flux[0])
 
-        print('Grouping Spatially')
+        # print('Grouping Spatially')
         # -- Group based on distance -- #
         sources = _Spatial_group(sources,distance=0.5,min_samples=2)       
 
@@ -1310,11 +1310,11 @@ class Detector():
             single_isolated_detections = sources[sources['objid']==0]
             sources = sources[sources['objid']>0].reset_index(drop=True)
 
-        print('Brightest Px')
+        # print('Brightest Px')
         # --  Find brightest pixels around each source -- #
         sources = _Brightest_Px(flux,sources)               
 
-        print('Brightest Px')
+        # print('Brightest Px')
         # -- Add in TessReduce source mask value -- #
         sources = _Source_mask(sources,self.mask)                
 
