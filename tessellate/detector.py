@@ -42,7 +42,7 @@ def _Dedup_close_sources(combined: pd.DataFrame, dedup_radius: float) -> pd.Data
     return combined[keep].reset_index(drop=True)
 
 
-def _neg_pixel_extent(data_sub: np.ndarray, sources: pd.DataFrame, r: float = 2.0) -> np.ndarray:
+def _Negative_pixel_extent(data_sub: np.ndarray, sources: pd.DataFrame, r: float = 2.0) -> np.ndarray:
     from astropy.stats import sigma_clipped_stats
     _, _, std = sigma_clipped_stats(data_sub)
     H, W = data_sub.shape
