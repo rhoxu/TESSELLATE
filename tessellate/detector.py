@@ -106,7 +106,7 @@ def _TESS_sourcefinder(image, frame_number, thresh = 0.3, bw=24,fwhm_min=0.7,fwh
                                     "detection_fwhm","snr","ellipticity","fwhm",
                                     "neg_extent"])
         if not per_scale:
-            return empty, bkg
+            continue
 
         sources = _Dedup_close_sources(
             pd.concat(per_scale, ignore_index=True)
@@ -140,7 +140,7 @@ def _TESS_sourcefinder(image, frame_number, thresh = 0.3, bw=24,fwhm_min=0.7,fwh
             # self.background_ = bkg
         allsources = pd.concat([allsources,sources[(sources.snr >= 3) & (sources.neg_extent < 3) & (sources.ellipticity<0.75)]])
 
-    return sources
+    return allsources
 
 
 def _Spatial_group(result,colname='objid',min_samples=1,distance=0.5,njobs=-1):
