@@ -42,30 +42,57 @@ def _Dedup_close_sources(combined: pd.DataFrame, dedup_radius: float) -> pd.Data
     return combined[keep].reset_index(drop=True)
 
 
-def _Negative_pixel_extent(data_sub: np.ndarray, sources: pd.DataFrame, r: float = 2.0) -> np.ndarray:
+# def _Negative_pixel_extent(data_sub: np.ndarray, sources: pd.DataFrame, r: float = 2.0) -> np.ndarray:
+#     from astropy.stats import sigma_clipped_stats
+#     _, _, std = sigma_clipped_stats(data_sub)
+#     H, W = data_sub.shape
+#     R = int(np.ceil(r))
+#     dy, dx = np.mgrid[-R:R+1, -R:R+1]
+#     in_circle = (dx**2 + dy**2) <= r**2
+#     dy_offsets = dy[in_circle]
+#     dx_offsets = dx[in_circle]
+
+#     xs = np.round(sources["xcentroid"].values).astype(int)
+#     ys = np.round(sources["ycentroid"].values).astype(int)
+
+#     extents = np.empty(len(sources), dtype=float)
+#     for i, (cx, cy) in enumerate(zip(xs, ys)):
+#         px = cx + dx_offsets
+#         py = cy + dy_offsets
+#         valid = (px >= 0) & (px < W) & (py >= 0) & (py < H)
+#         if valid.sum() == 0:
+#             extents[i] = np.nan
+#             continue
+#         extents[i] = max(0.0, -float(data_sub[py[valid], px[valid]].min())) / std
+
+#     return extents
+
+def _Negative_pixel_extent(data_sub, sources, r=2.0):
     from astropy.stats import sigma_clipped_stats
     _, _, std = sigma_clipped_stats(data_sub)
     H, W = data_sub.shape
     R = int(np.ceil(r))
     dy, dx = np.mgrid[-R:R+1, -R:R+1]
     in_circle = (dx**2 + dy**2) <= r**2
-    dy_offsets = dy[in_circle]
-    dx_offsets = dx[in_circle]
+    dy_off = dy[in_circle]
+    dx_off = dx[in_circle]
 
     xs = np.round(sources["xcentroid"].values).astype(int)
     ys = np.round(sources["ycentroid"].values).astype(int)
 
-    extents = np.empty(len(sources), dtype=float)
-    for i, (cx, cy) in enumerate(zip(xs, ys)):
-        px = cx + dx_offsets
-        py = cy + dy_offsets
-        valid = (px >= 0) & (px < W) & (py >= 0) & (py < H)
-        if valid.sum() == 0:
-            extents[i] = np.nan
-            continue
-        extents[i] = max(0.0, -float(data_sub[py[valid], px[valid]].min())) / std
+    # Shape: (n_sources, n_offsets)
+    px = xs[:, None] + dx_off[None, :]
+    py = ys[:, None] + dy_off[None, :]
 
-    return extents
+    valid = (px >= 0) & (px < W) & (py >= 0) & (py < H)
+    px = np.clip(px, 0, W - 1)
+    py = np.clip(py, 0, H - 1)
+
+    patch = data_sub[py, px]  # (n_sources, n_offsets)
+    patch = np.where(valid, patch, 0.0)
+    min_vals = patch.min(axis=1)
+
+    return np.maximum(0.0, -min_vals) / std
 
 def _TESS_sourcefinder(image, frame_number, thresh = 0.3, bw=24,fwhm_min=0.7,fwhm_max=2.0, n_scales=10,deblend_nthresh=128,
                        deblend_cont= 5e-5,dedup_radius= 1.0):#,boundary_buffer= 2.0,boundary_near= 5.0):
@@ -1331,7 +1358,7 @@ class Detector():
         
         result['ra'],result['dec'] = self.wcs.all_pix2world(result['xcentroid'],result['ycentroid'],0)
         trueframes = result['frame']*result['frame_bin']
-        trueframes[trueframes>len(self.time)] = len(self.time)
+        trueframes[trueframes>=len(self.time)] = len(self.time)-1
         result['mjd'] = self.time[trueframes]
     
         return result
