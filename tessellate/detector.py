@@ -32,11 +32,11 @@ def _Mexhat_kernels(fwhm: float) -> np.ndarray:
 def _Dedup_close_sources(combined: pd.DataFrame, dedup_radius: float) -> pd.DataFrame:
     from scipy.spatial import KDTree
     keep = np.ones(len(combined), dtype=bool)
-    tree = KDTree(combined[["x", "y"]].values)
+    tree = KDTree(combined[["xcentroid", "ycentroid"]].values)
     for i in range(len(combined)):
         if not keep[i]:
             continue
-        for j in tree.query_ball_point(combined[["x", "y"]].iloc[i].values, r=dedup_radius):
+        for j in tree.query_ball_point(combined[["xcentroid", "ycentroid"]].iloc[i].values, r=dedup_radius):
             if j > i:
                 keep[j] = False
     return combined[keep].reset_index(drop=True)
@@ -52,8 +52,8 @@ def _Negative_pixel_extent(data_sub: np.ndarray, sources: pd.DataFrame, r: float
     dy_offsets = dy[in_circle]
     dx_offsets = dx[in_circle]
 
-    xs = np.round(sources["x"].values).astype(int)
-    ys = np.round(sources["y"].values).astype(int)
+    xs = np.round(sources["xcentroid"].values).astype(int)
+    ys = np.round(sources["ycentroid"].values).astype(int)
 
     extents = np.empty(len(sources), dtype=float)
     for i, (cx, cy) in enumerate(zip(xs, ys)):
@@ -125,7 +125,7 @@ def _TESS_sourcefinder(image, frame_number, thresh = 0.3, bw=24,fwhm_min=0.7,fwh
         # sources["boundary_flag"] = dist_to_edge < boundary_near
 
         ap_flux, ap_err, _ = sep.sum_circle(
-            data_sub, sources["x"].values, sources["y"].values,
+            data_sub, sources["xcentroid"].values, sources["ycentroid"].values,
             r=1.5, err=err, gain=1.0,
         )
         sources["snr"] = ap_flux / np.where(ap_err > 0, ap_err, np.nan)
