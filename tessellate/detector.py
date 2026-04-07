@@ -1390,26 +1390,26 @@ class Detector():
         # results = results.merge(av_var, on='objid', how='left')
 
         # -- Calculates the background stddev for each source -- #        
-        # f = results['frame'].values
-        # x = results['xint'].values
-        # y = results['yint'].values
+        f = results['frame'].values
+        x = results['xint'].values
+        y = results['yint'].values
 
-        # r_outer = 11
-        # r_inner = 2
+        r_outer = 11
+        r_inner = 2
 
-        # dy, dx = np.mgrid[-r_outer:r_outer+1, -r_outer:r_outer+1]
-        # mask = (dy**2 + dx**2) > r_inner**2
-        # dy = dy[mask].ravel()
-        # dx = dx[mask].ravel()
+        dy, dx = np.mgrid[-r_outer:r_outer+1, -r_outer:r_outer+1]
+        mask = (dy**2 + dx**2) > r_inner**2
+        dy = dy[mask].ravel()
+        dx = dx[mask].ravel()
 
-        # H, W = flux.shape[1], flux.shape[2]
+        H, W = flux.shape[1], flux.shape[2]
 
-        # yy = (y[np.newaxis, :] + dy[:, np.newaxis]).clip(0, H - 1)
-        # xx = (x[np.newaxis, :] + dx[:, np.newaxis]).clip(0, W - 1)
+        yy = (y[np.newaxis, :] + dy[:, np.newaxis]).clip(0, H - 1)
+        xx = (x[np.newaxis, :] + dx[:, np.newaxis]).clip(0, W - 1)
 
-        # patch = flux[f[np.newaxis, :], yy, xx]
+        patch = flux[f[np.newaxis, :], yy, xx]
 
-        # results['bkg_std'] = np.nanstd(patch, axis=0)
+        results['bkg_std'] = np.nanstd(patch, axis=0)
 
         # results['bkg_level'] = 0
         # if self.bkg is not None:
