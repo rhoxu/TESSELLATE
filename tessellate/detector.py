@@ -1617,7 +1617,7 @@ class Detector():
 
         endframes = events['frame_end'] * events['frame_bin']
         endframes[endframes>=len(self.time)] = len(self.time)-1
-        events['mjd_start'] = self.time[endframes]
+        events['mjd_end'] = self.time[endframes]
 
         maxframes = events['frame_max'] * events['frame_bin']
         maxframes[maxframes>=len(self.time)] = len(self.time)-1
