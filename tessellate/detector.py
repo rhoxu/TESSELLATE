@@ -104,7 +104,7 @@ def _TESS_sourcefinder(image, frame_number, thresh = 0.3, bw=24,fwhm_min=0.7,fwh
 
     allsources = pd.DataFrame()
     for flux_sign in [-1,1]:
-        data = np.asarray(image, dtype=np.float64)
+        data = np.asarray(image*flux_sign, dtype=np.float32)
         bkg = sep.Background(data, bw=bw, bh=bw)
         data_sub = data - bkg.back()
         err = bkg.rms()
