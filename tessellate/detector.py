@@ -16,6 +16,133 @@ from .tools import RoundToInt
 # ----------------------------------------------------------------------------------------------------------------------------- #
 # ----------------------------------------------------------------------------------------------------------------------------- #
 
+
+# TESSSourceFinder Funcs (from Claude)
+
+def _Mexhat_kernels(fwhm: float) -> np.ndarray:
+    sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+    size = max(5, int(np.ceil(6 * sigma)) | 1)
+    c = size // 2
+    y, x = np.mgrid[-c:c+1, -c:c+1]
+    r2 = (x**2 + y**2) / (2 * sigma**2)
+    k = (1 - r2) * np.exp(-r2)
+    return (k / np.abs(k).sum()).astype(np.float32)
+
+
+def _Dedup_close_sources(combined: pd.DataFrame, dedup_radius: float) -> pd.DataFrame:
+    from scipy.spatial import KDTree
+    keep = np.ones(len(combined), dtype=bool)
+    tree = KDTree(combined[["x", "y"]].values)
+    for i in range(len(combined)):
+        if not keep[i]:
+            continue
+        for j in tree.query_ball_point(combined[["x", "y"]].iloc[i].values, r=dedup_radius):
+            if j > i:
+                keep[j] = False
+    return combined[keep].reset_index(drop=True)
+
+
+def _Negative_pixel_extent(data_sub: np.ndarray, sources: pd.DataFrame, r: float = 2.0) -> np.ndarray:
+    from astropy.stats import sigma_clipped_stats
+    _, _, std = sigma_clipped_stats(data_sub)
+    H, W = data_sub.shape
+    R = int(np.ceil(r))
+    dy, dx = np.mgrid[-R:R+1, -R:R+1]
+    in_circle = (dx**2 + dy**2) <= r**2
+    dy_offsets = dy[in_circle]
+    dx_offsets = dx[in_circle]
+
+    xs = np.round(sources["x"].values).astype(int)
+    ys = np.round(sources["y"].values).astype(int)
+
+    extents = np.empty(len(sources), dtype=float)
+    for i, (cx, cy) in enumerate(zip(xs, ys)):
+        px = cx + dx_offsets
+        py = cy + dy_offsets
+        valid = (px >= 0) & (px < W) & (py >= 0) & (py < H)
+        if valid.sum() == 0:
+            extents[i] = np.nan
+            continue
+        extents[i] = max(0.0, -float(data_sub[ys[i]-2:ys[i]+3, xs[i]-2:xs[i]+3].min())) / std
+
+    return extents
+
+def _TESS_sourcefinder(image, frame_number, thresh = 0.3, bw=24,fwhm_min=0.7,fwhm_max=2.0, n_scales=10,deblend_nthresh=128,
+                       deblend_cont= 5e-5,dedup_radius= 1.0):#,boundary_buffer= 2.0,boundary_near= 5.0):
+    
+    import sep
+    
+    fwhms = np.linspace(fwhm_min, fwhm_max, n_scales)
+    kernels = [_Mexhat_kernels(f) for f in fwhms]
+
+    allsources = pd.DataFrame()
+    for flux_sign in [-1,1]:
+        data = np.asarray(image, dtype=np.float64)
+        bkg = sep.Background(data, bw=bw, bh=bw)
+        data_sub = data - bkg.back()
+        err = bkg.rms()
+
+        per_scale = []
+        for fwhm, kern in zip(fwhms, kernels):
+            try:
+                objs = sep.extract(
+                    data_sub, thresh=thresh, err=err, minarea=2,
+                    deblend_nthresh=deblend_nthresh, deblend_cont=deblend_cont,
+                    filter_kernel=kern,
+                )
+            except Exception:
+                continue
+            if len(objs) == 0:
+                continue
+            per_scale.append(pd.DataFrame({
+                "xcentroid": objs["x"], "ycentroid": objs["y"],
+                "flux": objs["flux"], "peak": objs["peak"],
+                "a": objs["a"], "b": objs["b"],
+                "theta": objs["theta"], "flag": objs["flag"],
+                "detection_fwhm": fwhm,
+            }))
+
+        empty = pd.DataFrame(columns=["xcentroid","ycentroid","flux","peak","a","b","theta","flag",
+                                    "detection_fwhm","snr","ellipticity","fwhm",
+                                    "neg_extent"])
+        if not per_scale:
+            return empty, bkg
+
+        sources = _Dedup_close_sources(
+            pd.concat(per_scale, ignore_index=True)
+            .sort_values("flux", ascending=False)
+            .reset_index(drop=True),
+            dedup_radius,
+        )
+
+        # H, W = data_sub.shape
+        # x, y = sources["x"].values, sources["y"].values
+        # dist_to_edge = np.minimum.reduce([x, y, (W - 1) - x, (H - 1) - y])
+        # sources = sources[dist_to_edge >= boundary_buffer].reset_index(drop=True)
+
+        # x, y = sources["x"].values, sources["y"].values
+        # dist_to_edge = np.minimum.reduce([x, y, (W - 1) - x, (H - 1) - y])
+        # sources["boundary_flag"] = dist_to_edge < boundary_near
+
+        ap_flux, ap_err, _ = sep.sum_circle(
+            data_sub, sources["x"].values, sources["y"].values,
+            r=1.5, err=err, gain=1.0,
+        )
+        sources["snr"] = ap_flux / np.where(ap_err > 0, ap_err, np.nan)
+
+        a = sources["a"].values.clip(min=1e-6)
+        sources["ellipticity"] = 1.0 - sources["b"].values / a
+        sources["fwhm"] = 2.0 * np.sqrt(np.log(2) * 2) * np.sqrt(sources["a"] * sources["b"])
+        sources["neg_extent"] = _Negative_pixel_extent(data_sub, sources, r=2.0)
+        sources['flux_sign'] = flux_sign
+        sources['frame'] = frame_number
+
+            # self.background_ = bkg
+        allsources = pd.concat([allsources,sources[(sources.snr >= 3) & (sources.neg_extent < 3) & (sources.ellipticity<0.75)]])
+
+    return sources
+
+
 def _Spatial_group(result,colname='objid',min_samples=1,distance=0.5,njobs=-1):
     """
     Groups events based on proximity.
@@ -32,131 +159,204 @@ def _Spatial_group(result,colname='objid',min_samples=1,distance=0.5,njobs=-1):
     result[colname] = result[colname].astype(int)
     return result
 
-def _Star_finding_procedure(data,prf,sig_limit = 2):
-    """
-    Use StarFinder to find stars with different PSF shapes depending on subpixel shift.
-    """
+# # ---------- Star Finder source finding ---------- #
+# def _Star_finding_procedure(data,prf,sig_limit = 2):
+#     """
+#     Use StarFinder to find stars with different PSF shapes depending on subpixel shift.
+#     """
 
-    from photutils.detection import StarFinder
-    from astropy.stats import sigma_clipped_stats
+#     from photutils.detection import StarFinder
+#     from astropy.stats import sigma_clipped_stats
 
-    mean, med, std = sigma_clipped_stats(data, sigma=5.0)
+#     mean, med, std = sigma_clipped_stats(data, sigma=5.0)
 
-    psfCentre = prf.locate(5,5,(11,11))
-    finder = StarFinder(med + sig_limit*std,kernel=psfCentre)
-    res1 = finder.find_stars(deepcopy(data))
+#     psfCentre = prf.locate(5,5,(11,11))
+#     finder = StarFinder(med + sig_limit*std,kernel=psfCentre)
+#     res1 = finder.find_stars(deepcopy(data))
 
-    psfUR = prf.locate(5.25,5.25,(11,11))
-    finder = StarFinder(med + sig_limit*std,kernel=psfUR)
-    res2 = finder.find_stars(deepcopy(data))
+#     psfUR = prf.locate(5.25,5.25,(11,11))
+#     finder = StarFinder(med + sig_limit*std,kernel=psfUR)
+#     res2 = finder.find_stars(deepcopy(data))
 
-    psfUL = prf.locate(4.75,5.25,(11,11))
-    finder = StarFinder(med + sig_limit*std,kernel=psfUL)
-    res3 = finder.find_stars(deepcopy(data))
+#     psfUL = prf.locate(4.75,5.25,(11,11))
+#     finder = StarFinder(med + sig_limit*std,kernel=psfUL)
+#     res3 = finder.find_stars(deepcopy(data))
 
-    psfDR = prf.locate(5.25,4.75,(11,11))
-    finder = StarFinder(med + sig_limit*std,kernel=psfDR)
-    res4 = finder.find_stars(deepcopy(data))
+#     psfDR = prf.locate(5.25,4.75,(11,11))
+#     finder = StarFinder(med + sig_limit*std,kernel=psfDR)
+#     res4 = finder.find_stars(deepcopy(data))
 
-    psfDL = prf.locate(4.75,4.75,(11,11))
-    finder = StarFinder(med + sig_limit*std,kernel=psfDL)
-    res5 = finder.find_stars(deepcopy(data))
+#     psfDL = prf.locate(4.75,4.75,(11,11))
+#     finder = StarFinder(med + sig_limit*std,kernel=psfDL)
+#     res5 = finder.find_stars(deepcopy(data))
 
-    tables = [res1, res2, res3, res4, res5]
-    good_tables = [table.to_pandas() for table in tables if table is not None]
-    if len(good_tables)>0:
-        total = pd.concat(good_tables)
-        total = total[~pd.isna(total['xcentroid'])]
-        if len(total) > 0:
-            grouped = _Spatial_group(total,distance=2)
-            res = grouped.groupby('objid').head(1)
-            res = res.reset_index(drop=True)
-            res = res.drop(['id','objid'],axis=1)
-        else:
-            res=None
-    else:
-        res = None
+#     tables = [res1, res2, res3, res4, res5]
+#     good_tables = [table.to_pandas() for table in tables if table is not None]
+#     if len(good_tables)>0:
+#         total = pd.concat(good_tables)
+#         total = total[~pd.isna(total['xcentroid'])]
+#         if len(total) > 0:
+#             grouped = _Spatial_group(total,distance=2)
+#             res = grouped.groupby('objid').head(1)
+#             res = res.reset_index(drop=True)
+#             res = res.drop(['id','objid'],axis=1)
+#         else:
+#             res=None
+#     else:
+#         res = None
 
-    return res
+#     return res
 
 
-def _Find_stars(data,prf,fwhmlim=7,siglim=2.5,bkgstd_lim=50,negative=False):
-    """
-    Find stars in image.
-    """
+# def _Find_stars(data,prf,fwhmlim=7,siglim=2.5,bkgstd_lim=50,negative=False):
+#     """
+#     Find stars in image.
+#     """
 
-    from scipy.signal import fftconvolve
-    from photutils.aperture import RectangularAperture, RectangularAnnulus, ApertureStats, aperture_photometry
-    from astropy.stats import sigma_clip
+#     from scipy.signal import fftconvolve
+#     from photutils.aperture import RectangularAperture, RectangularAnnulus, ApertureStats, aperture_photometry
+#     from astropy.stats import sigma_clip
 
-    # -- Look for negative detections by flipping sign of data -- #
-    if negative:
-        data = data * -1
+#     # -- Look for negative detections by flipping sign of data -- #
+#     if negative:
+#         data = data * -1
 
-    # -- Use StarFinder to find sources with similar psf to TESS PRF -- #
-    star = _Star_finding_procedure(data,prf,sig_limit=siglim)
+#     # -- Use StarFinder to find sources with similar psf to TESS PRF -- #
+#     star = _Star_finding_procedure(data,prf,sig_limit=siglim)
 
-    if star is None:
-        return None
+#     if star is None:
+#         return None
     
-    # -- Initial cutoff, requiring fwhm to be star like and the source to be at least 3 pixels in from the edge -- #
-    ind = (star['fwhm'].values < fwhmlim) & (star['fwhm'].values > 0.8)
-    pos_ind = ((star.xcentroid.values >=3) & (star.xcentroid.values < data.shape[1]-3) & 
-                (star.ycentroid.values >=3) & (star.ycentroid.values < data.shape[0]-3))
-    star = star.iloc[ind & pos_ind]
+#     # -- Initial cutoff, requiring fwhm to be star like and the source to be at least 3 pixels in from the edge -- #
+#     ind = (star['fwhm'].values < fwhmlim) & (star['fwhm'].values > 0.8)
+#     pos_ind = ((star.xcentroid.values >=3) & (star.xcentroid.values < data.shape[1]-3) & 
+#                 (star.ycentroid.values >=3) & (star.ycentroid.values < data.shape[0]-3))
+#     star = star.iloc[ind & pos_ind]
 
-    # -- Generate Aperture photometry for each source -- #
-    x = RoundToInt(star.xcentroid.values); y = RoundToInt(star.ycentroid.values)
-    pos = list(zip(x, y))
-    if len(pos)<1:
-        return None
-    aperture = RectangularAperture(pos, 3.0, 3.0)
-    annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=20,h_out=20)
-    m = sigma_clip(data,masked=True,sigma=5).mask
-    mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
-    aperstats_sky = ApertureStats(data, annulus_aperture,mask = mask)
-    annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=40,h_out=40)
-    aperstats_sky_no_mask = ApertureStats(data, annulus_aperture)
-    aperstats_source = ApertureStats(data, aperture)
-    phot_table = aperture_photometry(data, aperture)
-    phot_table = phot_table.to_pandas()
+#     # -- Generate Aperture photometry for each source -- #
+#     x = RoundToInt(star.xcentroid.values); y = RoundToInt(star.ycentroid.values)
+#     pos = list(zip(x, y))
+#     if len(pos)<1:
+#         return None
+#     aperture = RectangularAperture(pos, 3.0, 3.0)
+#     annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=20,h_out=20)
+#     m = sigma_clip(data,masked=True,sigma=5).mask
+#     mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
+#     aperstats_sky = ApertureStats(data, annulus_aperture,mask = mask)
+#     annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=40,h_out=40)
+#     aperstats_sky_no_mask = ApertureStats(data, annulus_aperture)
+#     aperstats_source = ApertureStats(data, aperture)
+#     phot_table = aperture_photometry(data, aperture)
+#     phot_table = phot_table.to_pandas()
 
-    # -- Readout aperture photometry -- #
-    bkg_std = aperstats_sky.std
-    bkg_std[bkg_std==0] = aperstats_sky_no_mask.std[bkg_std==0] # assign a value without mask using a larger area of sky
-    bkg_std[bkg_std==0] = np.nanmean(bkg_std[bkg_std>0])
-    negative_ind = aperstats_source.min >= aperstats_sky.median - 3* bkg_std
-    star['sig'] = phot_table['aperture_sum'].values / (aperture.area * bkg_std)
-    star['flux'] = phot_table['aperture_sum'].values
-    star['mag'] = -2.5*np.log10(phot_table['aperture_sum'].values)
-    star['bkgstd'] = aperture.area * bkg_std
-    star = star.iloc[negative_ind]
-    star = star.loc[(star['sig'] > siglim) & (star['bkgstd'] < bkgstd_lim)]
+#     # -- Readout aperture photometry -- #
+#     bkg_std = aperstats_sky.std
+#     bkg_std[bkg_std==0] = aperstats_sky_no_mask.std[bkg_std==0] # assign a value without mask using a larger area of sky
+#     bkg_std[bkg_std==0] = np.nanmean(bkg_std[bkg_std>0])
+#     negative_ind = aperstats_source.min >= aperstats_sky.median - 3* bkg_std
+#     star['sig'] = phot_table['aperture_sum'].values / (aperture.area * bkg_std)
+#     star['flux'] = phot_table['aperture_sum'].values
+#     star['mag'] = -2.5*np.log10(phot_table['aperture_sum'].values)
+#     star['bkgstd'] = aperture.area * bkg_std
+#     star = star.iloc[negative_ind]
+#     star = star.loc[(star['sig'] > siglim) & (star['bkgstd'] < bkgstd_lim)]
 
-    if negative:
-        star['flux_sign'] = -1
-        star['flux'] = star['flux'].values * -1
-        star['max_value'] = star['max_value'].values * -1
-    else:
-        star['flux_sign'] = 1
+#     if negative:
+#         star['flux_sign'] = -1
+#         star['flux'] = star['flux'].values * -1
+#         star['max_value'] = star['max_value'].values * -1
+#     else:
+#         star['flux_sign'] = 1
 
-    return star
+#     return star
 
 
-def _Frame_detection(data,prf,frameNum):
-    """
-    Acts on a frame of data. Uses StarFinder to find bright sources, then on each source peform correlation check.
-    """
-    star = None
-    if np.nansum(data) != 0.0:
-        p = _Find_stars(data,prf)
-        n = _Find_stars(deepcopy(data),prf,negative=True)
-        if (p is not None) | (n is not None):
-            star = pd.concat([p,n])
-            star['frame'] = frameNum
-        else:
-            star = None
-    return star
+# def _Frame_detection(data,prf,frameNum):
+#     """
+#     Acts on a frame of data. Uses StarFinder to find bright sources, then on each source peform correlation check.
+#     """
+#     star = None
+#     if np.nansum(data) != 0.0:
+#         p = _Find_stars(data,prf)
+#         n = _Find_stars(deepcopy(data),prf,negative=True)
+#         if (p is not None) | (n is not None):
+#             star = pd.concat([p,n])
+#             star['frame'] = frameNum
+#         else:
+#             star = None
+#     return star
+
+
+
+# # ---------- SourceDetect source finding ---------- #
+# def _Do_photometry(star,data,siglim=3,bkgstd_lim=50):
+#     """
+#     Do aperture photometry on each source.
+#     """
+
+#     from scipy.signal import fftconvolve
+#     from photutils.aperture import RectangularAnnulus, CircularAperture, ApertureStats, aperture_photometry
+#     from astropy.stats import sigma_clip, SigmaClip
+
+#     # -- Photometry on source detect stars -- #
+#     x = RoundToInt(star.xcentroid.values); y = RoundToInt(star.ycentroid.values)
+#     pos = list(zip(x, y))
+#     aperture = CircularAperture(pos, 1.5)
+#     annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=20,h_out=20)
+#     m = sigma_clip(data,masked=True,sigma=5).mask
+#     mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
+#     aperstats_sky = ApertureStats(data, annulus_aperture,mask = mask,sigma_clip=SigmaClip(sigma=3,cenfunc='median'))
+#     annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=40,h_out=40)
+#     aperstats_sky_no_mask = ApertureStats(data, annulus_aperture,sigma_clip=SigmaClip(sigma=3,cenfunc='median'))
+#     aperstats_source = ApertureStats(data, aperture)
+#     phot_table = aperture_photometry(data, aperture)
+#     phot_table = phot_table.to_pandas()
+
+#     # -- Readout results -- #
+#     bkg_std = aperstats_sky.std
+#     bkg_std[bkg_std==0] = aperstats_sky_no_mask.std[bkg_std==0] # assign a value without mask using a larger area of sky
+#     bkg_std[(~np.isfinite(bkg_std)) | (bkg_std == 0)] = 100
+#     negative_ind = aperstats_source.min >= aperstats_sky.median - aperture.area * aperstats_sky.std
+#     star['sig'] = phot_table['aperture_sum'].values / (aperture.area * aperstats_sky.std)
+#     star['flux'] = phot_table['aperture_sum'].values
+#     star['mag'] = -2.5*np.log10(phot_table['aperture_sum'].values)
+#     star['bkgstd'] = aperture.area * bkg_std #* aperstats_sky.std
+    
+#     star = star.loc[(star['sig'] >= siglim) & (star['bkgstd'] <= bkgstd_lim)]
+
+#     return star 
+
+
+# def _Source_detect(flux,cpu,siglim=2,bkgstd=50,maxattempts=5):
+#     """
+#     Run source detect on each image.
+#     """
+    
+#     from sourcedetect import SourceDetect
+#     from joblib import Parallel, delayed 
+
+#     attempt = 0
+#     passed = False
+#     while (not passed) & (attempt <= maxattempts):
+#         try:
+#             res = SourceDetect(flux,run=True,train=False).result
+#             passed = True
+#         except:
+#             attempt += 1
+
+#     res = res.drop('psflike',axis=1)
+
+#     frames = res['frame'].unique()
+#     stars = Parallel(n_jobs=cpu)(delayed(_Do_photometry)(res.loc[res['frame'] == frame],flux[frame],siglim,bkgstd) for frame in frames)
+#     res = pd.concat(stars)
+
+#     ind = (res['xint'].values > 3) & (res['xint'].values < flux.shape[2]-3) & (res['yint'].values >3) & (res['yint'].values < flux.shape[1]-3)
+#     res = res[ind]
+
+#     return res
+
+
+
 
 def _Source_mask(res,mask):
     """
@@ -190,72 +390,6 @@ def _Count_detections(result):
     return result
 
 
-def _Do_photometry(star,data,siglim=3,bkgstd_lim=50):
-    """
-    Do aperture photometry on each source.
-    """
-
-    from scipy.signal import fftconvolve
-    from photutils.aperture import RectangularAnnulus, CircularAperture, ApertureStats, aperture_photometry
-    from astropy.stats import sigma_clip, SigmaClip
-
-    # -- Photometry on source detect stars -- #
-    x = RoundToInt(star.xcentroid.values); y = RoundToInt(star.ycentroid.values)
-    pos = list(zip(x, y))
-    aperture = CircularAperture(pos, 1.5)
-    annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=20,h_out=20)
-    m = sigma_clip(data,masked=True,sigma=5).mask
-    mask = fftconvolve(m, np.ones((3,3)), mode='same') > 0.5
-    aperstats_sky = ApertureStats(data, annulus_aperture,mask = mask,sigma_clip=SigmaClip(sigma=3,cenfunc='median'))
-    annulus_aperture = RectangularAnnulus(pos, w_in=5, w_out=40,h_out=40)
-    aperstats_sky_no_mask = ApertureStats(data, annulus_aperture,sigma_clip=SigmaClip(sigma=3,cenfunc='median'))
-    aperstats_source = ApertureStats(data, aperture)
-    phot_table = aperture_photometry(data, aperture)
-    phot_table = phot_table.to_pandas()
-
-    # -- Readout results -- #
-    bkg_std = aperstats_sky.std
-    bkg_std[bkg_std==0] = aperstats_sky_no_mask.std[bkg_std==0] # assign a value without mask using a larger area of sky
-    bkg_std[(~np.isfinite(bkg_std)) | (bkg_std == 0)] = 100
-    negative_ind = aperstats_source.min >= aperstats_sky.median - aperture.area * aperstats_sky.std
-    star['sig'] = phot_table['aperture_sum'].values / (aperture.area * aperstats_sky.std)
-    star['flux'] = phot_table['aperture_sum'].values
-    star['mag'] = -2.5*np.log10(phot_table['aperture_sum'].values)
-    star['bkgstd'] = aperture.area * bkg_std #* aperstats_sky.std
-    
-    star = star.loc[(star['sig'] >= siglim) & (star['bkgstd'] <= bkgstd_lim)]
-
-    return star 
-
-
-def _Source_detect(flux,cpu,siglim=2,bkgstd=50,maxattempts=5):
-    """
-    Run source detect on each image.
-    """
-    
-    from sourcedetect import SourceDetect
-    from joblib import Parallel, delayed 
-
-    attempt = 0
-    passed = False
-    while (not passed) & (attempt <= maxattempts):
-        try:
-            res = SourceDetect(flux,run=True,train=False).result
-            passed = True
-        except:
-            attempt += 1
-
-    res = res.drop('psflike',axis=1)
-
-    frames = res['frame'].unique()
-    stars = Parallel(n_jobs=cpu)(delayed(_Do_photometry)(res.loc[res['frame'] == frame],flux[frame],siglim,bkgstd) for frame in frames)
-    res = pd.concat(stars)
-
-    ind = (res['xint'].values > 3) & (res['xint'].values < flux.shape[2]-3) & (res['yint'].values >3) & (res['yint'].values < flux.shape[1]-3)
-    res = res[ind]
-
-    return res
-
 def _Make_dataframe(results,data):
     """
     Collate results into a dataframe.
@@ -278,52 +412,52 @@ def _Make_dataframe(results,data):
 
     return frame
 
-def _Collate_frame(results):
-    """
-    Collate result dataframe to be more managable.
-    """
+# def _Collate_frame(results):
+#     """
+#     Collate result dataframe to be more managable.
+#     """
     
 
-    frame_sf = results[results['method'] == 'SF'].copy()
-    frame_sd = results[results['method'] == 'SD'].copy()
+#     frame_sf = results[results['method'] == 'SF'].copy()
+#     frame_sd = results[results['method'] == 'SD'].copy()
 
-    frame_sf = frame_sf.rename(columns={
-        'xcentroid': 'xcentroid_SF',
-        'ycentroid': 'ycentroid_SF'
-    })
-    frame_sd = frame_sd.rename(columns={
-        'xcentroid': 'xcentroid_SD',
-        'ycentroid': 'ycentroid_SD'
-    })
+#     frame_sf = frame_sf.rename(columns={
+#         'xcentroid': 'xcentroid_SF',
+#         'ycentroid': 'ycentroid_SF'
+#     })
+#     frame_sd = frame_sd.rename(columns={
+#         'xcentroid': 'xcentroid_SD',
+#         'ycentroid': 'ycentroid_SD'
+#     })
 
-    frame_merged = pd.merge(
-        frame_sf,
-        frame_sd,
-        on=['objid', 'frame'],        
-        how='outer',
-        suffixes=('_SFtemp', '_SDtemp'),
-        sort=False
-    )
+#     frame_merged = pd.merge(
+#         frame_sf,
+#         frame_sd,
+#         on=['objid', 'frame'],        
+#         how='outer',
+#         suffixes=('_SFtemp', '_SDtemp'),
+#         sort=False
+#     )
 
-    for col in frame_sf.columns:
-        if col in ['objid', 'xcentroid_SF', 'ycentroid_SF']:
-            continue
-        sf_col = f"{col}_SFtemp"
-        sd_col = f"{col}_SDtemp"
-        if sf_col in frame_merged.columns and sd_col in frame_merged.columns:
-            # Prefer SD values when available
-            frame_merged[col] = frame_merged[sd_col].combine_first(frame_merged[sf_col])
-            frame_merged.drop(columns=[sf_col, sd_col], inplace=True)
+#     for col in frame_sf.columns:
+#         if col in ['objid', 'xcentroid_SF', 'ycentroid_SF']:
+#             continue
+#         sf_col = f"{col}_SFtemp"
+#         sd_col = f"{col}_SDtemp"
+#         if sf_col in frame_merged.columns and sd_col in frame_merged.columns:
+#             # Prefer SD values when available
+#             frame_merged[col] = frame_merged[sd_col].combine_first(frame_merged[sf_col])
+#             frame_merged.drop(columns=[sf_col, sd_col], inplace=True)
 
-    frame_merged = frame_merged.drop(columns=['method_SFtemp', 'method_SDtemp','method'], errors='ignore')
+#     frame_merged = frame_merged.drop(columns=['method_SFtemp', 'method_SDtemp','method'], errors='ignore')
 
-    frame_merged['xcentroid'] = frame_merged['xcentroid_SD'].combine_first(frame_merged['xcentroid_SF'])
-    frame_merged['ycentroid'] = frame_merged['ycentroid_SD'].combine_first(frame_merged['ycentroid_SF'])
+#     frame_merged['xcentroid'] = frame_merged['xcentroid_SD'].combine_first(frame_merged['xcentroid_SF'])
+#     frame_merged['ycentroid'] = frame_merged['ycentroid_SD'].combine_first(frame_merged['ycentroid_SF'])
 
-    frame_merged['xint'] = RoundToInt(frame_merged['xcentroid'])
-    frame_merged['yint'] = RoundToInt(frame_merged['ycentroid'])
+#     frame_merged['xint'] = RoundToInt(frame_merged['xcentroid'])
+#     frame_merged['yint'] = RoundToInt(frame_merged['ycentroid'])
 
-    return frame_merged
+#     return frame_merged
 
 def _Brightest_Px(flux,frame):
     """
@@ -678,8 +812,11 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
         event['frame_duration'] = int(event['frame_end']-event['frame_start']+1)
         event['flux_sign'] = int(eventsources.iloc[0]['flux_sign'])
         event['n_detections'] = int(n_detections)
-        event['bkg_level'] = weighted_eventsources.iloc[0]['bkg_level']
-        event['bkg_std'] = weighted_eventsources.iloc[0]['bkgstd']
+        # event['bkg_level'] = weighted_eventsources.iloc[0]['bkg_level']
+        event['bkg_std'] = weighted_eventsources.iloc[0]['bkg_std']
+        event['neg_extent'] = weighted_eventsources.iloc[0]['neg_extent']
+        event['fwhm'] = weighted_eventsources.iloc[0]['fwhm']
+        event['ellipticity'] = weighted_eventsources.iloc[0]['ellipticity']
 
         event['xcentroid_det'] = weighted_eventsources.iloc[0]['xcentroid']
         event['ycentroid_det'] = weighted_eventsources.iloc[0]['ycentroid']
@@ -708,7 +845,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
 
         event['frame_max'] = int(max_frame)
         event['flux_max'] = int(max_flux)
-        event['image_sig_max'] = np.nanmax(eventsources['sig'].values)
+        event['image_sig_max'] = np.nanmax(eventsources['snr'].values)
         event['lc_sig_max'] = sig_max
         event['lc_sig_med'] = sig_med
 
@@ -1046,15 +1183,15 @@ class Detector():
 
     # ------------------------------ Source finding functions ------------------------------ #
 
-    def _find_sources_in_images(self,flux,column,row,inputNums=None,
-                                isolate_single_detections=True,datadir='/fred/oz335/_local_TESS_PRFs'):
+    def _find_sources_in_images(self,flux,#column,row,
+                                inputNums=None,isolate_single_detections=True):#,datadir='/fred/oz335/_local_TESS_PRFs'):
         """
         Detect sources in flux and collate information.
         """
 
         from joblib import Parallel, delayed 
         from tqdm import tqdm
-        from PRF import TESS_PRF
+        # from PRF import TESS_PRF
 
         if inputNums is not None:
             flux = flux[inputNums]
@@ -1062,46 +1199,50 @@ class Detector():
         else:
             inputNum = 0
                 
-        if self.sector < 4:
-            prf = TESS_PRF(self.cam,self.ccd,self.sector,column,row,localdatadir=f'{datadir}/Sectors1_2_3')
-        else:
-            prf = TESS_PRF(self.cam,self.ccd,self.sector,column,row,localdatadir=f'{datadir}/Sectors4+')
+        # if self.sector < 4:
+        #     prf = TESS_PRF(self.cam,self.ccd,self.sector,column,row,localdatadir=f'{datadir}/Sectors1_2_3')
+        # else:
+        #     prf = TESS_PRF(self.cam,self.ccd,self.sector,column,row,localdatadir=f'{datadir}/Sectors4+')
 
         # -- Run source detection on each frame -- #
         length = np.linspace(0,flux.shape[0]-1,flux.shape[0]).astype(int)
-        if self.mode == 'starfind':
-            sources = Parallel(n_jobs=self.cpu)(delayed(_Frame_detection)(flux[i],prf,inputNum+i) for i in tqdm(length))
+        # if self.mode == 'starfind':
+        #     sources = Parallel(n_jobs=self.cpu)(delayed(_Frame_detection)(flux[i],prf,inputNum+i) for i in tqdm(length))
             
-            sources = _Make_dataframe(sources,flux[0])
-            sources['method'] = 'starfind'
+        #     sources = _Make_dataframe(sources,flux[0])
+        #     sources['method'] = 'starfind'
 
-        elif self.mode == 'sourcedetect':
-            sources = _Source_detect(flux,self.cpu)
-            sources['method'] = 'sourcedetect'
-            sources = sources[~pd.isna(sources['xcentroid'])]
+        # elif self.mode == 'sourcedetect':
+        #     sources = _Source_detect(flux,self.cpu)
+        #     sources['method'] = 'sourcedetect'
+        #     sources = sources[~pd.isna(sources['xcentroid'])]
 
-        elif self.mode == 'both':
-            results = Parallel(n_jobs=self.cpu)( delayed(_Frame_detection)(flux[i],prf,inputNum+i) for i in tqdm(length))
+        # elif self.mode == 'both':
+        #     results = Parallel(n_jobs=self.cpu)( delayed(_Frame_detection)(flux[i],prf,inputNum+i) for i in tqdm(length))
             
-            star = _Make_dataframe(results,flux[0])
-            star['method'] = 'starfind'
+        #     star = _Make_dataframe(results,flux[0])
+        #     star['method'] = 'starfind'
 
-            machine = _Source_detect(flux,self.cpu)
-            machine = machine[~pd.isna(machine['xcentroid'])]
-            machine['method'] = 'sourcedetect'
+        #     machine = _Source_detect(flux,self.cpu)
+        #     machine = machine[~pd.isna(machine['xcentroid'])]
+        #     machine['method'] = 'sourcedetect'
 
-            sources = pd.concat([star.assign(method='SF'), machine.assign(method='SD')], ignore_index=True)
+        #     sources = pd.concat([star.assign(method='SF'), machine.assign(method='SD')], ignore_index=True)
+
+        # elif self.mode == 'claudefinder':
+        sources = Parallel(n_jobs=self.cpu)( delayed(_TESS_sourcefinder)(flux[i],inputNum+i) for i in tqdm(length))
+        sources = _Make_dataframe(sources,flux[0])
 
         # -- Group based on distance -- #
-        sources = _Spatial_group(sources,distance=0.5,min_samples=1)        
+        sources = _Spatial_group(sources,distance=0.5,min_samples=2)        
 
-        # -- Prefer SourceDetect results -- #
-        sources = _Collate_frame(sources)                  
+        # # -- Prefer SourceDetect results -- #
+        # sources = _Collate_frame(sources)                  
 
-        sources = sources.drop('objid',axis=1)
+        # sources = sources.drop('objid',axis=1)
 
         # -- Group based on distance -- #
-        sources = _Spatial_group(sources,distance=0.5,min_samples=2)   # prefer SourceDetect results
+        # sources = _Spatial_group(sources,distance=0.5,min_samples=2)   # prefer SourceDetect results
 
         # -- Separate source detections with no companion -- #
         single_isolated_detections = None
@@ -1145,8 +1286,8 @@ class Detector():
         # -- Access information about the cut with respect to the original ccd -- #        
         processor = DataProcessor(sector=self.sector,data_path=self.data_path,verbose=2)
         cut_corners, cut_centre_px, _, _ = processor.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
-        column = cut_centre_px[self.cut-1][0]
-        row = cut_centre_px[self.cut-1][1]
+        # column = cut_centre_px[self.cut-1][0]
+        # row = cut_centre_px[self.cut-1][1]
 
         # -- Rebin time and flux by given factor -- #
         if frame_bin > 1:
@@ -1157,7 +1298,7 @@ class Detector():
             isolate_single_detections = True
 
         # -- Run the detection algorithm, generates dataframe -- #
-        results,single_isolated_detections = self._find_sources_in_images(flux,column=column,row=row,datadir=self.prf_path,
+        results,single_isolated_detections = self._find_sources_in_images(flux,#column=column,row=row,datadir=self.prf_path,
                                                                  isolate_single_detections=isolate_single_detections)
         
         # -- Save out single detections which are isolated in space in time, probably noise, maybe cool -- #
@@ -1170,36 +1311,57 @@ class Detector():
         results['yccd'] = deepcopy(results['ycentroid'] + cut_corners[self.cut-1][1])
         
         # -- For each source, finds the average position based on the weighted average of the flux -- #
-        av_var = pandas_weighted_avg(results[['objid','sig','xcentroid','ycentroid','ra','dec','xccd','yccd']])
-        av_var = av_var.rename(columns={'xcentroid':'x_source',
-                                        'ycentroid':'y_source',
-                                        'e_xcentroid':'e_x_source',
-                                        'e_ycentroid':'e_y_source',
-                                        'ra':'ra_source',
-                                        'dec':'dec_source',
-                                        'e_ra':'e_ra_source',
-                                        'e_dec':'e_dec_source',
-                                        'xccd':'xccd_source',
-                                        'yccd':'yccd_source',
-                                        'e_xccd':'e_xccd_source',
-                                        'e_yccd':'e_yccd_source'})
-        av_var = av_var.drop(['sig','e_sig'],axis=1)
-        results = results.merge(av_var, on='objid', how='left')
+        # av_var = pandas_weighted_avg(results[['objid','sig','xcentroid','ycentroid','ra','dec','xccd','yccd']])
+        # av_var = av_var.rename(columns={'xcentroid':'x_source',
+        #                                 'ycentroid':'y_source',
+        #                                 'e_xcentroid':'e_x_source',
+        #                                 'e_ycentroid':'e_y_source',
+        #                                 'ra':'ra_source',
+        #                                 'dec':'dec_source',
+        #                                 'e_ra':'e_ra_source',
+        #                                 'e_dec':'e_dec_source',
+        #                                 'xccd':'xccd_source',
+        #                                 'yccd':'yccd_source',
+        #                                 'e_xccd':'e_xccd_source',
+        #                                 'e_yccd':'e_yccd_source'})
+        # av_var = av_var.drop(['sig','e_sig'],axis=1)
+        # results = results.merge(av_var, on='objid', how='left')
 
-        # -- Calculates the background level for each source -- #
-        results['bkg_level'] = 0
-        if self.bkg is not None:
-            f = results['frame'].values
-            x = results['xint'].values; y = results['yint'].values
-            b = []
-            for i in range(3):
-                i-=1
-                for j in range(3):
-                    j-=1
-                    b += [self.bkg[f,y-i,x+j]]
-            b = np.array(b)
-            b = np.nansum(b,axis=0)
-            results['bkg_level'] = b
+        # -- Calculates the background stddev for each source -- #        
+        f = results['frame'].values
+        x = results['xint'].values
+        y = results['yint'].values
+
+        r_outer = 11
+        r_inner = 2
+
+        dy, dx = np.mgrid[-r_outer:r_outer+1, -r_outer:r_outer+1]
+        mask = (dy**2 + dx**2) > r_inner**2
+        dy = dy[mask].ravel()
+        dx = dx[mask].ravel()
+
+        H, W = flux.shape[1], flux.shape[2]
+
+        yy = (y[np.newaxis, :] + dy[:, np.newaxis]).clip(0, H - 1)
+        xx = (x[np.newaxis, :] + dx[:, np.newaxis]).clip(0, W - 1)
+
+        patch = flux[f[np.newaxis, :], yy, xx]
+
+        results['bkg_std'] = np.nanstd(patch, axis=0)
+
+        # results['bkg_level'] = 0
+        # if self.bkg is not None:
+        #     f = results['frame'].values
+        #     x = results['xint'].values; y = results['yint'].values
+        #     b = []
+        #     for i in range(3):
+        #         i-=1
+        #         for j in range(3):
+        #             j-=1
+        #             b += [self.bkg[f,y-i,x+j]]
+        #     b = np.array(b)
+        #     b = np.nansum(b,axis=0)
+        #     results['bkg_level'] = b
 
         results['frame_bin'] = frame_bin
 
@@ -1522,7 +1684,7 @@ class Detector():
 
             # Photometry
             'flux_max', 'mag_min','flux_sign',
-            'image_sig_max', 'lc_sig_max', 'lc_sig_med','bkg_level',
+            'image_sig_max', 'lc_sig_max', 'lc_sig_med','bkg_std',
             'snr_psf',
 
             # Morphology

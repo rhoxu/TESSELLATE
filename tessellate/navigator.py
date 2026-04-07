@@ -119,7 +119,7 @@ class Navigator():
     # ----------------------------- Filtering sources, events, objects ----------------------------- #
 
     def filter_events(self,cut,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,frame_bin=None,
-                      lc_sig_max=None,lc_sig_med=None,min_events=None,max_events=None,bkg_level=None,boundary_buffer=None,
+                      lc_sig_max=None,lc_sig_med=None,min_events=None,max_events=None,bkg_std=None,boundary_buffer=None,
                       flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,centroid_err=None,crossbins=True):
         
         """
@@ -223,8 +223,8 @@ class Navigator():
             events = events.loc[events.total_events >= min_events]
         if max_events is not None:
             events = events.loc[events.total_events <= max_events]
-        if bkg_level is not None:
-            events = events.loc[events.bkg_level <= bkg_level]
+        if bkg_std is not None:
+            events = events.loc[events.bkg_std <= bkg_std]
         if flux_sign is not None:
             events = events.loc[events.flux_sign == flux_sign]
         if psf_like is not None:
