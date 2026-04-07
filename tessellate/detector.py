@@ -1286,12 +1286,15 @@ class Detector():
         #     sources = pd.concat([star.assign(method='SF'), machine.assign(method='SD')], ignore_index=True)
 
         # elif self.mode == 'claudefinder':
-        sources = Parallel(n_jobs=self.cpu)( delayed(_TESS_sourcefinder)(flux[i],inputNum+i) for i in tqdm(length))
+        print('Source Finding')
+        sources = Parallel(n_jobs=self.cpu)(delayed(_TESS_sourcefinder)(flux[i],inputNum+i) for i in tqdm(length))
 
+        print('Making DataFrame')
         sources = _Make_dataframe(sources,flux[0])
 
+        print('Grouping Spatially')
         # -- Group based on distance -- #
-        sources = _Spatial_group(sources,distance=0.5,min_samples=2)        
+        sources = _Spatial_group(sources,distance=0.5,min_samples=2)       
 
         # # -- Prefer SourceDetect results -- #
         # sources = _Collate_frame(sources)                  
