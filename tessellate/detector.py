@@ -1330,7 +1330,7 @@ class Detector():
         """
         
         result['ra'],result['dec'] = self.wcs.all_pix2world(result['xcentroid'],result['ycentroid'],0)
-        trueframes = result['frame_max']*result['frame_bin']
+        trueframes = result['frame']*result['frame_bin']
         trueframes[trueframes>len(self.time)] = len(self.time)
         result['mjd'] = self.time[trueframes]
     
