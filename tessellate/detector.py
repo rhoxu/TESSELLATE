@@ -1330,7 +1330,7 @@ class Detector():
         """
         
         result['ra'],result['dec'] = self.wcs.all_pix2world(result['xcentroid'],result['ycentroid'],0)
-        result['mjd'] = self.time[result['frame']]
+        result['mjd'] = self.time[result['frame']*result['frame_bin']]
     
         return result
 
@@ -1582,10 +1582,10 @@ class Detector():
         events['gal_l'] = coords.galactic.l.value
         events['gal_b'] = coords.galactic.b.value
 
-        events['mjd_start'] = self.time[events['frame_start']]
-        events['mjd_end'] = self.time[events['frame_end']]
+        events['mjd_start'] = self.time[events['frame_start']*events['frame_bin']]
+        events['mjd_end'] = self.time[events['frame_end']*events['frame_bin']]
         events['mjd_duration'] = events['mjd_end'] - events['mjd_start']
-        events['mjd_max'] = self.time[events['frame_max']]
+        events['mjd_max'] = self.time[events['frame_max']*events['frame_bin']]
 
         events['mag_min'] = -2.5*np.log10(events['flux_max'])
 
