@@ -523,9 +523,9 @@ def _Brightest_Px(flux,frame):
     brightest_xint = []
     brightest_yint = []
     for i in range(len(frame)):
-        x = frame.loc[i, 'xint']
-        y = frame.loc[i, 'yint']
-        im = frame.loc[i, 'frame']
+        x = int(frame.loc[i, 'xint'])
+        y = int(frame.loc[i, 'yint'])
+        im = int(frame.loc[i, 'frame'])
         image = flux[im,y-1:y+2,x-1:x+2]
         iy, ix = np.unravel_index(np.nanargmax(image), image.shape)
         brightesty = y + (iy - 1)  # shift from 3x3 center
