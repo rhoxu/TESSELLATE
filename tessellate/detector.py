@@ -1789,6 +1789,7 @@ class Detector():
 
             # Morphology
             'psf_like', 'psf_diff','psf_stacked','com_motion','gaussian_score',
+            'ellipticity','fwhm','neg_extent',
 
             # # Frequency Domain
             # 'peak_freq', 'peak_power',
