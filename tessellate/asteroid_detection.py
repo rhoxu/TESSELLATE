@@ -416,5 +416,6 @@ def Tag_Asteroids(df, min_samples=3, spatial_eps=6, temporal_eps=0.5, method='qu
 
     final_df = pd.concat([df_ast,df_notast])
     final_df.loc[final_df.asteroid_id == -1,'asteroid_id'] = '-'
+    final_df.loc[(final_df.asteroid_id == '-')&(final_df.classification == 'Asteroid'),'asteroid_id'] = '-1'
 
     return final_df
