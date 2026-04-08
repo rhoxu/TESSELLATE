@@ -411,10 +411,10 @@ def Tag_Asteroids(df, min_samples=3, spatial_eps=6, temporal_eps=0.5, method='qu
     # -- Link Non Asteroid Detections -- #
     df_notast = df[df.classification != 'Asteroid'].copy()
     df_notast = link_detections(df_notast,final_tracks,match_radius,spatial_lim)
-    df_notast.loc[df_notast.flux_sign==-1,'asteroid_id'] = -1
+    df_notast.loc[df_notast.flux_sign == -1,'asteroid_id'] = -1
     df_notast.loc[df_notast.asteroid_id != -1,'classification'] = 'Asteroid'
 
     final_df = pd.concat([df_ast,df_notast])
-    final_df.loc[final_df.asteroid_id == -1] = '-'
+    final_df.loc[final_df.asteroid_id == -1,'asteroid_id'] = '-'
 
     return final_df
