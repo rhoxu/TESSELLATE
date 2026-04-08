@@ -540,7 +540,7 @@ class Navigator():
 
         cmap = plt.get_cmap('tab20')
         t_min_global = self.events['mjd_max'].min()
-        t_max_global = self.events['mjd_max'].min()
+        t_max_global = self.events['mjd_max'].max()
         # t_range_full = np.linspace(t_min_global, t_max_global, 300)
 
         fig,ax = plt.subplots(ncols=3,figsize=(15,5))
