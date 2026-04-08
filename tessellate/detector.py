@@ -950,175 +950,6 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
     return events_df 
 
 
-    
-def _Straight_line_asteroid_checker(time,flux,events):
-    """
-    Check if a stacked image makes an identifiable straight line. Only operates on maximum resolution events.
-    """
-    from astropy.stats import sigma_clipped_stats
-    import cv2
-
-    events = deepcopy(events)
-    for i in range(len(events)):
-        event = events.iloc[i]
-        if (event['classification'] != 'Asteroid') & (event['frame_bin']==events['frame_bin'].min()):                
-            frameStart = event['frame_start']
-            frameEnd = event['frame_end']
-            x = event['xint']; y = event['yint']
-            h, w = flux.shape[1], flux.shape[2]
-
-            if (x-5<0)|(y-5<0)|(x+5>=w)|(y+5>=h):
-                continue
-
-            xl = x - 5; xu = x + 6
-            yl = y - 5; yu = y + 6
-            fs = np.max((frameStart - 5, 0))
-            fe = np.min((frameEnd + 5, len(time)-1))
-
-            fs = int(fs)
-            fe = int(fe)
-            xl = int(xl)
-            yl = int(yl)
-            yu = int(yu)
-            xu = int(xu)
-
-            image = flux[fs:fe,yl:yu,xl:xu]
-            image = np.nanmax(image,axis=0)
-            image = image / image[5,5] * 255
-            
-            image[image > 255] = 255
-            mean, med, std = sigma_clipped_stats(image,maxiters=10,sigma_upper=2)
-            edges = (image > med + 5*std).astype('uint8')
-
-            lines = cv2.HoughLinesP(edges, # Input edge image
-                                    1, # Distance resolution in pixels
-                                    np.pi/180, # Angle resolution in radians
-                                    threshold=10, # Min number of votes for valid line
-                                    minLineLength=8, # Min allowed length of line
-                                    maxLineGap=0 # Max allowed gap between line for joining them
-                                    )
-
-            if (lines is not None) & (event['psf_like']>=0.8):
-                events.iloc[i, events.columns.get_loc('classification')] = 'Asteroid'
-                # events.iloc[i, events.columns.get_loc('prob')] = 0.5
-        
-    return events
-
-
-def _Calculate_xcom_motion(flux,candidates):
-
-    from .tools import Distance
-    from scipy.ndimage import center_of_mass as COM
-
-    distances = []
-    for i in range(len(candidates)):
-        event = candidates.iloc[i]
-        x = int(event['xint'])
-        y = int(event['yint'])
-        frameStart = int(event['frame_start'])
-        frameEnd = int(event['frame_end'])
-
-        f = flux[frameStart:frameEnd+1,y-1:y+2,x-1:x+2]
-
-        coms = []
-        maxflux = np.max(np.nansum(f,axis=(1,2)))
-        for frame in f:
-            if np.sum(frame) >= maxflux/2:
-                com = COM(frame)
-                coms.append(com)
-        if len(coms)>1:
-            distances.append(Distance(coms[-1],coms[0]))
-        else:
-            distances.append(0)
-    candidates['com_motion'] = distances
-    return candidates
-
-def _Gaussian_score(time,flux,candidates):
-
-    from .tools import Gaussian, Generate_LC
-    from scipy.optimize import curve_fit
-    from sklearn.metrics import r2_score
-
-    r2s = []
-    for i in range(len(candidates)):
-        try:
-            event = candidates.iloc[i]
-            x = int(event['xint'])
-            y = int(event['yint'])
-            frameStart = int(event['frame_start'])
-            frameEnd = int(event['frame_end'])
-
-            frameStart = np.max([frameStart-10,0])
-            frameEnd = np.min([frameEnd+11,len(time)-1])
-
-            t,f = Generate_LC(time,flux,x,y,frameStart,frameEnd,radius=1.5)
-
-            p0 = [
-                np.max(f) - np.min(f),                     # A: positive height of the bump
-                t[np.argmax(f)],                           # t0: time of peak flux
-                (np.max(t) - np.min(t)) / 2,              # sigma: rough width guess
-                np.min(f)                                     # offset: estimated baseline
-            ]
-
-            bounds = (
-                [0, np.min(t), 10/24/60, -np.inf],       # lower bounds: A ≥ 0, σ ≥ 15
-                [np.inf, np.max(t), np.inf, np.inf]  # upper bounds
-            )
-
-            params, _ = curve_fit(Gaussian, t, f, p0=p0, bounds=bounds)
-            fit_flux_gaussian = Gaussian(t, *params)
-            r2 = r2_score(f, fit_flux_gaussian)
-
-            r2s.append(r2)
-        except:
-            r2s.append(0)
-        
-    r2s = np.array(r2s)
-    r2s[r2s<0]=0
-
-    candidates['gaussian_score']=r2s
-
-    return candidates
-
-def _Threshold_asteroid_checker(time,flux,events,com_motion_thresholds=[1, 0.75, 0.5], gaussian_score_thresholds=[0, 0.7, 0.9]):
-    """
-    Check the centre of mass motion and gaussianity of light curve. Only searches fastest time resolution.
-    """
-
-    events = deepcopy(events)
-
-    # -- Identify candidates to actually compute on -- #
-    candidates = events[(events['frame_duration']>=2)&
-                        (events['frame_duration']<=50)&
-                        (events['lc_sig_max']>=5)&
-                        (events['flux_sign']==1)& 
-                        (events['frame_bin']==events.frame_bin.min())]
-
-    candidate_indices = candidates.index
-
-    # -- Run motion and Gaussian score only on those candidates -- #
-    candidates = _Calculate_xcom_motion(flux,candidates)
-    candidates = _Gaussian_score(time,flux,candidates)
-
-    # -- Add results back to full events -- #
-    events['com_motion'] = np.nan
-    events['gaussian_score'] = np.nan
-    events.loc[candidate_indices, 'com_motion'] = candidates['com_motion'].values
-    events.loc[candidate_indices, 'gaussian_score'] = candidates['gaussian_score'].values
-
-    # -- Flagging loop -- #
-    events['classification'] = '-'
-    for com_thresh, gauss_thresh in zip(com_motion_thresholds, gaussian_score_thresholds):
-        mask = (
-            (events['com_motion'] >= com_thresh) &
-            (events['gaussian_score'] >= gauss_thresh)
-        )
-        events.loc[mask, 'classification'] = 'Asteroid'
-        # events.loc[mask, 'prob'] = 0.8
-
-    return events
-
-
 def _Recheck_asteroid_lcs(time,flux,events):
     """
     Asteroids move their centroids a lot in PSF fitting, so often their light curve is now off. This correts for that.
@@ -1635,6 +1466,7 @@ class Detector():
         """
 
         from .tools import Frame_Bin
+        from .asteroid_detection import Threshold_Asteroid_Checker, Straight_Line_Asteroid_Checker, Tag_Asteroids
 
         events = deepcopy(self.events)
 
@@ -1644,28 +1476,16 @@ class Detector():
         for frame_bin in frame_bins:
             evs = events[events.frame_bin == frame_bin]
             time,flux = Frame_Bin(self.time,self.flux,frame_bin)
-            evs = _Threshold_asteroid_checker(time,flux,evs)        # Generally best, checks for centre of mass movement and light curve Gaussianity 
-            evs = _Straight_line_asteroid_checker(time,flux,evs)    # Picks up events with weirdly long event boundaries  
+            evs = Threshold_Asteroid_Checker(time,flux,evs)        # Generally best, checks for centre of mass movement and light curve Gaussianity 
+            evs = Straight_Line_Asteroid_Checker(time,flux,evs)    # Picks up events with weirdly long event boundaries  
             evs = _Recheck_asteroid_lcs(time,flux,evs)              # Correct light curves of asteroids whose locations change -- #
             events_list.append(evs)
         
-        
-        # # -- Generally best, checks for centre of mass movement and light curve Gaussianity -- #
-        # events = _Threshold_asteroid_checker(self.time,self.flux,events)
+        evs = pd.concat(events_list)
 
-        # # -- Picks up events with weirdly long event boundaries -- # 
-        # events = _Straight_line_asteroid_checker(self.time,self.flux,events)
+        evs = Tag_Asteroids(evs,spatial_lim = self.flux.shape[1])
 
-        # # -- Correct light curves of asteroids whose locations change -- #
-        # frame_bins = np.unique(events.frame_bin)
-        # events_list = []
-        # for frame_bin in frame_bins:
-        #     evs = events[events.frame_bin == frame_bin]
-        #     time,flux = Frame_Bin(self.time,self.flux,frame_bin)
-        #     evs = _Recheck_asteroid_lcs(time,flux,evs)
-        #     events_list.append(evs)
-
-        self.events = pd.concat(events_list)
+        self.events = evs
 
     def _catalogue_crossmatch(self,sigma=3):
         """
@@ -1676,13 +1496,13 @@ class Detector():
 
         # -- Cross matches location to Gaia -- #
         gaia = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/local_gaia_cat.csv')
-        events['GaiaID'] = '-'
+        events['gaia_id'] = '-'
         for i,event in events.iterrows():
             if event.classification != 'Asteroid':
                 inside = gaia[(abs(gaia.ra-event.ra) < sigma*event.ra_err)&
                             (abs(gaia.dec-event.dec) < sigma*event.dec_err)]
                 if len(inside) > 0:
-                    events.loc[i,'GaiaID'] = inside[inside.mag==inside.mag.min()].iloc[0].Source
+                    events.loc[i,'gaia_id'] = inside[inside.mag==inside.mag.min()].iloc[0].Source
         
         # -- Cross matches location to variable catalog -- #
         variables = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/variable_catalog.csv')
@@ -1795,7 +1615,7 @@ class Detector():
             # 'peak_freq', 'peak_power',
 
             # Secondary Identification
-            'source_mask', 'GaiaID', 'crossbin_ids', # 'prob', 'GaaID', 'cf_class', 'cf_prob', 
+            'source_mask', 'gaia_id', 'crossbin_ids','asteroid_id' # 'prob', 'GaaID', 'cf_class', 'cf_prob', 
 
             # Miscellaneous
             'n_detections','total_events','frame_bin', 'TSS Catalogue'
@@ -1853,12 +1673,12 @@ class Detector():
 
         self.events = self.events.drop_duplicates(subset=['frame_bin','xint','yint','frame_max'],keep='first')
 
-        # -- Tag asteroids -- #
+        # -- Crossmatch with catalogues -- #
         ts = clock()
         self._catalogue_crossmatch()
         print(f'   Crossmatching with Gaia and Variables -- done! ({(clock()-ts):.0f}s)')
 
-        # -- Tag asteroids -- #
+        # -- Crossmatch between different frame_bins -- #
         ts = clock()
         self._crossmatch_framebin()
         print(f'   Crossmatching between time bins -- done! ({(clock()-ts):.0f}s)')
@@ -1890,7 +1710,7 @@ class Detector():
             'lc_sig_max', 'flux_maxsig', 'frame_maxsig',
             'mjd_maxsig','psf_maxsig','flux_sign', 'n_events',
             'min_eventlength_frame', 'max_eventlength_frame',
-            'min_eventlength_mjd','max_eventlength_mjd','GaiaID','classification','TSS Catalogue'
+            'min_eventlength_mjd','max_eventlength_mjd','gaia_id','classification','TSS Catalogue'
         ]
         objects = pd.DataFrame(columns=columns)
 
@@ -1901,15 +1721,21 @@ class Detector():
 
             if maxevent['classification'] == 'Asteroid' and len(obj) < 2:
                 classification = 'Asteroid'
+                asteroid_id = maxevent['asteroid_id']
             else:
                 classification = obj['classification'].mode()[0]
+                asteroid_id = '-'
 
             if classification == 'RRLyrae':
                 classification = 'VRRLyr'
 
             row_data = {
-                'frame_bin':  maxevent['frame_bin'],
                 'objid': objid,
+                'classification': classification,    
+                'sector': maxevent['sector'],
+                'cam': maxevent['camera'],
+                'ccd': maxevent['ccd'],
+                'cut': maxevent['cut'],         
                 'xcentroid': maxevent['xcentroid'],
                 'ycentroid': maxevent['ycentroid'],
                 'ra': maxevent['ra'],
@@ -1926,19 +1752,16 @@ class Detector():
                 'frame_maxsig': maxevent['frame_max'],
                 'mjd_maxsig': maxevent['mjd_max'],
                 'psf_maxsig': maxevent['psf_like'],
-                'flux_sign': np.sum(obj['flux_sign'].unique()).astype(int),
-                'sector': maxevent['sector'],
-                'cam': maxevent['camera'],
-                'ccd': maxevent['ccd'],
-                'cut': maxevent['cut'],
-                'classification': classification,             
-                'n_events': len(obj),
                 'min_eventlength_frame': obj['frame_duration'].min(),
                 'max_eventlength_frame': obj['frame_duration'].max(),
                 'min_eventlength_mjd': obj['mjd_duration'].min(),
                 'max_eventlength_mjd': obj['mjd_duration'].max(),
+                'gaia_id' : maxevent['gaia_id'],
+                'asteroid_id' : asteroid_id,
+                'frame_bin':  maxevent['frame_bin'],
+                'flux_sign': np.sum(obj['flux_sign'].unique()).astype(int),
+                'n_events': len(obj),
                 'TSS Catalogue' : maxevent['TSS Catalogue'],
-                'GaiaID' : maxevent['GaiaID']
             }
 
             obj_row = pd.DataFrame([row_data])

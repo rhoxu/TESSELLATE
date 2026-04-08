@@ -118,19 +118,27 @@ class Navigator():
 
     # ----------------------------- Filtering sources, events, objects ----------------------------- #
 
-    def filter_events(self,cut,starkiller=False,asteroidkiller=False,lower=None,upper=None,image_sig_max=None,frame_bin=None,
-                      lc_sig_max=None,lc_sig_med=None,min_events=None,max_events=None,bkg_std=None,boundary_buffer=None,
-                      flux_sign=None,classification=None,psf_like=None,galactic_latitude=None,centroid_err=None,crossbins=True):
-        
+    def filter_events(self,cut=None,starkiller=False,asteroidkiller=False,
+                      lower=None,upper=None,image_sig_max=None,frame_bin=None,
+                      lc_sig_max=None,lc_sig_med=None,min_events=None,max_events=None,
+                      bkg_std=None,boundary_buffer=None,flux_sign=None,classification=None,
+                      psf_like=None,galactic_latitude=None,centroid_err=None,crossbins=True):
+         
         """
         Returns a dataframe of the events in the cut, with options to filter by various parameters.
         """
 
-        self.gather_results(cut)
+        # -- Gather data -- #
+        if cut is None:
+            cut = self.cut
+        if cut is None:
+            raise ValueError('Please specify a cut!')
+        else:
+            self.gather_results(cut)
 
         # -- Remove events near sources in reduction source mask (ie. stars) -- #
         if starkiller:
-            events = deepcopy(self.events.loc[self.events.source_mask==0])
+            events = deepcopy(self.events.loc[self.events.gaia_id != '-'])
         else:
             events = deepcopy(self.events)
 
@@ -234,7 +242,7 @@ class Navigator():
 
         return events
 
-    def filter_objects(self,cut,
+    def filter_objects(self,cut=None,
                        ra=None,dec=None,distance=40,
                        min_events=None,max_events=None,frame_bin=None,
                        classification=None,flux_sign=None,centroid_err=None,
@@ -249,7 +257,13 @@ class Navigator():
         from astropy.coordinates import SkyCoord
         import astropy.units as u
         
-        self.gather_results(cut)
+        # -- Gather data -- #
+        if cut is None:
+            cut = self.cut
+        if cut is None:
+            raise ValueError('Please specify a cut!')
+        else:
+            self.gather_results(cut)
 
         objects = deepcopy(self.objects)
 
@@ -336,13 +350,17 @@ class Navigator():
 
     # ----------------------------- Extracting light curves / images of events ----------------------------- #
 
-    def event_lc(self,cut,objid,eventid,frame_buffer=10,plot=True,frame_bin=None):
+    def event_lc(self,objid,eventid,cut=None,frame_buffer=10,plot=True,frame_bin=None):
         """
         Extract an aperture light curve for a desired event (objid/eventid pair).
         """
 
         # -- Gather data -- #
-        if cut != self.cut:
+        if cut is None:
+            cut = self.cut
+        if cut is None:
+            raise ValueError('Please specify a cut!')
+        elif cut != self.cut:
             self.gather_data(cut)
             self.gather_results(cut)
         
@@ -382,13 +400,17 @@ class Navigator():
         return t,f
     
 
-    def event_frames(self,cut,objid,eventid,frame_buffer=2,frame_interval=1,image_size=11,plot=True,frame_bin=None):
+    def event_frames(self,objid,eventid,cut=None,frame_buffer=2,frame_interval=1,image_size=11,plot=True,frame_bin=None):
         """
         Extract cutout images for chosen event.
         """
 
         # -- Gather data -- #
-        if cut != self.cut:
+        if cut is None:
+            cut = self.cut
+        if cut is None:
+            raise ValueError('Please specify a cut!')
+        elif cut != self.cut:
             self.gather_data(cut)
             self.gather_results(cut)
 
@@ -449,13 +471,17 @@ class Navigator():
             
         return images
 
-    def object_lc(self,cut,objid):
+    def object_lc(self,objid,cut=None):
         """
         Extract an aperture light curve for a desired object.
         """
 
         # -- Gather data -- #
-        if cut != self.cut:
+        if cut is None:
+            cut = self.cut
+        if cut is None:
+            raise ValueError('Please specify a cut!')
+        elif cut != self.cut:
             self.gather_data(cut)
             self.gather_results(cut)
         
@@ -470,13 +496,17 @@ class Navigator():
 
         return t,f
     
-    def object_frames(self,cut,objid,image_size=11):
+    def object_frames(self,objid,cut=None,image_size=11):
         """
         Extract ful sector cutout images for chosen object.
         """
 
         # -- Gather data -- #
-        if cut != self.cut:
+        if cut is None:
+            cut = self.cut
+        if cut is None:
+            raise ValueError('Please specify a cut!')
+        elif cut != self.cut:
             self.gather_data(cut)
             self.gather_results(cut)
 
@@ -500,7 +530,61 @@ class Navigator():
 
     # ----------------------------- Figure Generation ----------------------------- #
 
-    def external_photometry(self,cut,objid,eventid=None,tess_grid=5,sigma=3,phot=None,check='gaia'):
+    def asteroid_tracks(self,cut=None):
+        """
+        Plot trajectories of asteroids sorted by their asteroid_id.
+        """
+
+        asteroids = self.filter_events(cut,classification='Asteroid')
+        nonasteroids = self.filter_events(cut,asteroidkiller=True)
+
+        cmap = plt.get_cmap('tab20')
+        t_min_global = self.events['mjd_max'].min()
+        t_max_global = self.events['mjd_max'].min()
+        # t_range_full = np.linspace(t_min_global, t_max_global, 300)
+
+        fig,ax = plt.subplots(ncols=3,figsize=(15,5))
+
+        ax[0].scatter(asteroids.xcentroid,asteroids.ycentroid,c=cmap(asteroids['asteroid_id']%20),s=5)
+        ax[1].scatter(asteroids.xcentroid,asteroids.mjd_max,c=cmap(asteroids['asteroid_id']%20),s=5)
+        ax[2].scatter(asteroids.ycentroid,asteroids.mjd_max,c=cmap(asteroids['asteroid_id']%20),s=5)
+
+        ax[0].scatter(nonasteroids.xcentroid,nonasteroids.ycentroid,c='gray',s=1,alpha=0.1)
+        ax[1].scatter(nonasteroids.xcentroid,nonasteroids.mjd_max,c='gray',s=1,alpha=0.1)
+        ax[2].scatter(nonasteroids.xcentroid,nonasteroids.mjd_max,c='gray',s=1,alpha=0.1)
+
+        maxsize = 2048//self.n
+        ax[0].set_xlim(0, maxsize); ax[0].set_ylim(0, maxsize)
+        ax[1].set_xlim(0, maxsize); ax[1].set_ylim(t_min_global, t_max_global)
+        ax[2].set_xlim(0, maxsize); ax[2].set_ylim(t_min_global, t_max_global)
+        ax[0].set_title('x vs y') 
+        ax[1].set_title('x vs t') 
+        ax[2].set_title('y vs t')
+        ax[0].set_xlabel('xcentroid')
+        ax[0].set_ylabel('ycentroid')
+        ax[1].set_xlabel('x')
+        ax[1].set_ylabel('mjd_max')
+        ax[2].set_xlabel('ycentroid')
+        ax[2].set_ylabel('mjd_max')
+
+
+        # for tr in final_tracks:
+        #     c = cmap(int(tr.track_id) % 20)
+            
+        #     # Predict across the ENTIRE time range
+        #     px, py = tr.predict(t_range_full)
+            
+        #     # Optional: Set a transparency based on 'n_points' or 'residual' 
+        #     # so we trust solid lines more than sketchy ones
+        #     line_alpha = 0.5 if tr.n_points > 4 else 0.2
+            
+        #     ax[0].plot(px, py, '-', color=c, lw=1.0, alpha=line_alpha, zorder=2)
+        #     ax[1].plot(px, t_range_full, '-', color=c, lw=1.0, alpha=line_alpha, zorder=2)
+        #     ax[2].plot(py, t_range_full, '-', color=c, lw=1.0, alpha=line_alpha, zorder=2)
+
+
+
+    def external_photometry(self,objid,cut=None,eventid=None,tess_grid=5,sigma=3,phot=None,check='gaia'):
         """
         Look up legacy imaging for region around object/event location.
         """
@@ -510,7 +594,11 @@ class Navigator():
 
 
         # -- Gather data -- #
-        if cut != self.cut:
+        if cut is None:
+            cut = self.cut
+        if cut is None:
+            raise ValueError('Please specify a cut!')
+        elif cut != self.cut:
             self.gather_data(cut)
             self.gather_results(cut)
 
@@ -906,7 +994,7 @@ class Navigator():
         return [times,f], cutout_image, fig
 
 
-    def plot_object(self,cut,objid,event='separate',save_name=None,save_path=None,phot_check='gaia',
+    def plot_object(self,objid,cut=None,event='separate',save_name=None,save_path=None,phot_check='gaia',
                     latex=True,zoo_mode=False,external_phot=False,save_combined_path=None,tess_grid=3):
         """
         Plot the lightcurve and images of a given object/event.
@@ -923,7 +1011,11 @@ class Navigator():
             plt.rc('text', usetex=latex)
                                                    
         # -- Gather data -- #
-        if cut != self.cut:
+        if cut is None:
+            cut = self.cut
+        if cut is None:
+            raise ValueError('Please specify a cut!')
+        elif cut != self.cut:
             self.gather_data(cut)
             self.gather_results(cut)
 
