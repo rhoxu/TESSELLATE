@@ -1714,7 +1714,7 @@ os.remove(__file__)"
 
                     # -- Create bash file to submit job -- #
                     #print('Creating Cubing Batch File')
-                    batch_text = f"\
+                    batch_text = f'\
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cubing\n\
@@ -1728,7 +1728,7 @@ os.remove(__file__)"
 \n\
 python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py\n\
 \n\
-rm '$0'"
+rm -- "$0"'
                     with open(f"{self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh", "w") as batch_file:
                         batch_file.write(batch_text)
 
@@ -1939,7 +1939,7 @@ os.remove(__file__)"
 
                         # -- Create bash file to submit job -- #
                         #print('Creating Cutting Batch File')
-                        batch_text = f"\
+                        batch_text = f'\
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Cutting\n\
@@ -1953,7 +1953,7 @@ os.remove(__file__)"
 \n\
 python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py\n\
 \n\
-rm '$0'"
+rm -- "$0"'
 
                         with open(f"{self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh", "w") as batch_file:
                             batch_file.write(batch_text)
@@ -2048,7 +2048,7 @@ os.remove(__file__)"
 
                         # -- Create bash file to submit job -- #
                         #print('Creating Reduction Batch File')
-                        batch_text = f"\
+                        batch_text = f'\
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Reduction\n\
@@ -2062,7 +2062,7 @@ os.remove(__file__)"
 \n\
 python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py\n\
 \n\
-rm '$0'"
+rm -- "$0"'
 
                         with open(f"{self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh", "w") as batch_file:
                             batch_file.write(batch_text)
@@ -2102,7 +2102,7 @@ os.remove(__file__)"
 
         # -- Create bash file to submit job -- #
         #print('Creating Transient Search Batch File')
-        batch_text = f"\
+        batch_text = f'\
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Search\n\
@@ -2116,7 +2116,7 @@ os.remove(__file__)"
 \n\
 python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py\n\
 \n\
-rm '$0'"
+rm -- "$0"'
 
         with open(f"{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh", "w") as batch_file:
             batch_file.write(batch_text)
@@ -2247,7 +2247,7 @@ os.remove(__file__)"
 
         # -- Create bash file to submit job -- #
         #print('Creating Transient Search Batch File')
-        batch_text = f"\
+        batch_text = f'\
 #!/bin/bash\n\
 #\n\
 #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Plotting\n\
@@ -2261,7 +2261,7 @@ os.remove(__file__)"
 \n\
 python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py\n\
 \n\
-rm '$0'"
+rm -- "$0"'
 
         with open(f"{self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh", "w") as batch_file:
             batch_file.write(batch_text)

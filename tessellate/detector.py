@@ -1615,7 +1615,7 @@ class Detector():
             # 'peak_freq', 'peak_power',
 
             # Secondary Identification
-            'source_mask', 'gaia_id', 'crossbin_ids','asteroid_id' # 'prob', 'GaaID', 'cf_class', 'cf_prob', 
+            'source_mask', 'gaia_id', 'crossbin_ids','asteroid_id', # 'prob', 'GaaID', 'cf_class', 'cf_prob', 
 
             # Miscellaneous
             'n_detections','total_events','frame_bin', 'TSS Catalogue'
