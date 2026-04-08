@@ -908,7 +908,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
         event = _Fit_psf(flux,event,prf,frames,snr_to_localisation_func)
         
         # -- If event is quite PSF-like, centroid likely good -- #
-        if event['psf_like']>0.6:
+        if event['psf_like']>0.5:
             event['xcentroid'] = event['xcentroid_psf']
             event['ycentroid'] = event['ycentroid_psf']
             event['centroid_err'] = event['centroid_err_psf']
