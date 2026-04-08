@@ -138,7 +138,7 @@ class Navigator():
 
         # -- Remove events near sources in reduction source mask (ie. stars) -- #
         if starkiller:
-            events = deepcopy(self.events.loc[self.events.gaia_id != '-'])
+            events = deepcopy(self.events.loc[self.events.gaia_id == '-'])
         else:
             events = deepcopy(self.events)
 
@@ -1002,7 +1002,7 @@ class Navigator():
         return [times,f], cutout_image, fig
 
 
-    def plot_object(self,objid,event='separate',cut=None,save_name=None,save_path=None,phot_check='gaia',
+    def plot_object(self,objid,event='separate',cut=None,save_name=None,save_path=None,phot_check='gaia_local',
                     latex=True,zoo_mode=False,external_phot=False,save_combined_path=None,tess_grid=3):
         """
         Plot the lightcurve and images of a given object/event.
