@@ -1705,9 +1705,7 @@ from tessellate import DataProcessor\n\
 processor = DataProcessor(sector={self.sector},data_path='{self.data_path}',verbose=2)\n\
 processor.make_cube(cam={cam},ccd={ccd},part={self.part})\n\
 with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', 'w') as file:\n\
-    file.write('Cubed!')\n\
-import os\n\
-os.remove(__file__)"   
+    file.write('Cubed!')"   
                 
                     with open(f"{self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py", "w") as python_file:
                         python_file.write(python_text)
@@ -1726,9 +1724,7 @@ os.remove(__file__)"
 #SBATCH --cpus-per-task={self.cube_cpu}\n\
 #SBATCH --mem-per-cpu={self.cube_mem}G\n\
 \n\
-python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py\n\
-\n\
-rm -- "$0"'
+python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py'
                     with open(f"{self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh", "w") as batch_file:
                         batch_file.write(batch_text)
 
@@ -1930,9 +1926,7 @@ processor = DataProcessor(sector={self.sector},data_path='{self.data_path}',verb
 processor.make_cuts(cam={cam},ccd={ccd},n={self.n},cut={cut},part=part)\n\
 if not part:\n\
     with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/cut.txt', 'w') as file:\n\
-        file.write('Cut!')\n\
-import os\n\
-os.remove(__file__)"   
+        file.write('Cut!')"   
 
                         with open(f"{self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
                             python_file.write(python_text)
@@ -1951,9 +1945,7 @@ os.remove(__file__)"
 #SBATCH --cpus-per-task={self.cut_cpu}\n\
 #SBATCH --mem-per-cpu={self.cut_mem}G\n\
 \n\
-python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py\n\
-\n\
-rm -- "$0"'
+python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py'
 
                         with open(f"{self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh", "w") as batch_file:
                             batch_file.write(batch_text)
@@ -2039,9 +2031,7 @@ processor.reduce(cam={cam},ccd={ccd},n={self.n},cut={cut},part=part)\n\
 if not part:\n\
     if os.path.exists('{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Shifts.npy'):\n\
         with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reduced.txt', 'w') as file:\n\
-            file.write('Reduced!')\n\
-import os\n\
-os.remove(__file__)"   
+            file.write('Reduced!')"   
             # file.write('Reduced with TESSreduce version {tr.__version__}.')"
                         with open(f"{self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
                             python_file.write(python_text)
@@ -2060,9 +2050,7 @@ os.remove(__file__)"
 #SBATCH --cpus-per-task={self.reduce_cpu}\n\
 #SBATCH --mem-per-cpu={self.reduce_mem}G\n\
 \n\
-python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py\n\
-\n\
-rm -- "$0"'
+python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py'
 
                         with open(f"{self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh", "w") as batch_file:
                             batch_file.write(batch_text)
@@ -2093,9 +2081,7 @@ if part:\n\
         detector.transient_search(cut={cut},mode='{self.detect_mode}',time_bins={self.time_bins})\n\
 else:\n\
     detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
-    detector.transient_search(cut={cut},mode='{self.detect_mode}',time_bins={self.time_bins})\n\
-import os\n\
-os.remove(__file__)"   
+    detector.transient_search(cut={cut},mode='{self.detect_mode}',time_bins={self.time_bins})"   
                     
         with open(f"{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
             python_file.write(python_text)
@@ -2114,9 +2100,7 @@ os.remove(__file__)"
 #SBATCH --cpus-per-task={self.search_cpu}\n\
 #SBATCH --mem-per-cpu={self.search_mem}G\n\
 \n\
-python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py\n\
-\n\
-rm -- "$0"'
+python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py'
 
         with open(f"{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh", "w") as batch_file:
             batch_file.write(batch_text)
@@ -2238,9 +2222,7 @@ if part:\n\
 else:\n\
     detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
     detector.plot_ALL(cut={cut},lower=3)\n\
-    detector.lc_ALL(cut={cut},lower=3)\n\
-import os\n\
-os.remove(__file__)"   
+    detector.lc_ALL(cut={cut},lower=3)"   
                     
         with open(f"{self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
             python_file.write(python_text)
@@ -2259,9 +2241,7 @@ os.remove(__file__)"
 #SBATCH --cpus-per-task={self.plot_cpu}\n\
 #SBATCH --mem-per-cpu={self.plot_mem}G\n\
 \n\
-python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py\n\
-\n\
-rm -- "$0"'
+python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py'
 
         with open(f"{self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh", "w") as batch_file:
             batch_file.write(batch_text)
