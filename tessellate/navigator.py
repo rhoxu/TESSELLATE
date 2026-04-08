@@ -544,10 +544,18 @@ class Navigator():
         # t_range_full = np.linspace(t_min_global, t_max_global, 300)
 
         fig,ax = plt.subplots(ncols=3,figsize=(15,5))
+        fig.subplots_adjust(wspace=0.3)
 
-        ax[0].scatter(asteroids.xcentroid,asteroids.ycentroid,c=cmap(asteroids['asteroid_id']%20),s=5)
-        ax[1].scatter(asteroids.xcentroid,asteroids.mjd_max,c=cmap(asteroids['asteroid_id']%20),s=5)
-        ax[2].scatter(asteroids.ycentroid,asteroids.mjd_max,c=cmap(asteroids['asteroid_id']%20),s=5)
+        linked = asteroids[asteroids.asteroid_id>0]
+        unlinked = asteroids[asteroids.asteroid_id==0]
+
+        ax[0].scatter(linked.xcentroid,linked.ycentroid,c=cmap(linked['asteroid_id']%20),s=5)
+        ax[1].scatter(linked.xcentroid,linked.mjd_max,c=cmap(linked['asteroid_id']%20),s=5)
+        ax[2].scatter(linked.ycentroid,linked.mjd_max,c=cmap(linked['asteroid_id']%20),s=5)
+
+        ax[0].scatter(unlinked.xcentroid,unlinked.ycentroid,edgecolor='k',facecolor='None',s=10,alpha=0.5,marker='^')
+        ax[1].scatter(unlinked.xcentroid,unlinked.mjd_max,edgecolor='k',facecolor='None',s=10,alpha=0.5,marker='^')
+        ax[2].scatter(unlinked.ycentroid,unlinked.mjd_max,edgecolor='k',facecolor='None',s=10,alpha=0.5,marker='^')
 
         ax[0].scatter(nonasteroids.xcentroid,nonasteroids.ycentroid,c='gray',s=1,alpha=0.1)
         ax[1].scatter(nonasteroids.xcentroid,nonasteroids.mjd_max,c='gray',s=1,alpha=0.1)
