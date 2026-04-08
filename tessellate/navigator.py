@@ -592,7 +592,7 @@ class Navigator():
 
 
 
-    def external_photometry(self,objid,cut=None,eventid=None,tess_grid=5,sigma=3,phot=None,check='gaia'):
+    def external_photometry(self,objid,eventid=None,cut=None,tess_grid=5,sigma=3,phot=None,check='gaia'):
         """
         Look up legacy imaging for region around object/event location.
         """
@@ -1002,7 +1002,7 @@ class Navigator():
         return [times,f], cutout_image, fig
 
 
-    def plot_object(self,objid,cut=None,event='separate',save_name=None,save_path=None,phot_check='gaia',
+    def plot_object(self,objid,event='separate',cut=None,save_name=None,save_path=None,phot_check='gaia',
                     latex=True,zoo_mode=False,external_phot=False,save_combined_path=None,tess_grid=3):
         """
         Plot the lightcurve and images of a given object/event.
@@ -1047,7 +1047,7 @@ class Navigator():
         if external_phot:
             if phot_check == 'local':
                 phot_check = f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
-            fig, cat, coord,_,_ = self.external_photometry(cut,objid,event,tess_grid=tess_grid,check=phot_check)
+            fig, cat, coord,_,_ = self.external_photometry(objid,event,cut,tess_grid=tess_grid,check=phot_check)
             if fig is None:
                 return obj
             
