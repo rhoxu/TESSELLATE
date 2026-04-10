@@ -32,16 +32,37 @@ def _Spatial_group(result,colname='objid',min_samples=1,distance=0.5,njobs=-1):
     result[colname] = result[colname].astype(int)
     return result
 
-def _Spatio_temporal_group(result,colname='objid',min_samples=1,distance=0.5,frame_gap=5,njobs=-1):
+def _Spatio_temporal_group(result,colname='objid',min_samples=1,distance=0.5,frame_gap=5,
+                           median_distance=None,median_scale_x=1.0,median_scale_y=1.0,njobs=-1):
     """
     Groups events based on proximity in both space and time, 
     then groups their median positions to identify repeating sources.
     This helps prevent moving items from creating large trailed artifact groups.
+
+    Parameters
+    ----------
+    distance : float
+        DBSCAN eps for the first-stage 3D (x, y, scaled_frame) clustering.
+    frame_gap : int
+        Number of frames that equals one spatial pixel unit for the time scaling.
+    median_distance : float, optional
+        DBSCAN eps for the second-stage 2D median clustering. If None, uses `distance`.
+        Set larger than `distance` to merge spatially nearby event groups (e.g. CCD bleed columns).
+    median_scale_x : float
+        Scale factor applied to X axis before the second-stage clustering (default 1.0).
+        Increase to compress X differences (makes X less important for merging).
+    median_scale_y : float
+        Scale factor applied to Y axis before the second-stage clustering (default 1.0).
+        Decrease to make Y differences more important; increase to allow broader Y merging.
+        E.g. set median_scale_y=0.3 to allow groups ~3x further apart in Y to merge.
     """
     if len(result) == 0:
         return result
 
     from sklearn.cluster import DBSCAN
+
+    if median_distance is None:
+        median_distance = distance
 
     # -- 1. Spatio-Temporal Clustering --
     # Scale frame distance so that a gap of `frame_gap` equals `distance` in DBSCAN 
@@ -69,11 +90,15 @@ def _Spatio_temporal_group(result,colname='objid',min_samples=1,distance=0.5,fra
     result = result.copy()
     result['st_group'] = st_labels
 
-    # -- 2. Cluster the median positions --
+    # -- 2. Cluster the median positions (with optional anisotropic axis scaling) --
     medians = result.groupby('st_group')[['xcentroid', 'ycentroid']].median()
     
-    pos_2d = medians[['xcentroid', 'ycentroid']].values
-    spatial_cluster = DBSCAN(eps=distance, min_samples=1, n_jobs=njobs).fit(pos_2d)
+    # Apply axis scaling: divide coords by scale factors so DBSCAN eps acts differently per axis
+    pos_2d = np.column_stack([
+        medians['xcentroid'].values * median_scale_x,
+        medians['ycentroid'].values * median_scale_y
+    ])
+    spatial_cluster = DBSCAN(eps=median_distance, min_samples=1, n_jobs=njobs).fit(pos_2d)
     
     medians['final_label'] = spatial_cluster.labels_
     
@@ -86,6 +111,101 @@ def _Spatio_temporal_group(result,colname='objid',min_samples=1,distance=0.5,fra
     # Strip intermediate fields to maintain identical output structure
     result = result.drop(columns=['st_group', 'final_label'])
     
+    return result
+
+
+
+def _Classify_and_Merge_Asteroids(result, colname='objid', std_threshold=1.0, corr_threshold=0.8):
+
+    """
+    Classifies objects based on spatial variance and time-correlation natively from table properties.
+    Merges disjoint asteroid segments belonging to the same moving object.
+    Requires 'frame' column.
+    """
+    if len(result) == 0 or 'frame' not in result.columns:
+        return result
+        
+    result = result.copy()
+    if 'candidate_class' not in result.columns:
+        result['candidate_class'] = 'Unknown/Static'
+    
+    asteroid_segments = []
+    
+    # -- 1. Classification --
+    for oid, sub in result.groupby(colname):
+        if len(sub) > 5:
+            std_x = sub['xcentroid'].std()
+            std_y = sub['ycentroid'].std()
+            std_t = sub['frame'].std()
+            
+            corr_x_t = abs(sub['xcentroid'].corr(sub['frame'])) if std_x > 0 and std_t > 0 else 0
+            corr_y_t = abs(sub['ycentroid'].corr(sub['frame'])) if std_y > 0 and std_t > 0 else 0
+                
+            max_std = max(std_x, std_y)
+            max_corr = max(corr_x_t, corr_y_t)
+            
+            # Asteroid Heuristic
+            if max_std > std_threshold and max_corr > corr_threshold:
+                result.loc[result[colname] == oid, 'candidate_class'] = 'Asteroid'
+                
+                # Fit linear trajectory for later merging
+                vx, x0 = np.polyfit(sub['frame'], sub['xcentroid'], 1)
+                vy, y0 = np.polyfit(sub['frame'], sub['ycentroid'], 1)
+                
+                asteroid_segments.append({
+                    'id': oid,
+                    'vx': vx, 'vy': vy, 'x0': x0, 'y0': y0,
+                    'med_frame': sub['frame'].median(),
+                    'med_x': sub['xcentroid'].median(),
+                    'med_y': sub['ycentroid'].median()
+                })
+                
+            # Saturated Star Heuristic
+            elif max_std > std_threshold and max_corr < 0.6:
+                det_per_frame = len(sub) / sub['frame'].nunique() if sub['frame'].nunique() > 0 else 0
+                max_val = sub['max_value'].median()
+                if det_per_frame > 2 and max_val > 1000:
+                    result.loc[result[colname] == oid, 'candidate_class'] = 'Saturated_Star'
+
+    # -- 2. Merging Disjoint Segments --
+    if len(asteroid_segments) > 1:
+        parent = {seg['id']: seg['id'] for seg in asteroid_segments}
+        def find(i):
+            if parent[i] == i:
+                return i
+            parent[i] = find(parent[i])
+            return parent[i]
+            
+        def union(i, j):
+            root_i = find(i)
+            root_j = find(j)
+            if root_i != root_j:
+                parent[root_i] = root_j
+
+        for i in range(len(asteroid_segments)):
+            for j in range(i + 1, len(asteroid_segments)):
+                si = asteroid_segments[i]
+                sj = asteroid_segments[j]
+                
+                # Predict cross positions
+                pred_x_i_at_j = si['vx'] * sj['med_frame'] + si['x0']
+                pred_y_i_at_j = si['vy'] * sj['med_frame'] + si['y0']
+                dist_i_to_j = np.sqrt((pred_x_i_at_j - sj['med_x'])**2 + (pred_y_i_at_j - sj['med_y'])**2)
+                
+                pred_x_j_at_i = sj['vx'] * si['med_frame'] + sj['x0']
+                pred_y_j_at_i = sj['vy'] * si['med_frame'] + sj['y0']
+                dist_j_to_i = np.sqrt((pred_x_j_at_i - si['med_x'])**2 + (pred_y_j_at_i - si['med_y'])**2)
+                
+                # Bi-directional error within 2 pixels
+                if dist_i_to_j < 2.0 and dist_j_to_i < 2.0:
+                    union(si['id'], sj['id'])
+                    
+        # Apply merged IDs
+        for seg in asteroid_segments:
+            root_id = find(seg['id'])
+            if root_id != seg['id']:
+                result.loc[result[colname] == seg['id'], colname] = root_id
+
     return result
 
 def _Star_finding_procedure(data,prf,sig_limit = 2):
