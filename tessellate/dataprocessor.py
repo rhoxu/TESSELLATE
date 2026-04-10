@@ -37,7 +37,7 @@ from .tools import _Save_space, _Remove_emptys, _Extract_fits, _Print_buff
 
 #     return wcsItem
 
-def _cut_properties(wcsItem,n): 
+def _cut_properties(wcsItem,n,overlap): 
 
         intervals = 2048/n
 
@@ -46,8 +46,16 @@ def _cut_properties(wcsItem,n):
         cutCorners = np.meshgrid(cutCornersX,cutCornersY)
         cutCorners = np.floor(np.stack((cutCorners[0],cutCorners[1]),axis=2).reshape(n**2,2))
 
+        idx = np.arange(n * n)
+        cols = idx % n
+        rows = idx // n
+        cutCorners[cols == n - 1, 0] -= overlap
+        cutCorners[(cols != 0) & (cols != n - 1), 0] -= overlap // 2
+        cutCorners[rows == n - 1, 1] -= overlap
+        cutCorners[(rows != 0) & (rows != n - 1), 1] -= overlap // 2
+
         intervals = np.ceil(intervals)
-        rad = np.ceil(intervals / 2)
+        rad = np.ceil(intervals / 2) + overlap//2
 
         cutCentrePx = cutCorners + rad
         cutCentreCoords = np.array(wcsItem.all_pix2world(cutCentrePx[:,0],cutCentrePx[:,1],0)).transpose()
@@ -133,7 +141,7 @@ class DataProcessor():
             print(_Print_buff(50,f'Downloading Sector {self.sector} Cam {cam} CCD {ccd}'))
         Download_cam_ccd_FFIs(self.path,self.sector,cam,ccd,time,None,None,number=number,single=single) 
     
-    def find_cuts(self,cam,ccd,n,plot=True,proj=True,coord=None,verbose=1):
+    def find_cuts(self,cam,ccd,n,overlap=10,plot=True,proj=True,coord=None,verbose=1):
         """
         Function for finding cuts.
 
@@ -178,7 +186,7 @@ class DataProcessor():
                 print('WCS Extraction Failed')
             return
 
-        cutCorners, cutCentrePx, cutCentreCoords, cutSize = _cut_properties(wcsItem,n)
+        cutCorners, cutCentrePx, cutCentreCoords, cutSize = _cut_properties(wcsItem,n,overlap)
 
         if plot:
             # -- Plots data -- #
