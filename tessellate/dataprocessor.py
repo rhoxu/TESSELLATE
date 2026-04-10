@@ -523,6 +523,8 @@ class DataProcessor():
             cutName = f'sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}.fits'
             cutPath = f'{cutFolder}/{cutName}'
 
+            cut_corners,_,_,_ = self.find_cuts(cam,ccd,n,plot=False)
+
             with open(f'{self.path}/Cam{cam}/Ccd{ccd}/wcs/ref/reference.txt') as reffile:
                 ref_ind = int(reffile.readlines()[0].split(': ')[-1])
 
@@ -536,12 +538,16 @@ class DataProcessor():
             if self.verbose > 0:
                 print(f'--Reduction Cam {cam} Chip {ccd} Cut {cut} (of {n**2})--')
                 
+
+
+
+
             # -- Defining so can be deleted if failed -- #
             tessreduce = 0
 
             # -- reduce -- #
             tessreduce = tr.tessreduce(tpf=cutPath,sector=self.sector,reduce=True,corr_correction=True,
-                                        calibrate=False,catalogue_path=f'{cutFolder}/local_gaia_cat.csv',
+                                        calibrate=False,catalogue_path=f'{cutFolder}/local_gaia_cat.csv',col_offset=cut_corners[cut-1][0]-44,
                                         prf_path='/fred/oz335/_local_TESS_PRFs',vector_path='/fred/oz335/_local_TESS_vectors',
                                         ref_ind=ref_ind,quality_bitmask='hard',shift_method='sep_core',smooth_motion=False)
             
