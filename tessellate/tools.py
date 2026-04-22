@@ -336,8 +336,32 @@ def Generate_LC(time,flux,x,y,frame_start=None,frame_end=None,method='sum',radiu
 
 
 
-def Frame_Bin(time, flux=None, frame_bin=1):
-    break_idx = np.argmax(np.diff(time)) + 1
+def Get_Tess_Vectors(sector, camera, data_path='/fred/oz335/_local_TESS_vectors'):
+    """Return a TESSVectors DataFrame for *sector* / *camera*."""
+
+    import pandas as pd
+
+    _TESSVECTORS_FNAME = f"TessVectors_S{sector:03d}_C{camera}_FFI.csv"
+    fname = _TESSVECTORS_FNAME.format(sector=sector, camera=camera)
+
+    local = os.path.join(data_path, fname)
+    if os.path.isfile(local):
+        return pd.read_csv(local, comment='#', index_col=False)
+
+def Get_Tess_Downlink(sector, camera, time):
+
+    df = Get_Tess_Vectors(sector, camera)
+
+    btjd = time - 56999.5
+    vec_t = df['MidTime'].values
+    segment = np.interp(btjd, vec_t, df['Segment'].values).astype(int)
+    break_idx = np.argmax(np.diff(segment)) + 1
+
+    return break_idx
+
+def Frame_Bin(sector, camera, time, flux=None, frame_bin=1):
+
+    break_idx = Get_Tess_Downlink(sector, camera, time)
 
     def _bin_segment(t, f=None):
         points = np.arange(0, len(t), frame_bin)

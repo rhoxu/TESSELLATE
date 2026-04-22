@@ -77,7 +77,7 @@ class Navigator():
         
         self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
         
-    def gather_data(self,cut,flux=True,time=True,ref=False,mask=False,bkg=False,verbose=True):
+    def gather_data(self,cut,flux=True,time=True,segments=True,ref=False,mask=False,bkg=False,verbose=True):
         """
         Gather reduced data.
         """
@@ -105,7 +105,6 @@ class Navigator():
 
         if mask:
             self.mask = np.load(base + '_Mask.npy')
-
         
         self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
 
@@ -158,13 +157,16 @@ class Navigator():
 
         # -- Remove events within 'boundary_buffer' of the boundary -- #
         if boundary_buffer is not None:
-            self.gather_data(cut, flux=False, verbose=False)
+            
+            from .tools import Get_Tess_Downlink
 
+            self.gather_data(cut, flux=False, verbose=False)
+            
             mask = pd.Series(True, index=events.index)
             for frame_bin in np.unique(events.frame_bin):
                 bin_events = events[events.frame_bin == frame_bin]
-                time = Frame_Bin(self.time, frame_bin=frame_bin)
-                break_idx = np.argmax(np.diff(time))
+                time = Frame_Bin(self.sector, self.cam, self.time, frame_bin=frame_bin)
+                break_idx = Get_Tess_Downlink(self.sector, self.cam, time)
                 last_idx = len(time) - 1
 
                 boundaries = [0, break_idx, break_idx + 1, last_idx]
@@ -367,7 +369,7 @@ class Navigator():
         # -- Isolate and extract event with frame buffer either side -- #
         event = self.events[(self.events.objid==objid)&(self.events.eventid==eventid)].iloc[0]
 
-        time, flux = (Frame_Bin(self.time, self.flux, event.frame_bin) if event.frame_bin > 1 else (self.time, self.flux))
+        time, flux = (Frame_Bin(self.sector, self.cam, self.time, self.flux, event.frame_bin) if event.frame_bin > 1 else (self.time, self.flux))
 
         x = RoundToInt(event.xint)     # x coordinate of the source
         y = RoundToInt(event.yint)      # y coordinate of the source
@@ -392,7 +394,7 @@ class Navigator():
                 ax.plot(rawt,rawf,'.',c='k',alpha=0.3)
 
             if frame_bin is not None and frame_bin > event.frame_bin:
-                largertime, largerflux = (Frame_Bin(self.time, self.flux, frame_bin))
+                largertime, largerflux = (Frame_Bin(self.sector, self.cam,self.time, self.flux, frame_bin))
                 largert,largerf = Generate_LC(largertime,largerflux,x,y,int(frame_start/frame_bin*event.frame_bin),int(frame_end/frame_bin*event.frame_bin),radius=1.5)
                 ax.plot(largert, largerf, '^', c='r', alpha=0.8)
 
@@ -430,7 +432,7 @@ class Navigator():
             frame_interval =  RoundToInt(frame_interval * frame_bin * event.frame_bin/frame_bin)
             frame_buffer = RoundToInt(frame_buffer * event.frame_bin/frame_bin)
 
-        time, flux = (Frame_Bin(self.time, self.flux, frame_bin) if frame_bin > 1 else (self.time, self.flux))
+        time, flux = (Frame_Bin(self.sector, self.cam,self.time, self.flux, frame_bin) if frame_bin > 1 else (self.time, self.flux))
     
         # -- Find frames to be included based on buffer and interval, ensuring brightest is included -- #
         frames = np.arange(frame_start-frame_buffer, frame_end+1,frame_interval).astype(int)
@@ -490,7 +492,7 @@ class Navigator():
         x = RoundToInt(obj['xcentroid'])     # x coordinate of the source
         y = RoundToInt(obj['ycentroid'])     # x coordinate of the source
 
-        time, flux = (Frame_Bin(self.time, self.flux, obj.frame_bin) if obj.frame_bin > 1 else (self.time, self.flux))
+        time, flux = (Frame_Bin(self.sector, self.cam,self.time, self.flux, obj.frame_bin) if obj.frame_bin > 1 else (self.time, self.flux))
 
         t,f = Generate_LC(time,flux,x,y)
 
@@ -521,7 +523,7 @@ class Navigator():
         ymin = max(y-image_size//2,0)
         ymax = min(y+image_size//2,self.flux.shape[1])
 
-        time, flux = (Frame_Bin(self.time, self.flux, obj.frame_bin) if obj.frame_bin > 1 else (self.time, self.flux))
+        time, flux = (Frame_Bin(self.sector, self.cam,self.time, self.flux, obj.frame_bin) if obj.frame_bin > 1 else (self.time, self.flux))
 
         return flux[:,ymin:ymax+1,xmin:xmax+1]
 
@@ -715,7 +717,7 @@ class Navigator():
     
 
     @staticmethod
-    def Plot_Object_LC_Frame(rawtimes,rawflux,events,objid,eventtype,save_path=None,latex=True,zoo_mode=False):
+    def Plot_Object_LC_Frame(sector,cam,rawtimes,rawflux,events,objid,eventtype,save_path=None,latex=True,zoo_mode=False):
         """
         Plot an object's light curve and image cutout.
         """
@@ -774,7 +776,7 @@ class Navigator():
 
 
         # -- Bin time if event is binned -- #
-        times, flux = (Frame_Bin(rawtimes, rawflux, frame_bin) if frame_bin > 1 else (rawtimes, rawflux))
+        times, flux = (Frame_Bin(sector, cam, rawtimes, rawflux, frame_bin) if frame_bin > 1 else (rawtimes, rawflux))
 
 
         # -- Generates time for plotting and finds breaks in the time series based on the median and standard deviation - #
@@ -1040,8 +1042,8 @@ class Navigator():
 
         # -- Isolate object and send to plotting function -- #
         obj = self.objects[self.objects.objid==objid].iloc[0]
-        obj.lc,obj.cutout,obj.lc_fig = Navigator.Plot_Object_LC_Frame(self.time,self.flux,self.events,objid,event,
-                                                                      save_path,latex,zoo_mode) 
+        obj.lc,obj.cutout,obj.lc_fig = Navigator.Plot_Object_LC_Frame(self.sector,self.cam,self.time,self.flux,
+                                                                      self.events,objid,event,save_path,latex,zoo_mode) 
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
