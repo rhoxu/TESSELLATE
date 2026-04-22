@@ -341,7 +341,7 @@ def Get_Tess_Vectors(sector, camera, data_path='/fred/oz335/_local_TESS_vectors'
 
     import pandas as pd
 
-    _TESSVECTORS_FNAME = f"TessVectors_S{sector:03d}_C{camera}_FFI.csv"
+    _TESSVECTORS_FNAME = "TessVectors_S{sector:03d}_C{camera}_FFI.csv"
     fname = _TESSVECTORS_FNAME.format(sector=sector, camera=camera)
 
     local = os.path.join(data_path, fname)
