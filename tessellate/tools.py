@@ -341,13 +341,8 @@ def Get_Tess_Vectors(sector, camera, data_path='/fred/oz335/_local_TESS_vectors'
 
     import pandas as pd
 
-    if isinstance(sector, np.ndarray):
-        sector = sector.item()
-    if isinstance(camera, np.ndarray):
-        camera = camera.item()
-
     _TESSVECTORS_FNAME = "TessVectors_S{sector:03d}_C{camera}_FFI.csv"
-    fname = _TESSVECTORS_FNAME.format(sector=int(sector), camera=int(camera))
+    fname = _TESSVECTORS_FNAME.format(sector=sector, camera=camera)
 
     local = os.path.join(data_path, fname)
     if os.path.isfile(local):

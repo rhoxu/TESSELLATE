@@ -1213,7 +1213,7 @@ class Detector():
 
         # -- Rebin time and flux by given factor -- #
         if frame_bin > 1:
-            time,flux = Frame_Bin(self.time,self.flux,frame_bin)
+            time,flux = Frame_Bin(self.sector,self.cam,self.time,self.flux,frame_bin)
             isolate_single_detections = False
         else:
             time = self.time; flux = self.flux
@@ -1366,7 +1366,7 @@ class Detector():
         events = pd.DataFrame()
         for frame_bin in frame_bins:
             sources = self.sources[self.sources.frame_bin == frame_bin]
-            time,flux = Frame_Bin(self.time,self.flux,frame_bin)
+            time,flux = Frame_Bin(self.sector,self.cam,self.time,self.flux,frame_bin)
 
             has_data = np.any(np.isfinite(flux), axis=(1, 2))      # Identify nan_frames 
             nan_frames = np.where(~has_data)[0]
@@ -1475,7 +1475,7 @@ class Detector():
         events_list = []
         for frame_bin in frame_bins:
             evs = events[events.frame_bin == frame_bin]
-            time,flux = Frame_Bin(self.time,self.flux,frame_bin)
+            time,flux = Frame_Bin(self.sector,self.cam,self.time,self.flux,frame_bin)
             evs = Threshold_Asteroid_Checker(time,flux,evs)        # Generally best, checks for centre of mass movement and light curve Gaussianity 
             evs = Straight_Line_Asteroid_Checker(time,flux,evs)    # Picks up events with weirdly long event boundaries  
             evs = _Recheck_asteroid_lcs(time,flux,evs)              # Correct light curves of asteroids whose locations change -- #
