@@ -1520,13 +1520,15 @@ class Detector():
         """
         Crossmatch between time_bins.
         """
+        
+        from collections import Counter
 
         events = deepcopy(self.events)
         events['crossbin_ids'] = [[] for _ in range(len(events))]
 
         # -- Group spatially -- #
         events = _Spatial_group(events, colname='crossbin_group', distance=1, min_samples=1)
-        events = _Spatial_group(events, colname='asteroid_crossbin_group', distance=4, min_samples=1)
+        events = _Spatial_group(events, colname='asteroid_crossbin_group', distance=2, min_samples=1)
 
         # -- Iterate through spatial groups -- # 
         for group in np.unique(events.crossbin_group):
@@ -1563,7 +1565,8 @@ class Detector():
 
         # -- Find which indices are present more than once -- #
         all_ids = [i for ids in events['crossbin_ids'] for i in ids]
-        all_referenced = set(i for i in all_ids if all_ids.count(i) > 1)
+        counts = Counter(all_ids)
+        all_referenced = set(i for i, c in counts.items() if c > 1)
 
         # -- Clear solo crossbin_ids -- #
         events['crossbin_ids'] = events.apply(

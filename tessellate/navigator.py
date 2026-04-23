@@ -117,7 +117,7 @@ class Navigator():
 
     # ----------------------------- Filtering sources, events, objects ----------------------------- #
 
-    def filter_events(self,cut=None,starkiller=False,asteroidkiller=False,
+    def filter_events(self,cut=None,starkiller=False,asteroidkiller=False,strapkiller=False,
                       lower=None,upper=None,image_sig_max=None,frame_bin=None,
                       lc_sig_max=None,lc_sig_med=None,min_events=None,max_events=None,
                       bkg_std=None,boundary_buffer=None,flux_sign=None,classification=None,
@@ -146,6 +146,10 @@ class Navigator():
             events = events.loc[~(events.classification == 'Asteroid')]
             if 'Asteroid' in events.keys():
                 events = events.loc[events.Asteroid == 0]
+
+        # -- Remove events near strap structures -- #
+        if strapkiller:
+            events = events.loc[events.strap < 4]
 
         # -- Pick out frame bins -- #
         if frame_bin is not None:
