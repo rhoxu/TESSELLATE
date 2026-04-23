@@ -641,15 +641,16 @@ def _Check_LC_significance(time,flux,start,end,pos,flux_sign,buffer = 0.5,base_r
 
     lcevent = lc[start:end+1]
     lc_sig = (lcevent - med) / std
-    
-    max_flux = np.nanmax(lcevent)
-    max_frame = np.argmax(lcevent)+start
 
     if flux_sign >= 0:
         sig_max = np.nanmax(lc_sig)
         sig_med = np.nanmean(lc_sig)
+        max_flux = np.nanmax(lcevent)
+        max_frame = np.argmax(lcevent)+start
         
     else:
+        max_flux = np.nanmin(lcevent)
+        max_frame = np.argmin(lcevent)+start
         sig_max = abs(np.nanmin(lc_sig))
         sig_med = abs(np.nanmean(lc_sig))
     
