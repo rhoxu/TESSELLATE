@@ -149,7 +149,7 @@ class Navigator():
 
         # -- Remove events near strap structures -- #
         if strapkiller:
-            events = events.loc[events.strap < 4]
+            events = events.loc[events.source_mask < 4]
 
         # -- Pick out frame bins -- #
         if frame_bin is not None:
