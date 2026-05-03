@@ -641,15 +641,16 @@ def _Check_LC_significance(time,flux,start,end,pos,flux_sign,buffer = 0.5,base_r
 
     lcevent = lc[start:end+1]
     lc_sig = (lcevent - med) / std
-    
-    max_flux = np.nanmax(lcevent)
-    max_frame = np.argmax(lcevent)+start
 
     if flux_sign >= 0:
         sig_max = np.nanmax(lc_sig)
         sig_med = np.nanmean(lc_sig)
+        max_flux = np.nanmax(lcevent)
+        max_frame = np.argmax(lcevent)+start
         
     else:
+        max_flux = np.nanmin(lcevent)
+        max_frame = np.argmin(lcevent)+start
         sig_max = abs(np.nanmin(lc_sig))
         sig_med = abs(np.nanmean(lc_sig))
     
@@ -1213,7 +1214,7 @@ class Detector():
 
         # -- Rebin time and flux by given factor -- #
         if frame_bin > 1:
-            time,flux = Frame_Bin(self.time,self.flux,frame_bin)
+            time,flux = Frame_Bin(self.sector,self.cam,self.time,self.flux,frame_bin)
             isolate_single_detections = False
         else:
             time = self.time; flux = self.flux
@@ -1366,7 +1367,7 @@ class Detector():
         events = pd.DataFrame()
         for frame_bin in frame_bins:
             sources = self.sources[self.sources.frame_bin == frame_bin]
-            time,flux = Frame_Bin(self.time,self.flux,frame_bin)
+            time,flux = Frame_Bin(self.sector,self.cam,self.time,self.flux,frame_bin)
 
             has_data = np.any(np.isfinite(flux), axis=(1, 2))      # Identify nan_frames 
             nan_frames = np.where(~has_data)[0]
@@ -1475,7 +1476,7 @@ class Detector():
         events_list = []
         for frame_bin in frame_bins:
             evs = events[events.frame_bin == frame_bin]
-            time,flux = Frame_Bin(self.time,self.flux,frame_bin)
+            time,flux = Frame_Bin(self.sector,self.cam,self.time,self.flux,frame_bin)
             evs = Threshold_Asteroid_Checker(time,flux,evs)        # Generally best, checks for centre of mass movement and light curve Gaussianity 
             evs = Straight_Line_Asteroid_Checker(time,flux,evs)    # Picks up events with weirdly long event boundaries  
             evs = _Recheck_asteroid_lcs(time,flux,evs)              # Correct light curves of asteroids whose locations change -- #
@@ -1519,13 +1520,15 @@ class Detector():
         """
         Crossmatch between time_bins.
         """
+        
+        from collections import Counter
 
         events = deepcopy(self.events)
         events['crossbin_ids'] = [[] for _ in range(len(events))]
 
         # -- Group spatially -- #
         events = _Spatial_group(events, colname='crossbin_group', distance=1, min_samples=1)
-        events = _Spatial_group(events, colname='asteroid_crossbin_group', distance=4, min_samples=1)
+        events = _Spatial_group(events, colname='asteroid_crossbin_group', distance=2, min_samples=1)
 
         # -- Iterate through spatial groups -- # 
         for group in np.unique(events.crossbin_group):
@@ -1562,7 +1565,8 @@ class Detector():
 
         # -- Find which indices are present more than once -- #
         all_ids = [i for ids in events['crossbin_ids'] for i in ids]
-        all_referenced = set(i for i in all_ids if all_ids.count(i) > 1)
+        counts = Counter(all_ids)
+        all_referenced = set(i for i, c in counts.items() if c > 1)
 
         # -- Clear solo crossbin_ids -- #
         events['crossbin_ids'] = events.apply(

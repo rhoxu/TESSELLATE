@@ -4,7 +4,7 @@ import pandas as pd
 
 class CutWCS():
 
-    def __init__(self,data_path,sector,cam,ccd,cut,n):
+    def __init__(self,data_path,sector,cam,ccd,cut,n,overlap=10):
 
         from astropy.io import fits
         from astropy.wcs import WCS
@@ -16,6 +16,7 @@ class CutWCS():
         self.ccd = ccd
         self.cut = cut
         self.n = n
+        self.overlap = overlap
 
         # wcs_folder = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/Cut{cut}of{self.n**2}/wcs_info'
         # folder = glob(f'{wcs_folder}/*corrected.fits')
@@ -47,13 +48,27 @@ class CutWCS():
 
     def _get_corner(self):
 
-        intervals = 2048/self.n
-        cut_cornersX = [44 + i*intervals for i in range(self.n)]
-        cut_cornersY = [i*intervals for i in range(self.n)]
-        cut_corners = np.meshgrid(cut_cornersX,cut_cornersY)
-        cut_corners = np.floor(np.stack((cut_corners[0],cut_corners[1]),axis=2).reshape(self.n**2,2))
-        
-        self.corner = cut_corners[self.cut-1] 
+        intervals = 2048 / self.n
+
+        cut_cornersX = [44 + i * intervals for i in range(self.n)]
+        cut_cornersY = [i * intervals for i in range(self.n)]
+
+        cut_corners = np.meshgrid(cut_cornersX, cut_cornersY)
+        cut_corners = np.floor(
+            np.stack((cut_corners[0], cut_corners[1]), axis=2).reshape(self.n**2, 2)
+        )
+
+        idx = np.arange(self.n * self.n)
+        cols = idx % self.n
+        rows = idx // self.n
+
+        cut_corners[cols == self.n - 1, 0] -= self.overlap
+        cut_corners[(cols != 0) & (cols != self.n - 1), 0] -= self.overlap // 2
+
+        cut_corners[rows == self.n - 1, 1] -= self.overlap
+        cut_corners[(rows != 0) & (rows != self.n - 1), 1] -= self.overlap // 2
+
+        self.corner = cut_corners[self.cut - 1]
 
     def _get_median_offsets(self):
 

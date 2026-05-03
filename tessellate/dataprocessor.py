@@ -37,7 +37,7 @@ from .tools import _Save_space, _Remove_emptys, _Extract_fits, _Print_buff
 
 #     return wcsItem
 
-def _cut_properties(wcsItem,n): 
+def _cut_properties(wcsItem,n,overlap): 
 
         intervals = 2048/n
 
@@ -46,8 +46,16 @@ def _cut_properties(wcsItem,n):
         cutCorners = np.meshgrid(cutCornersX,cutCornersY)
         cutCorners = np.floor(np.stack((cutCorners[0],cutCorners[1]),axis=2).reshape(n**2,2))
 
+        idx = np.arange(n * n)
+        cols = idx % n
+        rows = idx // n
+        cutCorners[cols == n - 1, 0] -= overlap
+        cutCorners[(cols != 0) & (cols != n - 1), 0] -= overlap // 2
+        cutCorners[rows == n - 1, 1] -= overlap
+        cutCorners[(rows != 0) & (rows != n - 1), 1] -= overlap // 2
+
         intervals = np.ceil(intervals)
-        rad = np.ceil(intervals / 2)
+        rad = np.ceil(intervals / 2) + overlap//2
 
         cutCentrePx = cutCorners + rad
         cutCentreCoords = np.array(wcsItem.all_pix2world(cutCentrePx[:,0],cutCentrePx[:,1],0)).transpose()
@@ -133,7 +141,7 @@ class DataProcessor():
             print(_Print_buff(50,f'Downloading Sector {self.sector} Cam {cam} CCD {ccd}'))
         Download_cam_ccd_FFIs(self.path,self.sector,cam,ccd,time,None,None,number=number,single=single) 
     
-    def find_cuts(self,cam,ccd,n,plot=True,proj=True,coord=None,verbose=1):
+    def find_cuts(self,cam,ccd,n,overlap=10,plot=True,proj=True,coord=None,verbose=1):
         """
         Function for finding cuts.
 
@@ -178,7 +186,7 @@ class DataProcessor():
                 print('WCS Extraction Failed')
             return
 
-        cutCorners, cutCentrePx, cutCentreCoords, cutSize = _cut_properties(wcsItem,n)
+        cutCorners, cutCentrePx, cutCentreCoords, cutSize = _cut_properties(wcsItem,n,overlap)
 
         if plot:
             # -- Plots data -- #
@@ -523,6 +531,8 @@ class DataProcessor():
             cutName = f'sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}.fits'
             cutPath = f'{cutFolder}/{cutName}'
 
+            cut_corners,_,_,_ = self.find_cuts(cam,ccd,n,plot=False)
+
             with open(f'{self.path}/Cam{cam}/Ccd{ccd}/wcs/ref/reference.txt') as reffile:
                 ref_ind = int(reffile.readlines()[0].split(': ')[-1])
 
@@ -536,14 +546,19 @@ class DataProcessor():
             if self.verbose > 0:
                 print(f'--Reduction Cam {cam} Chip {ccd} Cut {cut} (of {n**2})--')
                 
+
+
+
+
             # -- Defining so can be deleted if failed -- #
             tessreduce = 0
 
             # -- reduce -- #
             tessreduce = tr.tessreduce(tpf=cutPath,sector=self.sector,reduce=True,corr_correction=True,
-                                        calibrate=False,catalogue_path=f'{cutFolder}/local_gaia_cat.csv',
+                                        calibrate=False,catalogue_path=f'{cutFolder}/local_gaia_cat.csv',col_offset=int(cut_corners[cut-1][0]),#-44,
                                         prf_path='/fred/oz335/_local_TESS_PRFs',vector_path='/fred/oz335/_local_TESS_vectors',
-                                        ref_ind=ref_ind,quality_bitmask='hard',shift_method='sep_core',smooth_motion=False)
+                                        ref_ind=ref_ind,quality_bitmask='hard',shift_method='sep_core',smooth_motion=False,
+                                        orbit_ref=True)
             
             if self.verbose > 0:
                 print(f'--Reduction Complete (Time: {((t()-ts)/60):.2f} mins)--')
@@ -557,5 +572,7 @@ class DataProcessor():
             np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Ref.npy',tessreduce.ref)
             np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Mask.npy',tessreduce.mask)
             np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Shifts.npy',tessreduce.shift)
+            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_OrbitSegments.npy',tessreduce.orbit_segments)
+            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_OrbitRefs.npy',tessreduce.orbit_refs)
 
             del (tessreduce)
