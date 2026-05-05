@@ -1064,7 +1064,7 @@ class Detector():
         """
 
         from .localisation import CutWCS
-        
+
         if verbose:
             ts = clock()
             print(f'Loading Cut {cut} Data...',end='\r')
@@ -1087,7 +1087,18 @@ class Detector():
         if mask:
             self.mask = np.load(base + '_Mask.npy')
 
-        
+        # Load orbit ref data if available
+        import os
+        seg_path = base + '_OrbitSegments.npy'
+        ref_path = base + '_OrbitRefs.npz'
+        if os.path.exists(seg_path) and os.path.exists(ref_path):
+            self.orbit_segments = np.load(seg_path)
+            raw = np.load(ref_path)
+            self.orbit_refs = {int(k): raw[k] for k in raw.files}
+        else:
+            self.orbit_segments = None
+            self.orbit_refs = None
+
         self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
 
         if verbose:

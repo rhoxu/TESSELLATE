@@ -573,6 +573,7 @@ class DataProcessor():
             np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Mask.npy',tessreduce.mask)
             np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Shifts.npy',tessreduce.shift)
             np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_OrbitSegments.npy',tessreduce.orbit_segments)
-            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_OrbitRefs.npy',tessreduce.orbit_refs)
+            np.savez(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_OrbitRefs.npz',
+                     **{str(k): v for k, v in tessreduce.orbit_refs.items()})
 
             del (tessreduce)

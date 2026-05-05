@@ -105,7 +105,19 @@ class Navigator():
 
         if mask:
             self.mask = np.load(base + '_Mask.npy')
-        
+
+        # Load orbit ref data if available
+        import os
+        seg_path = base + '_OrbitSegments.npy'
+        ref_path = base + '_OrbitRefs.npz'
+        if os.path.exists(seg_path) and os.path.exists(ref_path):
+            self.orbit_segments = np.load(seg_path)
+            raw = np.load(ref_path)
+            self.orbit_refs = {int(k): raw[k] for k in raw.files}
+        else:
+            self.orbit_segments = None
+            self.orbit_refs = None
+
         self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
 
         if verbose:
@@ -383,7 +395,8 @@ class Navigator():
         frame_start = np.max([frame_start-frame_buffer,0])
         frame_end = np.min([frame_end+frame_buffer+1,len(time)-1])
 
-        t,f = Generate_LC(time,flux,x,y,frame_start,frame_end,radius=1.5)
+        t,f = Generate_LC(time,flux,x,y,frame_start,frame_end,radius=1.5,
+                          orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
 
         # -- Plot lightcurve -- #
         if plot:
@@ -394,12 +407,16 @@ class Navigator():
             ax.set_xlabel('Time (MJD)')
             ax.set_ylabel('TESS Counts')
             if event.frame_bin > 1:
-                rawt,rawf = Generate_LC(self.time,self.flux,x,y,frame_start*event.frame_bin,frame_end*event.frame_bin,radius=1.5)
+                rawt,rawf = Generate_LC(self.time,self.flux,x,y,
+                                        frame_start*event.frame_bin,frame_end*event.frame_bin,
+                                        radius=1.5,orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
                 ax.plot(rawt,rawf,'.',c='k',alpha=0.3)
 
             if frame_bin is not None and frame_bin > event.frame_bin:
                 largertime, largerflux = (Frame_Bin(self.sector, self.cam,self.time, self.flux, frame_bin))
-                largert,largerf = Generate_LC(largertime,largerflux,x,y,int(frame_start/frame_bin*event.frame_bin),int(frame_end/frame_bin*event.frame_bin),radius=1.5)
+                largert,largerf = Generate_LC(largertime,largerflux,x,y,
+                                              int(frame_start/frame_bin*event.frame_bin),int(frame_end/frame_bin*event.frame_bin),
+                                              radius=1.5,orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
                 ax.plot(largert, largerf, '^', c='r', alpha=0.8)
 
         
@@ -498,7 +515,8 @@ class Navigator():
 
         time, flux = (Frame_Bin(self.sector, self.cam,self.time, self.flux, obj.frame_bin) if obj.frame_bin > 1 else (self.time, self.flux))
 
-        t,f = Generate_LC(time,flux,x,y)
+        t,f = Generate_LC(time,flux,x,y,
+                          orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
 
         return t,f
     
@@ -811,9 +829,11 @@ class Navigator():
             frame_start = RoundToInt(event.frame_start)        # Start frame of the event
             frame_end = RoundToInt(event.frame_end)            # End frame of the event
 
-            _,f = Generate_LC(times,flux,x,y,radius=1.5)
+            _,f = Generate_LC(times,flux,x,y,radius=1.5,
+                              orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
             if frame_bin > 1:
-                _,rawf = Generate_LC(rawtimes,rawflux,x,y,radius=1.5)
+                _,rawf = Generate_LC(rawtimes,rawflux,x,y,radius=1.5,
+                                     orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
 
             # Find brightest frame in the event #
             if frame_end - frame_start >= 2:

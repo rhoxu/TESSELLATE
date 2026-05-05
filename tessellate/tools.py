@@ -291,11 +291,64 @@ def Exp_func(x,a,b,c):
 
 
 
-def Generate_LC(time,flux,x,y,frame_start=None,frame_end=None,method='sum',radius=1.5):
-    
+def _orbit_ref_correction(lc_flux, time, full_time, orbit_refs, orbit_segments, x, y, radius=1.5):
+    """Correct inter-orbit flux offset caused by per-orbit reference subtraction.
+
+    Each orbit's reference image is measured through the same aperture as the
+    science LC. The orbit with the lowest-noise reference is the primary; all
+    other orbits have the delta (primary_ref_flux - orbit_ref_flux) added so
+    that every orbit is on the same flux baseline.
+
+    Parameters
+    ----------
+    lc_flux       : array (N,)  — LC flux values (may be a subset of full time series)
+    time          : array (N,)  — times corresponding to lc_flux
+    full_time     : array (T,)  — full time array matching orbit_segments
+    orbit_refs    : dict {int: ndarray (NY, NX)}
+    orbit_segments: ndarray (T,)
+    x, y          : float — source position (col, row)
+    radius        : float
+
+    Returns
+    -------
+    corrected lc_flux : array (N,)
+    """
+    xint = int(np.round(x, 0))
+    yint = int(np.round(y, 0))
+    buf = int(np.floor(radius))
+
+    # Measure aperture flux on each orbit reference image
+    orb_flux = {}
+    orb_std = {}
+    for seg, ref_im in orbit_refs.items():
+        stamp = ref_im[yint-buf:yint+buf+1, xint-buf:xint+buf+1]
+        orb_flux[seg] = np.nansum(stamp)
+        orb_std[seg] = np.nanstd(ref_im)
+
+    primary = min(orb_std, key=orb_std.get)
+    f_primary = orb_flux[primary]
+
+    corrected = lc_flux.copy()
+    for seg in orbit_refs:
+        if seg == primary:
+            continue
+        delta = f_primary - orb_flux[seg]
+        # Find which indices in lc_flux belong to this orbit
+        full_mask = orbit_segments == seg
+        seg_times = set(full_time[full_mask])
+        lc_mask = np.array([t in seg_times for t in time])
+        corrected[lc_mask] += delta
+
+    return corrected
+
+
+def Generate_LC(time,flux,x,y,frame_start=None,frame_end=None,method='sum',radius=1.5,
+                orbit_refs=None,orbit_segments=None):
+
     from photutils.aperture import CircularAperture, RectangularAnnulus, ApertureStats, aperture_photometry
     from scipy.signal import fftconvolve
-    
+
+    full_time = time
     t = time
     f = flux
 
@@ -305,10 +358,10 @@ def Generate_LC(time,flux,x,y,frame_start=None,frame_end=None,method='sum',radiu
             f = f[frame_start:frame_end+1]
         else:
             t = t[frame_start:]
-            f = f[frame_start:]   
+            f = f[frame_start:]
     elif frame_end is not None:
         t = t[:frame_end+1]
-        f = f[:frame_end+1]     
+        f = f[:frame_end+1]
 
     if method.lower() == 'aperture':
         aperture = CircularAperture([x, y], radius)
@@ -325,14 +378,17 @@ def Generate_LC(time,flux,x,y,frame_start=None,frame_end=None,method='sum',radiu
             flux += [phot_table['aperture_sum'].value[0]]
         flux = np.array(flux)
         flux_err = np.array(flux_err)
+        if orbit_refs is not None and orbit_segments is not None:
+            flux = _orbit_ref_correction(flux, t, full_time, orbit_refs, orbit_segments, x, y, radius)
         return t, flux, flux_err
     elif method.lower() == 'sum':
         xint = int(np.round(x,0))
         yint = int(np.round(y,0))
         buffer = np.floor(radius).astype(int)
-        f = np.nansum(f[:,yint-buffer:yint+buffer+1,xint-buffer:xint+buffer+1],axis=(1,2))
-
-        return t,f
+        lc = np.nansum(f[:,yint-buffer:yint+buffer+1,xint-buffer:xint+buffer+1],axis=(1,2))
+        if orbit_refs is not None and orbit_segments is not None:
+            lc = _orbit_ref_correction(lc, t, full_time, orbit_refs, orbit_segments, x, y, radius)
+        return t, lc
 
 
 
