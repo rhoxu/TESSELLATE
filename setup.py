@@ -25,7 +25,7 @@ setup(
     author_email=EMAIL,
     author=AUTHOR,
     license='MIT',
-    packages=['tessellate'],
+    packages=find_packages(),#['tessellate'],
     install_requires=REQUIRED,
     include_package_data=True
 )
