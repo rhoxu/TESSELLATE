@@ -739,7 +739,8 @@ class Navigator():
     
 
     @staticmethod
-    def Plot_Object_LC_Frame(sector,cam,rawtimes,rawflux,events,objid,eventtype,save_path=None,latex=True,zoo_mode=False):
+    def Plot_Object_LC_Frame(sector,cam,rawtimes,rawflux,events,objid,eventtype,orbit_refs,orbit_segments,
+                             save_path=None,latex=True,zoo_mode=False):
         """
         Plot an object's light curve and image cutout.
         """
@@ -830,10 +831,10 @@ class Navigator():
             frame_end = RoundToInt(event.frame_end)            # End frame of the event
 
             _,f = Generate_LC(times,flux,x,y,radius=1.5,
-                              orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
+                              orbit_refs=orbit_refs,orbit_segments=orbit_segments)
             if frame_bin > 1:
                 _,rawf = Generate_LC(rawtimes,rawflux,x,y,radius=1.5,
-                                     orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
+                                     orbit_refs=orbit_refs,orbit_segments=orbit_segments)
 
             # Find brightest frame in the event #
             if frame_end - frame_start >= 2:
@@ -1067,7 +1068,8 @@ class Navigator():
         # -- Isolate object and send to plotting function -- #
         obj = self.objects[self.objects.objid==objid].iloc[0]
         obj.lc,obj.cutout,obj.lc_fig = Navigator.Plot_Object_LC_Frame(self.sector,self.cam,self.time,self.flux,
-                                                                      self.events,objid,event,save_path,latex,zoo_mode) 
+                                                                      self.events,objid,event,self.orbit_refs,self.orbit_segments,
+                                                                      save_path,latex,zoo_mode) 
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
