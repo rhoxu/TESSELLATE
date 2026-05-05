@@ -221,10 +221,10 @@ class Tessellate():
                 self.make_cube()
 
             if fix_wcs:
-                self.fix_wcs()
+                self.fix_wcs(cubing=make_cube)
             
             if make_cuts:
-                self.make_cuts(cubing=make_cube)
+                self.make_cuts()
 
             if reduce:
                 self.reduce()    
@@ -1763,7 +1763,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py'
                     os.system(f'sbatch {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh')
                     print('\n')
 
-    def fix_wcs(self):
+    def fix_wcs(self,cubing):
         """
         Calls the WCSfixer class to find the best reference image, PSF fit stars, and update WCS information.
         """
@@ -1775,6 +1775,41 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py'
             for ccd in self.ccd: 
                 print(_Print_buff(60,f'Running WCSfixer for Sector{self.sector} Cam{cam} Ccd{ccd}'))
                 print('\n')
+
+                cube_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt'
+                if not os.path.exists(cube_check):
+                    if not cubing:
+                        e = 'No Cube File Detected to Cut!\n'
+                        raise ValueError(e)
+                    else:
+                        tStart = t()
+                        l = self.cube_time.split(':')
+                        seconds = 1 * int(l[-1]) + 60 * int(l[-2])
+                        if len(l) == 3:
+                            seconds += 3600 * int(l[-3])
+
+                        if (len(self.cam)>1) | (len(self.ccd)>1): 
+                            seconds = 42300
+
+                        go = False
+                        message = 'Waiting for Cube'
+                        i = 0
+                        while not go:
+                            if t()-tStart > seconds + 3600:
+                                print('Restarting Cubing')
+                                print('\n')
+                                self.make_cube(overwrite=False)
+                                tStart = t()
+                            else:
+                                if i > 0:
+                                    print(message, end='\r')
+                                    sleep(120)
+                                if os.path.exists(cube_check):
+                                    go = True
+                                    print('\n')
+                                else:
+                                    message += '.'
+                                    i += 1
 
                 # -- Generate Cube Path -- #
                 wcs_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/wcs/ref/polyfit_coeffs.txt'
@@ -1894,7 +1929,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py'
 
         return done
 
-    def make_cuts(self,cubing,overwrite=True):
+    def make_cuts(self,overwrite=True):
         """
         Make cuts! 
 
@@ -1915,47 +1950,13 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py'
             for ccd in self.ccd: 
                 print(_Print_buff(60,f'Making Cut(s) for Sector{self.sector} Cam{cam} Ccd{ccd}')) 
                 print('\n')
-                cube_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt'
-                if not os.path.exists(cube_check):
-                    if not cubing:
-                        e = 'No Cube File Detected to Cut!\n'
-                        raise ValueError(e)
-                    else:
-                        tStart = t()
-                        l = self.cube_time.split(':')
-                        seconds = 1 * int(l[-1]) + 60 * int(l[-2])
-                        if len(l) == 3:
-                            seconds += 3600 * int(l[-3])
-
-                        if (len(self.cam)>1) | (len(self.ccd)>1): 
-                            seconds = 42300
-
-                        go = False
-                        message = 'Waiting for Cube'
-                        i = 0
-                        while not go:
-                            if t()-tStart > seconds + 3600:
-                                print('Restarting Cubing')
-                                print('\n')
-                                self.make_cube(overwrite=False)
-                                tStart = t()
-                            else:
-                                if i > 0:
-                                    print(message, end='\r')
-                                    sleep(120)
-                                if os.path.exists(cube_check):
-                                    go = True
-                                    print('\n')
-                                else:
-                                    message += '.'
-                                    i += 1
-            
+                
                 for cut in self.cuts:
                     go = False
                     if self.part:
                         cut_check1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}/cut.txt'
                         cut_check2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/cut.txt'
-                        if (os.path.exists(cut_check1)) & (os.path.exists(cut_check1)):
+                        if (os.path.exists(cut_check1)) & (os.path.exists(cut_check2)):
                             print(f'Cam {cam} CCD {ccd} cut {cut} already made!')
                             print('\n')
                         else:
@@ -2018,7 +2019,7 @@ python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_scri
                 if not done:
                     print('Restarting Cutting')
                     print('\n')
-                    self.make_cuts(cubing=cubing,overwrite=False)
+                    self.make_cuts(overwrite=False)
 
 
     def reduce(self,overwrite=True):
