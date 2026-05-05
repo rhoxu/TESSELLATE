@@ -337,6 +337,10 @@ class Tessellate():
         # Fix WCS 
         if 'fix_wcs' in parser:
             fix_wcs = parse_value(parser['fix_wcs'].get('fix_wcs', False))
+        else:
+            fix_wcs = False
+            print(f'   - Fix WCS? [y/n] = n')
+            message += f'   - Fix WCS? [y/n] = n\n'
         
         # Cut properties
         if 'cut_properties' in parser:
