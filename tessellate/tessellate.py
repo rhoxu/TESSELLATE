@@ -163,7 +163,7 @@ class Tessellate():
             if load_prev:
 
                 # -- Load config -- #
-                message, download, make_cube, make_cuts, reduce, search, plot, delete = self._load_config(message)
+                message, download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete = self._load_config(message)
             
             else:
                 # -- Confirm Run Properties -- #
