@@ -558,7 +558,7 @@ class DataProcessor():
                                         calibrate=False,catalogue_path=f'{cutFolder}/local_gaia_cat.csv',col_offset=int(cut_corners[cut-1][0]),#-44,
                                         prf_path='/fred/oz335/_local_TESS_PRFs',vector_path='/fred/oz335/_local_TESS_vectors',
                                         ref_ind=ref_ind,quality_bitmask='hard',shift_method='sep_core',smooth_motion=False,
-                                        orbit_ref=True)
+                                        orbit_ref=True,create_lc=False)
             
             if self.verbose > 0:
                 print(f'--Reduction Complete (Time: {((t()-ts)/60):.2f} mins)--')
