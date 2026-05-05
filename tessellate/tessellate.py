@@ -26,7 +26,7 @@ class Tessellate():
                  reduce_time=None,reduce_cpu=None,
                  search_time=None,search_cpu=None,detect_mode='both',time_bins=None,
                  plot_time=None,plot_cpu=None,
-                 download=None,make_cube=None,make_cuts=None,reduce=None,search=None,
+                 download=None,make_cube=None,fix_wcs=None,make_cuts=None,reduce=None,search=None,
                  plot=None,delete=None,overwrite=None,reset_logs=None,
                  go=True):
         
@@ -173,7 +173,7 @@ class Tessellate():
                 suggestions = self._sector_suggestions()  
 
                 # -- Ask for which tessellation steps to perform -- #
-                message, download, make_cube, make_cuts, reduce, search, plot, delete = self._which_processes(message,download, make_cube, make_cuts, reduce, search, plot, delete)
+                message, download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete = self._which_processes(message,download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete)
 
                 # -- Ask for inputs -- #
                 if download:
@@ -201,7 +201,7 @@ class Tessellate():
                     _Save_space(f'{job_output_path}/tessellate_plotting_logs')
 
                 if save_config:
-                    self._write_config(download,make_cube, make_cuts, reduce, search, plot, delete)
+                    self._write_config(download,make_cube, fix_wcs, make_cuts, reduce, search, plot, delete)
 
             # -- Check for overwriting -- #
             if overwrite != False:
@@ -219,6 +219,9 @@ class Tessellate():
 
             if make_cube:
                 self.make_cube()
+
+            if fix_wcs:
+                self.fix_wcs()
             
             if make_cuts:
                 self.make_cuts(cubing=make_cube)
@@ -330,6 +333,10 @@ class Tessellate():
             make_cube = False
             print(f'   - Make Cube(s)? [y/n] = n')
             message += f'   - Make Cube(s)? [y/n] = n\n'
+
+        # Fix WCS 
+        if 'fix_wcs' in parser:
+            fix_wcs = parse_value(parser['fix_wcs'].get('fix_wcs', False))
         
         # Cut properties
         if 'cut_properties' in parser:
@@ -502,7 +509,7 @@ class Tessellate():
                 message += f'      Invalid choice! Ready? [y/n] = {go}\n'
 
 
-        return message,download,make_cube,make_cuts,reduce,search,plot,delete
+        return message,download,make_cube,fix_wcs,make_cuts,reduce,search,plot,delete
 
     def _sector_suggestions(self):
         """
@@ -561,10 +568,10 @@ class Tessellate():
             # search_cpu_sug = '32'
             # search_mem_req = 64
             # search_time_bins = '10min'
-            search_time_sug = '15:00'
+            search_time_sug = '45:00'
             search_cpu_sug = '32'
             search_mem_req = 32
-            search_time_bins = '10min,30min,2hr,1day'
+            search_time_bins = '10min,30min,2hr,12hr'
             
             plot_time_sug = '10:00'
             plot_cpu_sug = '32'
@@ -692,7 +699,7 @@ class Tessellate():
 
         return message
     
-    def _which_processes(self,message,download,make_cube,make_cuts,reduce,search,plot,delete):
+    def _which_processes(self,message,download,make_cube,fix_wcs,make_cuts,reduce,search,plot,delete):
 
         if download is None:
             d = input('   - Download FFIs? [y/n] = ')
@@ -723,6 +730,21 @@ class Tessellate():
                 else:
                     d = input('      Invalid choice! Make Cube(s)? [y/n] = ')
                     message += f'      Invalid choice! Make Cube(s)? [y/n] = {d}\n'
+
+        if fix_wcs is None:
+            d = input('   - Fix WCS? [y/n] = ')
+            message += f'   - Fix WCS? [y/n] = {d}\n'
+            done = False
+            while not done:
+                if d.lower() == 'y':
+                    fix_wcs = True
+                    done=True
+                elif d.lower() == 'n':
+                    fix_wcs = False
+                    done=True
+                else:
+                    d = input('      Invalid choice! Fix WCS? [y/n] = ')
+                    message += f'      Invalid choice! Fix WCS? [y/n] = {d}\n'
 
         if make_cuts is None:
             d = input('   - Make Cut(s)? [y/n] = ')
@@ -803,7 +825,7 @@ class Tessellate():
         print('\n')
         message += '\n'
 
-        return message, download, make_cube, make_cuts, reduce, search, plot, delete
+        return message, download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete
     
     def _download_properties(self,message):
         """
@@ -1546,7 +1568,7 @@ class Tessellate():
 
         return message
     
-    def _write_config(self,download,make_cube, make_cuts, reduce, search, plot,delete):
+    def _write_config(self,download,make_cube, fix_wcs, make_cuts, reduce, search, plot,delete):
 
         config = {
             "base": {
@@ -1566,6 +1588,10 @@ class Tessellate():
                 'cube job time' : self.cube_time,
                 'cube job memory' : self.cube_mem,
                 'cube job cpu' : self.cube_cpu}
+            
+        if fix_wcs:
+            config['fix_wcs'] = {
+                'fix_wcs' : True}
 
         if make_cuts | reduce | search | plot:
             config['cut_properties'] = {
@@ -1732,6 +1758,28 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py'
                     #print('Submitting Cubing Batch File')
                     os.system(f'sbatch {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh')
                     print('\n')
+
+    def fix_wcs(self):
+        """
+        Calls the WCSfixer class to find the best reference image, PSF fit stars, and update WCS information.
+        """
+
+        from .WCSfixer import TessFixer
+
+        tf = TessFixer(sector=self.sector,data_path=self.data_path)
+        for cam in self.cam:
+            for ccd in self.ccd: 
+                print(_Print_buff(60,f'Running WCSfixer for Sector{self.sector} Cam{cam} Ccd{ccd}'))
+                print('\n')
+
+                # -- Generate Cube Path -- #
+                wcs_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/wcs/ref/polyfit_coeffs.txt'
+                if os.path.exists(wcs_check):
+                    print(f'Cam {cam} CCD {ccd} wcs already fixed!')
+                else:
+                    tf.run(cam,ccd)
+                print('\n')
+                    
 
     def _get_catalogues(self,cam,ccd,base_path):
         """
