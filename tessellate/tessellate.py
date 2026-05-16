@@ -2292,7 +2292,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
         i = 0 
         while len(cutting_status.keys()) > 0:
 
-            for key in cutting_status.keys():
+            for key in list(cutting_status.keys()):
                 cam,ccd,cut = key
                 if cutting_status[key] == 'COMPLETED':
                     print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
