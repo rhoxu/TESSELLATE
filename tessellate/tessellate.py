@@ -230,7 +230,7 @@ class Tessellate():
                 reduce = self.reduce()     # returns reduction slurm job ids for use in transient search
 
             if search:
-                self.transient_search(reduction_jobs=reduce)
+                self.transient_search(reduction_status=reduce)
             
             if plot:
                 self.transient_plot(searching=search)
