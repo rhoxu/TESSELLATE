@@ -5,7 +5,6 @@ from astropy.io import fits
 from astropy.wcs import WCS
 from time import time 
 from tessellate import DataProcessor
-from tessellate.localisation import PSF_Fitter
 from glob import glob
 import shutil
 import pandas as pd

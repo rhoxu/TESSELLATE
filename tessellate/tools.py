@@ -68,6 +68,34 @@ def _Check_dirs(save_path):
         except:
             pass
 
+def _Check_job_status(job_id):
+    """
+    Returns one of: PENDING, RUNNING, COMPLETED, FAILED, CANCELLED, UNKNOWN
+    Checks squeue first (job is still active), then sacct (job has finished).
+    """
+
+    import subprocess
+
+    # squeue only shows active/queued jobs
+    sq = subprocess.run(
+        f'squeue -j {job_id} -h -o %T',
+        shell=True, capture_output=True, text=True
+    )
+    state = sq.stdout.strip()
+
+    if state:  # Job is still in the queue
+        return state  # e.g. PENDING, RUNNING, COMPLETING
+
+    # Job has left the queue — check sacct for final state
+    sa = subprocess.run(
+        f'sacct -j {job_id} -o State -n -X',
+        shell=True, capture_output=True, text=True
+    )
+    state = sa.stdout.strip().split()[0] if sa.stdout.strip() else 'UNKNOWN'
+    # sacct states can be e.g. COMPLETED, FAILED, CANCELLED, TIMEOUT, OUT_OF_MEMORY
+    return state
+
+
 def _remove_ffis(data_path,sector,n,cams,ccds,cuts,part):
 
     home_path = os.getcwd()
