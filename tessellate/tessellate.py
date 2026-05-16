@@ -2280,12 +2280,14 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                     else:
                         save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
                         if os.path.exists(f'{save_path}/detected_objects.csv'):
-                            cutting_status[(cam,ccd,cut)] = 'COMPLETED'
+                            cutting_status[(cam,ccd,cut)] = 'COMPLETED'               
                         elif os.path.exists(f'{save_path}/reduced.txt'):
                             cutting_status[(cam,ccd,cut)] = 'INCOMPLETE'
-                        else:
+                        elif reduction_status == False:
                             e = f'No Reduced File Detected for Search of Cut {cut}!\n'
                             raise ValueError(e)
+                        else:
+                            cutting_status[(cam,ccd,cut)] = 'INCOMPLETE'
 
         i = 0 
         while len(cutting_status.keys()) > 0:
