@@ -963,12 +963,17 @@ def _Flag_Event_Frames(events,max_frame,std=7):
 
     extreme_frames = frames[np.where(vals>median_count+std*std_count)]
 
-    bad_idx = np.where(np.isin(max_frames, extreme_frames))[0]
+    try:
+        bad_idx = np.where(np.isin(max_frames, extreme_frames))[0].astype(int)
 
-    events['bad_frame_flag'] = 0
-    events.iloc[bad_idx,'bad_frame_flag'] = 1
+        events['bad_frame_flag'] = 0
+        events.iloc[bad_idx,'bad_frame_flag'] = 1
 
-    return events
+        return events
+
+    except Exception as e:
+        print(bad_idx)
+        raise ValueError(e)
 
 def _Recheck_asteroid_lcs(time,flux,events):
     """
