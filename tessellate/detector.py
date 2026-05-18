@@ -950,6 +950,25 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
     
     return events_df 
 
+def _Flag_Event_Frames(events,max_frame,std=7):
+
+    events = deepcopy(events)
+
+    max_frames = (events.frame_max * events.frame_bin).values
+    max_frames = np.clip(max_frames,a_min=0,a_max=max_frame)
+    frames,vals = np.unique(max_frames,return_counts=True)
+
+    median_count = np.nanmedian(vals)
+    std_count = np.nanstd(vals)
+
+    extreme_frames = frames[np.where(vals>median_count+std*std_count)]
+
+    bad_idx = np.where(np.isin(max_frames, extreme_frames))[0]
+
+    events['bad_frame_flag'] = 0
+    events.loc[bad_idx,'bad_frame_flag'] = 1
+
+    return events
 
 def _Recheck_asteroid_lcs(time,flux,events):
     """
@@ -1497,6 +1516,8 @@ class Detector():
 
         evs = Tag_Asteroids(evs,spatial_lim = self.flux.shape[1])
 
+        evs = _Flag_Event_Frames(evs,len(self.time)-1,std=7)    # Now that all lcs / frame_maxes are finalised, we can flag frames with too many events in them
+
         self.events = evs
 
     def _catalogue_crossmatch(self,sigma=3):
@@ -1624,7 +1645,7 @@ class Detector():
 
             # Morphology
             'psf_like', 'psf_diff','psf_stacked','com_motion','gaussian_score',
-            'ellipticity','fwhm','neg_extent',
+            'ellipticity','fwhm','neg_extent','bad_frame_flag',
 
             # # Frequency Domain
             # 'peak_freq', 'peak_power',

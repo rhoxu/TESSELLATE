@@ -129,11 +129,12 @@ class Navigator():
 
     # ----------------------------- Filtering sources, events, objects ----------------------------- #
 
-    def filter_events(self,cut=None,starkiller=False,asteroidkiller=False,strapkiller=False,
+    def filter_events(self,cut=None,stars=None,asteroidkiller=None,strapkiller=False,
                       lower=None,upper=None,image_sig_max=None,frame_bin=None,
                       lc_sig_max=None,lc_sig_med=None,min_events=None,max_events=None,
                       bkg_std=None,boundary_buffer=None,flux_sign=None,classification=None,
-                      psf_like=None,galactic_latitude=None,centroid_err=None,crossbins=True):
+                      psf_like=None,galactic_latitude=None,centroid_err=None,crossbins=True,
+                      bad_frame_flag=None):
          
         """
         Returns a dataframe of the events in the cut, with options to filter by various parameters.
@@ -148,8 +149,10 @@ class Navigator():
             self.gather_results(cut)
 
         # -- Remove events near sources in reduction source mask (ie. stars) -- #
-        if starkiller:
+        if stars == False:
             events = deepcopy(self.events.loc[self.events.gaia_id == '-'])
+        elif stars == True:
+            events = deepcopy(self.events.loc[self.events.gaia_id != '-'])
         else:
             events = deepcopy(self.events)
 
@@ -170,6 +173,10 @@ class Navigator():
         # -- Remove anything picked up at a different resolution -- #
         if not crossbins:
             events = events[events['crossbin_ids'].apply(lambda x: len(x) == 0)]
+
+        # -- Remove events whose max frame is in a dense frame (i.e. abnormally large number of recovered events) -- #
+        if not bad_frame_flag:
+            events = events[events.bad_frame_flag == 0]
 
         # -- Remove events within 'boundary_buffer' of the boundary -- #
         if boundary_buffer is not None:
