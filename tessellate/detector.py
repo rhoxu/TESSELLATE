@@ -952,28 +952,28 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
 
 def _Flag_Event_Frames(events,max_frame,std=7):
 
+    from astropy.stats import sigma_clipped_stats
+
     events = deepcopy(events)
 
     max_frames = (events.frame_max * events.frame_bin).values
     max_frames = np.clip(max_frames,a_min=0,a_max=max_frame)
     frames,vals = np.unique(max_frames,return_counts=True)
 
-    median_count = np.nanmedian(vals)
-    std_count = np.nanstd(vals)
+    # median_count = np.nanmedian(vals)
+    # std_count = np.nanstd(vals)
+
+    _,median_count,std_count = sigma_clipped_stats(vals,sigma=7)
 
     extreme_frames = frames[np.where(vals>median_count+std*std_count)]
 
-    try:
-        bad_idx = np.where(np.isin(max_frames, extreme_frames))[0].astype(int)
+    
+    bad_idx = np.where(np.isin(max_frames, extreme_frames))[0].astype(int)
 
-        events['bad_frame_flag'] = 0
-        events.loc[events.index[bad_idx],'bad_frame_flag'] = 1
+    events['bad_frame_flag'] = 0
+    events.loc[events.index[bad_idx],'bad_frame_flag'] = 1
 
-        return events
-
-    except Exception as e:
-        print(bad_idx)
-        raise ValueError(e)
+    return events
 
 def _Recheck_asteroid_lcs(time,flux,events):
     """
