@@ -967,7 +967,7 @@ def _Flag_Event_Frames(events,max_frame,std=7):
         bad_idx = np.where(np.isin(max_frames, extreme_frames))[0].astype(int)
 
         events['bad_frame_flag'] = 0
-        events.iloc[bad_idx,'bad_frame_flag'] = 1
+        events.loc[events.index[bad_idx],'bad_frame_flag'] = 1
 
         return events
 
