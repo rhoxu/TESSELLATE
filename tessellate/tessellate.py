@@ -2299,7 +2299,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                     print('\n')
                     del(cutting_status[key])
 
-                elif reduction_status[key]['status'] == 'COMPLETED':
+                elif reduction_status == False or reduction_status[key]['status'] == 'COMPLETED':
                     self._cut_transient_search(cam,ccd,cut)
                     del(reduction_status[key])
                     del(cutting_status[key])
