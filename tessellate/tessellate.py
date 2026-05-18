@@ -2339,9 +2339,10 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                         e = f'Job {job_id} for reduction of Cam {cam} CCD {ccd} Cut {cut} has unexpected status: {job_status}\n'
                         raise ValueError(e)
 
-            print('Waiting for Reductions' + i*'.', end='\r')
-            sleep(600)
-            i += 1
+            if reduction_status != False: 
+                print('Waiting for Reductions' + i*'.', end='\r')
+                sleep(600)
+                i += 1
     
         
         
