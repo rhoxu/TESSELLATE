@@ -2284,7 +2284,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                         elif os.path.exists(f'{save_path}/reduced.txt'):
                             cutting_status[(cam,ccd,cut)] = 'INCOMPLETE'
                         elif reduction_status == False:
-                            e = f'No Reduced File Detected for Search of Cut {cut}!\n'
+                            e = f'No Reduced File Detected for Search of Cam {cam} Ccd {ccd} Cut {cut}!\n'
                             raise ValueError(e)
                         else:
                             cutting_status[(cam,ccd,cut)] = 'INCOMPLETE'
