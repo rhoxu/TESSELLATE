@@ -2302,8 +2302,8 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                 elif reduction_status == False or reduction_status[key]['status'] == 'COMPLETED':
                     self._cut_transient_search(cam,ccd,cut)
                     del(cutting_status[key])
-                    if reduction_status != False:
-                        del(reduction_status[key])
+                    # if reduction_status != False:
+                    #     del(reduction_status[key])
 
                 else:
                     job_id = reduction_status[key]['job_id']
@@ -2341,7 +2341,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                         e = f'Job {job_id} for reduction of Cam {cam} CCD {ccd} Cut {cut} has unexpected status: {job_status}\n'
                         raise ValueError(e)
 
-            if reduction_status != False: 
+            if reduction_status != False and len(reduction_status.keys()) > 0: 
                 print('Waiting for Reductions' + i*'.', end='\r')
                 sleep(600)
                 i += 1
