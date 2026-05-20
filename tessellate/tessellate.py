@@ -2335,7 +2335,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                     elif job_status == 'COMPLETED':
                         reduction_status[key]['status'] = job_status
 
-                    elif job_status not in ['RUNNING','PENDING']:
+                    elif job_status not in ['RUNNING','PENDING','COMPLETING']:
                         e = f'Job {job_id} for reduction of Cam {cam} CCD {ccd} Cut {cut} has unexpected status: {job_status}\n'
                         raise ValueError(e)
 
