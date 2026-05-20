@@ -24,6 +24,8 @@ class Navigator():
 
         self.path = f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}'
 
+        self.cut = None
+
         # -- Results -- #
         self.sources = None
         self.events = None
