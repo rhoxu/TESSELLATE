@@ -989,9 +989,8 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
                                                                 event_time_buffer=event_time_buffer,
                                                                 calc_time_window=calc_time_window)
             
-            events.loc[idx, ['frame_max', 'flux_max', 'lc_sig_max', 'lc_sig_med']] = (
-                int(max_frame), max_flux, sig_max, sig_med
-            )
+            events.loc[idx, 'frame_max'] = int(max_frame)
+            events.loc[idx, ['flux_max', 'lc_sig_max', 'lc_sig_med']] = (max_flux, sig_max, sig_med)
 
             # -- Tag cosmic rays -- #
             if ev.frame_bin == 1:
@@ -1570,14 +1569,8 @@ class Detector():
         endframes[endframes>=len(self.time)] = len(self.time)-1
         events['mjd_end'] = self.time[endframes]
 
-        print('\n')
-        print(print(events['frame_max']))
         maxframes = events['frame_max'] * events['frame_bin']
         maxframes[maxframes>=len(self.time)] = len(self.time)-1
-        print('\n')
-        print(events['frame_max'])
-        print('\n')
-        print(maxframes)
         events['mjd_max'] = self.time[maxframes]
 
         events['mjd_duration'] = events['mjd_end'] - events['mjd_start']
