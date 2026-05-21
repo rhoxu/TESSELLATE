@@ -608,49 +608,53 @@ def _Get_temporal_events(df, max_gap=2, frame_col='frame', id_col='eventid',star
     return df
 
 
-def _Check_LC_significance(time,flux,start,end,pos,flux_sign,buffer = 0.5,base_range=1):
+def _Lightcurve_significance(time,flux,frame_start,frame_end,pos,flux_sign,
+                           event_mask=None,event_time_buffer = 0.2,calc_time_window=1):
 
-    from .tools import Generate_LC
+    from tessellate.tools import Generate_LC
 
-    time_per_frame = time[1] - time[0]
-    buffer = int(buffer/time_per_frame)
-    base_range = int(base_range/time_per_frame)
-    ap = np.zeros_like(flux[0])
     y = pos[1] 
     x = pos[0] 
     _,lc = Generate_LC(time,flux,x,y,radius=1.5)
-    # lc = np.nansum(flux[:,y-1:y+2,x-1:x+2],axis=(1,2))
-    fs = start - buffer
-    fe = end + buffer
-    if fs < 0:
-        fs = 0
-    if fe > len(lc):
-        fe = len(lc) - 1 
-    baseline = lc
-    bs = fs - base_range
-    be = fe + base_range
-    if bs < 0:
-        bs = 0
-    if be > len(lc):
-        be = len(lc) - 1 
+
+    time_start = time[frame_start]
+    time_end = time[frame_end]
+    
+    buffer_start = np.argmin(abs(time - (time_start - event_time_buffer)))
+    buffer_end = np.argmin(abs(time - (time_end + event_time_buffer)))
+    if buffer_start < 0:
+        buffer_start = 0
+    if buffer_end > len(time):
+        buffer_end = len(time) - 1 
+
+    window_start = np.argmin(abs(time - (time_start - event_time_buffer-calc_time_window)))
+    window_end = np.argmin(abs(time - (time_end + event_time_buffer+calc_time_window)))
+    if window_start < 0:
+        window_start = 0
+    if window_end > len(time):
+        window_end = len(time) - 1 
+
     frames = np.arange(0,len(lc))
-    ind = ((frames > bs) & (frames < fs)) | ((frames < be) & (frames > fe))
+    if event_mask is None:
+        event_mask = np.ones_like(frames).astype(bool)
+
+    ind = event_mask & (((frames > window_start) & (frames < buffer_start)) | ((frames < window_end) & (frames > buffer_end)))
     #mean,med, std = sigma_clipped_stats(lc[ind])
     med = np.nanmedian(lc[ind])
     std = np.nanstd(lc[ind])
 
-    lcevent = lc[start:end+1]
+    lcevent = lc[frame_start:frame_end+1]
     lc_sig = (lcevent - med) / std
 
     if flux_sign >= 0:
         sig_max = np.nanmax(lc_sig)
         sig_med = np.nanmean(lc_sig)
         max_flux = np.nanmax(lcevent)
-        max_frame = np.argmax(lcevent)+start
+        max_frame = np.argmax(lcevent)+frame_start
         
     else:
         max_flux = np.nanmin(lcevent)
-        max_frame = np.argmin(lcevent)+start
+        max_frame = np.argmin(lcevent)+frame_end
         sig_max = abs(np.nanmin(lc_sig))
         sig_med = abs(np.nanmean(lc_sig))
     
@@ -832,7 +836,7 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
 
 def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
                     snr_to_localisation_func,nan_frames,
-                    frame_buffer=5,buffer=1,base_range=1):
+                    frame_buffer,event_time_buffer,calc_time_window):
     """
     Groups sources for given objid into temporally separated events.
     """
@@ -846,8 +850,8 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
 
     # -- For this objid, separate positive and negative detections -- #
     startingID=1
-    for sign in source['flux_sign'].unique():
-        signed_sources = source[source['flux_sign']==sign]
+    for flux_sign in source['flux_sign'].unique():
+        signed_sources = source[source['flux_sign']==flux_sign]
 
         # weighted_signedsources = pandas_weighted_avg(signed_sources)
 
@@ -870,12 +874,16 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
         eventsources = deepcopy(all_labelled_sources[all_labelled_sources['eventid']==eventID])
         weighted_eventsources = pandas_weighted_avg(eventsources,'snr')
 
+        flux_sign = int(eventsources.iloc[0]['flux_sign'])
+
         xint = RoundToInt(weighted_eventsources.iloc[0]['xint_brightest'])
         yint = RoundToInt(weighted_eventsources.iloc[0]['yint_brightest'])
 
         # -- Calculate significance of detection above background and local light curve -- #
-        _, _, sig_lc, _, _ = _Check_LC_significance(time,flux,eventsources['frame'].min(),eventsources['frame'].max(),
-                                                                [xint,yint],sign,buffer=buffer,base_range=base_range)
+        _, _, sig_lc, _, _ = _Lightcurve_significance(time,flux,eventsources['frame'].min(),
+                                                      eventsources['frame'].max(),[xint,yint],flux_sign,
+                                                        event_time_buffer=event_time_buffer,
+                                                        calc_time_window=calc_time_window)
         
 
         sig_lc[nan_frames] = np.nan
@@ -894,14 +902,14 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
         event['frame_start'] = int(frame_start)
         event['frame_end'] = int(frame_end)
         event['frame_duration'] = int(event['frame_end']-event['frame_start']+1)
-        event['flux_sign'] = int(eventsources.iloc[0]['flux_sign'])
+        event['flux_sign'] = flux_sign
         event['n_detections'] = int(n_detections)
         # event['bkg_level'] = weighted_eventsources.iloc[0]['bkg_level']
         # event['bkg_std'] = weighted_eventsources.iloc[0]['bkg_std']
         event['neg_extent'] = weighted_eventsources.iloc[0]['neg_extent']
         event['fwhm'] = weighted_eventsources.iloc[0]['fwhm']
         event['ellipticity'] = weighted_eventsources.iloc[0]['ellipticity']
-
+        event['image_sig_max'] = np.nanmax(eventsources['snr'].values)
         event['xcentroid_det'] = weighted_eventsources.iloc[0]['xcentroid']
         event['ycentroid_det'] = weighted_eventsources.iloc[0]['ycentroid']
 
@@ -921,17 +929,16 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
         event['xint'] = RoundToInt(event['xcentroid'])
         event['yint'] = RoundToInt(event['ycentroid'])
 
-        # -- Calculate and save LC statistics -- #
-        sig_max, sig_med, _, max_flux, max_frame = _Check_LC_significance(time,flux,
-                                                                event['frame_start'],event['frame_end'],
-                                                                [event['xint'],event['yint']],
-                                                                sign,buffer=buffer,base_range=base_range)
+        # # -- Calculate and save LC statistics -- #
+        # sig_max, sig_med, _, max_flux, max_frame = _Check_LC_significance(time,flux,
+        #                                                         event['frame_start'],event['frame_end'],
+        #                                                         [event['xint'],event['yint']],
+        #                                                         sign,buffer=buffer,base_range=base_range)
 
-        event['frame_max'] = int(max_frame)
-        event['flux_max'] = int(max_flux)
-        event['image_sig_max'] = np.nanmax(eventsources['snr'].values)
-        event['lc_sig_max'] = sig_max
-        event['lc_sig_med'] = sig_med
+        # event['frame_max'] = int(max_frame)
+        # event['flux_max'] = int(max_flux)
+        # event['lc_sig_max'] = sig_max
+        # event['lc_sig_med'] = sig_med
 
         # -- Miscellaneous info -- #
         # event['peak_freq'] = peak_freq[0]
@@ -949,6 +956,32 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
     events_df['total_events'] = int(len(events_df))
     
     return events_df 
+
+def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_window):
+
+    events = deepcopy(events)
+
+    for objid in np.unique(events.objid):
+        evs = events[events.objid==objid]
+
+        event_mask = np.zeros_like(time)
+        for _, ev in evs.iterrows():
+            event_mask[int(ev.frame_start):int(ev.frame_end)+1] = ev.eventid
+        
+        for idx,ev in evs.iterrows():
+            mask = (event_mask == ev.eventid) | (event_mask == 0)
+            sig_max, sig_med, _, max_flux, max_frame = _Lightcurve_significance(time,flux,
+                                                                ev.frame_start,ev.frame_end,
+                                                                [ev.xint,ev.yint],ev.flux_sign,
+                                                                event_mask = mask,
+                                                                event_time_buffer=event_time_buffer,
+                                                                calc_time_window=calc_time_window)
+            
+            events.loc[idx, ['frame_max', 'flux_max', 'lc_sig_max', 'lc_sig_med']] = (
+                int(max_frame), max_flux, sig_max, sig_med
+            )
+
+    return events 
 
 def _Flag_Event_Frames(events,max_frame,std=7):
 
@@ -991,9 +1024,17 @@ def _Recheck_asteroid_lcs(time,flux,events):
             frame_start = int(ast['frame_start'])
             frame_end = int(ast['frame_end'])
 
+            evs = events[events.objid==objid]
+
+            event_mask = np.zeros_like(time)
+            for _, ev in evs.iterrows():
+                event_mask[int(ev.frame_start):int(ev.frame_end)+1] = ev.eventid
             
-            _, _, lc_sig, _, _ = _Check_LC_significance(
-                time, flux, frame_start, frame_end, [xint, yint], 1, 0.5, 1
+            mask = (event_mask == eventid) | (event_mask == 0)
+            
+            _, _, lc_sig, _, _ = _Lightcurve_significance(
+                time, flux, frame_start, frame_end, [xint, yint], flux_sign=1, 
+                event_mask=mask, event_time_buffer=0.2, calc_time_window=0.5
             )
             
 
@@ -1371,7 +1412,7 @@ class Detector():
 
     # ------------------------------ Event finding functions ------------------------------ #
 
-    def _get_all_independent_events(self,frame_buffer=10,buffer=0.5,base_range=1):
+    def _get_all_independent_events(self,frame_buffer=5,event_time_buffer=0.2,calc_time_window=0.5):
         """
         Isolate sources into individual temporal events.
         """
@@ -1413,16 +1454,18 @@ class Detector():
                 length = np.arange(0,len(objids)).astype(int)
                 bin_events = Parallel(n_jobs=self.cpu)(delayed(_Isolate_events)(objids[i],time,flux,sources,
                                                                     self.sector,self.cam,self.ccd,self.cut,prf,snr_to_localisation,nan_frames,
-                                                                    frame_buffer,buffer,base_range) for i in tqdm(length))
+                                                                    frame_buffer,event_time_buffer,calc_time_window) for i in tqdm(length))
             else:            
                 bin_events = []
                 for objid in objids:
                     e = _Isolate_events(objid,time,flux,sources,self.sector,self.cam,
                                         self.ccd,self.cut,prf,snr_to_localisation,nan_frames,frame_buffer=frame_buffer,
-                                        buffer=buffer,base_range=base_range)
+                                        buffer=event_time_buffer,calc_time_window=calc_time_window)
                     bin_events += [e]
             
             events = pd.concat([events,pd.concat(bin_events)],ignore_index=True)
+
+            events = _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_window)
 
         # -- Provide CCD-relative location -- #
         events['xccd'] = RoundToInt(events['xint'] + cutCornerPx[self.cut-1][0])
