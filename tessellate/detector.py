@@ -1501,9 +1501,9 @@ class Detector():
                     bin_events += [e]
             
             # -- Extract light curve properties -- #
-            bin_events = _Extract_Lightcurve_Properties(time,flux,bin_events,event_time_buffer,calc_time_window)
+            bin_events = _Extract_Lightcurve_Properties(time,flux,pd.concat(bin_events),event_time_buffer,calc_time_window)
 
-            events = pd.concat([events,pd.concat(bin_events)],ignore_index=True)
+            events = pd.concat([events,bin_events],ignore_index=True)
 
         # -- Provide CCD-relative location -- #
         events['xccd'] = RoundToInt(events['xint'] + cutCornerPx[self.cut-1][0])
