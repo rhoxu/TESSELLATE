@@ -995,7 +995,7 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
 
             # -- Tag cosmic rays -- #
             if ev.frame_bin == 1:
-                event_sig_lc = sig_lc[ev.frame_start:ev.frame_end+1]
+                event_sig_lc = sig_lc[frame_start:frame_end+1]
 
                 # If only one frame in event, if bright = cosmic ray, if faint = junk
                 if ev.frame_duration == 1:
