@@ -1504,6 +1504,12 @@ class Detector():
 
             events = pd.concat([events,bin_events],ignore_index=True)
 
+            evs = events[(events.objid==526)]
+
+            print('\n')
+            print(f'bruh:{evs.lc_sig_max}')
+            print('\n')
+
         events['frame_max'] = events['frame_max'].astype(int)
 
         # -- Provide CCD-relative location -- #
@@ -1533,9 +1539,7 @@ class Detector():
         self.events = events 
 
         ev = self.events[(self.events.objid==526)&(self.events.eventid==2)]
-        print('\n')
-        print(f'bruh:{ev.lc_sig_max}')
-        print('\n')
+
 
     def _events_physical_units(self):
         """
