@@ -994,6 +994,8 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
 
             if objid == 526:
                 print(f"Event {i} for objid {objid}: frame_start={frame_start}, frame_end={frame_end}, max_frame={max_frame}, max_flux={max_flux}, sig_max={sig_max}, sig_med={sig_med}")
+                
+                print(f"Event {i} for objid {events.loc[idx,'objid']}: frame_start={events.loc[idx,'frame_start']}, frame_end={events.loc[idx,'frame_end']}, max_frame={events.loc[idx,'frame_max']}, max_flux={events.loc[idx,'flux_max']}, sig_max={events.loc[idx,'lc_sig_max']}, sig_med={events.loc[idx,'lc_sig_med']}")
 
             # -- Tag cosmic rays -- #
             if ev.frame_bin == 1:
