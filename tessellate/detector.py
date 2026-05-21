@@ -1532,6 +1532,11 @@ class Detector():
 
         self.events = events 
 
+        ev = self.events[(self.events.objid==526)&(self.events.eventid==2)]
+        print('\n')
+        print(f'bruh:{ev.lc_sig_max}')
+        print('\n')
+
     def _events_physical_units(self):
         """
         Give physical values to event.
@@ -1573,17 +1578,17 @@ class Detector():
 
         maxframes = events['frame_max'] * events['frame_bin']
         maxframes[maxframes>=len(self.time)] = len(self.time)-1
-        print('\n')
-        print(events['frame_max'])
-        print('\n')
-        print('bryg')
-        print('\n')
-        print(events['frame_bin'])
-        print('\n')
-        print('bryg')
-        print('\n')
-        print(maxframes)
-        print('\n')
+        # print('\n')
+        # print(events['frame_max'])
+        # print('\n')
+        # print('bryg')
+        # print('\n')
+        # print(events['frame_bin'])
+        # print('\n')
+        # print('bryg')
+        # print('\n')
+        # print(maxframes)
+        # print('\n')
         
         events['mjd_max'] = self.time[maxframes]
 
