@@ -876,12 +876,14 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
 
         flux_sign = int(eventsources.iloc[0]['flux_sign'])
 
+        frame_start = int(eventsources['frame'].min())
+        frame_end = int(eventsources['frame'].max())
         xint = RoundToInt(weighted_eventsources.iloc[0]['xint_brightest'])
         yint = RoundToInt(weighted_eventsources.iloc[0]['yint_brightest'])
 
         # -- Calculate significance of detection above background and local light curve -- #
-        _, _, sig_lc, _, _ = _Lightcurve_significance(time,flux,eventsources['frame'].min(),
-                                                      eventsources['frame'].max(),[xint,yint],flux_sign,
+        _, _, sig_lc, _, _ = _Lightcurve_significance(time,flux,frame_start,
+                                                      frame_end,[xint,yint],flux_sign,
                                                         event_time_buffer=event_time_buffer,
                                                         calc_time_window=calc_time_window)
         
@@ -965,14 +967,24 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
         evs = events[events.objid==objid]
 
         event_mask = np.zeros_like(time)
-        for _, ev in evs.iterrows():
-            event_mask[int(ev.frame_start):int(ev.frame_end)+1] = ev.eventid
+        for i in range(1,len(evs)+1):
+            ev = evs.iloc[i]
+            event_mask[int(ev.frame_start):int(ev.frame_end)+1] = i
         
+        i = -1
         for idx,ev in evs.iterrows():
-            mask = (event_mask == ev.eventid) | (event_mask == 0)
-            sig_max, sig_med, _, max_flux, max_frame = _Lightcurve_significance(time,flux,
-                                                                ev.frame_start,ev.frame_end,
-                                                                [ev.xint,ev.yint],ev.flux_sign,
+            i += 1
+            
+            mask = (event_mask == i) | (event_mask == 0)
+
+            frame_start = int(ev.frame_start)
+            frame_end = int(ev.frame_end)
+            xint = int(ev.xint)
+            yint = int(ev.yint)
+
+            sig_max, sig_med, sig_lc, max_flux, max_frame = _Lightcurve_significance(time,flux,
+                                                                frame_start,frame_end,
+                                                                [xint,yint],ev.flux_sign,
                                                                 event_mask = mask,
                                                                 event_time_buffer=event_time_buffer,
                                                                 calc_time_window=calc_time_window)
@@ -981,7 +993,32 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
                 int(max_frame), max_flux, sig_max, sig_med
             )
 
+            # -- Tag cosmic rays -- #
+            if ev.frame_bin == 1:
+                event_sig_lc = sig_lc[ev.frame_start:ev.frame_end+1]
+
+                # If only one frame in event, if bright = cosmic ray, if faint = junk
+                if ev.frame_duration == 1:
+                    if len(event_sig_lc[event_sig_lc > 3]) == 1: 
+                        events.loc[idx,'classification'] = 'CosmicRay'
+                    else:
+                        events.loc[idx,'classification'] = 'Junk'
+                
+                # If two image plane detections:
+                # but only 1 frame above 3sigma / 2 frames above 3sigma but not consecutive
+                elif ev.n_detections == 2:
+
+                    if ev.frame_duration == 2:
+                        if len(event_sig_lc[event_sig_lc > 3]) == 1:
+                            events.loc[idx,'classification'] = 'CosmicRay'
+                    else:
+                        sorted_idx = np.argsort(event_sig_lc)[::-1]
+                        if abs(np.diff(sorted_idx)[0]) > 1:
+                            events.loc[idx,'classification'] = 'CosmicRay'
+                     
+
     return events 
+            
 
 def _Flag_Event_Frames(events,max_frame,std=7):
 
@@ -1465,6 +1502,7 @@ class Detector():
             
             events = pd.concat([events,pd.concat(bin_events)],ignore_index=True)
 
+            # -- Extract light curve properties -- #
             events = _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_window)
 
         # -- Provide CCD-relative location -- #
@@ -1481,14 +1519,17 @@ class Detector():
             events['ycentroid_err'] = np.sqrt(events['centroid_err']**2 + wcs_unc[1]**2)
 
         # -- Remove all events with single frame durations -- #
-        fake_events = events[(events.frame_duration==1)&(events.frame_bin==1)].copy()
-        fake_events.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/single_frame_events.csv')
+        # fake_events = events[(events.frame_duration==1)&(events.frame_bin==1)].copy()
+        # fake_events.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/single_frame_events.csv')
 
-        real_events = events[(events.frame_duration>1)|(events.frame_bin>1)].copy()
-        real_events['total_events'] = real_events.groupby('objid')['objid'].transform('size')
-        real_events['eventid'] = real_events.groupby('objid').cumcount() + 1
+        # real_events = events[(events.frame_duration>1)|(events.frame_bin>1)].copy()
+        # real_events['total_events'] = real_events.groupby('objid')['objid'].transform('size')
+        # real_events['eventid'] = real_events.groupby('objid').cumcount() + 1
 
-        self.events = real_events 
+        events['total_events'] = events.groupby('objid')['objid'].transform('size')
+        events['eventid'] = events.groupby('objid').cumcount() + 1
+
+        self.events = events 
 
     def _events_physical_units(self):
         """
@@ -1579,7 +1620,7 @@ class Detector():
         gaia = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/local_gaia_cat.csv')
         events['gaia_id'] = '-'
         for i,event in events.iterrows():
-            if event.classification != 'Asteroid':
+            if event.classification not in ['Asteroid','CosmicRay','Junk']:
                 inside = gaia[(abs(gaia.ra-event.ra) < sigma*event.ra_err)&
                             (abs(gaia.dec-event.dec) < sigma*event.dec_err)]
                 if len(inside) > 0:
@@ -1588,7 +1629,7 @@ class Detector():
         # -- Cross matches location to variable catalog -- #
         variables = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/variable_catalog.csv')
         for i,event in events.iterrows():
-            if event.classification != 'Asteroid':
+            if event.classification not in ['Asteroid','CosmicRay','Junk']:
                 inside = variables[(abs(variables.ra-event.ra) < sigma*event.ra_err)&
                             (abs(variables.dec-event.dec) < sigma*event.dec_err)]
                 if len(inside) > 0:
