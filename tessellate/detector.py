@@ -967,14 +967,14 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
         evs = events[events.objid==objid]
 
         event_mask = np.zeros_like(time)
-        for i in range(1,len(evs)+1):
+        for i in range(len(evs)):
             ev = evs.iloc[i]
-            event_mask[int(ev.frame_start):int(ev.frame_end)+1] = i
+            event_mask[int(ev.frame_start):int(ev.frame_end)+1] = i+1
         
-        i = -1
+        i = 0
         for idx,ev in evs.iterrows():
             i += 1
-            
+
             mask = (event_mask == i) | (event_mask == 0)
 
             frame_start = int(ev.frame_start)
