@@ -992,6 +992,9 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
             events.loc[idx, 'frame_max'] = int(max_frame)
             events.loc[idx, ['flux_max', 'lc_sig_max', 'lc_sig_med']] = (max_flux, sig_max, sig_med)
 
+            if objid == 526:
+                print(f"Event {i} for objid {objid}: frame_start={frame_start}, frame_end={frame_end}, max_frame={max_frame}, max_flux={max_flux}, sig_max={sig_max}, sig_med={sig_med}")
+
             # -- Tag cosmic rays -- #
             if ev.frame_bin == 1:
                 event_sig_lc = sig_lc[frame_start:frame_end+1]
@@ -1503,12 +1506,6 @@ class Detector():
             bin_events = _Extract_Lightcurve_Properties(time,flux,pd.concat(bin_events),event_time_buffer,calc_time_window)
 
             events = pd.concat([events,bin_events],ignore_index=True)
-
-            evs = events[(events.objid==526)]
-
-            print('\n')
-            print(f'bruh:{evs.lc_sig_max}')
-            print('\n')
 
         events['frame_max'] = events['frame_max'].astype(int)
 
