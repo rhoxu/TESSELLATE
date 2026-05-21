@@ -962,6 +962,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
 def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_window):
 
     events = deepcopy(events)
+    events.reset_index(drop=True) 
 
     for objid in np.unique(events.objid):
         evs = events[events.objid==objid]
@@ -992,10 +993,10 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
             events.loc[idx, 'frame_max'] = int(max_frame)
             events.loc[idx, ['flux_max', 'lc_sig_max', 'lc_sig_med']] = (max_flux, sig_max, sig_med)
 
-            if objid == 526:
-                print(f"Event {i} for objid {objid}: frame_start={frame_start}, frame_end={frame_end}, max_frame={max_frame}, max_flux={max_flux}, sig_max={sig_max}, sig_med={sig_med}")
+            # if objid == 526:
+            #     print(f"Event {i} for objid {objid}: frame_start={frame_start}, frame_end={frame_end}, max_frame={max_frame}, max_flux={max_flux}, sig_max={sig_max}, sig_med={sig_med}")
                 
-                print(f"Event {i} for objid {events.loc[idx,'objid']}: frame_start={events.loc[idx,'frame_start']}, frame_end={events.loc[idx,'frame_end']}, max_frame={events.loc[idx,'frame_max']}, max_flux={events.loc[idx,'flux_max']}, sig_max={events.loc[idx,'lc_sig_max']}, sig_med={events.loc[idx,'lc_sig_med']}")
+            #     print(f"Event {i} for objid {events.loc[idx,'objid']}: frame_start={events.loc[idx,'frame_start']}, frame_end={events.loc[idx,'frame_end']}, max_frame={events.loc[idx,'frame_max']}, max_flux={events.loc[idx,'flux_max']}, sig_max={events.loc[idx,'lc_sig_max']}, sig_med={events.loc[idx,'lc_sig_med']}")
 
             # -- Tag cosmic rays -- #
             if ev.frame_bin == 1:
@@ -1505,7 +1506,7 @@ class Detector():
                     bin_events += [e]
             
             # -- Extract light curve properties -- #
-            bin_events = _Extract_Lightcurve_Properties(time,flux,pd.concat(bin_events),event_time_buffer,calc_time_window)
+            bin_events = _Extract_Lightcurve_Properties(time,flux,pd.concat(bin_events,ignore_index=True),event_time_buffer,calc_time_window)
 
             events = pd.concat([events,bin_events],ignore_index=True)
 
@@ -1536,9 +1537,6 @@ class Detector():
         events['eventid'] = events.groupby('objid').cumcount() + 1
 
         self.events = events 
-
-        ev = self.events[(self.events.objid==526)&(self.events.eventid==2)]
-
 
     def _events_physical_units(self):
         """
