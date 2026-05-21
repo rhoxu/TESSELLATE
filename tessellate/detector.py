@@ -1504,6 +1504,8 @@ class Detector():
 
             events = pd.concat([events,bin_events],ignore_index=True)
 
+        events['frame_max'] = events['frame_max'].astype(int)
+
         # -- Provide CCD-relative location -- #
         events['xccd'] = RoundToInt(events['xint'] + cutCornerPx[self.cut-1][0])
         events['yccd'] = RoundToInt(events['yint'] + cutCornerPx[self.cut-1][1])
@@ -1571,6 +1573,18 @@ class Detector():
 
         maxframes = events['frame_max'] * events['frame_bin']
         maxframes[maxframes>=len(self.time)] = len(self.time)-1
+        print('\n')
+        print(events['frame_max'])
+        print('\n')
+        print('bryg')
+        print('\n')
+        print(events['frame_bin'])
+        print('\n')
+        print('bryg')
+        print('\n')
+        print(maxframes)
+        print('\n')
+        
         events['mjd_max'] = self.time[maxframes]
 
         events['mjd_duration'] = events['mjd_end'] - events['mjd_start']
