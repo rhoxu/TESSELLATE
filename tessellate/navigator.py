@@ -681,9 +681,9 @@ class Navigator():
         errorRA,errorDEC = self.wcs.all_pix2world(errorX,errorY,0)
 
         # -- Extract a cutout of the region -- #
-        if check == 'gaia_local':
-            path = f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
-        fig, wcs, size, photometry,cat,im = event_cutout((RA,DEC),20*tess_grid,phot=phot,check=path)
+        if check == 'local':
+            check = f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
+        fig, wcs, size, photometry,cat,im = event_cutout((RA,DEC),20*tess_grid,phot=phot,check=check)
         if fig is None:
             return None,None,None,None,None
         axes = fig.get_axes()
@@ -1038,7 +1038,7 @@ class Navigator():
         return [times,f], cutout_image, fig
 
 
-    def plot_object(self,objid,event='separate',cut=None,save_name=None,save_path=None,phot_check='gaia_local',
+    def plot_object(self,objid,event='separate',cut=None,save_name=None,save_path=None,phot_check='local',
                     latex=True,zoo_mode=False,external_phot=False,save_combined_path=None,tess_grid=3):
         """
         Plot the lightcurve and images of a given object/event.
@@ -1082,8 +1082,8 @@ class Navigator():
 
         # -- If external photometry is requested, generate the WCS and cutout -- #
         if external_phot:
-            if phot_check == 'local':
-                phot_check = f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
+            # if phot_check == 'local':
+            #     phot_check = f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
             fig, cat, coord,_,_ = self.external_photometry(objid,event,cut,tess_grid=tess_grid,check=phot_check)
             if fig is None:
                 return obj
