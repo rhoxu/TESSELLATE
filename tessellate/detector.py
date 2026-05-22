@@ -1006,8 +1006,8 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
                 if ev.frame_duration == 1:
                     if len(event_sig_lc[event_sig_lc > 3]) == 1: 
                         events.loc[idx,'classification'] = 'CosmicRay'
-                        print('\n')
-                        print('cosmicray!')
+                        # print('\n')
+                        # print('cosmicray!')
                     else:
                         events.loc[idx,'classification'] = 'Junk'
                 
@@ -1018,15 +1018,15 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
                     if ev.frame_duration == 2:
                         if len(event_sig_lc[event_sig_lc > 3]) == 1:
                             events.loc[idx,'classification'] = 'CosmicRay'
-                            print('\n')
-                            print('cosmicray2!')
+                            # print('\n')
+                            # print('cosmicray2!')
                             
                     else:
                         sorted_idx = np.argsort(event_sig_lc)[::-1]
                         if abs(np.diff(sorted_idx)[0]) > 1:
                             events.loc[idx,'classification'] = 'CosmicRay'
-                            print('\n')
-                            print('cosmicray3!')
+                            # print('\n')
+                            # print('cosmicray3!')
                      
 
     return events 
@@ -1518,6 +1518,10 @@ class Detector():
             events = pd.concat([events,bin_events],ignore_index=True)
 
         events['frame_max'] = events['frame_max'].astype(int)
+        
+        print('\n')
+        print(f'bruh:{len(events[events.classification=='CosmicRay'])}')
+        print('\n')
 
         # -- Provide CCD-relative location -- #
         events['xccd'] = RoundToInt(events['xint'] + cutCornerPx[self.cut-1][0])
@@ -1813,6 +1817,10 @@ class Detector():
         self._get_all_independent_events()
         print(f'   Separated into individual events -- done! ({(clock()-ts):.0f}s)')
 
+        print('\n')
+        print(f'bruh:{len(events[events.classification=='CosmicRay'])}')
+        print('\n')
+
         # -- Get physical units for events -- #
         self._events_physical_units()
         print(f'   Getting time/coords/flux information -- done!')
@@ -1833,6 +1841,10 @@ class Detector():
         ts = clock()
         self._crossmatch_framebin()
         print(f'   Crossmatching between time bins -- done! ({(clock()-ts):.0f}s)')
+
+        print('\n')
+        print(f'bruh:{len(events[events.classification=='CosmicRay'])}')
+        print('\n')
 
         # -- Get TSS Catalogue Names -- #        
         self._TSS_catalogue_names()
