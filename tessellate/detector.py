@@ -670,7 +670,7 @@ def _Lightcurve_significance(time,flux,frame_start,frame_end,pos,flux_sign,
         print(sig_max)
         print(lc_sig)
         print(max_frame)
-        raise ValueError('bruh')
+        raise ValueError(f'ind {ind}\nsig_max{sig_max}\nmax_frame{max_frame}\nlc_sig:{lc_sig}')
 
     slope, _, _, _, _ = stats.linregress(t_window, lc_window)
     baseline_is_flat =(abs(slope) / std < 2) and  (abs(med) < std) and (std < 5)
