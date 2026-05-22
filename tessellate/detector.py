@@ -995,7 +995,7 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
             events.loc[idx, ['flux_max', 'lc_sig_max', 'lc_sig_med']] = (max_flux, sig_max, sig_med)
 
             # -- Tag cosmic rays -- #
-            if ev.frame_bin == 1:
+            if (ev.frame_bin == 1) & (ev.flux_sign == 1):
                 event_sig_lc = sig_lc[frame_start:frame_end+1]
 
                 # If only one frame in event, if bright = cosmic ray, if faint = junk
@@ -1014,9 +1014,10 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
                             events.loc[idx,'classification'] = 'CosmicRay'
                             
                     else:
-                        sorted_idx = np.argsort(event_sig_lc)[::-1]
-                        if abs(np.diff(sorted_idx)[0]) > 1:
-                            events.loc[idx,'classification'] = 'CosmicRay'
+                        if len(event_sig_lc[event_sig_lc > 3]) == 2:
+                            sorted_idx = np.argsort(event_sig_lc)[::-1]
+                            if abs(np.diff(sorted_idx)[0]) > 1:
+                                events.loc[idx,'classification'] = 'CosmicRay'
 
     return events 
             
