@@ -964,6 +964,7 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
     events = deepcopy(events)
     events = events.reset_index(drop=True) 
 
+    events['classification'] = '-'
     for objid in np.unique(events.objid):
         evs = events[events.objid==objid]
 
@@ -993,11 +994,6 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
             events.loc[idx, 'frame_max'] = int(max_frame)
             events.loc[idx, ['flux_max', 'lc_sig_max', 'lc_sig_med']] = (max_flux, sig_max, sig_med)
 
-            # if objid == 526:
-            #     print(f"Event {i} for objid {objid}: frame_start={frame_start}, frame_end={frame_end}, max_frame={max_frame}, max_flux={max_flux}, sig_max={sig_max}, sig_med={sig_med}")
-                
-            #     print(f"Event {i} for objid {events.loc[idx,'objid']}: frame_start={events.loc[idx,'frame_start']}, frame_end={events.loc[idx,'frame_end']}, max_frame={events.loc[idx,'frame_max']}, max_flux={events.loc[idx,'flux_max']}, sig_max={events.loc[idx,'lc_sig_max']}, sig_med={events.loc[idx,'lc_sig_med']}")
-
             # -- Tag cosmic rays -- #
             if ev.frame_bin == 1:
                 event_sig_lc = sig_lc[frame_start:frame_end+1]
@@ -1006,8 +1002,6 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
                 if ev.frame_duration == 1:
                     if len(event_sig_lc[event_sig_lc > 3]) == 1: 
                         events.loc[idx,'classification'] = 'CosmicRay'
-                        # print('\n')
-                        # print('cosmicray!')
                     else:
                         events.loc[idx,'classification'] = 'Junk'
                 
@@ -1018,16 +1012,11 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
                     if ev.frame_duration == 2:
                         if len(event_sig_lc[event_sig_lc > 3]) == 1:
                             events.loc[idx,'classification'] = 'CosmicRay'
-                            # print('\n')
-                            # print('cosmicray2!')
                             
                     else:
                         sorted_idx = np.argsort(event_sig_lc)[::-1]
                         if abs(np.diff(sorted_idx)[0]) > 1:
                             events.loc[idx,'classification'] = 'CosmicRay'
-                            # print('\n')
-                            # print('cosmicray3!')
-                     
 
     return events 
             

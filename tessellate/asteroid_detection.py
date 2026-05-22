@@ -149,7 +149,8 @@ def Threshold_Asteroid_Checker(time,flux,events,com_motion_thresholds=[1, 0.75, 
                         (events['frame_duration']<=50)&
                         (events['lc_sig_max']>=5)&
                         (events['flux_sign']==1)& 
-                        (events['frame_bin']==events.frame_bin.min())]
+                        (events['frame_bin']==events.frame_bin.min())&
+                        (~events['classification'].isin(['CosmicRay','Junk']))]
 
     candidate_indices = candidates.index
 
@@ -164,7 +165,6 @@ def Threshold_Asteroid_Checker(time,flux,events,com_motion_thresholds=[1, 0.75, 
     events.loc[candidate_indices, 'gaussian_score'] = candidates['gaussian_score'].values
 
     # -- Flagging loop -- #
-    events['classification'] = '-'
     for com_thresh, gauss_thresh in zip(com_motion_thresholds, gaussian_score_thresholds):
         mask = (
             (events['com_motion'] >= com_thresh) &
