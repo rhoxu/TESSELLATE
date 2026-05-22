@@ -666,11 +666,7 @@ def _Lightcurve_significance(time,flux,frame_start,frame_end,pos,flux_sign,
     lc_sig = (lc - med) / std
 
     if ind.sum() < 2:
-        print(ind)
-        print(sig_max)
-        print(lc_sig)
-        print(max_frame)
-        raise ValueError(f'ind {ind}\nsig_max{sig_max}\nmax_frame{max_frame}\nlc_sig:{lc_sig}')
+        return np.nan, np.nan, np.ones_like(time)*np.nan,max_flux,max_frame,False
 
     slope, _, _, _, _ = stats.linregress(t_window, lc_window)
     baseline_is_flat =(abs(slope) / std < 2) and  (abs(med) < std) and (std < 5)
