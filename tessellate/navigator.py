@@ -421,7 +421,7 @@ class Navigator():
             cadence = np.median(np.diff(time))
             fig,ax = plt.subplots()
             ax.plot(t,f,'x-',c='k')
-            ax.axvspan(t[frame_start]-cadence/2,t[frame_end]+cadence/2,color='C1',alpha=0.4)
+            ax.axvspan(t[frame_start-window_start]-cadence/2,t[frame_end-window_start]+cadence/2,color='C1',alpha=0.4)
             ax.set_xlabel('Time (MJD)')
             ax.set_ylabel('TESS Counts')
             if event.frame_bin > 1:
