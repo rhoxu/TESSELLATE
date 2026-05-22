@@ -131,13 +131,27 @@ def Fit_CCD(image_path,gaia_cat,sector,cam,ccd,n=4,cut=None,quality_thresh=0.8,m
         model_data = pickle.load(f)
     clf = model_data['clf']
 
+    print('\n')
+    print(len(gaia_cat))
+    print('\n')
+
     # -- Estimate quality of sources for fitting-- #
     sources_x,sources_y = wcs.all_world2pix(gaia_cat.ra,gaia_cat.dec,0)
+
+    print(sources_x)
+    print('\n')
+    print(sources_y)
+    print('\n')
+
     gaia_cat['xccd'] = sources_x
     gaia_cat['yccd'] = sources_y
     gaia_cat = gaia_cat[(gaia_cat.xccd>44+6)&(gaia_cat.xccd<44+2048-6)&
                         (gaia_cat.yccd>6)&(gaia_cat.yccd<2048-6)] 
 
+
+    print('\n')
+    print(len(gaia_cat))
+    print('\n')
 
     # gaia_mid_brightness = gaia_cat[(gaia_cat.mag < 16)&(gaia_cat.mag >9)]
     ra_rad = np.deg2rad(gaia_cat['ra'].to_numpy())
