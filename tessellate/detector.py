@@ -1518,10 +1518,6 @@ class Detector():
             events = pd.concat([events,bin_events],ignore_index=True)
 
         events['frame_max'] = events['frame_max'].astype(int)
-        
-        print('\n')
-        print(f"bruh: {len(events[events.classification=='CosmicRay'])}")
-        print('\n')
 
         # -- Provide CCD-relative location -- #
         events['xccd'] = RoundToInt(events['xint'] + cutCornerPx[self.cut-1][0])
@@ -1817,18 +1813,22 @@ class Detector():
         self._get_all_independent_events()
         print(f'   Separated into individual events -- done! ({(clock()-ts):.0f}s)')
 
-        print('\n')
-        print(f"bruh: {len(self.events[self.events.classification=='CosmicRay'])}")
-        print('\n')
-
         # -- Get physical units for events -- #
         self._events_physical_units()
         print(f'   Getting time/coords/flux information -- done!')
+
+        print('\n')
+        print(f"bruh: {len(self.events[self.events.classification=='CosmicRay'])}")
+        print('\n')
 
         # -- Tag asteroids -- #
         ts = clock()
         self._flag_asteroids()
         print(f'   Checking for asteroids -- done! ({(clock()-ts):.0f}s)')
+
+        print('\n')
+        print(f"bruh: {len(self.events[self.events.classification=='CosmicRay'])}")
+        print('\n')
 
         self.events = self.events.drop_duplicates(subset=['frame_bin','xint','yint','frame_max'],keep='first')
 
@@ -1837,14 +1837,14 @@ class Detector():
         self._catalogue_crossmatch()
         print(f'   Crossmatching with Gaia and Variables -- done! ({(clock()-ts):.0f}s)')
 
+        print('\n')
+        print(f"bruh: {len(self.events[self.events.classification=='CosmicRay'])}")
+        print('\n')
+
         # -- Crossmatch between different frame_bins -- #
         ts = clock()
         self._crossmatch_framebin()
         print(f'   Crossmatching between time bins -- done! ({(clock()-ts):.0f}s)')
-
-        print('\n')
-        print(f"bruh: {len(self.events[self.events.classification=='CosmicRay'])}")
-        print('\n')
 
         # -- Get TSS Catalogue Names -- #        
         self._TSS_catalogue_names()
