@@ -1758,7 +1758,7 @@ class Detector():
 
             # Photometry
             'flux_max', 'mag_min','flux_sign',
-            'image_sig_max', 'lc_sig_max', 'lc_sig_med',#'bkg_std',
+            'image_sig_max', 'lc_sig_max', 'lc_sig_med','lc_flat',
             'snr_psf',
 
             # Morphology
