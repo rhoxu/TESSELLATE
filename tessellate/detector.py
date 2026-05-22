@@ -662,11 +662,18 @@ def _Lightcurve_significance(time,flux,frame_start,frame_end,pos,flux_sign,
         max_frame = np.argmin(lcevent)+frame_end
         sig_max = abs(np.nanmin(lc_sig))
         sig_med = abs(np.nanmean(lc_sig))
+    
+    lc_sig = (lc - med) / std
+
+    if ind.sum() < 2:
+        print(ind)
+        print(sig_max)
+        print(lc_sig)
+        print(max_frame)
+        raise ValueError('bruh')
 
     slope, _, _, _, _ = stats.linregress(t_window, lc_window)
     baseline_is_flat =(abs(slope) / std < 2) and  (abs(med) < std) and (std < 5)
-    
-    lc_sig = (lc - med) / std
 
     return sig_max, sig_med, lc_sig * flux_sign, max_flux, max_frame, baseline_is_flat
 
