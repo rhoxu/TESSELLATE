@@ -410,10 +410,10 @@ class Navigator():
         frame_start = RoundToInt(event.frame_start)        # Start frame of the event
         frame_end = RoundToInt(event.frame_end)            # End frame of the event
 
-        frame_start = np.max([frame_start-frame_buffer,0])
-        frame_end = np.min([frame_end+frame_buffer+1,len(time)-1])
+        window_start = np.max([frame_start-frame_buffer,0])
+        window_end = np.min([frame_end+frame_buffer+1,len(time)-1])
 
-        t,f = Generate_LC(time,flux,x,y,frame_start,frame_end,radius=1.5)
+        t,f = Generate_LC(time,flux,x,y,window_start,window_end,radius=1.5)
                           #orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
 
         # -- Plot lightcurve -- #
@@ -421,19 +421,19 @@ class Navigator():
             cadence = np.median(np.diff(time))
             fig,ax = plt.subplots()
             ax.plot(t,f,'x-',c='k')
-            ax.axvspan(t[frame_buffer]-cadence/2,t[frame_buffer+event.frame_end-event.frame_start]+cadence/2,color='C1',alpha=0.4)
+            ax.axvspan(t[frame_start]-cadence/2,t[frame_end]+cadence/2,color='C1',alpha=0.4)
             ax.set_xlabel('Time (MJD)')
             ax.set_ylabel('TESS Counts')
             if event.frame_bin > 1:
                 rawt,rawf = Generate_LC(self.time,self.flux,x,y,
-                                        frame_start*event.frame_bin,frame_end*event.frame_bin,
+                                        window_start*event.frame_bin,window_end*event.frame_bin,
                                         radius=1.5)#,orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
                 ax.plot(rawt,rawf,'.',c='k',alpha=0.3)
 
             if frame_bin is not None and frame_bin > event.frame_bin:
                 largertime, largerflux = (Frame_Bin(self.sector, self.cam,self.time, self.flux, frame_bin))
                 largert,largerf = Generate_LC(largertime,largerflux,x,y,
-                                              int(frame_start/frame_bin*event.frame_bin),int(frame_end/frame_bin*event.frame_bin),
+                                              int(window_start/frame_bin*event.frame_bin),int(window_end/frame_bin*event.frame_bin),
                                               radius=1.5)#,orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
                 ax.plot(largert, largerf, '^', c='r', alpha=0.8)
 
