@@ -131,7 +131,8 @@ class Navigator():
 
     # ----------------------------- Filtering sources, events, objects ----------------------------- #
 
-    def filter_events(self,cut=None,stars=None,asteroidkiller=None,strapkiller=False,
+    def filter_events(self,cut=None,
+                      stars=None,asteroidkiller=None,strapkiller=None,cosmicraykiller=None,junkkiller=True,
                       lower=None,upper=None,image_sig_max=None,frame_bin=None,
                       lc_sig_max=None,lc_sig_med=None,min_events=None,max_events=None,
                       bkg_std=None,boundary_buffer=None,flux_sign=None,classification=None,
@@ -163,6 +164,14 @@ class Navigator():
             events = events.loc[~(events.classification == 'Asteroid')]
             if 'Asteroid' in events.keys():
                 events = events.loc[events.Asteroid == 0]
+
+        # -- Remove Cosmic Rays -- #
+        if cosmicraykiller:
+            events = events.loc[~(events.classification == 'CosmicRay')]
+
+        # -- Remove junk -- #
+        if junkkiller:
+            events = events.loc[~(events.classification == 'Junk')]
 
         # -- Remove events near strap structures -- #
         if strapkiller:
