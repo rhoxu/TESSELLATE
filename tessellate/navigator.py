@@ -134,7 +134,7 @@ class Navigator():
     def filter_events(self,cut=None,
                       stars=None,asteroidkiller=None,strapkiller=None,cosmicraykiller=None,junkkiller=True,
                       lower=None,upper=None,image_sig_max=None,frame_bin=None,
-                      lc_sig_max=None,lc_sig_med=None,min_events=None,max_events=None,
+                      lc_sig_max=None,lc_sig_med=None,lc_flat=None,min_events=None,max_events=None,
                       bkg_std=None,boundary_buffer=None,flux_sign=None,classification=None,
                       psf_like=None,galactic_latitude=None,centroid_err=None,crossbins=True,
                       bad_frame_flag=None):
@@ -188,6 +188,12 @@ class Navigator():
         # -- Remove events whose max frame is in a dense frame (i.e. abnormally large number of recovered events) -- #
         if not bad_frame_flag:
             events = events[events.bad_frame_flag == 0]
+
+        # -- Flat local light curve baseline -- #
+        if lc_flat == False:
+            events = events.loc[events.lc_flat == 0]
+        elif lc_flat == True:
+            events = events.loc[events.lc_flat == 1]
 
         # -- Remove events within 'boundary_buffer' of the boundary -- #
         if boundary_buffer is not None:

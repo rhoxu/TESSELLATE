@@ -612,10 +612,11 @@ def _Lightcurve_significance(time,flux,frame_start,frame_end,pos,flux_sign,
                            event_mask=None,event_time_buffer = 0.2,calc_time_window=1):
 
     from tessellate.tools import Generate_LC
+    from scipy import stats
 
     y = pos[1] 
     x = pos[0] 
-    _,lc = Generate_LC(time,flux,x,y,radius=1.5)
+    t,lc = Generate_LC(time,flux,x,y,radius=1.5)
 
     time_start = time[frame_start]
     time_end = time[frame_end]
@@ -640,8 +641,12 @@ def _Lightcurve_significance(time,flux,frame_start,frame_end,pos,flux_sign,
 
     ind = event_mask & (((frames > window_start) & (frames < buffer_start)) | ((frames < window_end) & (frames > buffer_end)))
     #mean,med, std = sigma_clipped_stats(lc[ind])
-    med = np.nanmedian(lc[ind])
-    std = np.nanstd(lc[ind])
+    
+    t_window = t[ind]
+    lc_window = lc[ind]
+    
+    med = np.nanmedian(lc_window[ind])
+    std = np.nanstd(lc_window[ind])
 
     lcevent = lc[frame_start:frame_end+1]
     lc_sig = (lcevent - med) / std
@@ -657,9 +662,13 @@ def _Lightcurve_significance(time,flux,frame_start,frame_end,pos,flux_sign,
         max_frame = np.argmin(lcevent)+frame_end
         sig_max = abs(np.nanmin(lc_sig))
         sig_med = abs(np.nanmean(lc_sig))
+
+    slope, _, _, _, _ = stats.linregress(t_window, lc_window)
+    baseline_is_flat =(abs(slope) / std < 2) and  (abs(med) < std) and (std < 5)
     
     lc_sig = (lc - med) / std
-    return sig_max, sig_med, lc_sig * flux_sign, max_flux, max_frame
+
+    return sig_max, sig_med, lc_sig * flux_sign, max_flux, max_frame, baseline_is_flat
 
 
 def _Lightcurve_event_checker(lc_sig,triggers,siglim=3,maxsep=5):
@@ -882,7 +891,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
         yint = RoundToInt(weighted_eventsources.iloc[0]['yint_brightest'])
 
         # -- Calculate significance of detection above background and local light curve -- #
-        _, _, sig_lc, _, _ = _Lightcurve_significance(time,flux,frame_start,
+        _, _, sig_lc, _, _, _ = _Lightcurve_significance(time,flux,frame_start,
                                                       frame_end,[xint,yint],flux_sign,
                                                         event_time_buffer=event_time_buffer,
                                                         calc_time_window=calc_time_window)
@@ -984,15 +993,15 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
             xint = int(ev.xint)
             yint = int(ev.yint)
 
-            sig_max, sig_med, sig_lc, max_flux, max_frame = _Lightcurve_significance(time,flux,
-                                                                frame_start,frame_end,
-                                                                [xint,yint],ev.flux_sign,
-                                                                event_mask = mask,
-                                                                event_time_buffer=event_time_buffer,
-                                                                calc_time_window=calc_time_window)
+            sig_max, sig_med, sig_lc, max_flux, max_frame, flat_baseline = _Lightcurve_significance(time,flux,
+                                                                            frame_start,frame_end,
+                                                                            [xint,yint],ev.flux_sign,
+                                                                            event_mask = mask,
+                                                                            event_time_buffer=event_time_buffer,
+                                                                            calc_time_window=calc_time_window)
             
             events.loc[idx, 'frame_max'] = int(max_frame)
-            events.loc[idx, ['flux_max', 'lc_sig_max', 'lc_sig_med']] = (max_flux, sig_max, sig_med)
+            events.loc[idx, ['flux_max', 'lc_sig_max', 'lc_sig_med','lc_flat']] = (max_flux, sig_max, sig_med,flat_baseline)
 
             # -- Tag cosmic rays -- #
             if (ev.frame_bin == 1) & (ev.flux_sign == 1):
@@ -1071,7 +1080,7 @@ def _Recheck_asteroid_lcs(time,flux,events):
             
             mask = (event_mask == eventid) | (event_mask == 0)
             
-            _, _, lc_sig, _, _ = _Lightcurve_significance(
+            _, _, lc_sig, _, _, _ = _Lightcurve_significance(
                 time, flux, frame_start, frame_end, [xint, yint], flux_sign=1, 
                 event_mask=mask, event_time_buffer=0.2, calc_time_window=0.5
             )
@@ -1508,6 +1517,7 @@ class Detector():
             events = pd.concat([events,bin_events],ignore_index=True)
 
         events['frame_max'] = events['frame_max'].astype(int)
+        events['lc_flat'] = events['lc_flat'].astype(int)
 
         # -- Provide CCD-relative location -- #
         events['xccd'] = RoundToInt(events['xint'] + cutCornerPx[self.cut-1][0])
