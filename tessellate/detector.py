@@ -645,8 +645,8 @@ def _Lightcurve_significance(time,flux,frame_start,frame_end,pos,flux_sign,
     t_window = t[ind]
     lc_window = lc[ind]
     
-    med = np.nanmedian(lc_window[ind])
-    std = np.nanstd(lc_window[ind])
+    med = np.nanmedian(lc_window)
+    std = np.nanstd(lc_window)
 
     lcevent = lc[frame_start:frame_end+1]
     lc_sig = (lcevent - med) / std
