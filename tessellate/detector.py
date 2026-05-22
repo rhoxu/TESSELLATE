@@ -1520,7 +1520,7 @@ class Detector():
         events['frame_max'] = events['frame_max'].astype(int)
         
         print('\n')
-        print(f'bruh:{len(events[events.classification=='CosmicRay'])}')
+        print(f"bruh: {len(events[events.classification=='CosmicRay'])}")
         print('\n')
 
         # -- Provide CCD-relative location -- #
@@ -1818,7 +1818,7 @@ class Detector():
         print(f'   Separated into individual events -- done! ({(clock()-ts):.0f}s)')
 
         print('\n')
-        print(f'bruh:{len(events[events.classification=='CosmicRay'])}')
+        print(f"bruh: {len(self.events[self.events.classification=='CosmicRay'])}")
         print('\n')
 
         # -- Get physical units for events -- #
@@ -1843,7 +1843,7 @@ class Detector():
         print(f'   Crossmatching between time bins -- done! ({(clock()-ts):.0f}s)')
 
         print('\n')
-        print(f'bruh:{len(events[events.classification=='CosmicRay'])}')
+        print(f"bruh: {len(self.events[self.events.classification=='CosmicRay'])}")
         print('\n')
 
         # -- Get TSS Catalogue Names -- #        
