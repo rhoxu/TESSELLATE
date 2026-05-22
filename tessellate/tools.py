@@ -370,8 +370,8 @@ def _orbit_ref_correction(lc_flux, time, full_time, orbit_refs, orbit_segments, 
     return corrected
 
 
-def Generate_LC(time,flux,x,y,frame_start=None,frame_end=None,method='sum',radius=1.5,
-                orbit_refs=None,orbit_segments=None):
+def Generate_LC(time,flux,x,y,frame_start=None,frame_end=None,method='sum',radius=1.5):#,
+                #orbit_refs=None,orbit_segments=None):
 
     from photutils.aperture import CircularAperture, RectangularAnnulus, ApertureStats, aperture_photometry
     from scipy.signal import fftconvolve
@@ -406,16 +406,16 @@ def Generate_LC(time,flux,x,y,frame_start=None,frame_end=None,method='sum',radiu
             flux += [phot_table['aperture_sum'].value[0]]
         flux = np.array(flux)
         flux_err = np.array(flux_err)
-        if orbit_refs is not None and orbit_segments is not None:
-            flux = _orbit_ref_correction(flux, t, full_time, orbit_refs, orbit_segments, x, y, radius)
+        # if orbit_refs is not None and orbit_segments is not None:
+        #     flux = _orbit_ref_correction(flux, t, full_time, orbit_refs, orbit_segments, x, y, radius)
         return t, flux, flux_err
     elif method.lower() == 'sum':
         xint = int(np.round(x,0))
         yint = int(np.round(y,0))
         buffer = np.floor(radius).astype(int)
         lc = np.nansum(f[:,yint-buffer:yint+buffer+1,xint-buffer:xint+buffer+1],axis=(1,2))
-        if orbit_refs is not None and orbit_segments is not None:
-            lc = _orbit_ref_correction(lc, t, full_time, orbit_refs, orbit_segments, x, y, radius)
+        # if orbit_refs is not None and orbit_segments is not None:
+        #     lc = _orbit_ref_correction(lc, t, full_time, orbit_refs, orbit_segments, x, y, radius)
         return t, lc
 
 

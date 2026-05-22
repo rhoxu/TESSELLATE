@@ -1190,17 +1190,17 @@ class Detector():
         if mask:
             self.mask = np.load(base + '_Mask.npy')
 
-        # Load orbit ref data if available
-        import os
-        seg_path = base + '_OrbitSegments.npy'
-        ref_path = base + '_OrbitRefs.npz'
-        if os.path.exists(seg_path) and os.path.exists(ref_path):
-            self.orbit_segments = np.load(seg_path)
-            raw = np.load(ref_path)
-            self.orbit_refs = {int(k): raw[k] for k in raw.files}
-        else:
-            self.orbit_segments = None
-            self.orbit_refs = None
+        # # Load orbit ref data if available
+        # import os
+        # seg_path = base + '_OrbitSegments.npy'
+        # ref_path = base + '_OrbitRefs.npz'
+        # if os.path.exists(seg_path) and os.path.exists(ref_path):
+        #     self.orbit_segments = np.load(seg_path)
+        #     raw = np.load(ref_path)
+        #     self.orbit_refs = {int(k): raw[k] for k in raw.files}
+        # else:
+        #     self.orbit_segments = None
+        #     self.orbit_refs = None
 
         self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
 
@@ -1806,18 +1806,10 @@ class Detector():
         self._events_physical_units()
         print(f'   Getting time/coords/flux information -- done!')
 
-        print('\n')
-        print(f"bruh: {len(self.events[self.events.classification=='CosmicRay'])}")
-        print('\n')
-
         # -- Tag asteroids -- #
         ts = clock()
         self._flag_asteroids()
         print(f'   Checking for asteroids -- done! ({(clock()-ts):.0f}s)')
-
-        print('\n')
-        print(f"bruh: {len(self.events[self.events.classification=='CosmicRay'])}")
-        print('\n')
 
         self.events = self.events.drop_duplicates(subset=['frame_bin','xint','yint','frame_max'],keep='first')
 
@@ -1825,10 +1817,6 @@ class Detector():
         ts = clock()
         self._catalogue_crossmatch()
         print(f'   Crossmatching with Gaia and Variables -- done! ({(clock()-ts):.0f}s)')
-
-        print('\n')
-        print(f"bruh: {len(self.events[self.events.classification=='CosmicRay'])}")
-        print('\n')
 
         # -- Crossmatch between different frame_bins -- #
         ts = clock()
