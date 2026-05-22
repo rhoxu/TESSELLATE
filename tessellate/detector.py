@@ -1000,7 +1000,7 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
 
                 # If only one frame in event, if bright = cosmic ray, if faint = junk
                 if ev.frame_duration == 1:
-                    if len(event_sig_lc[event_sig_lc > 5]) == 1: 
+                    if len(event_sig_lc[event_sig_lc >= 5]) == 1: 
                         events.loc[idx,'classification'] = 'CosmicRay'
                     else:
                         events.loc[idx,'classification'] = 'Junk'
@@ -1010,11 +1010,11 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
                 elif ev.n_detections == 2:
 
                     if ev.frame_duration == 2:
-                        if len(event_sig_lc[event_sig_lc > 3]) == 1:
+                        if (len(event_sig_lc[event_sig_lc >= 5]) == 1) & (len(event_sig_lc[event_sig_lc >= 3]) == 1):
                             events.loc[idx,'classification'] = 'CosmicRay'
                             
                     else:
-                        if len(event_sig_lc[event_sig_lc > 3]) == 2:
+                        if (len(event_sig_lc[event_sig_lc >= 5]) == 2) & (len(event_sig_lc[event_sig_lc >= 3]) == 2):
                             sorted_idx = np.argsort(event_sig_lc)[::-1]
                             if abs(np.diff(sorted_idx)[0]) > 1:
                                 events.loc[idx,'classification'] = 'CosmicRay'
