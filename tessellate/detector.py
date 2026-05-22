@@ -1000,22 +1000,27 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
 
             # -- Tag cosmic rays -- #
             if ev.frame_bin == 1:
+                print('\n')
+                print('made it here')
                 event_sig_lc = sig_lc[frame_start:frame_end+1]
 
                 # If only one frame in event, if bright = cosmic ray, if faint = junk
                 if ev.frame_duration == 1:
                     if len(event_sig_lc[event_sig_lc > 3]) == 1: 
                         events.loc[idx,'classification'] = 'CosmicRay'
+                        print('cosmicray!')
                     else:
                         events.loc[idx,'classification'] = 'Junk'
                 
                 # If two image plane detections:
                 # but only 1 frame above 3sigma / 2 frames above 3sigma but not consecutive
                 elif ev.n_detections == 2:
+                    print('made it here too!')
 
                     if ev.frame_duration == 2:
                         if len(event_sig_lc[event_sig_lc > 3]) == 1:
                             events.loc[idx,'classification'] = 'CosmicRay'
+                            
                     else:
                         sorted_idx = np.argsort(event_sig_lc)[::-1]
                         if abs(np.diff(sorted_idx)[0]) > 1:
