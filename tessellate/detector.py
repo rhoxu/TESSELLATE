@@ -962,7 +962,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
 def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_window):
 
     events = deepcopy(events)
-    events.reset_index(drop=True) 
+    events = events.reset_index(drop=True) 
 
     for objid in np.unique(events.objid):
         evs = events[events.objid==objid]
