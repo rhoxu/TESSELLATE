@@ -1021,16 +1021,15 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
                 # but only 1 frame above 3sigma / 2 frames above 3sigma but not consecutive
                 elif ev.n_detections == 2:
 
-                    if ev.frame_duration == 2:
-                        if (len(event_sig_lc[event_sig_lc >= 5]) == 1) & (len(event_sig_lc[event_sig_lc >= 3]) == 1):
-                            events.loc[idx,'classification'] = 'CosmicRay'
-                            
-                    else:
+                    if (len(event_sig_lc[event_sig_lc >= 5]) == 1) & (len(event_sig_lc[event_sig_lc >= 3]) == 1):
+                        events.loc[idx,'classification'] = 'CosmicRay'
+
+                    elif ev.frame_duration > 2:
                         if (len(event_sig_lc[event_sig_lc >= 5]) == 2) & (len(event_sig_lc[event_sig_lc >= 3]) == 2):
                             sorted_idx = np.argsort(event_sig_lc)[::-1]
                             if abs(np.diff(sorted_idx)[0]) > 1:
                                 events.loc[idx,'classification'] = 'CosmicRay'
-
+                    
     return events 
             
 
