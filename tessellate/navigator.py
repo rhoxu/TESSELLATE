@@ -853,6 +853,7 @@ class Navigator():
             y = RoundToInt(event.ycentroid)      # y coordinate of the source
             frame_start = RoundToInt(event.frame_start)        # Start frame of the event
             frame_end = RoundToInt(event.frame_end)            # End frame of the event
+            brightest_frame = RoundToInt(event.frame_max)
 
             _,f = Generate_LC(times,flux,x,y,radius=1.5)#,
                               #orbit_refs=orbit_refs,orbit_segments=orbit_segments)
@@ -861,18 +862,18 @@ class Navigator():
                                      #orbit_refs=orbit_refs,orbit_segments=orbit_segments)
 
             # Find brightest frame in the event #
-            if frame_end - frame_start >= 2:
-                brightestframe = frame_start + np.where(abs(f[frame_start:frame_end]) == np.nanmax(abs(f[frame_start:frame_end])))[0][0]
-            else:
-                brightestframe = frame_start
-            try:
-                brightestframe = int(brightestframe)
-            except:
-                brightestframe = int(brightestframe[0])
-            if brightestframe >= len(flux):   # If the brightest frame is out of bounds, set it to the last frame
-                brightestframe -= 1
-            if frame_end >= len(flux):         # If the frame end is out of bounds, set it to the last frame
-                frame_end -= 1
+            # if frame_end - frame_start >= 2:
+            #     brightestframe = frame_start + np.where(abs(f[frame_start:frame_end]) == np.nanmax(abs(f[frame_start:frame_end])))[0][0]
+            # else:
+            #     brightestframe = frame_start
+            # try:
+            #     brightestframe = int(brightestframe)
+            # except:
+            #     brightestframe = int(brightestframe[0])
+            # if brightestframe >= len(flux):   # If the brightest frame is out of bounds, set it to the last frame
+            #     brightestframe -= 1
+            # if frame_end >= len(flux):         # If the frame end is out of bounds, set it to the last frame
+            #     frame_end -= 1
 
             # Generate zoom light curve around event #
             fstart = frame_start-20
@@ -971,8 +972,8 @@ class Navigator():
             plt.setp([axins.get_xticklines(), axins.get_yticklines()], color='C3')
 
             # Define max and min brightness for frame plot based on closer 5x5 cutout of brightest frame #
-            bright_frame = flux[brightestframe,y-1:y+2,x-1:x+2]   
-            vmin = np.percentile(flux[brightestframe],16)
+            bright_frame = flux[brightest_frame,y-1:y+2,x-1:x+2]   
+            vmin = np.percentile(flux[brightest_frame],16)
             try:
                 vmax = np.percentile(bright_frame,80)
             except:
@@ -988,7 +989,7 @@ class Navigator():
             if xmin < 0:
                 xmin = 0
             cutout_image = flux[:,ymin:y+10,xmin:x+10]
-            ax[2].imshow(cutout_image[brightestframe],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
+            ax[2].imshow(cutout_image[brightest_frame],cmap='gray',origin='lower',vmin=vmin,vmax=vmax)
             ax[2].scatter(event.xcentroid - xmin, event.ycentroid - ymin, color='r', s=50, marker='x', lw=2)
 
             # Add labels, remove axes #
@@ -1000,9 +1001,9 @@ class Navigator():
             
             # Find the first frame after the brightest frame that is at least 1 hour later #
             try:
-                tdiff = np.where(time-time[brightestframe] >= 1/24)[0][0]
+                tdiff = np.where(time-time[brightest_frame] >= 1/24)[0][0]
             except:
-                tdiff = np.where(time[brightestframe] - time >= 1/24)[0][-1]
+                tdiff = np.where(time[brightest_frame] - time >= 1/24)[0][-1]
             after = tdiff
             if after >= len(cutout_image):
                 after = len(cutout_image) - 1 
