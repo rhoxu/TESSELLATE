@@ -480,7 +480,7 @@ class Navigator():
         time, flux = (Frame_Bin(self.sector, self.cam,self.time, self.flux, frame_bin) if frame_bin > 1 else (self.time, self.flux))
     
         # -- Find frames to be included based on buffer and interval, ensuring brightest is included -- #
-        frames = np.arange(frame_start-frame_buffer, frame_end+1,frame_interval).astype(int)
+        frames = np.arange(frame_start-frame_buffer, frame_end+1+frame_buffer,frame_interval).astype(int)
         if brightest_frame not in frames:
             frames = np.sort(np.append(frames,brightest_frame))
         while len(frames) < 5:

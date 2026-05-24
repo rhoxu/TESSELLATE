@@ -2330,8 +2330,6 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
 
                         print(f'Restarting Reducing for Cam {cam} CCD {ccd} Cut {cut} with new time limit of {result}')
                         job_id = self._cut_reduce(cam=cam,ccd=ccd,cut=cut,time=result)
-                        print(f'Submitted batch job {job_id}')
-                        print('\n')
                         reduction_status[key]['job_id'] = job_id
                         reduction_status[key]['job_time'] = result
 
