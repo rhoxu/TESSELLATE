@@ -447,7 +447,9 @@ class Navigator():
         return t,f
     
 
-    def event_frames(self,objid,eventid,cut=None,frame_buffer=2,frame_interval=1,image_size=11,plot=True,frame_bin=None):
+    def event_frames(self,objid,eventid,cut=None,
+                     frame_buffer=2,frame_interval=1,image_size=11,vmin=16,vmax=84,
+                     plot=True,frame_bin=None):
         """
         Extract cutout images for chosen event.
         """
@@ -503,8 +505,8 @@ class Navigator():
         if plot:
             fig,ax = plt.subplots(ncols=5,figsize=(15,15))
             brightest_loc = np.where(frames==brightest_frame)[0][0]
-            vmax = np.percentile(images[brightest_loc,image_size//2-1:image_size//2+2,image_size//2-1:image_size//2+2],80)
-            vmin = np.percentile(images[brightest_loc,image_size//2-1:image_size//2+2,image_size//2-1:image_size//2+2],16)
+            vmax = np.percentile(images[brightest_loc,image_size//2-1:image_size//2+2,image_size//2-1:image_size//2+2],vmax)
+            vmin = np.percentile(images[brightest_loc,image_size//2-1:image_size//2+2,image_size//2-1:image_size//2+2],vmin)
             for i in range(5):
                 im = ax[i].imshow(images[brightest_loc-2+i],origin='lower',cmap='gray',vmax=vmax,vmin=vmin)
                 
