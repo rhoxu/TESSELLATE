@@ -158,46 +158,46 @@ class Tessellate():
         # -- Allows for no actual initialisation (TessTransient) -- #
         if go:
             # -- Initialise and check for previous config file -- #
-            message, load_prev = self._initialise()
+            load_prev = self._initialise()
 
             if load_prev:
 
                 # -- Load config -- #
-                message, download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete = self._load_config(message)
+                download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete = self._load_config()
             
             else:
                 # -- Confirm Run Properties -- #
-                message = self._run_properties(message) 
+                self._run_properties() 
 
                 # -- Get time/cpu/memory suggestions depending on sector -- #
                 suggestions = self._sector_suggestions()  
 
                 # -- Ask for which tessellation steps to perform -- #
-                message, download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete = self._which_processes(message,download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete)
+                download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete = self._which_processes(download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete)
 
                 # -- Ask for inputs -- #
                 if download:
-                    message = self._download_properties(message)
+                    self._download_properties()
 
                 if make_cube:
-                    message = self._cube_properties(message,suggestions[0])
+                    self._cube_properties(suggestions[0])
                     _Save_space(f'{job_output_path}/tessellate_cubing_logs')
 
                 if make_cuts:
-                    message = self._cut_properties(message,suggestions[1])
+                    self._cut_properties(suggestions[1])
                     _Save_space(f'{job_output_path}/tessellate_cutting_logs')
 
                 if reduce:
-                    message = self._reduce_properties(message,make_cuts,suggestions[2])
+                    self._reduce_properties(make_cuts,suggestions[2])
                     _Save_space(f'{job_output_path}/tessellate_reduction_logs')
 
                 if search:
                     cutting_reducing = make_cuts | reduce
-                    message = self._search_properties(message,cutting_reducing,suggestions[3])
+                    self._search_properties(cutting_reducing,suggestions[3])
                     _Save_space(f'{job_output_path}/tessellate_search_logs')
 
                 if plot:
-                    message = self._plotting_properties(message,search,suggestions[4])
+                    self._plotting_properties(search,suggestions[4])
                     _Save_space(f'{job_output_path}/tessellate_plotting_logs')
 
                 if save_config:
@@ -205,17 +205,17 @@ class Tessellate():
 
             # -- Check for overwriting -- #
             if overwrite != False:
-                message = self._overwrite_suggestions(message, make_cube, make_cuts, reduce, search,plot)
+                self._overwrite_suggestions(make_cube, make_cuts, reduce, search,plot)
             else:
                 self.overwrite = None
 
             # -- Reset Job Logs -- #
             if reset_logs != False:
-                message = self._reset_logs(message,make_cube,make_cuts,reduce,search,plot)
+                self._reset_logs(make_cube,make_cuts,reduce,search,plot)
 
             # -- Run Processes -- #
             if download:
-                self.download(message)
+                self.download()
 
             if make_cube:
                 self.make_cube()
@@ -240,17 +240,14 @@ class Tessellate():
 
     def _initialise(self):
 
-        message = ''
         print('\n')
         print(_Print_buff(50,f'Initialising Tessellation Run'))
-        message += _Print_buff(50,f'Initialising Tessellation Run')+'\n'
 
         load_prev = False
         if self.ask_config:
             file = f'{self.working_path}/tessellate_config.txt'
             if os.path.exists(file):
                 load = input(f'Load from previous config ({file})? [y/n] = ') 
-                message += f'Load from previous config ({file})? [y/n] = {load}\n'
                 done = False
                 while not done:
                     if load.lower() == 'y':
@@ -261,18 +258,15 @@ class Tessellate():
                         done=True
                     else:
                         load = input(f'  Invalid choice! Load from previous config ({file})? [y/n] = ')
-                        message += f'   Invalid choice! Load from previous config ({file})? [y/n] = {load}\n'
                 
                 if load_prev:
                     print('Loading config')
-                    message += 'Loading config\n'
 
         print('\n')
-        message += '\n'
 
-        return message,load_prev
+        return load_prev
     
-    def _load_config(self,message):
+    def _load_config(self):
 
         import configparser
         import ast
@@ -302,24 +296,18 @@ class Tessellate():
         suggestions = self._sector_suggestions()
 
         print(f'   - Sector = {self.sector}')
-        message += f'   - Sector = {self.sector}\n'
         print(f'   - Cam = {self.cam}')
-        message += f'   - Cam = {self.cam}\n'
         print(f'   - CCD = {self.ccd}')
-        message += f'   - CCD = {self.ccd}\n'
         print('\n')
-        message += '\n'
         
         # Download
         if 'download' in parser:
             download = parse_value(parser['download'].get('download', False))
             self.download_number = parse_value(parser['download'].get('download_number', None))  
             print(f'   - Download FFIs? [y/n] = y')
-            message += f'   - Download FFIs? [y/n] = y\n'
         else:
             download = False
             print(f'   - Download FFIs? [y/n] = n')
-            message += f'   - Download FFIs? [y/n] = n\n'
         
         # Make cubes
         if 'make_cubes' in parser:
@@ -328,11 +316,9 @@ class Tessellate():
             self.cube_mem = parse_value(parser['make_cubes'].get('cube job memory', None))
             self.cube_cpu = parse_value(parser['make_cubes'].get('cube job cpu', None))
             print(f'   - Make Cube(s)? [y/n] = y')
-            message += f'   - Make Cube(s)? [y/n] = y\n'
         else:
             make_cube = False
             print(f'   - Make Cube(s)? [y/n] = n')
-            message += f'   - Make Cube(s)? [y/n] = n\n'
 
         # Fix WCS 
         if 'fix_wcs' in parser:
@@ -340,7 +326,6 @@ class Tessellate():
         else:
             fix_wcs = False
             print(f'   - Fix WCS? [y/n] = n')
-            message += f'   - Fix WCS? [y/n] = n\n'
         
         # Cut properties
         if 'cut_properties' in parser:
@@ -354,11 +339,9 @@ class Tessellate():
             self.cut_mem = parse_value(parser['make_cuts'].get('cut job memory', None))
             self.cut_cpu = parse_value(parser['make_cuts'].get('cut job cpu', None))
             print(f'   - Make Cut(s)? [y/n] = y')
-            message += f'   - Make Cut(s)? [y/n] = y\n'
         else:
             make_cuts = False
             print(f'   - Make Cut(s)? [y/n] = n')
-            message += f'   - Make Cut(s)? [y/n] = n\n'
         
         # Reduce
         if 'reduce' in parser:
@@ -367,11 +350,9 @@ class Tessellate():
             self.reduce_mem = parse_value(parser['reduce'].get('reduce job memory', None))
             self.reduce_cpu = parse_value(parser['reduce'].get('reduce job cpu', None))
             print(f'   - Reduce Cut(s)? [y/n] = y')
-            message += f'   - Reduce Cut(s)? [y/n] = y\n'
         else:
             reduce = False
             print(f'   - Reduce Cut(s)? [y/n] = n')
-            message += f'   - Reduce Cut(s)? [y/n] = n\n'
         
         # Search
         if 'search' in parser:
@@ -382,11 +363,9 @@ class Tessellate():
             self.detect_mode = parse_value(parser['search'].get('search detection mode', None))
             self.time_bins = parse_value(parser['search'].get('search time bins', None))
             print(f'   - Run Transient Search on Cut(s)? [y/n] = y')
-            message += f'   - Run Transient Search on Cut(s)? [y/n] = y\n'
         else:
             search = False
             print(f'   - Run Transient Search on Cut(s)? [y/n] = n')
-            message += f'   - Run Transient Search on Cut(s)? [y/n] = n\n'
         
         # Plot
         if 'plot' in parser:
@@ -395,11 +374,9 @@ class Tessellate():
             self.plot_mem = parse_value(parser['plot'].get('plot job memory', None))
             self.plot_cpu = parse_value(parser['plot'].get('plot job cpu', None))
             print(f'   - Run Transient Plotting on Cut(s)? [y/n] = y')
-            message += f'   - Run Transient Plotting on Cut(s)? [y/n] = y\n'
         else:
             plot = False
             print(f'   - Run Transient Plotting on Cut(s)? [y/n] = n')
-            message += f'   - Run Transient Plotting on Cut(s)? [y/n] = n\n'
         
         # Options
         if 'options' in parser:
@@ -407,87 +384,57 @@ class Tessellate():
             delete = parse_value(parser['options'].get('delete ffis', False))
             if delete:
                 print(f'   - Delete all FFIs upon completion? [y/n] = y')
-                message += f'   - Delete all FFIs upon completion? [y/n] = y\n'
             else:
                 print(f'   - Delete all FFIs upon completion? [y/n] = n')
-                message += f'   - Delete all FFIs upon completion? [y/n] = n\n'
 
         print('\n')
-        message += '\n'
 
         if download:
             print(f'   - Download Number [int,all] = {self.download_number}')
-            message += f'   - Download Number [int,all] = {self.download_number}\n'
             print('\n')
-            message += '\n'
 
         if make_cube:
             print(f"   - Cube Batch Time ['h:mm:ss'] = {self.cube_time}")
-            message += f"   - Cube Batch Time ['h:mm:ss'] = {self.cube_time}\n"
             print(f"   - Cube Mem/CPU = {self.cube_mem}")
-            message += f"   - Cube Mem/CPU = {self.cube_mem}\n"
             print(f"   - Cube Num CPUs Needed = {self.cube_cpu}")
-            message += f"   - Cube Num CPUs Needed = {self.cube_cpu}\n"
             print('\n')
-            message += '\n'
 
         if make_cuts | reduce | search | plot:
             print(f"   - n (Number of Cuts = n^2) = {self.n}")
-            message += f"   - n (Number of Cuts = n^2) = {self.n}\n"
     
             if self.cuts == list(range(1,17)):
                 cut_printout = 'all'
             else:
                 cut_printout = self.cuts
             print(f"   - Cut [1-16,all] = {cut_printout}")
-            message += f"   - Cut [1-16,all] = {cut_printout}\n"
             print('\n')
-            message += '\n'
 
         if make_cuts:
             print(f"   - Cut Batch Time ['h:mm:ss'] = {self.cut_time}")
-            message += f"   - Cut Batch Time ['h:mm:ss'] = {self.cut_time}\n"
             print(f"   - Cut Mem/CPU = {self.cut_mem}")
-            message += f"   - Cut Mem/CPU = {self.cut_mem}\n"
             print(f"   - Cut Num CPUs Needed = {self.cut_cpu}")
-            message += f"   - Cut Num CPUs Needed = {self.cut_cpu}\n"
             print('\n')
-            message += '\n'
 
         if reduce:
             print(f"   - Reduce Batch Time ['h:mm:ss'] = {self.reduce_time}")
-            message += f"   - Reduce Batch Time ['h:mm:ss'] = {self.reduce_time}\n"
             print(f"   - Reduce Mem/CPU = {self.reduce_mem}")
-            message += f"   - Reduce Mem/CPU = {self.reduce_mem}\n"
             print(f"   - Reduce Num CPUs Needed = {self.reduce_cpu}")
-            message += f"   - Reduce Num CPUs Needed = {self.reduce_cpu}\n"
             print('\n')
-            message += '\n'
 
         if search:
             print(f"   - Search Batch Time ['h:mm:ss'] = {self.search_time}")
-            message += f"   - Search Batch Time ['h:mm:ss'] = {self.search_time}\n"
             print(f"   - Search Mem/CPU = {self.search_mem}")
-            message += f"   - Search Mem/CPU = {self.search_mem}\n"
             print(f"   - Search Num CPUs Needed = {self.search_cpu}")
-            message += f"   - Search Num CPUs Needed = {self.search_cpu}\n"
             print(f"   - Search Time Bins = {self.time_bins}")
-            message += f"   - Search Time Bins = {self.time_bins}\n"
             print('\n')
-            message += '\n'
 
         if plot:
             print(f"   - Plotting Batch Time ['h:mm:ss'] = {self.plot_time}")
-            message += f"   - Plotting Batch Time ['h:mm:ss'] = {self.plot_time}\n"
             print(f"   - Plotting Mem/CPU = {self.plot_mem}")
-            message += f"   - Plotting Mem/CPU = {self.plot_mem}\n"
             print(f"   - Plotting Num CPUs Needed = {self.plot_cpu}")
-            message += f"   - Plotting Num CPUs Needed = {self.plot_cpu}\n"
             print('\n')
-            message += '\n'
 
         go = input('   Ready? [y/n] = ')  
-        message += f'   Ready? [y/n] = {go}\n'
         done = False
         while not done:
             if go.lower() == 'y':
@@ -495,7 +442,6 @@ class Tessellate():
                 done=True
             elif go.lower() == 'n':
                 srs = input('      Cancel? [y/n] = ')
-                message += f'      Cancel? [y/n] = {srs}\n'
                 innerdone = False  
                 while not innerdone:
                     if srs.lower() == 'y':
@@ -503,17 +449,14 @@ class Tessellate():
                         sys.exit(0)
                     elif srs.lower() != 'n':
                         srs = input('         Invalid choice! Cancel? [y/n] = ')
-                        message += f'         Invalid choice! Cancel? [y/n] = {srs}\n'
                     else:
                         innerdone = True
                 go = input('   Ready? [y/n] = ')  
-                message += f'   Ready? [y/n] = {go}\n'
             else:
                 go = input('      Invalid choice! Ready? [y/n] = ')
-                message += f'      Invalid choice! Ready? [y/n] = {go}\n'
 
 
-        return message,download,make_cube,fix_wcs,make_cuts,reduce,search,plot,delete
+        return download,make_cube,fix_wcs,make_cuts,reduce,search,plot,delete
 
     def _sector_suggestions(self):
         """
@@ -613,14 +556,13 @@ class Tessellate():
         
         return suggestions
 
-    def _run_properties(self,message):
+    def _run_properties(self):
         """
         Confirm sector, cam, ccd properties.
         """
 
         if self.sector is None:
             sector = input('   - Sector = ')
-            message += f'   - Sector = {sector}\n'
             done = False
             while not done:
                 try:
@@ -630,13 +572,10 @@ class Tessellate():
                         done = True
                     else:
                         sector = input('      Invalid choice! Sector = ')
-                        message += f'      Invalid choice! Sector = {sector}\n'
                 except:
                     sector = input('      Invalid choice! Sector = ')
-                    message += f'      Invalid choice! Sector = {sector}\n'
         elif 0 < self.sector < 100:
             print(f'   - Sector = {self.sector}')
-            message += f'   - Sector = {self.sector}\n'
         else:
             e = f'Invalid Sector Input of {self.sector}\n'
             raise ValueError(e)
@@ -644,7 +583,6 @@ class Tessellate():
 
         if self.cam is None:
             cam = input('   - Cam [1,2,3,4,all] = ')
-            message += f'   - Cam [1,2,3,4,all] = {cam}\n'
             done = False
             while not done:
                 if cam in ['1','2','3','4']:
@@ -658,15 +596,12 @@ class Tessellate():
                     done = True
                 else:
                     cam = input('      Invalid choice! Cam [1,2,3,4,all] = ')
-                    message += f'      Invalid choice! Cam [1,2,3,4,all] = {cam}\n'
         elif self.cam == 'all':
             print(f'   - Cam = all')
-            message += '   - Cam = all\n'
             self.cam = [1,2,3,4]
         elif self.cam in [1,2,3,4]:
             print(f'   - Cam = {self.cam}')
             self.cam = [self.cam]
-            message += f'   - Cam = {self.cam}\n'
         else:
             e = f'Invalid Camera Input of {self.cam}\n'
             raise ValueError(e)
@@ -674,7 +609,6 @@ class Tessellate():
 
         if self.ccd is None:
             ccd = input('   - CCD [1,2,3,4,all] = ')
-            message += f'   - CCD [1,2,3,4,all] = {ccd}\n'
             done = False
             while not done:
                 if ccd in ['1','2','3','4']:
@@ -685,29 +619,22 @@ class Tessellate():
                     done = True
                 else:
                     ccd = input('      Invalid choice! CCD [1,2,3,4,all] = ')
-                    message += f'      Invalid choice! CCD [1,2,3,4,all] = {ccd}\n'
         elif self.ccd == 'all':
             print(f'   - CCD = all')
-            message += '   - CCD = all\n'
             self.ccd = [1,2,3,4]
         elif self.ccd in [1,2,3,4]:
             print(f'   - CCD = {self.ccd}')
             self.ccd = [self.ccd]
-            message += f'   - CCD = {self.ccd}\n'
         else:
             e = f'Invalid CCD Input of {self.ccd}\n'
             raise ValueError(e)
         
         print('\n')
-        message += '\n'
-
-        return message
     
-    def _which_processes(self,message,download,make_cube,fix_wcs,make_cuts,reduce,search,plot,delete):
+    def _which_processes(self,download,make_cube,fix_wcs,make_cuts,reduce,search,plot,delete):
 
         if download is None:
             d = input('   - Download FFIs? [y/n] = ')
-            message += f'   - Download FFIs? [y/n] = {d}\n'
             done = False
             while not done:
                 if d.lower() == 'y':
@@ -718,11 +645,9 @@ class Tessellate():
                     done=True
                 else:
                     d = input('      Invalid choice! Download FFIs? [y/n] = ')
-                    message += f'      Invalid choice! Download FFIs? [y/n] = {d}\n'
 
         if make_cube is None:
             d = input('   - Make Cube(s)? [y/n] = ')
-            message += f'   - Make Cube(s)? [y/n] = {d}\n'
             done = False
             while not done:
                 if d.lower() == 'y':
@@ -733,11 +658,9 @@ class Tessellate():
                     done=True
                 else:
                     d = input('      Invalid choice! Make Cube(s)? [y/n] = ')
-                    message += f'      Invalid choice! Make Cube(s)? [y/n] = {d}\n'
 
         if fix_wcs is None:
             d = input('   - Fix WCS? [y/n] = ')
-            message += f'   - Fix WCS? [y/n] = {d}\n'
             done = False
             while not done:
                 if d.lower() == 'y':
@@ -748,11 +671,9 @@ class Tessellate():
                     done=True
                 else:
                     d = input('      Invalid choice! Fix WCS? [y/n] = ')
-                    message += f'      Invalid choice! Fix WCS? [y/n] = {d}\n'
 
         if make_cuts is None:
             d = input('   - Make Cut(s)? [y/n] = ')
-            message += f'   - Make Cut(s)? [y/n] = {d}\n'
             done = False
             while not done:
                 if d.lower() == 'y':
@@ -763,11 +684,9 @@ class Tessellate():
                     done=True
                 else:
                     d = input('      Invalid choice! Make Cut(s)? [y/n] = ')
-                    message += f'      Invalid choice! Make Cut(s)? [y/n] = {d}\n'
 
         if reduce is None:
             d = input('   - Reduce Cut(s)? [y/n] = ')
-            message += f'   - Reduce Cut(s)? [y/n] = {d}\n'
             done = False
             while not done:
                 if d.lower() == 'y':
@@ -778,11 +697,9 @@ class Tessellate():
                     done=True
                 else:
                     d = input('      Invalid choice! Reduce Cut(s)? [y/n] = ')
-                    message += f'      Invalid choice! Reduce Cut(s)? [y/n] = {d}\n'
             
         if search is None:
             d = input('   - Run Transient Search on Cut(s)? [y/n] = ')
-            message += f'   - Run Transient Search on Cut(s)? [y/n] = {d}\n'
             done = False
             while not done:
                 if d.lower() == 'y':
@@ -793,11 +710,9 @@ class Tessellate():
                     done=True
                 else:
                     d = input('      Invalid choice! Run Transient Search on Cut(s)? [y/n] = ')
-                    message += f'      Invalid choice! Run Transient Search on Cut(s)? [y/n] = {d}\n'
         
         if plot is None:
             d = input('   - Run Transient Plotting on Cut(s)? [y/n] = ')
-            message += f'   - Run Transient Plotting on Cut(s)? [y/n] = {d}\n'
             done = False
             while not done:
                 if d.lower() == 'y':
@@ -807,13 +722,10 @@ class Tessellate():
                     plot = False
                     done=True
                 else:
-                    d = input('      Invalid choice! Run Transient Plotting on Cut(s)? [y/n] = ')
-                    message += f'      Invalid choice! Run Transient Plotting on Cut(s)? [y/n] = {d}\n'
-            
+                    d = input('      Invalid choice! Run Transient Plotting on Cut(s)? [y/n] = ')            
 
         if delete is None:
             d = input('   - Delete all FFIs upon completion? [y/n] = ')
-            message += f'   - Delete all FFIs upon completion? [y/n] = {d}\n'
             done = False
             while not done:
                 if d.lower() == 'y':
@@ -824,21 +736,18 @@ class Tessellate():
                     done=True
                 else:
                     d = input('      Invalid choice! Delete all FFIs upon completion? [y/n] = ')
-                    message += f'      Invalid choice! Delete all FFIs upon completion? [y/n] = {d}\n'
 
         print('\n')
-        message += '\n'
 
-        return message, download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete
+        return download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete
     
-    def _download_properties(self,message):
+    def _download_properties(self):
         """
         Confirm download process properties.
         """
 
         if self.download_number is None:
             dNum = input("   - Download Number [int,all] = ")
-            message += f"   - Download Number [int,all] = {dNum}\n"
             done = False
             while not done:
                 try:
@@ -848,37 +757,29 @@ class Tessellate():
                         done = True
                     else:
                         dNum = input("      Invalid choice! Download Number [int,all] = ")
-                        message += f"      Invalid choice! Download Number [int,all] = {dNum}\n"
                 except:
                     if dNum == 'all':
                         self.download_number = dNum
                         done = True
                     else:
                         dNum = input("      Invalid choice! Download Number [int,all] = ")
-                        message += f"      Invalid choice! Download Number [int,all] = {dNum}\n"
         elif self.download_number == 'all':
             print(f'   - Download Number = all')
-            message += f'   - Download Number = all\n'
         elif 0 < self.download_number < 14000:
             print(f'   - Download Number = {self.download_number}')
-            message += f'   - Download Number = {self.download_number}\n'
         else:
             e = f'Invalid Download Number Input of {self.download_number}\n'
             raise ValueError(e)
         
         print('\n')
-        message += '\n'
-
-        return message
     
-    def _cube_properties(self,message,suggestions):
+    def _cube_properties(self,suggestions):
         """
         Confirm cube generation process properties.
         """
 
         if self.cube_time is None:
             cube_time = input(f"   - Cube Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
-            message += f"   - Cube Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = {cube_time}\n"
             done = False
             while not done:
                 if ':' in cube_time:
@@ -886,15 +787,12 @@ class Tessellate():
                     done = True
                 else:
                     cube_time = input(f"      Invalid format! Cube Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
-                    message += f"      Invalid choice! Cube Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = {cube_time}\n"
         else:
             print(f'   - Cube Batch Time = {self.cube_time}')
-            message += f"   - Cube Batch Time = {self.cube_time}')\n"
 
         
         if self.cube_mem is None:
             cube_mem = input(f"   - Cube Mem/CPU ({suggestions[1]} suggested) = ")
-            message += f"   - Cube Mem/CPU ({suggestions[1]} suggested) = {cube_mem}\n"
             done = False
             while not done:
                 try: 
@@ -904,18 +802,15 @@ class Tessellate():
                         done=True
                     else:
                         cube_mem = input(f"      Invalid format! Cube Mem/CPU ({suggestions[1]} suggested) = ")
-                        message += f"      Invalid choice! Cube Mem/CPU ({suggestions[1]} suggested) = {cube_mem}\n"
                 except:
                     if cube_mem[-1].lower() == 'g':
                         self.cube_mem = cube_mem[:-1]
                         done = True
                     else:
                         cube_mem = input(f"      Invalid format! Cube Mem/CPU ({suggestions[1]} suggested) = ")
-                        message += f"      Invalid choice! Cube Mem/CPU ({suggestions[1]} suggested) = {cube_mem}\n"            
 
         elif 0 < self.cube_mem < 500:
             print(f'   - Cube Mem/CPU = {self.cube_mem}G')
-            message += f"   - Cube Mem/CPU = {self.cube_mem}G\n"
         else:
             e = f"Invalid Cube Mem/CPU Input of {self.cube_mem}\n"
             raise ValueError(e)
@@ -923,7 +818,6 @@ class Tessellate():
                 
         if type(self.download_number) == int:
             cube_cpu = input(f"   - Cube Num CPUs [1-32] = ")
-            message += f"   - Cube Num CPUs [1-32] = {cube_cpu}\n"
             done = False
             while not done:
                 try:
@@ -933,10 +827,8 @@ class Tessellate():
                         done = True
                     else:
                         cube_cpu = input(f"      Invalid format! Cube Num CPUs [1-32] = ")
-                        message += f"      Invalid choice! Cube Num CPUs [1-32] = {cube_cpu}\n"
                 except:
                     cube_cpu = input(f"      Invalid format! Cube Num CPUs [1-32] = ")
-                    message += f"      Invalid choice! Cube Num CPUs [1-32] = {cube_cpu}\n"
         else:
             if suggestions[2] % int(self.cube_mem) != 0:
                 self.cube_cpu = suggestions[2] // int(self.cube_mem) + 1
@@ -944,21 +836,16 @@ class Tessellate():
                 self.cube_cpu = suggestions[2] // int(self.cube_mem)
 
             print(f'   - Cube Num CPUs Needed = {self.cube_cpu}')
-            message += f"   - Cube Num CPUs Needed = {self.cube_cpu}\n"
 
         print('\n')
-        message += '\n'
 
-        return message
-
-    def _cut_properties(self,message,suggestions):
+    def _cut_properties(self,suggestions):
         """
         Confirm cut generation process properties.
         """
 
         if self.n is None:
             n = input('   - n (Number of Cuts = n^2) = ')
-            message += f'   - n (Number of Cuts = n^2) = {n}\n'
             done = False
             while not done:
                 try:
@@ -968,13 +855,10 @@ class Tessellate():
                         done = True
                     else:
                         n = input('      Invalid choice! n (Number of Cuts = n^2) =  ')
-                        message += f'      Invalid choice! n (Number of Cuts = n^2) = {n}\n'
                 except:
                     n = input('      Invalid choice! n (Number of Cuts = n^2) =  ')
-                    message += f'      Invalid choice! n (Number of Cuts = n^2) = {n}\n'
         elif self.n > 0:
             print(f'   - n (Number of Cuts = n^2) = {self.n}')
-            message += f'  - n (Number of Cuts = n^2) = {self.n}\n'
         else:
             e = f"Invalid 'n' value Input of {self.n}\n"
             raise ValueError(e)
@@ -982,7 +866,6 @@ class Tessellate():
         
         if self.cuts is None:
             cut = input(f'   - Cut [1-{self.n**2},all] = ')
-            message += f'   - Cut [1-{self.n**2},all] = {cut}\n'
             done = False
             while not done:
                 if cut == 'all':
@@ -993,30 +876,22 @@ class Tessellate():
                     done = True
                 else:
                     cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
-                    message += f'      Invalid choice! Cut [1-{self.n**2},all] = {cut}\n'
         elif self.cuts == 'all':
             print(f'   - Cut = all')
-            message += f'   - Cut = all\n'
             self.cuts = range(1,self.n**2+1)
         elif self.cuts in range(1,self.n**2+1):
             print(f'   - Cut = {self.cuts}')
-            message += f'   - Cut = {self.cuts}\n'
             self.cuts = [self.cuts]
         elif type(self.cuts) == list:
             print(f'   - Cut = {self.cuts}')
-            message += f'   - Cut = {self.cuts}\n'  
         else:
             e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
             raise ValueError(e)
         
-        
         print('\n')
-        message += '\n'
-
 
         if self.cut_time is None:
             cut_time = input(f"   - Cut Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
-            message += f"   - Cut Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = {cut_time}\n"
             done = False
             while not done:
                 if ':' in cut_time:
@@ -1024,15 +899,11 @@ class Tessellate():
                     done = True
                 else:
                     cut_time = input(f"      Invalid format! Cut Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
-                    message += f"      Invalid choice! Cut Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = {cut_time}\n"
         else:
             print(f'   - Cut Batch Time = {self.cut_time}')
-            message += f"   - Cut Batch Time = {self.cut_time}')\n"
-
         
         if self.cut_mem is None:
             cut_mem = input(f"   - Cut Mem/CPU ({suggestions[1]} suggested) = ")
-            message += f"   - Cut Mem/CPU ({suggestions[1]} suggested) = {cut_mem}\n"
             done = False
             while not done:
                 try: 
@@ -1042,18 +913,15 @@ class Tessellate():
                         done=True
                     else:
                         cut_mem = input(f"      Invalid format! Cut Mem/CPU ({suggestions[1]} suggested) = ")
-                        message += f"      Invalid choice! Cut Mem/CPU ({suggestions[1]} suggested) = {cut_mem}\n"
                 except:
                     if cut_mem[-1].lower() == 'g':
                         self.cut_mem = cut_mem[:-1]
                         done = True
                     else:
                         cut_mem = input(f"      Invalid format! Cut Mem/CPU ({suggestions[1]} suggested) = ")
-                        message += f"      Invalid choice! Cut Mem/CPU ({suggestions[1]} suggested) = {cut_mem}\n"
 
         elif 0 < self.cut_mem < 500:
             print(f'   - Cut Mem/CPU = {self.cut_mem}G')
-            message += f"   - Cut Mem/CPU = {self.cut_mem}G\n"
         else:
             e = f"Invalid Cut Mem/CPU Input of {self.cut_mem}\n"
             raise ValueError(e)
@@ -1061,7 +929,6 @@ class Tessellate():
         
         if type(self.download_number) == int:
             cut_cpu = input(f"   - Cut Num CPUs [1-32] = ")
-            message += f"   - Cut Num CPUs [1-32] = {cut_cpu}\n"
             done = False
             while not done:
                 try:
@@ -1071,10 +938,8 @@ class Tessellate():
                         done = True
                     else:
                         cut_cpu = input(f"      Invalid format! Cut Num CPUs [1-32] = ")
-                        message += f"      Invalid choice! Cut Num CPUs [1-32] = {cut_cpu}\n"
                 except:
                     cut_cpu = input(f"      Invalid format! Cut Num CPUs [1-32] = ")
-                    message += f"      Invalid choice! Cut Num CPUs [1-32] = {cut_cpu}\n"
         else:
             if suggestions[2] % int(self.cut_mem) != 0:
                 self.cut_cpu = suggestions[2] // int(self.cut_mem) + 1
@@ -1082,14 +947,10 @@ class Tessellate():
                 self.cut_cpu = suggestions[2] // int(self.cut_mem)
 
             print(f'   - Cut Num CPUs Needed = {self.cut_cpu}')
-            message += f"   - Cut Num CPUs Needed = {self.cut_cpu}\n"
 
         print('\n')
-        message += '\n'
 
-        return message
-
-    def _reduce_properties(self,message,cutting,suggestions):
+    def _reduce_properties(self,cutting,suggestions):
         """
         Confirm reduction process properties.
         """
@@ -1097,7 +958,6 @@ class Tessellate():
         if not cutting:
             if self.n is None:
                 n = input('   - n (Number of Cuts = n^2) = ')
-                message += f'   - n (Number of Cuts = n^2) = {n}\n'
                 done = False
                 while not done:
                     try:
@@ -1107,13 +967,10 @@ class Tessellate():
                             done = True
                         else:
                             n = input('      Invalid choice! n (Number of Cuts = n^2) =  ')
-                            message += f'      Invalid choice! n (Number of Cuts = n^2) = {n}\n'
                     except:
                         n = input('      Invalid choice! n (Number of Cuts = n^2) =  ')
-                        message += f'      Invalid choice! n (Number of Cuts = n^2) = {n}\n'
             elif self.n > 0:
                 print(f'   - n (Number of Cuts = n^2) = {self.n}')
-                message += f'  - n (Number of Cuts = n^2) = {self.n}\n'
             else:
                 e = f"Invalid 'n' value Input of {self.n}\n"
                 raise ValueError(e)
@@ -1121,7 +978,6 @@ class Tessellate():
             
             if self.cuts is None:
                 cut = input(f'   - Cut [1-{self.n**2},all] = ')
-                message += f'   - Cut [1-{self.n**2},all] = {cut}\n'
                 done = False
                 while not done:
                     if cut == 'all':
@@ -1132,30 +988,22 @@ class Tessellate():
                         done = True
                     else:
                         cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
-                        message += f'      Invalid choice! Cut [1-{self.n**2},all] = {cut}\n'
             elif self.cuts == 'all':
                 print(f'   - Cut = all')
-                message += f'   - Cut = all\n'
                 self.cuts = range(1,self.n**2+1)
             elif self.cuts in range(1,self.n**2+1):
                 print(f'   - Cut = {self.cuts}')
-                message += f'   - Cut = {self.cuts}\n'
                 self.cuts = [self.cuts]  
             elif type(self.cuts) == list:
                 print(f'   - Cut = {self.cuts}')
-                message += f'   - Cut = {self.cuts}\n'
             else:
                 e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
                 raise ValueError(e)
             
-            
             print('\n')
-            message += '\n'
-
 
         if self.reduce_time is None:
             reduce_time = input(f"   - Reduce Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
-            message += f"   - Reduce Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = {reduce_time}\n"
             done = False
             while not done:
                 if ':' in reduce_time:
@@ -1163,15 +1011,12 @@ class Tessellate():
                     done = True
                 else:
                     reduce_time = input(f"      Invalid format! Reduce Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
-                    message += f"      Invalid choice! Reduce Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = {reduce_time}\n"
         else:
             print(f'   - Reduce Batch Time = {self.reduce_time}')
-            message += f"   - Reduce Batch Time = {self.reduce_time}')\n"
 
         
         if self.reduce_cpu is None:
             reduce_cpu = input(f"   - Reduce Num CPUs [1-32] ({suggestions[1]} suggested) = ")
-            message += f"   - Reduce Num CPUs [1-32] ({suggestions[1]} suggested) = {reduce_cpu}\n"
             done = False
             while not done:
                 try:
@@ -1181,13 +1026,10 @@ class Tessellate():
                         done = True
                     else:
                         reduce_cpu = input(f"      Invalid format! Reduce Num CPUs [1-32] ({suggestions[1]} suggested) = ")
-                        message += f"      Invalid choice! Reduce Num CPUs [1-32] ({suggestions[1]} suggested) = {reduce_cpu}\n"
                 except:
                     reduce_cpu = input(f"      Invalid format! Reduce Num CPUs [1-32] ({suggestions[1]} suggested) = ")
-                    message += f"      Invalid choice! Reduce Num CPUs [1-32] ({suggestions[1]} suggested) = {reduce_cpu}\n"
         elif 0 < self.reduce_cpu < 33:
             print(f'   - Reduce Num CPUs = {self.reduce_cpu}')
-            message += f"   - Reduce Num CPUs = {self.reduce_cpu}\n"
         else:
             e = f"Invalid Reduce CPUs Input of {self.reduce_cpu}\n"
             raise ValueError(e)
@@ -1195,7 +1037,6 @@ class Tessellate():
 
         if type(self.download_number) == int:
             reduce_mem = input(f"   - Reduce Mem/CPU = ")
-            message += f"   - Reduce Mem/CPU = {reduce_mem}\n"
             done = False
             while not done:
                 try:
@@ -1205,25 +1046,19 @@ class Tessellate():
                         done=True
                     else:
                         reduce_mem = input(f"      Invalid format! Reduce Mem/CPU = ")
-                        message += f"      Invalid choice! Reduce Mem/CPU = {reduce_mem}\n"
                 except:
                     if reduce_mem[-1].lower() == 'g':
                         self.reduce_mem = reduce_mem[:-1]
                         done = True
                     else:
                         reduce_mem = input(f"      Invalid format! Reduce Mem/CPU = ")
-                        message += f"      Invalid choice! Reduce Mem/CPU = {reduce_mem}\n"
         else:
             self.reduce_mem = np.ceil(suggestions[2]/self.reduce_cpu).astype(int)
             print(f'   - Reduce Mem/CPU Needed = {self.reduce_mem}')
-            message += f'   - Reduce Mem/CPU Needed = {self.reduce_mem}\n'    
 
         print('\n')
-        message += '\n'
-
-        return message
     
-    def _search_properties(self,message,cutting_reducing,suggestions):
+    def _search_properties(self,cutting_reducing,suggestions):
         """
         Confirm transient search process properties.
         """
@@ -1231,7 +1066,6 @@ class Tessellate():
         if not cutting_reducing:
             if self.n is None:
                 n = input('   - n (Number of Cuts = n^2) = ')
-                message += f'   - n (Number of Cuts = n^2) = {n}\n'
                 done = False
                 while not done:
                     try:
@@ -1241,13 +1075,10 @@ class Tessellate():
                             done = True
                         else:
                             n = input('      Invalid choice! n (Number of Cuts = n^2) =  ')
-                            message += f'      Invalid choice! n (Number of Cuts = n^2) = {n}\n'
                     except:
                         n = input('      Invalid choice! n (Number of Cuts = n^2) =  ')
-                        message += f'      Invalid choice! n (Number of Cuts = n^2) = {n}\n'
             elif self.n > 0:
                 print(f'   - n (Number of Cuts = n^2) = {self.n}')
-                message += f'  - n (Number of Cuts = n^2) = {self.n}\n'
             else:
                 e = f"Invalid 'n' value Input of {self.n}\n"
                 raise ValueError(e)
@@ -1255,7 +1086,6 @@ class Tessellate():
             
             if self.cuts is None:
                 cut = input(f'   - Cut [1-{self.n**2},all] = ')
-                message += f'   - Cut [1-{self.n**2},all] = {cut}\n'
                 done = False
                 while not done:
                     if cut == 'all':
@@ -1266,30 +1096,22 @@ class Tessellate():
                         done = True
                     else:
                         cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
-                        message += f'      Invalid choice! Cut [1-{self.n**2},all] = {cut}\n'
             elif self.cuts == 'all':
                 print(f'   - Cut = all')
-                message += f'   - Cut = all\n'
                 self.cuts = range(1,self.n**2+1)
             elif self.cuts in range(1,self.n**2+1):
                 print(f'   - Cut = {self.cuts}')
-                message += f'   - Cut = {self.cuts}\n'
                 self.cuts = [self.cuts]
             elif type(self.cuts) == list:
                 print(f'   - Cut = {self.cuts}')
-                message += f'   - Cut = {self.cuts}\n'  
             else:
                 e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
                 raise ValueError(e)
             
-            
             print('\n')
-            message += '\n'
-
 
         if self.search_time is None:
             search_time = input(f"   - Search Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
-            message += f"   - Search Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = {search_time}\n"
             done = False
             while not done:
                 if ':' in search_time:
@@ -1297,15 +1119,12 @@ class Tessellate():
                     done = True
                 else:
                     search_time = input(f"      Invalid format! Search Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
-                    message += f"      Invalid choice! Search Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = {search_time}\n"
         else:
             print(f'   - Search Batch Time = {self.search_time}')
-            message += f"   - Search Batch Time = {self.search_time}')\n"
 
 
         if self.search_cpu is None:
             search_cpu = input(f"   - Search Num CPUs [1-32] ({suggestions[1]} suggested) = ")
-            message += f"   - Search Num CPUs [1-32] ({suggestions[1]} suggested) = {search_cpu}\n"
             done = False
             while not done:
                 try:
@@ -1315,13 +1134,10 @@ class Tessellate():
                         done = True
                     else:
                         search_cpu = input(f"      Invalid format! Search Num CPUs [1-32] ({suggestions[1]} suggested) = ")
-                        message += f"      Invalid choice! Search Num CPUs [1-32] ({suggestions[1]} suggested) = {search_cpu}\n"
                 except:
                     search_cpu = input(f"      Invalid format! Search Num CPUs [1-32] ({suggestions[1]} suggested) = ")
-                    message += f"      Invalid choice! Search Num CPUs [1-32] ({suggestions[1]} suggested) = {search_cpu}\n"
         elif 0 < self.search_cpu < 33:
             print(f'   - Search Num CPUs = {self.search_cpu}')
-            message += f"   - Search Num CPUs = {self.search_cpu}\n"
         else:
             e = f"Invalid Search CPUs Input of {self.search_cpu}\n"
             raise ValueError(e) 
@@ -1329,7 +1145,6 @@ class Tessellate():
         
         if type(self.download_number) == int:
             search_mem = input(f"   - Search Mem/CPU = ")
-            message += f"   - Search Mem/CPU = {search_mem}\n"
             done = False
             while not done:
                 try:
@@ -1339,23 +1154,19 @@ class Tessellate():
                         done=True
                     else:
                         search_mem = input(f"      Invalid format! Search Mem/CPU = ")
-                        message += f"      Invalid choice! Search Mem/CPU = {search_mem}\n"
                 except:
                     if search_mem[-1].lower() == 'g':
                         self.search_mem = search_mem[:-1]
                         done = True
                     else:
                         search_mem = input(f"      Invalid format! Search Mem/CPU = ")
-                        message += f"      Invalid choice! Search Mem/CPU = {search_mem}\n"
         else:
             self.search_mem = np.ceil(suggestions[2]/self.search_cpu).astype(int)
             print(f'   - Search Mem/CPU Needed = {self.search_mem}')
-            message += f'   - Search Mem/CPU Needed = {self.search_mem}\n'  
 
         pattern = r'^\d+(\.\d+)?(sec|min|hr|day)s?$'
         if self.time_bins is None:
             time_bins = input(f"   - Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = ")
-            message += f"   - Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = {time_bins}\n"
             done = False
             while not done:
                 if ',' in time_bins:
@@ -1368,32 +1179,26 @@ class Tessellate():
                     done = True
                 else:
                     time_bins = input(f"      Invalid format! Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = ")
-                    message += f"      Invalid choice! Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = {time_bins}\n"
         
         else:
             if type(self.time_bins) == str:
                 self.time_bins = self.time_bins.split(',')
                 if all(re.match(pattern, t) for t in self.time_bins):
                     print(f'   - Search Time Bin = {self.time_bins}')
-                    message += f'   - Search Time Bin = {self.time_bins}\n'
                 else:
                     e = f'Invalid Search Time Bin Input of {self.time_bins}\n'
                     raise ValueError(e)
             
             elif all(re.match(pattern, t) for t in self.time_bins):
                 print(f'   - Search Time Bins = {self.time_bins}')
-                message += f'   - Search Time Bins = {self.time_bins}\n'
             else:
                 e = f'Invalid Search Time Bins Input of {self.time_bins}\n'
                 raise ValueError(e)
 
 
         print('\n')
-        message += '\n'
-
-        return message
     
-    def _plotting_properties(self,message,searching,suggestions):
+    def _plotting_properties(self,searching,suggestions):
         """
         Confirm transient search process properties.
         """
@@ -1401,7 +1206,6 @@ class Tessellate():
         if not searching:
             if self.n is None:
                 n = input('   - n (Number of Cuts = n^2) = ')
-                message += f'   - n (Number of Cuts = n^2) = {n}\n'
                 done = False
                 while not done:
                     try:
@@ -1411,13 +1215,10 @@ class Tessellate():
                             done = True
                         else:
                             n = input('      Invalid choice! n (Number of Cuts = n^2) =  ')
-                            message += f'      Invalid choice! n (Number of Cuts = n^2) = {n}\n'
                     except:
                         n = input('      Invalid choice! n (Number of Cuts = n^2) =  ')
-                        message += f'      Invalid choice! n (Number of Cuts = n^2) = {n}\n'
             elif self.n > 0:
                 print(f'   - n (Number of Cuts = n^2) = {self.n}')
-                message += f'  - n (Number of Cuts = n^2) = {self.n}\n'
             else:
                 e = f"Invalid 'n' value Input of {self.n}\n"
                 raise ValueError(e)
@@ -1425,7 +1226,6 @@ class Tessellate():
             
             if self.cuts is None:
                 cut = input(f'   - Cut [1-{self.n**2},all] = ')
-                message += f'   - Cut [1-{self.n**2},all] = {cut}\n'
                 done = False
                 while not done:
                     if cut == 'all':
@@ -1436,30 +1236,24 @@ class Tessellate():
                         done = True
                     else:
                         cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
-                        message += f'      Invalid choice! Cut [1-{self.n**2},all] = {cut}\n'
             elif self.cuts == 'all':
                 print(f'   - Cut = all')
-                message += f'   - Cut = all\n'
                 self.cuts = range(1,self.n**2+1)
             elif self.cuts in range(1,self.n**2+1):
                 print(f'   - Cut = {self.cuts}')
-                message += f'   - Cut = {self.cuts}\n'
                 self.cuts = [self.cuts]
             elif type(self.cuts) == list:
                 print(f'   - Cut = {self.cuts}')
-                message += f'   - Cut = {self.cuts}\n'  
             else:
                 e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
                 raise ValueError(e)
             
             
             print('\n')
-            message += '\n'
 
 
         if self.plot_time is None:
             plot_time = input(f"   - Plotting Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
-            message += f"   - Plotting Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = {plot_time}\n"
             done = False
             while not done:
                 if ':' in plot_time:
@@ -1467,15 +1261,11 @@ class Tessellate():
                     done = True
                 else:
                     plot_time = input(f"      Invalid format! Plotting Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
-                    message += f"      Invalid choice! Plotting Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = {plot_time}\n"
         else:
             print(f'   - Plotting Batch Time = {self.plot_time}')
-            message += f"   - Plotting Batch Time = {self.plot_time}')\n"
-
 
         if self.plot_cpu is None:
             plot_cpu = input(f"   - Plotting Num CPUs [1-32] ({suggestions[1]} suggested) = ")
-            message += f"   - PLotting Num CPUs [1-32] ({suggestions[1]} suggested) = {plot_cpu}\n"
             done = False
             while not done:
                 try:
@@ -1485,13 +1275,10 @@ class Tessellate():
                         done = True
                     else:
                         plot_cpu = input(f"      Invalid format! Plotting Num CPUs [1-32] ({suggestions[1]} suggested) = ")
-                        message += f"      Invalid choice! Plotting Num CPUs [1-32] ({suggestions[1]} suggested) = {plot_cpu}\n"
                 except:
                     plot_cpu = input(f"      Invalid format! Plotting Num CPUs [1-32] ({suggestions[1]} suggested) = ")
-                    message += f"      Invalid choice! Plotting Num CPUs [1-32] ({suggestions[1]} suggested) = {plot_cpu}\n"
         elif 0 < self.plot_cpu < 33:
             print(f'   - Plotting Num CPUs = {self.plot_cpu}')
-            message += f"   - Plotting Num CPUs = {self.plot_cpu}\n"
         else:
             e = f"Invalid Plotting CPUs Input of {self.plot_cpu}\n"
             raise ValueError(e)
@@ -1499,7 +1286,6 @@ class Tessellate():
         
         if type(self.download_number) == int:
             plot_mem = input(f"   - Plot Mem/CPU = ")
-            message += f"   - Plot Mem/CPU = {plot_mem}\n"
             done = False
             while not done:
                 try:
@@ -1509,25 +1295,19 @@ class Tessellate():
                         done=True
                     else:
                         plot_mem = input(f"      Invalid format! Plot Mem/CPU = ")
-                        message += f"      Invalid choice! Plot Mem/CPU = {plot_mem}\n"
                 except:
                     if plot_mem[-1].lower() == 'g':
                         self.plot_mem = plot_mem[:-1]
                         done = True
                     else:
                         plot_mem = input(f"      Invalid format! Plot Mem/CPU = ")
-                        message += f"      Invalid choice! Search Mem/CPU = {plot_mem}\n"
         else:
             self.plot_mem = np.ceil(suggestions[2]/self.plot_cpu).astype(int)
             print(f'   - Plot Mem/CPU Needed = {self.plot_mem}')
-            message += f'   - Plot Mem/CPU Needed = {self.plot_mem}\n'  
 
         print('\n')
-        message += '\n'
-
-        return message
     
-    def _overwrite_suggestions(self,message, make_cube, make_cuts, reduce, search,plot):
+    def _overwrite_suggestions(self, make_cube, make_cuts, reduce, search,plot):
 
         options = []
         if make_cube:
@@ -1543,7 +1323,6 @@ class Tessellate():
 
         done = False
         over = input(f'   - Overwrite any steps? [y,n,{str(options)[1:-1]}] = ')
-        message += f'   - Overwrite any steps? [y,n,{str(options)[1:-1]}] = \n{over}'
         while not done:
             
             if over == 'y':
@@ -1560,17 +1339,11 @@ class Tessellate():
                         good = False
                 if good:
                     done = True
-                    message += over
                 else:
                     over = input(f"      Invalid choice! Overwrite any steps? [y,n,{str(options)[1:-1]}] = ")
-                    message += f"      Invalid choice! Overwrite any steps? [y,n,{str(options)[1:-1]}] = \n"
-
         
         
         print('\n')
-        message += '\n'
-
-        return message
     
     def _write_config(self,download,make_cube, fix_wcs, make_cuts, reduce, search, plot,delete):
 
@@ -1649,12 +1422,11 @@ class Tessellate():
                 f.write("\n")
 
         
-    def _reset_logs(self,message,make_cube,make_cuts,reduce,search,plot):
+    def _reset_logs(self,make_cube,make_cuts,reduce,search,plot):
         """
         Reset slurm job logs in provided output path.
         """
 
-        message += 'Delete Past Job Logs? [y/n] :\n'
         if input('Delete Past Job Logs? [y/n] :\n').lower() == 'y':
             if make_cube:
                 os.system(f'rm -f {self.job_output_path}/tessellate_cubing_logs/*')
@@ -1667,18 +1439,12 @@ class Tessellate():
             if plot:
                 os.system(f'rm -f {self.job_output_path}/tessellate_plotting_logs/*')
 
-            message = message + 'y \n'
-        else:
-            message + 'n \n'
-        print('\n')
-        message += '\n'
 
-        return message
+        print('\n')
         
-    def download(self,message):
+    def download(self):
         """
         Download FFIs! 
-        (message only is for clarity, tqdm makes weird progress bars so message prints confirmations once job is done.)
         """
 
         from .dataprocessor import DataProcessor
@@ -1689,15 +1455,13 @@ class Tessellate():
                     print(f'Sector {self.sector} Cam {cam} CCD {ccd} data already downloaded!')
                     print('\n')
                 else:
-                    tDownload = t()
+                    # tDownload = t()
                     data_processor = DataProcessor(sector=self.sector,data_path=self.data_path,verbose=self.verbose)
                     data_processor.download(cam=cam,ccd=ccd,number=self.download_number)
-                    os.system('clear')
-                    print(message)
-                    print(f'Sector {self.sector} Cam {cam} Ccd {ccd} Download Complete ({((t()-tDownload)/60):.2f} mins).')
+                    # os.system('clear')
+                    # print(message)
+                    # print(f'Sector {self.sector} Cam {cam} Ccd {ccd} Download Complete ({((t()-tDownload)/60):.2f} mins).')
                     print('\n')
-                    message += f'Sector {self.sector} Cam {cam} Ccd {ccd} Download Complete ({((t()-tDownload)/60):.2f} mins).\n'
-                    message += '\n'
 
     def make_cube(self,overwrite=True):
         """
