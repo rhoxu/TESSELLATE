@@ -977,7 +977,7 @@ class Navigator():
             bright_frame = flux[brightest_frame,y-1:y+2,x-1:x+2]   
             vmin = np.percentile(flux[brightest_frame],16)
             try:
-                vmax = np.percentile(bright_frame,80)
+                vmax = np.percentile(bright_frame,90)
             except:
                 vmax = vmin + 20
             if vmin >= vmax:
