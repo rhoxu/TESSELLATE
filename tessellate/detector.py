@@ -1025,10 +1025,14 @@ def _Extract_Lightcurve_Properties(time,flux,events,event_time_buffer,calc_time_
                         events.loc[idx,'classification'] = 'CosmicRay'
 
                     elif ev.frame_duration > 2:
-                        if (len(event_sig_lc[event_sig_lc >= 5]) == 2) & (len(event_sig_lc[event_sig_lc >= 3]) == 2):
-                            sorted_idx = np.argsort(event_sig_lc)[::-1]
-                            if abs(np.diff(sorted_idx)[0]) > 1:
+                        # if (len(event_sig_lc[event_sig_lc >= 5]) == 2) & (len(event_sig_lc[event_sig_lc >= 3]) == 2):
+                        sorted_idx = np.argsort(event_sig_lc)[::-1]
+                        if abs(np.diff(sorted_idx)[0]) > 1:
+
+                            if (len(event_sig_lc[event_sig_lc >= 5]) > 0):
                                 events.loc[idx,'classification'] = 'CosmicRay'
+                            else:
+                                events.loc[idx,'classification'] = 'Junk'
                     
     return events 
             
