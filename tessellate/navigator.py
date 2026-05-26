@@ -131,13 +131,12 @@ class Navigator():
 
     # ----------------------------- Filtering sources, events, objects ----------------------------- #
 
-    def filter_events(self,cut=None,
-                      stars=None,asteroidkiller=None,strapkiller=None,cosmicraykiller=None,junkkiller=True,
-                      lower=None,upper=None,image_sig_max=None,frame_bin=None,
-                      lc_sig_max=None,lc_sig_med=None,lc_flat=None,min_events=None,max_events=None,
-                      bkg_std=None,boundary_buffer=None,flux_sign=None,classification=None,
-                      psf_like=None,galactic_latitude=None,centroid_err=None,crossbins=True,
-                      exclude_bad_frames=None):
+    def filter_events(self,cut=None,frame_bin=None,flux_sign=None,classification=None,
+                      starkiller=None,asteroidkiller=None,strapkiller=None,cosmicraykiller=None,junkkiller=True,
+                      min_frame_duration=None,max_frame_duration=None,min_events=None,max_events=None,
+                      lc_sig_max=None,lc_sig_med=None,lc_flat=None,image_sig_max=None,psf_like=None,
+                      galactic_latitude=None,centroid_err=None,crossbins=True,
+                      boundary_buffer=None,exclude_bad_frames=None):
          
         """
         Returns a dataframe of the events in the cut, with options to filter by various parameters.
@@ -152,9 +151,13 @@ class Navigator():
             self.gather_results(cut)
 
         # -- Remove events near sources in reduction source mask (ie. stars) -- #
-        if stars == False:
+        if starkiller == True:
             events = deepcopy(self.events.loc[self.events.gaia_id == '-'])
-        elif stars == True:
+        elif starkiller == 'hard':
+            events = deepcopy(self.events.loc[self.events.gaia_id == '-'])
+            no_gaia_objids = self.objects.loc[self.objects['gaia_id'] == '-', 'objid']
+            events[events['objid'].isin(no_gaia_objids)]
+        elif starkiller == False:
             events = deepcopy(self.events.loc[self.events.gaia_id != '-'])
         else:
             events = deepcopy(self.events)
@@ -252,14 +255,14 @@ class Navigator():
                 events = events[events.classification.str.lower().isin([classification[i].lower() for i in range(len(classification))])]
 
         # -- Filter by upper and lower limits on number of detections within each event -- #
-        if upper is not None or lower is not None:
+        if max_frame_duration is not None or min_frame_duration is not None:
             mask = pd.Series(True, index=events.index)
             for frame_bin in np.unique(events.frame_bin):
                 bin_idx = events[events.frame_bin == frame_bin].index
-                if upper is not None:
-                    mask[bin_idx] &= events.loc[bin_idx, 'frame_duration'] <= upper / frame_bin
-                if lower is not None:
-                    mask[bin_idx] &= events.loc[bin_idx, 'frame_duration'] >= lower / frame_bin
+                if max_frame_duration is not None:
+                    mask[bin_idx] &= events.loc[bin_idx, 'frame_duration'] <= max_frame_duration / frame_bin
+                if min_frame_duration is not None:
+                    mask[bin_idx] &= events.loc[bin_idx, 'frame_duration'] >= min_frame_duration / frame_bin
             events = events[mask]
 
         # -- Filter by various parameters -- #
@@ -273,8 +276,6 @@ class Navigator():
             events = events.loc[events.total_events >= min_events]
         if max_events is not None:
             events = events.loc[events.total_events <= max_events]
-        if bkg_std is not None:
-            events = events.loc[events.bkg_std <= bkg_std]
         if flux_sign is not None:
             events = events.loc[events.flux_sign == flux_sign]
         if psf_like is not None:
