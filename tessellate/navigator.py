@@ -79,7 +79,7 @@ class Navigator():
         
         self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
         
-    def gather_data(self,cut,flux=True,time=True,segments=True,ref=False,mask=False,bkg=False,verbose=True):
+    def gather_data(self,cut,flux=True,time=True,ref=False,mask=False,bkg=False,verbose=True):
         """
         Gather reduced data.
         """
