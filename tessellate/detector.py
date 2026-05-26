@@ -659,7 +659,7 @@ def _Lightcurve_significance(time,flux,frame_start,frame_end,pos,flux_sign,
         
     else:
         max_flux = np.nanmin(lcevent)
-        max_frame = np.argmin(lcevent)+frame_end
+        max_frame = np.argmin(lcevent)+frame_start
         sig_max = abs(np.nanmin(lc_sig))
         sig_med = abs(np.nanmean(lc_sig))
     
@@ -1742,10 +1742,10 @@ class Detector():
         ordered_cols = [
             # Primary Identification
             'objid', 'eventid', 'classification',
-            'sector', 'camera', 'ccd', 'cut','xcentroid', 'ycentroid',
-            'frame_max',
+            'sector', 'camera', 'ccd', 'cut',
 
             # Centroid Positions
+            'xcentroid', 'ycentroid',
             'xcentroid_err','ycentroid_err',
             'xint', 'yint','xccd', 'yccd',
             'xcentroid_det', 'ycentroid_det', 
@@ -1756,7 +1756,7 @@ class Detector():
             'gal_l', 'gal_b',
 
             # Time and Frame Info
-            'frame_start', 'frame_end', 'frame_duration',
+            'frame_start', 'frame_end','frame_max','frame_duration',
             'mjd_start', 'mjd_end', 'mjd_max', 'mjd_duration',
 
             # Photometry
