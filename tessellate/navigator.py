@@ -156,7 +156,7 @@ class Navigator():
         elif starkiller == 'hard':
             events = deepcopy(self.events.loc[self.events.gaia_id == '-'])
             no_gaia_objids = self.objects.loc[self.objects['gaia_id'] == '-', 'objid']
-            events[events['objid'].isin(no_gaia_objids)]
+            events = events[events['objid'].isin(no_gaia_objids)]
         elif starkiller == False:
             events = deepcopy(self.events.loc[self.events.gaia_id != '-'])
         else:
