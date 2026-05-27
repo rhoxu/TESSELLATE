@@ -1124,7 +1124,8 @@ class Navigator():
             obj.coord = coord
 
         # -- Save a combined image with both the lightcurve and external photometry together -- #
-        if save_combined_path is not None:
+        if (save_combined_path is not None) & (event != 'separate'):
+
             from .tools import _Save_space
             import io
             from PIL import Image
@@ -1149,11 +1150,31 @@ class Navigator():
 
             # Combine horizontally
             combined_width = int((img1.width + img2.width)*1.05)
-            combined_img = Image.new('RGB', (combined_width, max_height), (255, 255, 255))
-            combined_img.paste(img1, (0, 0))
-            combined_img.paste(img2, (int(img1.width+combined_width/22), 0))
+
+            if type(event) == int:
+                _,frames = self.event_frames(cut=cut,objid=objid,event=event,plot=False,return_plot=True)
+                buf3 = io.BytesIO()
+                frames.savefig(buf3, format='png', dpi=150, bbox_inches='tight')
+                img3 = Image.open(buf3)
+                top_row_height = max_height
+                img3_scaled = img3.resize(                      # Scale img3 to match the combined width of the top row
+                    (combined_width, int(img3.height * combined_width / img3.width)),
+                    Image.LANCZOS
+                )
+
+                total_height = top_row_height + img3_scaled.height
+                combined_img = Image.new('RGB', (combined_width, total_height), (255, 255, 255))
+                combined_img.paste(img1, (0, 0))
+                combined_img.paste(img2, (int(img1.width+combined_width/22), 0))
+                combined_img.paste(img3_scaled, (0, top_row_height))
+                combined_img.save(f"{save_combined_path}/S{self.sector}C{self.cam}C{self.ccd}C{self.cut}O{objid}E{event}.png", dpi=(150,150))
+
+            else:
+                combined_img = Image.new('RGB', (combined_width, max_height), (255, 255, 255))
+                combined_img.paste(img1, (0, 0))
+                combined_img.paste(img2, (int(img1.width+combined_width/22), 0))
+                combined_img.save(f"{save_combined_path}/S{self.sector}C{self.cam}C{self.ccd}C{self.cut}O{objid}.png", dpi=(150,150))
 
             # Save final combined PNG
-            combined_img.save(f"{save_combined_path}/S{self.sector}C{self.cam}C{self.ccd}C{self.cut}O{objid}E{event}.png", dpi=(150,150))
         
         return obj
