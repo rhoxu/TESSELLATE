@@ -526,7 +526,7 @@ class Navigator():
         fig.colorbar(im, cax=cax, label='TESS Counts')   
 
         if not plot:
-            fig.close()
+            plt.close()
         
         if return_plot:
             return images,fig
