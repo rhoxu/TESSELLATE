@@ -1086,17 +1086,6 @@ class Navigator():
         """
         Plot the lightcurve and images of a given object/event.
         """
-        
-        # -- Check for saving information -- #
-        if external_phot and not (return_object or save_combined_path is not None):
-            print('Warning: both return_object is False and save_combined_path, so the external photometry will be unsaved.')
-            print('Setting external_phot to False.')
-            external_phot = False
-
-        if (save_combined_path is not None) & ((not external_phot) | (event == 'separate')):
-            print('Warning: save_combined_path is given, but external_phot = False or event = "separate". This will not save the photometry cutout.')
-            print('Setting save_combined_path to None.')
-            save_combined_path = None
 
         # -- Use Latex in the plots -- #
         if latex:
@@ -1141,6 +1130,17 @@ class Navigator():
             else:
                 event = int(event)
                 thing = self.events[(self.events.objid==objid)&(self.events.eventid==event)].iloc[0]
+
+        # -- Check for saving information -- #
+        if external_phot and not (return_object or save_combined_path is not None):
+            print('Warning: both return_object is False and save_combined_path, so the external photometry will be unsaved.')
+            print('Setting external_phot to False.')
+            external_phot = False
+
+        if (save_combined_path is not None) & ((not external_phot) | (event == 'separate')):
+            print('Warning: save_combined_path is given, but external_phot = False or event = "separate". This will not save the photometry cutout.')
+            print('Setting save_combined_path to None.')
+            save_combined_path = None
 
         # -- Isolate object and send to plotting function -- #
         thing.lc,thing.cutout,thing.lc_fig = Navigator.Plot_LC_Frame(self.sector,self.cam,self.time,self.flux,
