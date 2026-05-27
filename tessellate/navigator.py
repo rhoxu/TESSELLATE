@@ -518,12 +518,14 @@ class Navigator():
         for i in range(5):
             im = ax[i].imshow(images[brightest_loc-2+i], origin='lower', cmap='gray', vmax=vmax, vmin=vmin)
 
+            ax[i].axis('off')
+
             add = ' Stacked ' if frame_bin > 1 else ' '
 
             if i == 2:
                 ax[i].set_title(f'Brightest{add}Frame ({brightest_frame})')
             else:
-                ax[i].set_title(f'{add}Frame ({frames[brightest_loc-2+i]})')
+                ax[i].set_title(f'{add}Frame {frames[brightest_loc-2+i]}')
 
         fig.colorbar(im, cax=cax, label='TESS Counts')
 
