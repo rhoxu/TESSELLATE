@@ -506,7 +506,7 @@ class Navigator():
 
         # -- Plot 5 images around the brightest frame -- #
         
-        fig = plt.figure(figsize=(15, 15))
+        fig = plt.figure(figsize=(15, 3))
         gs = gridspec.GridSpec(1, 6, width_ratios=[1, 1, 1, 1, 1, 0.05], wspace=0.35)
         ax = [fig.add_subplot(gs[i]) for i in range(5)]
         cax = fig.add_subplot(gs[5])
