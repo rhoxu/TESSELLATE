@@ -1109,7 +1109,7 @@ class Navigator():
         if cut is None:
             raise ValueError('Please specify a cut!')
         elif cut != self.cut:
-            self.gather_data(cut)
+            self.gather_data(cut,verbose=verbose)
             self.gather_results(cut)
 
         # -- If saving is desired -- #
