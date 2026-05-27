@@ -519,6 +519,8 @@ class Navigator():
                     ax[i].set_title(f'{add}Frame ({frames[brightest_loc-2+i]})')
             fig.colorbar(im, ax=ax[4], fraction=0.046, pad=0.04,label='TESS Counts')    
             
+            return images,fig
+
         return images
 
     def object_lc(self,objid,cut=None):
