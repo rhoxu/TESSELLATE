@@ -664,7 +664,7 @@ class Navigator():
 
 
 
-    def external_photometry(self,objid,eventid=None,cut=None,tess_grid=5,sigma=3,phot=None,check='gaia'):
+    def external_photometry(self,objid,eventid=None,cut=None,tess_grid=5,sigma=3,phot=None,check='gaia',verbose=True):
         """
         Look up legacy imaging for region around object/event location.
         """
@@ -682,7 +682,8 @@ class Navigator():
             self.gather_data(cut)
             self.gather_results(cut)
 
-        print('Getting Photometry...')
+        if verbose:
+            print('Getting Photometry...')
 
         # -- Define the localisation and error points in RA,Dec space -- #
         theta = np.linspace(0, 2*np.pi, 1000)
@@ -1078,8 +1079,10 @@ class Navigator():
         return [times,f], cutout_image, fig
 
 
-    def plot_object(self,objid,event='separate',cut=None,save_name=None,save_path=None,phot_check='local',
-                    latex=True,zoo_mode=False,external_phot=False,save_combined_path=None,tess_grid=3):
+    def plot_object(self,objid,event='separate',cut=None,
+                    latex=True,zoo_mode=False,
+                    external_phot=False,phot_check='local',tess_grid=3,verbose=True,
+                    save_name=None,save_path=None,save_combined_path=None):
         """
         Plot the lightcurve and images of a given object/event.
         """
@@ -1124,7 +1127,7 @@ class Navigator():
         if external_phot:
             # if phot_check == 'local':
             #     phot_check = f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
-            fig, cat, coord,_,_ = self.external_photometry(objid,event,cut,tess_grid=tess_grid,check=phot_check)
+            fig, cat, coord,_,_ = self.external_photometry(objid,event,cut,tess_grid=tess_grid,check=phot_check,verbose=verbose)
             if fig is None:
                 return obj
             
