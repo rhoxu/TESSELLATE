@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 plt.rc('font', family='serif')
 
+import os
 import pandas as pd
 from time import time as clock
 from copy import deepcopy
@@ -1141,6 +1142,17 @@ class Navigator():
             print('Warning: save_combined_path is given, but external_phot = False or event = "separate". This will not save the photometry cutout.')
             print('Setting save_combined_path to None.')
             save_combined_path = None
+
+        if save_combined_path:
+            if isinstance(event, str):
+                thing_path = f"{save_combined_path}/S{self.sector}C{self.cam}C{self.ccd}C{self.cut}O{objid}.png"
+            else:
+                thing_path = f"{save_combined_path}/S{self.sector}C{self.cam}C{self.ccd}C{self.cut}O{objid}E{event}.png"
+            
+            if os.path.exists(thing_path):
+                if verbose:
+                    print('Combined image save path already exists. Skipping.')
+                return
 
         # -- Isolate object and send to plotting function -- #
         thing.lc,thing.cutout,thing.lc_fig = Navigator.Plot_LC_Frame(self.sector,self.cam,self.time,self.flux,
