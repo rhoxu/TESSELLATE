@@ -510,7 +510,7 @@ class Tessellate():
             # reduce_cpu_sug = '32'
             # reduce_mem_req = 160
 
-            reduce_time_sug = '30:00'
+            reduce_time_sug = '1:30:00'
             reduce_cpu_sug = '32'
             reduce_mem_req = 64
 
