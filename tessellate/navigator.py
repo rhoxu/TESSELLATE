@@ -449,7 +449,7 @@ class Navigator():
     
 
     def event_frames(self,objid,eventid,cut=None,
-                     frame_buffer=2,frame_interval=1,image_size=11,vmin=16,vmax=84,
+                     frame_buffer=2,frame_interval=1,image_size=11,vmin=10,vmax=90,
                      plot=True,frame_bin=None,return_plot=False):
         """
         Extract cutout images for chosen event.
