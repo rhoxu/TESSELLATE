@@ -527,6 +527,11 @@ class Navigator():
 
         fig.colorbar(im, cax=cax, label='TESS Counts')
 
+        # Snap colorbar to exactly match ax[4]'s height and sit close beside it
+        fig.canvas.draw()
+        pos = ax[4].get_position()
+        cax.set_position([pos.x1 + 0.005, pos.y0, 0.01, pos.height])
+
         if not plot:
             plt.close()
         
