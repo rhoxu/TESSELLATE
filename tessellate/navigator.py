@@ -455,7 +455,7 @@ class Navigator():
         Extract cutout images for chosen event.
         """
 
-        from mpl_toolkits.axes_grid1 import make_axes_locatable
+        import matplotlib.gridspec as gridspec
 
         # -- Gather data -- #
         if cut is None:
@@ -506,7 +506,11 @@ class Navigator():
 
         # -- Plot 5 images around the brightest frame -- #
         
-        fig, ax = plt.subplots(ncols=5, figsize=(15, 15))
+        fig = plt.figure(figsize=(15, 15))
+        gs = gridspec.GridSpec(1, 6, width_ratios=[1, 1, 1, 1, 1, 0.05], wspace=0.35)
+        ax = [fig.add_subplot(gs[i]) for i in range(5)]
+        cax = fig.add_subplot(gs[5])
+
         brightest_loc = np.where(frames == brightest_frame)[0][0]
         vmax = np.percentile(images[brightest_loc, image_size//2-1:image_size//2+2, image_size//2-1:image_size//2+2], vmax)
         vmin = np.percentile(images[brightest_loc, image_size//2-1:image_size//2+2, image_size//2-1:image_size//2+2], vmin)
@@ -521,9 +525,7 @@ class Navigator():
             else:
                 ax[i].set_title(f'{add}Frame ({frames[brightest_loc-2+i]})')
 
-        divider = make_axes_locatable(ax[4])
-        cax = divider.append_axes("right", size="5%", pad=0.05)
-        fig.colorbar(im, cax=cax, label='TESS Counts')   
+        fig.colorbar(im, cax=cax, label='TESS Counts')
 
         if not plot:
             plt.close()
