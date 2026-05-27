@@ -455,6 +455,8 @@ class Navigator():
         Extract cutout images for chosen event.
         """
 
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
+
         # -- Gather data -- #
         if cut is None:
             cut = self.cut
@@ -503,25 +505,33 @@ class Navigator():
         images = flux[frames,ymin:ymax+1,xmin:xmax+1]
 
         # -- Plot 5 images around the brightest frame -- #
-        if plot:
-            fig,ax = plt.subplots(ncols=5,figsize=(15,15))
-            brightest_loc = np.where(frames==brightest_frame)[0][0]
-            vmax = np.percentile(images[brightest_loc,image_size//2-1:image_size//2+2,image_size//2-1:image_size//2+2],vmax)
-            vmin = np.percentile(images[brightest_loc,image_size//2-1:image_size//2+2,image_size//2-1:image_size//2+2],vmin)
-            for i in range(5):
-                im = ax[i].imshow(images[brightest_loc-2+i],origin='lower',cmap='gray',vmax=vmax,vmin=vmin)
-                
-                add = ' Stacked ' if frame_bin > 1 else ' '
+        
+        fig, ax = plt.subplots(ncols=5, figsize=(15, 15))
+        brightest_loc = np.where(frames == brightest_frame)[0][0]
+        vmax = np.percentile(images[brightest_loc, image_size//2-1:image_size//2+2, image_size//2-1:image_size//2+2], vmax)
+        vmin = np.percentile(images[brightest_loc, image_size//2-1:image_size//2+2, image_size//2-1:image_size//2+2], vmin)
 
-                if i == 2:
-                    ax[i].set_title(f'Brightest{add}Frame ({brightest_frame})')
-                else:
-                    ax[i].set_title(f'{add}Frame ({frames[brightest_loc-2+i]})')
-            fig.colorbar(im, ax=ax[4], fraction=0.046, pad=0.04,label='TESS Counts')    
-            
+        for i in range(5):
+            im = ax[i].imshow(images[brightest_loc-2+i], origin='lower', cmap='gray', vmax=vmax, vmin=vmin)
+
+            add = ' Stacked ' if frame_bin > 1 else ' '
+
+            if i == 2:
+                ax[i].set_title(f'Brightest{add}Frame ({brightest_frame})')
+            else:
+                ax[i].set_title(f'{add}Frame ({frames[brightest_loc-2+i]})')
+
+        divider = make_axes_locatable(ax[4])
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        fig.colorbar(im, cax=cax, label='TESS Counts')   
+
+        if not plot:
+            fig.close()
+        
+        if return_plot:
             return images,fig
-
-        return images
+        else:
+            return images
 
     def object_lc(self,objid,cut=None):
         """
