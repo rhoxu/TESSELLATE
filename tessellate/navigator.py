@@ -1097,6 +1097,18 @@ class Navigator():
         if latex:
             plt.rc('text', usetex=latex)
 
+        # -- Check if initial input is an event or object row -- #
+        thing = None
+        if isinstance(objid, pd.Series):
+            row = objid
+            cut = int(row['cut'])
+            objid = int(row['objid'])
+            if 'eventid' in row.index:
+                event = int(row['eventid'])
+            else:
+                event = 'all'
+            thing = row
+
         # -- Gather data -- #
         if cut is None:
             cut = self.cut
@@ -1117,21 +1129,13 @@ class Navigator():
                 save_name = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}'
             save_path = save_path + save_name
 
-        # -- Check if initial input is an event or object row -- #
-        if isinstance(objid, pd.Series):
-            row = objid
-            objid = int(row['objid'])
-            if 'eventid' in row.index:
-                event = int(row['eventid'])
+        # -- Initialise thing to return -- #
+        if thing is None:
+            if not isinstance(event, str):
+                thing = self.objects[self.objects.objid==objid].iloc[0]
             else:
-                event = 'all'
-            thing = row
-            
-        elif not isinstance(event, str):
-            thing = self.objects[self.objects.objid==objid].iloc[0]
-        else:
-            event = int(event)
-            thing = self.events[(self.events.objid==objid)&(self.events.eventid==event)].iloc[0]
+                event = int(event)
+                thing = self.events[(self.events.objid==objid)&(self.events.eventid==event)].iloc[0]
 
         # -- Isolate object and send to plotting function -- #
         thing.lc,thing.cutout,thing.lc_fig = Navigator.Plot_LC_Frame(self.sector,self.cam,self.time,self.flux,
