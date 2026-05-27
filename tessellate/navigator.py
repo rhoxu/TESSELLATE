@@ -1091,6 +1091,7 @@ class Navigator():
         if external_phot and not (return_object or save_combined_path is not None):
             print('Warning: both return_object is False and save_combined_path, so the external photometry will be unsaved.')
             print('Setting external_phot to False.')
+            external_phot = False
 
         if (save_combined_path is not None) & ((not external_phot) | (event == 'separate')):
             print('Warning: save_combined_path is given, but external_phot = False or event = "separate". This will not save the photometry cutout.')
