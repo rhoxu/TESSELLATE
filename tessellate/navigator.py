@@ -1076,8 +1076,8 @@ class Navigator():
         """
         
         # -- Check for saving information -- #
-        if (save_combined_path is not None) & (not external_phot):
-            print('Warning: save_combined_path is given, but external_phot is False. This will not save the photometry cutout.')
+        if (save_combined_path is not None) & ((not external_phot) | (event == 'separate')):
+            print('Warning: save_combined_path is given, but external_phot = False or event = "separate". This will not save the photometry cutout.')
             print('Setting save_combined_path to None.')
             save_combined_path = None
 
@@ -1124,7 +1124,7 @@ class Navigator():
             obj.coord = coord
 
         # -- Save a combined image with both the lightcurve and external photometry together -- #
-        if (save_combined_path is not None) & (event != 'separate'):
+        if save_combined_path is not None:
 
             from .tools import _Save_space
             import io
@@ -1152,7 +1152,7 @@ class Navigator():
             combined_width = int((img1.width + img2.width)*1.05)
 
             if type(event) == int:
-                _,frames = self.event_frames(cut=cut,objid=objid,event=event,plot=False,return_plot=True)
+                _,frames = self.event_frames(cut=cut,objid=objid,eventid=event,plot=False,return_plot=True)
                 buf3 = io.BytesIO()
                 frames.savefig(buf3, format='png', dpi=150, bbox_inches='tight')
                 img3 = Image.open(buf3)
