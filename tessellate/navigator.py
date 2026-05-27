@@ -724,7 +724,7 @@ class Navigator():
         # -- Extract a cutout of the region -- #
         if check == 'local':
             check = f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
-        fig, wcs, size, photometry,cat,im = event_cutout((RA,DEC),20*tess_grid,phot=phot,check=check)
+        fig, wcs, size, photometry,cat,im = event_cutout((RA,DEC),20*tess_grid,phot=phot,check=check,verbose=verbose)
         if fig is None:
             return None,None,None,None,None
         axes = fig.get_axes()

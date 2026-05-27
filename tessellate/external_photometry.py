@@ -298,13 +298,16 @@ def _Rotate_i_to_g(i_image, wcs_i, g_image, wcs_g, n_points=5):
     return rotated_i, angle_deg
 
 
-def _Skymapper_phot(ra, dec, size, show_bands=False):
+def _Skymapper_phot(ra, dec, size, show_bands=False,verbose=False):
     """
     Gets g, r, i from SkyMapper and makes a colour composite:
     g -> blue, r -> green, i -> red
     
     If show_bands=True, plots the three bands separately.
     """
+
+    import contextlib
+
     size *= 1.5
     og_size = size
     size_deg = size / 3600  # arcsec → degrees
@@ -316,11 +319,13 @@ def _Skymapper_phot(ra, dec, size, show_bands=False):
     attempt = 0
     while (not complete) & (attempt < max_attempts):
         try:
-            table = Table.read(url, format='ascii').to_pandas()
+            with contextlib.redirect_stdout(open(os.devnull, 'w')):
+                table = Table.read(url, format='ascii').to_pandas()
             complete = True
         except:
             attempt += 1
-            print('failed to get table')
+            if verbose:
+                print('failed to get table')
             sleep(1)
 
     t = table[(table['col16'] == 'main')]
@@ -443,7 +448,7 @@ def _delve_objects(ra,dec,size=60/60**2):
     except:
         return
 
-def _DESI_phot(ra,dec,size):
+def _DESI_phot(ra,dec,size,verbose):
 
     size = size * 5
     urlFITS = f"http://legacysurvey.org/viewer/cutout.fits?ra={ra}&dec={dec}&size={size}&layer=ls-dr10"
@@ -470,9 +475,10 @@ def _DESI_phot(ra,dec,size):
             ax.invert_xaxis()
             return fig,wcs,size,image
         except Exception as error:
-            print("DES Photometry failed: ", error)
-            print(urlFITS)
-            print(urlIM)
+            if verbose:
+                print("DES Photometry failed: ", error)
+                print(urlFITS)
+                print(urlIM)
             return None,None,None,None
         #else:
           #  return None,None,None
@@ -634,7 +640,7 @@ def _add_sources(fig,cat):
     return fig
 
 
-def event_cutout(coords,size=50,phot=None,check='gaia'):
+def event_cutout(coords,size=50,phot=None,check='gaia',verbose=True):
     """
     Make an image using ground catalogs for the region of interest.
 
@@ -656,7 +662,7 @@ def event_cutout(coords,size=50,phot=None,check='gaia'):
     """
 
     if phot is None:
-        fig,wcs,outsize,im = _DESI_phot(coords[0],coords[1],size)
+        fig,wcs,outsize,im = _DESI_phot(coords[0],coords[1],size,verbose)
         if fig is None:
             if coords[1] > -28:
                 phot = 'PS1'
@@ -669,19 +675,22 @@ def event_cutout(coords,size=50,phot=None,check='gaia'):
     if phot == 'PS1':
         fig,wcs,outsize,im = _Panstarrs_phot(coords[0],coords[1],size)
         if fig is None:
-            print('PanSTARRS photometry failed.')
+            if verbose:
+                print('PanSTARRS photometry failed.')
             return None,None,None,None,None,None
         cat = _panstarrs_objects(coords[0],coords[1])
         #fig = _add_sources(fig,cat)
 
     elif phot.lower() == 'skymapper':
-        fig,wcs,outsize,im = _Skymapper_phot(coords[0],coords[1],size)
+        fig,wcs,outsize,im = _Skymapper_phot(coords[0],coords[1],size,verbose=verbose)
         if fig is None:
-            print('SkyMapper photometry failed.')
+            if verbose:
+                print('SkyMapper photometry failed.')
             return None,None,None,None,None,None
         cat = _skymapper_objects(coords[0],coords[1],im.shape[1],wcs,rad=60)
     elif phot is None:
-        print('Photometry name invalid.')
+        if verbose:
+                print('Photometry name invalid.')
         fig = None
         wcs = None
         return None,None,None,None,None,None
@@ -695,7 +704,8 @@ def event_cutout(coords,size=50,phot=None,check='gaia'):
         if (gaia is not None) & (cat is not None):
             cat = check_gaia(cat,gaia)
         elif phot == 'SkyMapper':
-            print('Something failed getting Skymapper sources.')
+            if verbose:
+                print('Something failed getting Skymapper sources.')
             return None,None,None,None,None,None
     elif os.path.exists(check):
         gaia = get_gaia_loc(coords[0],coords[1],size/60**2,check)
