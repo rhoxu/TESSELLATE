@@ -1080,7 +1080,7 @@ class Navigator():
 
 
     def plot_lc(self,objid,event='separate',cut=None,
-                    latex=True,zoo_mode=False,return_object=True,
+                    latex=True,zoo_mode=False,return_object=False,
                     external_phot=False,phot_check='local',tess_grid=3,verbose=True,
                     save_name=None,save_path=None,save_combined_path=None):
         """
@@ -1088,6 +1088,10 @@ class Navigator():
         """
         
         # -- Check for saving information -- #
+        if external_phot and not return_object:
+            print('Warning: return_object is False, so the external photometry will be unsaved.')
+            print('Setting external_phot to False.')
+
         if (save_combined_path is not None) & ((not external_phot) | (event == 'separate')):
             print('Warning: save_combined_path is given, but external_phot = False or event = "separate". This will not save the photometry cutout.')
             print('Setting save_combined_path to None.')
