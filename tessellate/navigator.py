@@ -1088,8 +1088,8 @@ class Navigator():
         """
         
         # -- Check for saving information -- #
-        if external_phot and not return_object:
-            print('Warning: return_object is False, so the external photometry will be unsaved.')
+        if external_phot and not (return_object or save_combined_path is not None):
+            print('Warning: both return_object is False and save_combined_path, so the external photometry will be unsaved.')
             print('Setting external_phot to False.')
 
         if (save_combined_path is not None) & ((not external_phot) | (event == 'separate')):
