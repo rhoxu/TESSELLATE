@@ -788,7 +788,7 @@ class Navigator():
     
 
     @staticmethod
-    def Plot_Object_LC_Frame(sector,cam,rawtimes,rawflux,events,objid,eventtype,#orbit_refs,orbit_segments,
+    def Plot_LC_Frame(sector,cam,rawtimes,rawflux,events,objid,eventtype,#orbit_refs,orbit_segments,
                              save_path=None,latex=True,zoo_mode=False):
         """
         Plot an object's light curve and image cutout.
@@ -1079,8 +1079,8 @@ class Navigator():
         return [times,f], cutout_image, fig
 
 
-    def plot_object(self,objid,event='separate',cut=None,
-                    latex=True,zoo_mode=False,
+    def plot_lc(self,objid,event='separate',cut=None,
+                    latex=True,zoo_mode=False,return_object=True,
                     external_phot=False,phot_check='local',tess_grid=3,verbose=True,
                     save_name=None,save_path=None,save_combined_path=None):
         """
@@ -1096,7 +1096,7 @@ class Navigator():
         # -- Use Latex in the plots -- #
         if latex:
             plt.rc('text', usetex=latex)
-                                                   
+
         # -- Gather data -- #
         if cut is None:
             cut = self.cut
@@ -1117,9 +1117,24 @@ class Navigator():
                 save_name = f'Sec{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}'
             save_path = save_path + save_name
 
+        # -- Check if initial input is an event or object row -- #
+        if isinstance(objid, pd.Series):
+            row = objid
+            objid = int(row['objid'])
+            if 'eventid' in row.index:
+                event = int(row['eventid'])
+            else:
+                event = 'all'
+            thing = row
+            
+        elif not isinstance(event, str):
+            thing = self.objects[self.objects.objid==objid].iloc[0]
+        else:
+            event = int(event)
+            thing = self.events[(self.events.objid==objid)&(self.events.eventid==event)].iloc[0]
+
         # -- Isolate object and send to plotting function -- #
-        obj = self.objects[self.objects.objid==objid].iloc[0]
-        obj.lc,obj.cutout,obj.lc_fig = Navigator.Plot_Object_LC_Frame(self.sector,self.cam,self.time,self.flux,
+        thing.lc,thing.cutout,thing.lc_fig = Navigator.Plot_LC_Frame(self.sector,self.cam,self.time,self.flux,
                                                                       self.events,objid,event,#self.orbit_refs,self.orbit_segments,
                                                                       save_path,latex,zoo_mode) 
 
@@ -1129,11 +1144,11 @@ class Navigator():
             #     phot_check = f'{self.path}/Cut{cut}of{self.n**2}/local_gaia_cat.csv'
             fig, cat, coord,_,_ = self.external_photometry(objid,event,cut,tess_grid=tess_grid,check=phot_check,verbose=verbose)
             if fig is None:
-                return obj
+                return thing
             
-            obj.photometry = fig
-            obj.cat = cat
-            obj.coord = coord
+            thing.photometry = fig
+            thing.cat = cat
+            thing.coord = coord
 
         # -- Save a combined image with both the lightcurve and external photometry together -- #
         if save_combined_path is not None:
@@ -1146,8 +1161,8 @@ class Navigator():
 
             buf1 = io.BytesIO()
             buf2 = io.BytesIO()
-            obj.lc_fig.savefig(buf1, format='png', dpi=150,bbox_inches='tight')
-            obj.photometry.savefig(buf2, format='png', dpi=150,bbox_inches='tight')
+            thing.lc_fig.savefig(buf1, format='png', dpi=150,bbox_inches='tight')
+            thing.photometry.savefig(buf2, format='png', dpi=150,bbox_inches='tight')
 
             # Load with Pillow
             img1 = Image.open(buf1)
@@ -1189,4 +1204,5 @@ class Navigator():
 
             # Save final combined PNG
         
-        return obj
+        if return_object:
+            return thing
