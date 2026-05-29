@@ -153,7 +153,6 @@ def Fit_CCD(image_path,gaia_cat,sector,cam,ccd,n=4,cut=None,quality_thresh=0.8,m
     print(len(gaia_cat))
     print('\n')
 
-    # gaia_mid_brightness = gaia_cat[(gaia_cat.mag < 16)&(gaia_cat.mag >9)]
     ra_rad = np.deg2rad(gaia_cat['ra'].to_numpy())
     dec_rad = np.deg2rad(gaia_cat['dec'].to_numpy())
     coords = np.column_stack((dec_rad,ra_rad))
@@ -162,7 +161,7 @@ def Fit_CCD(image_path,gaia_cat,sector,cam,ccd,n=4,cut=None,quality_thresh=0.8,m
     min_sep_rad = distances[:, 1]
     min_sep_deg = np.rad2deg(min_sep_rad)
     gaia_cat['min_dist_arcsec'] = min_sep_deg * 3600
-    gaia_cat['psf_quality'] = Predict_PSF_Quality(gaia_cat.mag,gaia_cat.min_dist_arcsec,clf)
+    gaia_cat['psf_quality'] = Predict_PSF_Quality(gaia_cat.RPmag,gaia_cat.min_dist_arcsec,clf)
 
     # -- Determine corners of n cuts -- #
     intervals = 2048/n

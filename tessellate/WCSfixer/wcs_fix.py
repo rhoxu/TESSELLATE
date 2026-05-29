@@ -180,7 +180,6 @@ def Calculate_WCS(save_folder,order=6):
     imtable.t.loc[ix,'imID']=int(ix)
 
     image = pd.DataFrame()
-    image['mag'] = ccd_sources.mag
     image['Source'] = ccd_sources.Source
     image['min_dist_arcsec'] = ccd_sources.min_dist_arcsec
     image['raGaia'] = ccd_sources.ra

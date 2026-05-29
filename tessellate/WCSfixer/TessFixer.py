@@ -85,7 +85,7 @@ class TessFixer():
                 percentile += 1
         
 
-    def load_gaia(self,cam,ccd,image_path,gaia_path='/fred/oz335/GAIAdata/gaia_dr3_g19_cat.csv'):
+    def load_gaia(self,cam,ccd,image_path,gaia_path='/fred/oz335/GAIAdata/full_gaia_cat.csv.csv'):
 
         ts = time()
         print('Getting gaia cat',end='\r')
@@ -94,23 +94,39 @@ class TessFixer():
             gaia = pd.read_csv(ccd_gaia_path)
             
         else:
+
+            import duckdb
+
             with fits.open(image_path) as f:
                 wcs = WCS(f[1].header)
 
-            gaia = pd.read_csv(gaia_path)
+            # gaia = pd.read_csv(gaia_path)
+            centre_ra, centre_dec = wcs.all_pix2world(1068, 1024, 0)
+            
+            radius_arcsec = 32000  # max radius = sqrt(1024**2 * 2)px * 21"
 
-            centre_ra, centre_dec = wcs.all_pix2world(1024, 1024, 0)
-            dra = gaia.ra - centre_ra
-            dra = (dra + 180) % 360 - 180  # wrap to [-180, 180]
-            gaia = gaia[(abs(dra) < 15) & (abs(gaia.dec - centre_dec) < 15)&(gaia.mag<16)&(gaia.mag >9)]
-
+            gaia = duckdb.sql(f"""
+                SELECT * FROM (
+                    SELECT *,
+                        2 * degrees(asin(sqrt(
+                            pow(sin(radians(("dec" - {centre_dec}) / 2)), 2) +
+                            cos(radians("dec")) * cos(radians({centre_dec})) *
+                            pow(sin(radians((ra - {centre_ra}) / 2)), 2)
+                        ))) * 3600 AS dist_arcsec
+                    FROM read_csv('{gaia_path}', ignore_errors=true)
+                )
+                WHERE dist_arcsec < {radius_arcsec}
+            """).df()
+            
             gaia['x'],gaia['y'] =  wcs.all_world2pix(gaia.ra, gaia.dec, 0)
-            gaia = gaia[(gaia.x>0)&(gaia.x<2136)&(gaia.y>0)&(gaia.y<2078)]
+            gaia = gaia[(gaia.x>=40)&(gaia.x<=2096)&(gaia.y>=-4)&(gaia.y<=2052)]
+            gaia = gaia.drop(columns=['dist_arcsec','x','y'])
+            gaia.rename(columns={'source_id':'Source'},inplace=True)
             gaia.to_csv(ccd_gaia_path,index=False)
 
         print(f'Getting gaia cat -- done! ({time()-ts:.0f}s)')
 
-        return gaia[(gaia.mag<16)&(gaia.mag >9)]
+        return gaia[(gaia.RPmag<16)&(gaia.RPmag >9)]
 
         
     def fix_wcs(self,ccd_folder,image_path,gaia_cat,cam,ccd,num,ref=False,order=6):
