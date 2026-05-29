@@ -1656,7 +1656,15 @@ class Detector():
                 inside = gaia[(abs(gaia.ra-event.ra) < sigma*event.ra_err)&
                             (abs(gaia.dec-event.dec) < sigma*event.dec_err)]
                 if len(inside) > 0:
-                    events.loc[i,'gaia_id'] = inside[inside.RPmag==inside.RPmag.min()].iloc[0].Source
+                    valid_rp = inside.dropna(subset=['RPmag'])
+                    valid_g = inside.dropna(subset=['Gmag'])
+                    if len(valid_rp) > 0:
+                        best = valid_rp.loc[valid_rp.RPmag.idxmin()]
+                    elif len(valid_g) > 0:
+                        best = valid_g.loc[valid_g.Gmag.idxmin()]
+                    else:
+                        best = inside.iloc[0]
+                    events.loc[i, 'gaia_id'] = int(best.Source)
         
         # -- Cross matches location to variable catalog -- #
         variables = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/variable_catalog.csv')
