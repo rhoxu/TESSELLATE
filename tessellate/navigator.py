@@ -1126,7 +1126,7 @@ class Navigator():
 
         # -- Initialise thing to return -- #
         if thing is None:
-            if not isinstance(event, str):
+            if isinstance(event, str):
                 thing = self.objects[self.objects.objid==objid].iloc[0]
             else:
                 event = int(event)
