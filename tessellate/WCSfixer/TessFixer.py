@@ -85,7 +85,7 @@ class TessFixer():
                 percentile += 1
         
 
-    def load_gaia(self,cam,ccd,image_path,gaia_path='/fred/oz335/GAIAdata/full_gaia_cat.csv.csv'):
+    def load_gaia(self,cam,ccd,image_path,gaia_path='/fred/oz335/GAIAdata/full_gaia_cat.csv'):
 
         ts = time()
         print('Getting gaia cat',end='\r')
