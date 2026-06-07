@@ -1111,6 +1111,44 @@ def _Recheck_asteroid_lcs(time,flux,events):
     return events
 
 
+def _Crossbin_group_worker(asteroid_group_id, group_events):
+
+    """
+    Process a single asteroid_crossbin_group chunk independently.
+    Returns a one-column DataFrame (crossbin_ids) with the same index.
+    """
+
+    group_events = group_events.copy()
+    group_events['crossbin_ids'] = [[] for _ in range(len(group_events))]
+
+    for cg in np.unique(group_events['crossbin_group']):
+        group_df = group_events[group_events['crossbin_group'] == cg].sort_values('frame_bin')
+
+        for i, row in group_df.iterrows():
+            if not group_events.at[i, 'crossbin_ids']:
+                group_events.at[i, 'crossbin_ids'] = [i]
+
+            current_ids = group_events.at[i, 'crossbin_ids']
+
+            if row['classification'] == 'Asteroid':
+                coarser = group_events[
+                    (group_events['asteroid_crossbin_group'] == asteroid_group_id) &
+                    (group_events['frame_bin'] > row['frame_bin'])
+                ].sort_values('frame_bin')
+            else:
+                coarser = group_df[group_df['frame_bin'] > row['frame_bin']]
+
+            mask = (
+                (row['frame_start'] * row['frame_bin'] <= coarser['frame_end'] * coarser['frame_bin'] + coarser['frame_bin']) &
+                (row['frame_end'] * row['frame_bin'] >= coarser['frame_start'] * coarser['frame_bin'] - coarser['frame_bin'])
+            )
+            for j in coarser[mask].index:
+                merged = list(set(group_events.at[j, 'crossbin_ids'] + current_ids))
+                group_events.at[j, 'crossbin_ids'] = merged
+
+    return group_events[['crossbin_ids']]
+
+
 class Detector():
 
     def __init__(self,sector,cam,ccd,data_path='/fred/oz335/TESSdata',n=8,
@@ -1677,61 +1715,52 @@ class Detector():
 
         self.events = events
 
+
     def _crossmatch_framebin(self):
         """
-        Crossmatch between time_bins.
+        Crossmatch between time_bins — parallelised over asteroid_crossbin_group.
         """
-        
         from collections import Counter
+        from joblib import Parallel, delayed
 
         events = deepcopy(self.events)
+
         events['crossbin_ids'] = [[] for _ in range(len(events))]
 
         # -- Group spatially -- #
-        events = _Spatial_group(events, colname='crossbin_group', distance=1, min_samples=1)
+        events = _Spatial_group(events, colname='crossbin_group',          distance=1, min_samples=1)
         events = _Spatial_group(events, colname='asteroid_crossbin_group', distance=2, min_samples=1)
 
-        # -- Iterate through spatial groups -- # 
-        for group in np.unique(events.crossbin_group):
-            group_df = events[events.crossbin_group == group].sort_values('frame_bin')
+        # -- Split into independent chunks by asteroid_crossbin_group -- #
+        unique_ag = np.unique(events['asteroid_crossbin_group'])
+        chunks = {
+            ag: events[events['asteroid_crossbin_group'] == ag]
+            for ag in unique_ag
+        }
 
-            for i, row in group_df.iterrows():
-                # If this event has no ID yet, assign its own
-                if not events.at[i, 'crossbin_ids']:
-                    events.at[i, 'crossbin_ids'] = [i]
+        results = Parallel(n_jobs=-1)(
+            delayed(_Crossbin_group_worker)(ag, df)
+            for ag, df in chunks.items()
+        )
 
-                current_ids = events.at[i, 'crossbin_ids']
-
-                # For asteroids, use the wider spatial group to find coarser bin candidates
-                if row['classification'] == 'Asteroid':
-                    asteroid_group = events.at[i, 'asteroid_crossbin_group']
-                    coarser = events[
-                        (events['asteroid_crossbin_group'] == asteroid_group) &
-                        (events['frame_bin'] > row['frame_bin'])
-                    ].sort_values('frame_bin')
-                else:
-                    coarser = group_df[group_df['frame_bin'] > row['frame_bin']]
-
-                for j, upper in coarser.iterrows():
-                    consistent = (
-                        (row['frame_start'] * row['frame_bin'] <= upper['frame_end'] * upper['frame_bin'] + upper['frame_bin']) &
-                        (row['frame_end'] * row['frame_bin'] >= upper['frame_start'] * upper['frame_bin'] - upper['frame_bin'])
-                    )
-                    if consistent:
-                        # Merge IDs, avoiding duplicates
-                        merged = list(set(events.at[j, 'crossbin_ids'] + current_ids))
-                        events.at[j, 'crossbin_ids'] = merged
+        # -- Merge crossbin_ids back into events -- #
+        events['crossbin_ids'] = [[] for _ in range(len(events))]
+        for result_df in results:
+            for idx, ids in result_df['crossbin_ids'].items():
+                events.at[idx, 'crossbin_ids'] = ids
 
         events = events.drop(columns=['crossbin_group', 'asteroid_crossbin_group'])
 
-        # -- Find which indices are present more than once -- #
+        # -- Find which indices are referenced more than once -- #
         all_ids = [i for ids in events['crossbin_ids'] for i in ids]
         counts = Counter(all_ids)
         all_referenced = set(i for i, c in counts.items() if c > 1)
 
         # -- Clear solo crossbin_ids -- #
         events['crossbin_ids'] = events.apply(
-            lambda row: [] if not any(i in all_referenced for i in row['crossbin_ids']) else row['crossbin_ids'], axis=1
+            lambda row: [] if not any(i in all_referenced for i in row['crossbin_ids'])
+            else row['crossbin_ids'],
+            axis=1
         )
 
         # -- Remap crossbin_ids -- #
@@ -1741,6 +1770,72 @@ class Detector():
         )
 
         self.events = events
+    
+
+    # def _crossmatch_framebin(self):
+    #     """
+    #     Crossmatch between time_bins.
+    #     """
+        
+    #     from collections import Counter
+
+    #     events = deepcopy(self.events)
+    #     events['crossbin_ids'] = [[] for _ in range(len(events))]
+
+    #     # -- Group spatially -- #
+    #     events = _Spatial_group(events, colname='crossbin_group', distance=1, min_samples=1)
+    #     events = _Spatial_group(events, colname='asteroid_crossbin_group', distance=2, min_samples=1)
+
+    #     # -- Iterate through spatial groups -- # 
+    #     for group in np.unique(events.crossbin_group):
+    #         group_df = events[events.crossbin_group == group].sort_values('frame_bin')
+
+    #         for i, row in group_df.iterrows():
+    #             # If this event has no ID yet, assign its own
+    #             if not events.at[i, 'crossbin_ids']:
+    #                 events.at[i, 'crossbin_ids'] = [i]
+
+    #             current_ids = events.at[i, 'crossbin_ids']
+
+    #             # For asteroids, use the wider spatial group to find coarser bin candidates
+    #             if row['classification'] == 'Asteroid':
+    #                 asteroid_group = events.at[i, 'asteroid_crossbin_group']
+    #                 coarser = events[
+    #                     (events['asteroid_crossbin_group'] == asteroid_group) &
+    #                     (events['frame_bin'] > row['frame_bin'])
+    #                 ].sort_values('frame_bin')
+    #             else:
+    #                 coarser = group_df[group_df['frame_bin'] > row['frame_bin']]
+
+    #             for j, upper in coarser.iterrows():
+    #                 consistent = (
+    #                     (row['frame_start'] * row['frame_bin'] <= upper['frame_end'] * upper['frame_bin'] + upper['frame_bin']) &
+    #                     (row['frame_end'] * row['frame_bin'] >= upper['frame_start'] * upper['frame_bin'] - upper['frame_bin'])
+    #                 )
+    #                 if consistent:
+    #                     # Merge IDs, avoiding duplicates
+    #                     merged = list(set(events.at[j, 'crossbin_ids'] + current_ids))
+    #                     events.at[j, 'crossbin_ids'] = merged
+
+    #     events = events.drop(columns=['crossbin_group', 'asteroid_crossbin_group'])
+
+    #     # -- Find which indices are present more than once -- #
+    #     all_ids = [i for ids in events['crossbin_ids'] for i in ids]
+    #     counts = Counter(all_ids)
+    #     all_referenced = set(i for i, c in counts.items() if c > 1)
+
+    #     # -- Clear solo crossbin_ids -- #
+    #     events['crossbin_ids'] = events.apply(
+    #         lambda row: [] if not any(i in all_referenced for i in row['crossbin_ids']) else row['crossbin_ids'], axis=1
+    #     )
+
+    #     # -- Remap crossbin_ids -- #
+    #     id_map = {old: new for new, old in enumerate(sorted(all_referenced))}
+    #     events['crossbin_ids'] = events['crossbin_ids'].apply(
+    #         lambda x: [id_map[i] for i in x if i in id_map]
+    #     )
+
+    #     self.events = events
  
     def _order_events_columns(self):
         """
