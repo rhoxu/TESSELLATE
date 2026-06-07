@@ -1785,6 +1785,7 @@ class Detector():
         """
         from collections import Counter
         from joblib import Parallel, delayed
+        from tqdm import tqdm
 
         events = deepcopy(self.events)
 
@@ -1803,7 +1804,7 @@ class Detector():
 
         results = Parallel(n_jobs=-1)(
             delayed(_Crossbin_group_worker)(ag, df)
-            for ag, df in chunks.items()
+            for ag, df in tqdm(chunks.items(),desc='Bin crossmatching')
         )
 
         # -- Merge crossbin_ids back into events -- #
