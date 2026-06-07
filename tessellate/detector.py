@@ -1994,32 +1994,32 @@ class Detector():
         # -- Group these sources into unique objects based on the objid -- #
         ts = clock()
         self._get_all_independent_events()
-        print(f'   Separated into individual events -- done! ({(clock()-ts):.0f}s)')
+        print(f'   Separated into individual events -- done! ({(clock()-ts):.0f}s)',flush=True)
 
         # -- Get physical units for events -- #
         self._events_physical_units()
-        print(f'   Getting time/coords/flux information -- done!')
+        print(f'   Getting time/coords/flux information -- done!',flush=True)
 
         # -- Tag asteroids -- #
         ts = clock()
         self._flag_asteroids()
-        print(f'   Checking for asteroids -- done! ({(clock()-ts):.0f}s)')
+        print(f'   Checking for asteroids -- done! ({(clock()-ts):.0f}s)',flush=True)
 
         self.events = self.events.drop_duplicates(subset=['frame_bin','xint','yint','frame_max'],keep='first')
 
         # -- Crossmatch with catalogues -- #
         ts = clock()
         self._catalogue_crossmatch()
-        print(f'   Crossmatching with Gaia and Variables -- done! ({(clock()-ts):.0f}s)')
+        print(f'   Crossmatching with Gaia and Variables -- done! ({(clock()-ts):.0f}s)',flush=True)
 
         # -- Crossmatch between different frame_bins -- #
         ts = clock()
         self._crossmatch_framebin()
-        print(f'   Crossmatching between time bins -- done! ({(clock()-ts):.0f}s)')
+        print(f'   Crossmatching between time bins -- done! ({(clock()-ts):.0f}s)',flush=True)
 
         # -- Get TSS Catalogue Names -- #        
         self._TSS_catalogue_names()
-        print(f'   Getting TSS Catalogue Names -- done!')
+        print(f'   Getting TSS Catalogue Names -- done!',flush=True)
 
         # -- Order nicely -- #
         self._order_events_columns()  
