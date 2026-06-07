@@ -1679,39 +1679,113 @@ class Detector():
 
         self.events = evs
 
-    def _catalogue_crossmatch(self,sigma=3):
-        """
-        Crossmatch events with stars / variables.
-        """
+    # def _catalogue_crossmatch(self,sigma=3):
+    #     """
+    #     Crossmatch events with stars / variables.
+    #     """
         
+    #     events = deepcopy(self.events)
+
+    #     # -- Cross matches location to Gaia -- #
+    #     gaia = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/local_gaia_cat.csv')
+    #     events['gaia_id'] = '-'
+    #     for i,event in events.iterrows():
+    #         if event.classification not in ['Asteroid','CosmicRay','Junk']:
+    #             inside = gaia[(abs(gaia.ra-event.ra) < sigma*event.ra_err)&
+    #                         (abs(gaia.dec-event.dec) < sigma*event.dec_err)]
+    #             if len(inside) > 0:
+    #                 valid_rp = inside.dropna(subset=['RPmag'])
+    #                 valid_g = inside.dropna(subset=['Gmag'])
+    #                 if len(valid_rp) > 0:
+    #                     best = valid_rp.loc[valid_rp.RPmag.idxmin()]
+    #                 elif len(valid_g) > 0:
+    #                     best = valid_g.loc[valid_g.Gmag.idxmin()]
+    #                 else:
+    #                     best = inside.iloc[0]
+    #                 events.loc[i, 'gaia_id'] = int(best.Source)
+        
+    #     # -- Cross matches location to variable catalog -- #
+    #     variables = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/variable_catalog.csv')
+    #     for i,event in events.iterrows():
+    #         if event.classification not in ['Asteroid','CosmicRay','Junk']:
+    #             inside = variables[(abs(variables.ra-event.ra) < sigma*event.ra_err)&
+    #                         (abs(variables.dec-event.dec) < sigma*event.dec_err)]
+    #             if len(inside) > 0:
+    #                 events.loc[i,'classification'] = inside.iloc[0].Type
+
+    #     self.events = events
+
+    def _catalogue_crossmatch(self, sigma=3):
+        """Crossmatch events with stars / variables."""
         events = deepcopy(self.events)
 
-        # -- Cross matches location to Gaia -- #
+        # Pre-filter to non-junk events so we only work on relevant rows
+        skip = {'Asteroid', 'CosmicRay', 'Junk'}
+        valid_mask = ~events.classification.isin(skip)
+        valid_idx  = events.index[valid_mask]
+        ev = events.loc[valid_idx]
+
+        ev_ra      = ev.ra.values
+        ev_dec     = ev.dec.values
+        ra_tol     = sigma * ev.ra_err.values    # shape (N_ev,)
+        dec_tol    = sigma * ev.dec_err.values
+
+        # ------------------------------------------------------------------ #
+        # Gaia crossmatch                                                      #
+        # ------------------------------------------------------------------ #
         gaia = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/local_gaia_cat.csv')
         events['gaia_id'] = '-'
-        for i,event in events.iterrows():
-            if event.classification not in ['Asteroid','CosmicRay','Junk']:
-                inside = gaia[(abs(gaia.ra-event.ra) < sigma*event.ra_err)&
-                            (abs(gaia.dec-event.dec) < sigma*event.dec_err)]
-                if len(inside) > 0:
-                    valid_rp = inside.dropna(subset=['RPmag'])
-                    valid_g = inside.dropna(subset=['Gmag'])
-                    if len(valid_rp) > 0:
-                        best = valid_rp.loc[valid_rp.RPmag.idxmin()]
-                    elif len(valid_g) > 0:
-                        best = valid_g.loc[valid_g.Gmag.idxmin()]
-                    else:
-                        best = inside.iloc[0]
-                    events.loc[i, 'gaia_id'] = int(best.Source)
-        
-        # -- Cross matches location to variable catalog -- #
-        variables = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/variable_catalog.csv')
-        for i,event in events.iterrows():
-            if event.classification not in ['Asteroid','CosmicRay','Junk']:
-                inside = variables[(abs(variables.ra-event.ra) < sigma*event.ra_err)&
-                            (abs(variables.dec-event.dec) < sigma*event.dec_err)]
-                if len(inside) > 0:
-                    events.loc[i,'classification'] = inside.iloc[0].Type
+
+        g_ra  = gaia.ra.values
+        g_dec = gaia.dec.values
+        g_rp  = gaia.RPmag.values
+        g_g   = gaia.Gmag.values
+        g_src = gaia.Source.values
+
+        # Broadcasting: (N_ev, N_gaia) — all pairwise abs-differences at once
+        ra_ok  = np.abs(g_ra[np.newaxis, :]  - ev_ra[:, np.newaxis])  < ra_tol[:, np.newaxis]
+        dec_ok = np.abs(g_dec[np.newaxis, :] - ev_dec[:, np.newaxis]) < dec_tol[:, np.newaxis]
+        match_matrix = ra_ok & dec_ok   # (N_ev, N_gaia) bool
+
+        for j, orig_i in enumerate(valid_idx):
+            cols = np.where(match_matrix[j])[0]
+            if len(cols) == 0:
+                continue
+            rp_sub = g_rp[cols]
+            g_sub  = g_g[cols]
+            # Priority: brightest RPmag → brightest Gmag → first match
+            rp_ok = ~np.isnan(rp_sub)
+            g_ok  = ~np.isnan(g_sub)
+            if rp_ok.any():
+                best = cols[np.nanargmin(rp_sub)]
+            elif g_ok.any():
+                best = cols[np.nanargmin(g_sub)]
+            else:
+                best = cols[0]
+            events.at[orig_i, 'gaia_id'] = int(g_src[best])
+
+        # ------------------------------------------------------------------ #
+        # Variable catalogue crossmatch                                        #
+        # ------------------------------------------------------------------ #
+        variables = pd.read_csv(
+            f'{self.path}/Cut{self.cut}of{self.n**2}/variable_catalog.csv'
+        )
+
+        v_ra   = variables.ra.values
+        v_dec  = variables.dec.values
+        v_type = variables.Type.values
+
+        ra_ok  = np.abs(v_ra[np.newaxis, :]  - ev_ra[:, np.newaxis])  < ra_tol[:, np.newaxis]
+        dec_ok = np.abs(v_dec[np.newaxis, :] - ev_dec[:, np.newaxis]) < dec_tol[:, np.newaxis]
+        match_matrix = ra_ok & dec_ok   # (N_ev, N_var)
+
+        # np.argmax on bool rows finds the first True index in O(N_ev × N_var)
+        has_match = match_matrix.any(axis=1)             # (N_ev,) bool
+        first_col = match_matrix.argmax(axis=1)          # (N_ev,) — valid only where has_match
+
+        hit_positions = np.where(has_match)[0]
+        for j in hit_positions:
+            events.at[valid_idx[j], 'classification'] = v_type[first_col[j]]
 
         self.events = events
 
