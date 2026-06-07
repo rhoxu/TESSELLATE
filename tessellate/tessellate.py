@@ -1521,6 +1521,7 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', '
 #SBATCH --cpus-per-task={self.cube_cpu}\n\
 #SBATCH --mem-per-cpu={self.cube_mem}G\n\
 \n\
+PYTHONUNBUFFERED=1\n\
 source {VENV_PATH}/bin/activate\n\
 python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py'
                     with open(f"{self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh", "w") as batch_file:
@@ -1766,6 +1767,7 @@ if not part:\n\
 #SBATCH --cpus-per-task={self.cut_cpu}\n\
 #SBATCH --mem-per-cpu={self.cut_mem}G\n\
 \n\
+PYTHONUNBUFFERED=1\n\
 source {VENV_PATH}/bin/activate\n\
 python {self.working_path}/cutting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py'
 
@@ -1825,6 +1827,7 @@ if not part:\n\
 #SBATCH --cpus-per-task={self.reduce_cpu}\n\
 #SBATCH --mem-per-cpu={self.reduce_mem}G\n\
 \n\
+PYTHONUNBUFFERED=1\n\
 source {VENV_PATH}/bin/activate\n\
 python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py'
 
@@ -2004,6 +2007,7 @@ else:\n\
 #SBATCH --cpus-per-task={self.search_cpu}\n\
 #SBATCH --mem-per-cpu={self.search_mem}G\n\
 \n\
+PYTHONUNBUFFERED=1\n\
 source {VENV_PATH}/bin/activate\n\
 python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py'
 
@@ -2244,6 +2248,7 @@ else:\n\
 #SBATCH --cpus-per-task={self.plot_cpu}\n\
 #SBATCH --mem-per-cpu={self.plot_mem}G\n\
 \n\
+PYTHONUNBUFFERED=1\n\
 source {VENV_PATH}/bin/activate\n\
 python {self.working_path}/plotting_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py'
 

@@ -1314,7 +1314,7 @@ class Detector():
 
         # elif self.mode == 'claudefinder':
         # print('Source Finding')
-        sources = Parallel(n_jobs=self.cpu)(delayed(_TESS_sourcefinder)(flux[i],inputNum+i) for i in tqdm(length))
+        sources = Parallel(n_jobs=self.cpu)(delayed(_TESS_sourcefinder)(flux[i],inputNum+i) for i in tqdm(length,desc='Source Finding'))
 
         # print('Making DataFrame')
         sources = _Make_dataframe(sources,flux[0])
@@ -1546,7 +1546,7 @@ class Detector():
                 length = np.arange(0,len(objids)).astype(int)
                 bin_events = Parallel(n_jobs=self.cpu)(delayed(_Isolate_events)(objids[i],time,flux,sources,
                                                                     self.sector,self.cam,self.ccd,self.cut,prf,snr_to_localisation,nan_frames,
-                                                                    frame_buffer,event_time_buffer,calc_time_window) for i in tqdm(length))
+                                                                    frame_buffer,event_time_buffer,calc_time_window) for i in tqdm(length,desc=f'Isolating Bin {frame_bin} Events'))
             else:            
                 bin_events = []
                 for objid in objids:
