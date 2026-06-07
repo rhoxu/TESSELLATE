@@ -1205,13 +1205,13 @@ class Detector():
         if os.path.exists(f'{path}/detected_sources.csv'):
             self.sources = pd.read_csv(f'{path}/detected_sources.csv')    # raw detection results
         else:
-            print('No detected sources file found')
+            print('No detected sources file found',flush=True)
             self.sources = None
 
         if os.path.exists(f'{path}/detected_events.csv'):
             self.events = pd.read_csv(f'{path}/detected_events.csv')    # raw detection results
         else:
-            print('No detected events file found')
+            print('No detected events file found',flush=True)
             self.events = None
             
 
@@ -1224,7 +1224,7 @@ class Detector():
 
         if verbose:
             ts = clock()
-            print(f'Loading Cut {cut} Data...',end='\r')
+            print(f'Loading Cut {cut} Data...',end='\r',flush=True)
 
         base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'
 
@@ -1259,7 +1259,7 @@ class Detector():
         self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
 
         if verbose:
-            print(f'Loading Cut {cut} Data -- done! ({clock()-ts:.0f}s)')
+            print(f'Loading Cut {cut} Data -- done! ({clock()-ts:.0f}s)',flush=True)
 
     
 
@@ -1485,7 +1485,7 @@ class Detector():
         for frame_bin in frame_bins:
             ts = clock()
             sources = pd.concat([sources,self._run_find_sources(frame_bin)]) 
-            print(f'    Run with time bin = {frame_bin} ({clock()-ts:.0f}s)')
+            print(f'    Run with time bin = {frame_bin} ({clock()-ts:.0f}s)',flush=True)
             
         # -- Reset objid so each objid,frame_bin pair is unique -- #
         matched = sources[sources['objid'] != 0]
@@ -1630,17 +1630,6 @@ class Detector():
 
         maxframes = events['frame_max'] * events['frame_bin']
         maxframes[maxframes>=len(self.time)] = len(self.time)-1
-        # print('\n')
-        # print(events['frame_max'])
-        # print('\n')
-        # print('bryg')
-        # print('\n')
-        # print(events['frame_bin'])
-        # print('\n')
-        # print('bryg')
-        # print('\n')
-        # print(maxframes)
-        # print('\n')
         
         events['mjd_max'] = self.time[maxframes]
 
@@ -2117,7 +2106,7 @@ class Detector():
         self.prf_path = prf_path
         
         # -- Gather time/flux data for the cut -- #
-        print('-------Preloading sources / events-------')
+        print('-------Preloading sources / events-------',flush=True)
         if cut != self.cut:
             self.gather_data(cut,bkg=True,mask=True,ref=True)
 
@@ -2126,23 +2115,23 @@ class Detector():
         print('\n') 
 
         if self.sources is None:
-            print('-------Source finding (see progress in errors log file)-------')
+            print('-------Source finding (see progress in errors log file)-------',flush=True)
             self.find_sources(time_bins)
             print('\n')
 
-        if not os.path.exists(f'{self.path}/Cut{cut}of{self.n**2}/wcs_info/snr_localisation_coeffs.pkl'):
+        if not os.path.exists(f'{self.path}/Cut{cut}of{self.n**2}/snr_localisation_coeffs.pkl'):
             from .localisation import simulate_cut_psf_fitting
 
-            print('-------Simulating PSF fit accuracy (see progress in errors log file)-------')
+            print('-------Simulating PSF fit accuracy (see progress in errors log file)-------',flush=True)
             simulate_cut_psf_fitting(self.data_path,self.sector,self.cam,self.ccd,cut,n=self.n,nfits=10000,nMedians=10)
             print('\n')
 
         # -- self.events contains all individual events, grouped by time and space -- #  
         if self.events is None:
-            print('-------Event finding (see progress in errors log file)-------')
+            print('-------Event finding (see progress in errors log file)-------',flush=True)
             self.find_events()
             print('\n')
 
         # -- self.objects contains all individual spatial objects -- #  
-        print('-------Object finding-------')
+        print('-------Object finding-------',flush=True)
         self.find_objects() 
