@@ -1041,28 +1041,32 @@ class Tessellate():
             e = f"Invalid Reduce CPUs Input of {self.reduce_cpu}\n"
             raise ValueError(e)
         
-
-        if type(self.download_number) == int:
-            reduce_mem = input(f"   - Reduce Mem/CPU = ")
-            done = False
-            while not done:
-                try:
-                    reduce_mem = int(reduce_mem)
-                    if 0<reduce_mem < 500:
-                        self.reduce_mem = reduce_mem
-                        done=True
-                    else:
-                        reduce_mem = input(f"      Invalid format! Reduce Mem/CPU = ")
-                except:
-                    if reduce_mem[-1].lower() == 'g':
-                        self.reduce_mem = reduce_mem[:-1]
-                        done = True
-                    else:
-                        reduce_mem = input(f"      Invalid format! Reduce Mem/CPU = ")
+        if self.reduce_mem is None:
+            if type(self.download_number) == int:
+                reduce_mem = input(f"   - Reduce Mem/CPU = ")
+                done = False
+                while not done:
+                    try:
+                        reduce_mem = int(reduce_mem)
+                        if 0<reduce_mem < 500:
+                            self.reduce_mem = reduce_mem
+                            done=True
+                        else:
+                            reduce_mem = input(f"      Invalid format! Reduce Mem/CPU = ")
+                    except:
+                        if reduce_mem[-1].lower() == 'g':
+                            self.reduce_mem = reduce_mem[:-1]
+                            done = True
+                        else:
+                            reduce_mem = input(f"      Invalid format! Reduce Mem/CPU = ")
+            else:
+                self.reduce_mem = np.ceil(suggestions[2]/self.reduce_cpu).astype(int)
+                print(f'   - Reduce Mem/CPU Needed = {self.reduce_mem}')
+        elif 0 < self.reduce_mem < 500:
+            print(f'   - Reduce Mem/CPU = {self.reduce_mem}G')
         else:
-            self.reduce_mem = np.ceil(suggestions[2]/self.reduce_cpu).astype(int)
-            print(f'   - Reduce Mem/CPU Needed = {self.reduce_mem}')
-
+            e = f"Invalid Reduce Mem/CPU Input of {self.reduce_mem}\n"
+            raise ValueError(e)
         print('\n')
     
     def _search_properties(self,cutting_reducing,suggestions):
@@ -1149,27 +1153,32 @@ class Tessellate():
             e = f"Invalid Search CPUs Input of {self.search_cpu}\n"
             raise ValueError(e) 
         
-        
-        if type(self.download_number) == int:
-            search_mem = input(f"   - Search Mem/CPU = ")
-            done = False
-            while not done:
-                try:
-                    search_mem = int(search_mem)
-                    if 0<search_mem < 500:
-                        self.search_mem = search_mem
-                        done=True
-                    else:
-                        search_mem = input(f"      Invalid format! Search Mem/CPU = ")
-                except:
-                    if search_mem[-1].lower() == 'g':
-                        self.search_mem = search_mem[:-1]
-                        done = True
-                    else:
-                        search_mem = input(f"      Invalid format! Search Mem/CPU = ")
+        if self.search_mem is None:
+            if type(self.download_number) == int:
+                search_mem = input(f"   - Search Mem/CPU = ")
+                done = False
+                while not done:
+                    try:
+                        search_mem = int(search_mem)
+                        if 0<search_mem < 500:
+                            self.search_mem = search_mem
+                            done=True
+                        else:
+                            search_mem = input(f"      Invalid format! Search Mem/CPU = ")
+                    except:
+                        if search_mem[-1].lower() == 'g':
+                            self.search_mem = search_mem[:-1]
+                            done = True
+                        else:
+                            search_mem = input(f"      Invalid format! Search Mem/CPU = ")
+            else:
+                self.search_mem = np.ceil(suggestions[2]/self.search_cpu).astype(int)
+                print(f'   - Search Mem/CPU Needed = {self.search_mem}')
+        elif 0 < self.search_mem < 500:
+            print(f'   - Search Mem/CPU = {self.search_mem}G')
         else:
-            self.search_mem = np.ceil(suggestions[2]/self.search_cpu).astype(int)
-            print(f'   - Search Mem/CPU Needed = {self.search_mem}')
+            e = f"Invalid Search Mem/CPU Input of {self.search_mem}\n"
+            raise ValueError(e)
 
         pattern = r'^\d+(\.\d+)?(sec|min|hr|day)s?$'
         if self.time_bins is None:
