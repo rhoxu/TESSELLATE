@@ -24,11 +24,11 @@ class Tessellate():
     def __init__(self,data_path,sector=None,cam=None,ccd=None,n=None,
                  verbose=2,ask_config=True,save_config=True,
                  job_output_path=None,working_path=None,
-                 download_number=None,cube_time=None,cube_mem=None,
-                 cuts=None,cut_time=None,cut_mem=None,
-                 reduce_time=None,reduce_cpu=None,
-                 search_time=None,search_cpu=None,detect_mode='both',time_bins=None,
-                 plot_time=None,plot_cpu=None,
+                 download_number=None,cube_time=None,cube_mem=None,cube_cpu=None,
+                 cuts=None,cut_time=None,cut_mem=None,cut_cpu=None,
+                 reduce_time=None,reduce_cpu=None,reduce_mem=None,
+                 search_time=None,search_cpu=None,search_mem=None,detect_mode='both',time_bins=None,
+                 plot_time=None,plot_cpu=None,plot_mem=None,
                  download=None,make_cube=None,fix_wcs=None,make_cuts=None,reduce=None,search=None,
                  plot=None,delete=None,overwrite=None,reset_logs=None,
                  go=True):
@@ -135,24 +135,24 @@ class Tessellate():
 
         self.cube_time = cube_time
         self.cube_mem = cube_mem
-        self.cube_cpu = None
+        self.cube_cpu = cube_cpu
 
         self.cut_time = cut_time
         self.cut_mem = cut_mem
-        self.cut_cpu = None
+        self.cut_cpu = cut_cpu
 
         self.reduce_time = reduce_time
         self.reduce_cpu = reduce_cpu
-        self.reduce_mem = None
+        self.reduce_mem = reduce_mem
 
         self.search_time = search_time
-        self.search_mem = None
+        self.search_mem = search_mem
         self.search_cpu = search_cpu
         self.detect_mode = detect_mode
         self.time_bins = time_bins
 
         self.plot_time = plot_time
-        self.plot_mem = None
+        self.plot_mem = plot_mem
         self.plot_cpu = plot_cpu
 
         self.ask_config = ask_config
@@ -160,86 +160,90 @@ class Tessellate():
 
         # -- Allows for no actual initialisation (TessTransient) -- #
         if go:
-            # -- Initialise and check for previous config file -- #
-            load_prev = self._initialise()
+            self.run_tessellate(download,make_cube,fix_wcs,make_cuts,reduce,search,plot,delete,overwrite,reset_logs,save_config)
 
-            if load_prev:
+    def run_tessellate(self,download,make_cube,fix_wcs,make_cuts,reduce,search,plot,delete,overwrite,reset_logs,save_config):
 
-                # -- Load config -- #
-                download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete = self._load_config()
-            
-            else:
-                # -- Confirm Run Properties -- #
-                self._run_properties() 
+        # -- Initialise and check for previous config file -- #
+        load_prev = self._initialise()
 
-                # -- Get time/cpu/memory suggestions depending on sector -- #
-                suggestions = self._sector_suggestions()  
+        if load_prev:
 
-                # -- Ask for which tessellation steps to perform -- #
-                download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete = self._which_processes(download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete)
+            # -- Load config -- #
+            download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete = self._load_config()
+        
+        else:
+            # -- Confirm Run Properties -- #
+            self._run_properties() 
 
-                # -- Ask for inputs -- #
-                if download:
-                    self._download_properties()
+            # -- Get time/cpu/memory suggestions depending on sector -- #
+            suggestions = self._sector_suggestions()  
 
-                if make_cube:
-                    self._cube_properties(suggestions[0])
-                    _Save_space(f'{job_output_path}/tessellate_cubing_logs')
+            # -- Ask for which tessellation steps to perform -- #
+            download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete = self._which_processes(download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete)
 
-                if make_cuts:
-                    self._cut_properties(suggestions[1])
-                    _Save_space(f'{job_output_path}/tessellate_cutting_logs')
-
-                if reduce:
-                    self._reduce_properties(make_cuts,suggestions[2])
-                    _Save_space(f'{job_output_path}/tessellate_reduction_logs')
-
-                if search:
-                    cutting_reducing = make_cuts | reduce
-                    self._search_properties(cutting_reducing,suggestions[3])
-                    _Save_space(f'{job_output_path}/tessellate_search_logs')
-
-                if plot:
-                    self._plotting_properties(search,suggestions[4])
-                    _Save_space(f'{job_output_path}/tessellate_plotting_logs')
-
-                if save_config:
-                    self._write_config(download,make_cube, fix_wcs, make_cuts, reduce, search, plot, delete)
-
-            # -- Check for overwriting -- #
-            if overwrite != False:
-                self._overwrite_suggestions(make_cube, make_cuts, reduce, search,plot)
-            else:
-                self.overwrite = None
-
-            # -- Reset Job Logs -- #
-            if reset_logs != False:
-                self._reset_logs(make_cube,make_cuts,reduce,search,plot)
-
-            # -- Run Processes -- #
+            # -- Ask for inputs -- #
             if download:
-                self.download()
+                self._download_properties()
 
             if make_cube:
-                self.make_cube()
+                self._cube_properties(suggestions[0])
+                _Save_space(f'{self.job_output_path}/tessellate_cubing_logs')
 
-            if fix_wcs:
-                self.fix_wcs(cubing=make_cube)
-            
             if make_cuts:
-                self.make_cuts()
+                self._cut_properties(suggestions[1])
+                _Save_space(f'{self.job_output_path}/tessellate_cutting_logs')
 
             if reduce:
-                reduce = self.reduce()     # returns reduction slurm job ids for use in transient search
+                self._reduce_properties(make_cuts,suggestions[2])
+                _Save_space(f'{self.job_output_path}/tessellate_reduction_logs')
 
             if search:
-                self.transient_search(reduction_status=reduce)
-            
-            if plot:
-                self.transient_plot(searching=search)
+                cutting_reducing = make_cuts | reduce
+                self._search_properties(cutting_reducing,suggestions[3])
+                _Save_space(f'{self.job_output_path}/tessellate_search_logs')
 
-            if delete:
-                delete_files(filetype='ffis',data_path=self.data_path,sector=self.sector,part=False)  
+            if plot:
+                self._plotting_properties(search,suggestions[4])
+                _Save_space(f'{self.job_output_path}/tessellate_plotting_logs')
+
+            if save_config:
+                self._write_config(download,make_cube, fix_wcs, make_cuts, reduce, search, plot, delete)
+
+        # -- Check for overwriting -- #
+        if overwrite != False:
+            self._overwrite_suggestions(make_cube, make_cuts, reduce, search,plot)
+        else:
+            self.overwrite = None
+
+        # -- Reset Job Logs -- #
+        if reset_logs != False:
+            self._reset_logs(make_cube,make_cuts,reduce,search,plot)
+
+        # -- Run Processes -- #
+        if download:
+            self.download()
+
+        if make_cube:
+            self.make_cube()
+
+        if fix_wcs:
+            self.fix_wcs(cubing=make_cube)
+        
+        if make_cuts:
+            self.make_cuts()
+
+        if reduce:
+            reduce = self.reduce()     # returns reduction slurm job ids for use in transient search
+
+        if search:
+            self.transient_search(reduction_status=reduce)
+        
+        if plot:
+            self.transient_plot(searching=search)
+
+        if delete:
+            delete_files(filetype='ffis',data_path=self.data_path,sector=self.sector,part=False)  
 
     def _initialise(self):
 
