@@ -1808,30 +1808,67 @@ class Detector():
         )
 
         # -- Merge crossbin_ids back into events -- #
-        events['crossbin_ids'] = [[] for _ in range(len(events))]
+        # Build the final dict in pure Python first, then assign once
+        ts = clock()
+        merged = {}
         for result_df in results:
-            for idx, ids in result_df['crossbin_ids'].items():
-                events.at[idx, 'crossbin_ids'] = ids
+            merged.update(result_df['crossbin_ids'].to_dict())
+        print(f'       merged to dict ({clock()-ts:.0f}s)',flush=True)
 
+
+        events['crossbin_ids'] = [merged.get(idx, []) for idx in events.index]
         events = events.drop(columns=['crossbin_group', 'asteroid_crossbin_group'])
 
+
         # -- Find which indices are referenced more than once -- #
+        ts = clock()
         all_ids = [i for ids in events['crossbin_ids'] for i in ids]
         counts = Counter(all_ids)
-        all_referenced = set(i for i, c in counts.items() if c > 1)
+        all_referenced = frozenset(i for i, c in counts.items() if c > 1)
+        print(f'       found indices ({clock()-ts:.0f}s)',flush=True)
 
         # -- Clear solo crossbin_ids -- #
-        events['crossbin_ids'] = events.apply(
-            lambda row: [] if not any(i in all_referenced for i in row['crossbin_ids'])
-            else row['crossbin_ids'],
-            axis=1
+        # .map() has less per-row overhead than .apply()
+        events['crossbin_ids'] = events['crossbin_ids'].map(
+            lambda ids: ids if not ids or all_referenced.isdisjoint(ids) else ids
+        )
+        # Clear rows where none of their ids survived
+        events['crossbin_ids'] = events['crossbin_ids'].map(
+            lambda ids: [] if all_referenced.isdisjoint(ids) else ids
         )
 
         # -- Remap crossbin_ids -- #
         id_map = {old: new for new, old in enumerate(sorted(all_referenced))}
-        events['crossbin_ids'] = events['crossbin_ids'].apply(
+        events['crossbin_ids'] = events['crossbin_ids'].map(
             lambda x: [id_map[i] for i in x if i in id_map]
         )
+
+
+        # # -- Merge crossbin_ids back into events -- #
+        # events['crossbin_ids'] = [[] for _ in range(len(events))]
+        # for result_df in results:
+        #     for idx, ids in result_df['crossbin_ids'].items():
+        #         events.at[idx, 'crossbin_ids'] = ids
+
+        # events = events.drop(columns=['crossbin_group', 'asteroid_crossbin_group'])
+
+        # # -- Find which indices are referenced more than once -- #
+        # all_ids = [i for ids in events['crossbin_ids'] for i in ids]
+        # counts = Counter(all_ids)
+        # all_referenced = set(i for i, c in counts.items() if c > 1)
+
+        # # -- Clear solo crossbin_ids -- #
+        # events['crossbin_ids'] = events.apply(
+        #     lambda row: [] if not any(i in all_referenced for i in row['crossbin_ids'])
+        #     else row['crossbin_ids'],
+        #     axis=1
+        # )
+
+        # # -- Remap crossbin_ids -- #
+        # id_map = {old: new for new, old in enumerate(sorted(all_referenced))}
+        # events['crossbin_ids'] = events['crossbin_ids'].apply(
+        #     lambda x: [id_map[i] for i in x if i in id_map]
+        # )
 
         self.events = events
     
@@ -2004,6 +2041,7 @@ class Detector():
 
         # -- Crossmatch between different frame_bins -- #
         ts = clock()
+        print(f'   Crossmatching between time bins',flush=True)
         self._crossmatch_framebin()
         print(f'   Crossmatching between time bins -- done! ({(clock()-ts):.0f}s)',flush=True)
 
