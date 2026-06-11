@@ -345,7 +345,11 @@ def _Skymapper_phot(ra, dec, size, show_bands=False,verbose=False):
             try:
                 f = t_unique.loc[t_unique['col3'] == filt].iloc[0]
                 img_url = f['col6']
+                sys.stdout = open(os.devnull, 'w')
+                sys.stderr = open(os.devnull, 'w')
                 hdu = fits.open(img_url)
+                sys.stdout = sys.__stdout__
+                sys.stderr = sys.__stderr__
                 data = hdu[0].data
                 m,med,std = sigma_clipped_stats(data)
                 data -= med
