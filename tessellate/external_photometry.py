@@ -305,7 +305,9 @@ def _Skymapper_phot(ra, dec, size, show_bands=False,verbose=False):
     
     If show_bands=True, plots the three bands separately.
     """
-    from astropy.utils.data import conf as astropy_conf
+
+    from astropy import log
+    log.setLevel('ERROR')
 
     size *= 1.5
     og_size = size
@@ -314,13 +316,12 @@ def _Skymapper_phot(ra, dec, size, show_bands=False,verbose=False):
     url = f"https://api.skymapper.nci.org.au/public/siap/dr4/query?POS={ra},{dec}&SIZE={size_deg}&BAND=g,r,i&FORMAT=GRAPHIC&VERB=3&INTERSECT=COVERS"
     max_attempts = 5
 
-
     complete = False
     attempt = 0
     while (not complete) & (attempt < max_attempts):
         try:
-            with astropy_conf.set_temp('show_download_progress', False):
-                table = Table.read(url, format='ascii').to_pandas()
+            # with contextlib.redirect_stdout(open(os.devnull, 'w')):
+            table = Table.read(url, format='ascii').to_pandas()
             complete = True
         except:
             attempt += 1
