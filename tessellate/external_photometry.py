@@ -308,6 +308,7 @@ def _Skymapper_phot(ra, dec, size, show_bands=False,verbose=False):
 
     from astropy import log
     log.setLevel('ERROR')
+    import sys
 
     size *= 1.5
     og_size = size
@@ -320,10 +321,12 @@ def _Skymapper_phot(ra, dec, size, show_bands=False,verbose=False):
     attempt = 0
     while (not complete) & (attempt < max_attempts):
         try:
-            # with contextlib.redirect_stdout(open(os.devnull, 'w')):
+            sys.stdout = open(os.devnull, 'w')
             table = Table.read(url, format='ascii').to_pandas()
+            sys.stdout = sys.__stdout__
             complete = True
         except:
+            sys.stdout = sys.__stdout__
             attempt += 1
             if verbose:
                 print('failed to get table')
