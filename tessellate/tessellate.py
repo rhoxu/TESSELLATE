@@ -2230,6 +2230,7 @@ python {script_py}'
         """
 
         _Save_space(f'{self.working_path}/calibration_scripts')
+        _Save_space(f'{self.job_output_path}/tessellate_calibration_logs')
 
         if overwrite and (self.overwrite is not None):
             if (self.overwrite == 'all') or ('calibrate' in self.overwrite):
