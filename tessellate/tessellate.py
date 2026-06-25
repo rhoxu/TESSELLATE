@@ -27,6 +27,7 @@ class Tessellate():
                  download_number=None,cube_time=None,cube_mem=None,cube_cpu=None,
                  cuts=None,cut_time=None,cut_mem=None,cut_cpu=None,
                  reduce_time=None,reduce_cpu=None,reduce_mem=None,
+                 calibrate_time=None,calibrate_cpu=None,calibrate_mem=None,
                  search_time=None,search_cpu=None,search_mem=None,detect_mode='both',time_bins=None,
                  plot_time=None,plot_cpu=None,plot_mem=None,
                  download=None,make_cube=None,fix_wcs=None,make_cuts=None,reduce=None,calibrate=None,search=None,
@@ -145,9 +146,9 @@ class Tessellate():
         self.reduce_cpu = reduce_cpu
         self.reduce_mem = reduce_mem
 
-        self.calibrate_time = None
-        self.calibrate_cpu = None
-        self.calibrate_mem = None
+        self.calibrate_time = calibrate_time
+        self.calibrate_cpu = calibrate_cpu
+        self.calibrate_mem = calibrate_mem
 
         self.search_time = search_time
         self.search_mem = search_mem
