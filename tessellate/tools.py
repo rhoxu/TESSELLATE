@@ -175,6 +175,22 @@ def _remove_reductions(data_path,sector,n,cams,ccds,cuts,part):
 
     os.chdir(home_path)
 
+def _remove_calibrations(data_path, sector, n, cams, ccds, cuts, part):
+
+    home_path = os.getcwd()
+    for cam in cams:
+        for ccd in ccds:
+            for cut in cuts:
+                try:
+                    os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}')
+                    os.system('rm -f calibrated.txt')
+                    os.system('rm -f psf_calibration_zp.csv')
+                    os.system('rm -f psf_calibration_stars.csv')
+                    os.system('rm -f psf_calibration_diagnostic.pdf')
+                except:
+                    pass
+    os.chdir(home_path)
+
 def _remove_search(data_path,sector,n,cams,ccds,cuts,part):
 
     home_path = os.getcwd()
@@ -246,6 +262,7 @@ def delete_files(filetype,data_path,sector,n=4,cams='all',ccds='all',cuts='all',
                         'cubes':_remove_cubes,
                         'cuts':_remove_cuts,
                         'reductions':_remove_reductions,
+                        'calibrations':_remove_calibrations,
                         'search':_remove_search,
                         'plot':_remove_plots}
     
@@ -253,7 +270,7 @@ def delete_files(filetype,data_path,sector,n=4,cams='all',ccds='all',cuts='all',
         function = possibleFiles[filetype.lower()]
         function(data_path,sector,n,cams,ccds,cuts,part)
     else:
-        e = 'Invalid filetype! Valid types: "ffis" , "cubes" , "cuts" , "reductions" , "search", "plot". '
+        e = 'Invalid filetype! Valid types: "ffis" , "cubes" , "cuts" , "reductions" , "calibrations" , "search", "plot". '
         raise AttributeError(e)
     
     

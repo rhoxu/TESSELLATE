@@ -29,7 +29,7 @@ class Tessellate():
                  reduce_time=None,reduce_cpu=None,reduce_mem=None,
                  search_time=None,search_cpu=None,search_mem=None,detect_mode='both',time_bins=None,
                  plot_time=None,plot_cpu=None,plot_mem=None,
-                 download=None,make_cube=None,fix_wcs=None,make_cuts=None,reduce=None,search=None,
+                 download=None,make_cube=None,fix_wcs=None,make_cuts=None,reduce=None,calibrate=None,search=None,
                  plot=None,delete=None,overwrite=None,reset_logs=None,
                  go=True):
         
@@ -145,6 +145,10 @@ class Tessellate():
         self.reduce_cpu = reduce_cpu
         self.reduce_mem = reduce_mem
 
+        self.calibrate_time = None
+        self.calibrate_cpu = None
+        self.calibrate_mem = None
+
         self.search_time = search_time
         self.search_mem = search_mem
         self.search_cpu = search_cpu
@@ -170,7 +174,7 @@ class Tessellate():
         if load_prev:
 
             # -- Load config -- #
-            download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete = self._load_config()
+            download, make_cube, fix_wcs, make_cuts, reduce, calibrate, search, plot, delete = self._load_config()
         
         else:
             # -- Confirm Run Properties -- #
@@ -180,7 +184,7 @@ class Tessellate():
             suggestions = self._sector_suggestions()  
 
             # -- Ask for which tessellation steps to perform -- #
-            download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete = self._which_processes(download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete)
+            download, make_cube, fix_wcs, make_cuts, reduce, calibrate, search, plot, delete = self._which_processes(download, make_cube, fix_wcs, make_cuts, reduce, calibrate, search, plot, delete)
 
             # -- Ask for inputs -- #
             if download:
@@ -198,6 +202,10 @@ class Tessellate():
                 self._reduce_properties(make_cuts,suggestions[2])
                 _Save_space(f'{self.job_output_path}/tessellate_reduction_logs')
 
+            if calibrate:
+                self._calibrate_properties(reduce)
+                _Save_space(f'{self.job_output_path}/tessellate_calibration_logs')
+
             if search:
                 cutting_reducing = make_cuts | reduce
                 self._search_properties(cutting_reducing,suggestions[3])
@@ -208,17 +216,17 @@ class Tessellate():
                 _Save_space(f'{self.job_output_path}/tessellate_plotting_logs')
 
             if save_config:
-                self._write_config(download,make_cube, fix_wcs, make_cuts, reduce, search, plot, delete)
+                self._write_config(download,make_cube, fix_wcs, make_cuts, reduce, calibrate, search, plot, delete)
 
         # -- Check for overwriting -- #
         if overwrite != False:
-            self._overwrite_suggestions(make_cube, make_cuts, reduce, search,plot)
+            self._overwrite_suggestions(make_cube, make_cuts, reduce, calibrate, search, plot)
         else:
             self.overwrite = None
 
         # -- Reset Job Logs -- #
         if reset_logs != False:
-            self._reset_logs(make_cube,make_cuts,reduce,search,plot)
+            self._reset_logs(make_cube,make_cuts,reduce,calibrate,search,plot)
 
         # -- Run Processes -- #
         if download:
@@ -235,6 +243,9 @@ class Tessellate():
 
         if reduce:
             reduce = self.reduce()     # returns reduction slurm job ids for use in transient search
+
+        if calibrate:
+            self.calibrate()
 
         if search:
             self.transient_search(reduction_status=reduce)
@@ -360,7 +371,18 @@ class Tessellate():
         else:
             reduce = False
             print(f'   - Reduce Cut(s)? [y/n] = n')
-        
+
+        # Calibrate
+        if 'calibrate' in parser:
+            calibrate = parse_value(parser['calibrate'].get('calibrate', False))
+            self.calibrate_time = parse_value(parser['calibrate'].get('calibrate job time', None))
+            self.calibrate_mem = parse_value(parser['calibrate'].get('calibrate job memory', None))
+            self.calibrate_cpu = parse_value(parser['calibrate'].get('calibrate job cpu', None))
+            print(f'   - Flux Calibrate Cut(s)? [y/n] = y')
+        else:
+            calibrate = False
+            print(f'   - Flux Calibrate Cut(s)? [y/n] = n')
+
         # Search
         if 'search' in parser:
             search = parse_value(parser['search'].get('search', False))
@@ -395,6 +417,12 @@ class Tessellate():
                 print(f'   - Delete all FFIs upon completion? [y/n] = n')
 
         print('\n')
+
+        if calibrate:
+            print(f"   - Calibrate Batch Time ['h:mm:ss'] = {self.calibrate_time}")
+            print(f"   - Calibrate Mem/CPU = {self.calibrate_mem}")
+            print(f"   - Calibrate Num CPUs Needed = {self.calibrate_cpu}")
+            print('\n')
 
         if download:
             print(f'   - Download Number [int,all] = {self.download_number}')
@@ -463,7 +491,7 @@ class Tessellate():
                 go = input('      Invalid choice! Ready? [y/n] = ')
 
 
-        return download,make_cube,fix_wcs,make_cuts,reduce,search,plot,delete
+        return download,make_cube,fix_wcs,make_cuts,reduce,calibrate,search,plot,delete
 
     def _sector_suggestions(self):
         """
@@ -638,7 +666,7 @@ class Tessellate():
         
         print('\n')
     
-    def _which_processes(self,download,make_cube,fix_wcs,make_cuts,reduce,search,plot,delete):
+    def _which_processes(self,download,make_cube,fix_wcs,make_cuts,reduce,calibrate,search,plot,delete):
 
         if download is None:
             d = input('   - Download FFIs? [y/n] = ')
@@ -704,7 +732,20 @@ class Tessellate():
                     done=True
                 else:
                     d = input('      Invalid choice! Reduce Cut(s)? [y/n] = ')
-            
+
+        if calibrate is None:
+            d = input('   - Flux Calibrate Cut(s)? [y/n] = ')
+            done = False
+            while not done:
+                if d.lower() == 'y':
+                    calibrate = True
+                    done = True
+                elif d.lower() == 'n':
+                    calibrate = False
+                    done = True
+                else:
+                    d = input('      Invalid choice! Flux Calibrate Cut(s)? [y/n] = ')
+
         if search is None:
             d = input('   - Run Transient Search on Cut(s)? [y/n] = ')
             done = False
@@ -746,7 +787,7 @@ class Tessellate():
 
         print('\n')
 
-        return download, make_cube, fix_wcs, make_cuts, reduce, search, plot, delete
+        return download, make_cube, fix_wcs, make_cuts, reduce, calibrate, search, plot, delete
     
     def _download_properties(self):
         """
@@ -1069,6 +1110,103 @@ class Tessellate():
             raise ValueError(e)
         print('\n')
     
+    def _calibrate_properties(self, reducing):
+        """
+        Confirm flux calibration process properties.
+        """
+
+        if not reducing:
+            if self.n is None:
+                n = input('   - n (Number of Cuts = n^2) = ')
+                done = False
+                while not done:
+                    try:
+                        n = int(n)
+                        if n > 0:
+                            self.n = n
+                            done = True
+                        else:
+                            n = input('      Invalid choice! n (Number of Cuts = n^2) =  ')
+                    except:
+                        n = input('      Invalid choice! n (Number of Cuts = n^2) =  ')
+            elif self.n > 0:
+                print(f'   - n (Number of Cuts = n^2) = {self.n}')
+            else:
+                e = f"Invalid 'n' value Input of {self.n}\n"
+                raise ValueError(e)
+
+            if self.cuts is None:
+                cut = input(f'   - Cut [1-{self.n**2},all] = ')
+                done = False
+                while not done:
+                    if cut == 'all':
+                        self.cuts = range(1, self.n**2 + 1)
+                        done = True
+                    elif cut in np.array(range(1, self.n**2 + 1)).astype(str):
+                        self.cuts = [int(cut)]
+                        done = True
+                    else:
+                        cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
+            elif self.cuts == 'all':
+                print(f'   - Cut = all')
+                self.cuts = range(1, self.n**2 + 1)
+            elif self.cuts in range(1, self.n**2 + 1):
+                print(f'   - Cut = {self.cuts}')
+                self.cuts = [self.cuts]
+            elif type(self.cuts) == list:
+                print(f'   - Cut = {self.cuts}')
+            else:
+                e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
+                raise ValueError(e)
+
+            print('\n')
+
+        if self.calibrate_time is None:
+            calibrate_time = input("   - Calibrate Batch Time ['h:mm:ss'] = ")
+            done = False
+            while not done:
+                if ':' in calibrate_time:
+                    self.calibrate_time = calibrate_time
+                    done = True
+                else:
+                    calibrate_time = input("      Invalid format! Calibrate Batch Time ['h:mm:ss'] = ")
+        else:
+            print(f'   - Calibrate Batch Time = {self.calibrate_time}')
+
+        if self.calibrate_cpu is None:
+            calibrate_cpu = input("   - Calibrate Num CPUs [1-32] = ")
+            done = False
+            while not done:
+                try:
+                    calibrate_cpu = int(calibrate_cpu)
+                    if 0 < calibrate_cpu < 33:
+                        self.calibrate_cpu = calibrate_cpu
+                        done = True
+                    else:
+                        calibrate_cpu = input("      Invalid format! Calibrate Num CPUs [1-32] = ")
+                except:
+                    calibrate_cpu = input("      Invalid format! Calibrate Num CPUs [1-32] = ")
+        else:
+            print(f'   - Calibrate Num CPUs = {self.calibrate_cpu}')
+
+        if self.calibrate_mem is None:
+            calibrate_mem = input("   - Calibrate Mem/CPU (GB) = ")
+            done = False
+            while not done:
+                try:
+                    calibrate_mem = int(calibrate_mem)
+                    if 0 < calibrate_mem < 500:
+                        self.calibrate_mem = calibrate_mem
+                        done = True
+                    else:
+                        calibrate_mem = input("      Invalid format! Calibrate Mem/CPU (GB) = ")
+                except:
+                    calibrate_mem = input("      Invalid format! Calibrate Mem/CPU (GB) = ")
+        else:
+            print(f'   - Calibrate Mem/CPU = {self.calibrate_mem}G')
+
+        print('\n')
+
     def _search_properties(self,cutting_reducing,suggestions):
         """
         Confirm transient search process properties.
@@ -1323,7 +1461,7 @@ class Tessellate():
 
         print('\n')
     
-    def _overwrite_suggestions(self, make_cube, make_cuts, reduce, search,plot):
+    def _overwrite_suggestions(self, make_cube, make_cuts, reduce, calibrate, search, plot):
 
         options = []
         if make_cube:
@@ -1332,6 +1470,8 @@ class Tessellate():
             options.append('cut')
         if reduce:
             options.append('reduce')
+        if calibrate:
+            options.append('calibrate')
         if search:
             options.append('search')
         if plot:
@@ -1340,7 +1480,7 @@ class Tessellate():
         done = False
         over = input(f'   - Overwrite any steps? [y,n,{str(options)[1:-1]}] = ')
         while not done:
-            
+
             if over == 'y':
                 self.overwrite = 'all'
                 done = True
@@ -1351,7 +1491,7 @@ class Tessellate():
                 self.overwrite = (over.replace(' ','')).split(',')
                 good = True
                 for thing in self.overwrite:
-                    if thing not in ['cube','cut','reduce','search','plot']:
+                    if thing not in ['cube','cut','reduce','calibrate','search','plot']:
                         good = False
                 if good:
                     done = True
@@ -1361,7 +1501,7 @@ class Tessellate():
         
         print('\n')
     
-    def _write_config(self,download,make_cube, fix_wcs, make_cuts, reduce, search, plot,delete):
+    def _write_config(self,download,make_cube, fix_wcs, make_cuts, reduce, calibrate, search, plot,delete):
 
         config = {
             "base": {
@@ -1405,6 +1545,13 @@ class Tessellate():
                 'reduce job memory' : self.reduce_mem,
                 'reduce job cpu' : self.reduce_cpu}
 
+        if calibrate:
+            config['calibrate'] = {
+                'calibrate' : True,
+                'calibrate job time' : self.calibrate_time,
+                'calibrate job memory' : self.calibrate_mem,
+                'calibrate job cpu' : self.calibrate_cpu}
+
         if search:
             config['search'] = {
                 'search' : True,
@@ -1438,7 +1585,7 @@ class Tessellate():
                 f.write("\n")
 
         
-    def _reset_logs(self,make_cube,make_cuts,reduce,search,plot):
+    def _reset_logs(self,make_cube,make_cuts,reduce,calibrate,search,plot):
         """
         Reset slurm job logs in provided output path.
         """
@@ -1450,6 +1597,8 @@ class Tessellate():
                 os.system(f'rm -f {self.job_output_path}/tessellate_cutting_logs/*')
             if reduce:
                 os.system(f'rm -f {self.job_output_path}/tessellate_reduction_logs/*')
+            if calibrate:
+                os.system(f'rm -f {self.job_output_path}/tessellate_calibration_logs/*')
             if search:
                 os.system(f'rm -f {self.job_output_path}/tessellate_search_logs/*')
             if plot:
@@ -1979,6 +2128,112 @@ python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
 #                         print('\n')
 
         return reduction_status
+
+    def _cut_calibrate(self, cam, ccd, cut):
+
+        import subprocess
+
+        print(f'Creating Calibration Script for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
+
+        python_text = f"\
+import numpy as np\n\
+from astropy.io import fits\n\
+from astropy.wcs import WCS\n\
+from tessellate import DataProcessor\n\
+import os\n\
+import sys\n\
+sys.path.insert(0, '{self.working_path}')\n\
+from psf_flux_calibration import run_calibration\n\
+\n\
+cut_folder = '{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'\n\
+wcs_path   = '{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/wcs/ref/corrected.fits'\n\
+ref_path   = f'{{cut_folder}}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Ref.npy'\n\
+\n\
+with fits.open(wcs_path) as f:\n\
+    wcs = WCS(f[1].header)\n\
+\n\
+ref = np.load(ref_path)\n\
+\n\
+processor = DataProcessor(sector={self.sector}, data_path='{self.data_path}', verbose=0)\n\
+cut_corners, _, _, _ = processor.find_cuts(cam={cam}, ccd={ccd}, n={self.n}, plot=False, verbose=0)\n\
+\n\
+zp_ab, zp_err, _ = run_calibration(\n\
+    ref, wcs,\n\
+    sector={self.sector}, cam={cam}, ccd={ccd},\n\
+    cut_corner=cut_corners[{cut}-1],\n\
+    n_jobs={self.calibrate_cpu},\n\
+    savepath=cut_folder,\n\
+)\n\
+\n\
+with open(f'{{cut_folder}}/calibrated.txt', 'w') as file:\n\
+    file.write(f'ZP_AB={{zp_ab:.6f}} E_ZP={{zp_err:.6f}}')"
+
+        script_py = f'{self.working_path}/calibration_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py'
+        script_sh = script_py.replace('.py', '.sh')
+
+        _Save_space(f'{self.working_path}/calibration_scripts')
+        with open(script_py, 'w') as f:
+            f.write(python_text)
+
+        batch_text = f'\
+#!/bin/bash\n\
+#\n\
+#SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Calibrate\n\
+#SBATCH --output={self.job_output_path}/tessellate_calibration_logs/%A_%x_job_output.txt\n\
+#SBATCH --error={self.job_output_path}/tessellate_calibration_logs/%A_%x_errors.txt\n\
+#\n\
+#SBATCH --ntasks=1\n\
+#SBATCH --time={self.calibrate_time}\n\
+#SBATCH --cpus-per-task={self.calibrate_cpu}\n\
+#SBATCH --mem-per-cpu={self.calibrate_mem}G\n\
+\n\
+PYTHONUNBUFFERED=1\n\
+source {VENV_PATH}/bin/activate\n\
+python {script_py}'
+
+        with open(script_sh, 'w') as f:
+            f.write(batch_text)
+
+        result = subprocess.run(
+            f'sbatch {script_sh}',
+            shell=True, capture_output=True, text=True
+        )
+        job_id = result.stdout.strip().split()[-1]
+        print(f'Submitted batch job {job_id}')
+        print('\n')
+        return job_id
+
+    def calibrate(self, overwrite=True):
+        """
+        Flux Calibrate!  Derives a Gaia Rp AB zeropoint for each cut using
+        PSF photometry on the reference image.
+        """
+
+        _Save_space(f'{self.working_path}/calibration_scripts')
+
+        if overwrite and (self.overwrite is not None):
+            if (self.overwrite == 'all') or ('calibrate' in self.overwrite):
+                delete_files('calibrations', self.data_path, self.sector,
+                             self.n, self.cam, self.ccd, self.cuts, part=self.part)
+
+        for cam in self.cam:
+            for ccd in self.ccd:
+                print(_Print_buff(60, f'Calibrating Cut(s) for Sector{self.sector} Cam{cam} Ccd{ccd}'))
+                print('\n')
+                for cut in self.cuts:
+                    cut_folder = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+                    ref_check = f'{cut_folder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Ref.npy'
+                    if not os.path.exists(ref_check):
+                        print(f'No reference image found for Cut {cut} — skipping (run reduce first).')
+                        print('\n')
+                        continue
+
+                    cal_check = f'{cut_folder}/calibrated.txt'
+                    if os.path.exists(cal_check):
+                        print(f'Cam {cam} CCD {ccd} Cut {cut} already calibrated!')
+                        print('\n')
+                    else:
+                        self._cut_calibrate(cam=cam, ccd=ccd, cut=cut)
 
     def _cut_transient_search(self,cam,ccd,cut):
 
