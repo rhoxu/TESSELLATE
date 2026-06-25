@@ -473,14 +473,14 @@ class Navigator():
         if frame_bin is None:
             frame_bin = event.frame_bin
             brightest_frame = RoundToInt(event.frame_max)
-            frame_start =  RoundToInt(event.frame_start)
-            frame_end =  RoundToInt(event.frame_end)
-            frame_interval =  RoundToInt(frame_interval * frame_bin)
+            frame_start = RoundToInt(event.frame_start)
+            frame_end = RoundToInt(event.frame_end)
+            frame_interval = RoundToInt(frame_interval * frame_bin)
         else:
             brightest_frame = RoundToInt(event.frame_max*event.frame_bin/frame_bin)
-            frame_start =  RoundToInt(event.frame_start *event.frame_bin/frame_bin)
-            frame_end =  RoundToInt(event.frame_end * event.frame_bin/frame_bin)
-            frame_interval =  RoundToInt(frame_interval * frame_bin * event.frame_bin/frame_bin)
+            frame_start = RoundToInt(event.frame_start *event.frame_bin/frame_bin)
+            frame_end = RoundToInt(event.frame_end * event.frame_bin/frame_bin)
+            frame_interval = RoundToInt(frame_interval * frame_bin * event.frame_bin/frame_bin)
             frame_buffer = RoundToInt(frame_buffer * event.frame_bin/frame_bin)
 
         time, flux = (Frame_Bin(self.sector, self.cam,self.time, self.flux, frame_bin) if frame_bin > 1 else (self.time, self.flux))

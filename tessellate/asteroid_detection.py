@@ -351,7 +351,7 @@ def link_detections(df_unk, tracks, match_radius_px, spatial_lim):
     
     # Initialize result arrays
     best_track = np.full(len(df_unk), -1, dtype=int)
-    best_dist  = np.full(len(df_unk), np.inf)
+    best_dist = np.full(len(df_unk), np.inf)
 
     for tr in tracks:
         # 1. Temporal Bound Check: Is the detection time inside the track's life?
@@ -372,7 +372,7 @@ def link_detections(df_unk, tracks, match_radius_px, spatial_lim):
         # Update if this track is the closest one found so far
         better = valid_match & (dist < best_dist)
         best_track[better] = tr.asteroid_id
-        best_dist[better]  = dist[better]
+        best_dist[better] = dist[better]
 
     result = df_unk.copy()
     result['asteroid_id'] = best_track

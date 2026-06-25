@@ -2149,11 +2149,11 @@ from tessellate import DataProcessor\n\
 import os\n\
 from tessellate.psf_flux_calibration import run_calibration, compute_detection_limits\n\
 \n\
-cut_folder  = '{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'\n\
-wcs_path    = '{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/wcs/ref/corrected.fits'\n\
-ref_path    = f'{{cut_folder}}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Ref.npy'\n\
-flux_path   = f'{{cut_folder}}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_ReducedFlux.npy'\n\
-times_path  = f'{{cut_folder}}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Times.npy'\n\
+cut_folder = '{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'\n\
+wcs_path = '{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/wcs/ref/corrected.fits'\n\
+ref_path = f'{{cut_folder}}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Ref.npy'\n\
+flux_path = f'{{cut_folder}}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_ReducedFlux.npy'\n\
+times_path = f'{{cut_folder}}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Times.npy'\n\
 \n\
 with fits.open(wcs_path) as f:\n\
     wcs = WCS(f[1].header)\n\
@@ -2174,7 +2174,7 @@ zp_ab, zp_err, _ = run_calibration(\n\
 \n\
 if os.path.exists(flux_path) and os.path.exists(times_path):\n\
     reduced_flux = np.load(flux_path)\n\
-    time_array   = np.load(times_path)\n\
+    time_array = np.load(times_path)\n\
     compute_detection_limits(\n\
         reduced_flux, time_array, zp_ab,\n\
         sector={self.sector}, cam={cam}, ccd={ccd},\n\
