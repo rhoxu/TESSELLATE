@@ -204,7 +204,7 @@ class Tessellate():
                 _Save_space(f'{self.job_output_path}/tessellate_reduction_logs')
 
             if calibrate:
-                self._calibrate_properties(reduce)
+                self._calibrate_properties(reduce, suggestions[5])
                 _Save_space(f'{self.job_output_path}/tessellate_calibration_logs')
 
             if search:
@@ -517,11 +517,15 @@ class Tessellate():
             reduce_cpu_sug = '32'
             reduce_mem_req = 90
 
+            calibrate_time_sug = '15:00'
+            calibrate_cpu_sug = '8'
+            calibrate_mem_req = 4
+
             search_time_sug = '20:00'
             search_cpu_sug = '32'
             search_mem_req = 50
             search_time_bins = '30min'
-            
+
             plot_time_sug = '10:00'
             plot_cpu_sug = '32'
             plot_mem_req = 64
@@ -547,6 +551,10 @@ class Tessellate():
             reduce_cpu_sug = '32'
             reduce_mem_req = 64
 
+            calibrate_time_sug = '15:00'
+            calibrate_cpu_sug = '8'
+            calibrate_mem_req = 4
+
             # search_time_sug = '30:00'
             # search_cpu_sug = '32'
             # search_mem_req = 64
@@ -555,7 +563,7 @@ class Tessellate():
             search_cpu_sug = '32'
             search_mem_req = 32
             search_time_bins = '10min,30min,2hr,12hr'
-            
+
             plot_time_sug = '10:00'
             plot_cpu_sug = '32'
             plot_mem_req = 64
@@ -575,11 +583,15 @@ class Tessellate():
             reduce_cpu_sug = '32'
             reduce_mem_req = 200
 
+            calibrate_time_sug = '15:00'
+            calibrate_cpu_sug = '8'
+            calibrate_mem_req = 4
+
             search_time_sug = '1:00:00'
             search_cpu_sug = '32'
             search_mem_req = 60
             search_time_bins = '200sec'
-            
+
             plot_time_sug = '10:00'
             plot_cpu_sug = '32'
             plot_mem_req = 50
@@ -588,7 +600,8 @@ class Tessellate():
                        [cut_time_sug,cut_mem_sug,cut_mem_req],
                        [reduce_time_sug,reduce_cpu_sug,reduce_mem_req],
                        [search_time_sug,search_cpu_sug,search_mem_req,search_time_bins],
-                       [plot_time_sug,plot_cpu_sug,plot_mem_req]]
+                       [plot_time_sug,plot_cpu_sug,plot_mem_req],
+                       [calibrate_time_sug,calibrate_cpu_sug,calibrate_mem_req]]
         
         return suggestions
 
@@ -1111,10 +1124,12 @@ class Tessellate():
             raise ValueError(e)
         print('\n')
     
-    def _calibrate_properties(self, reducing):
+    def _calibrate_properties(self, reducing, suggestions=None):
         """
         Confirm flux calibration process properties.
         """
+        if suggestions is None:
+            suggestions = ['15:00', '8', 4]
 
         if not reducing:
             if self.n is None:
@@ -1163,19 +1178,19 @@ class Tessellate():
             print('\n')
 
         if self.calibrate_time is None:
-            calibrate_time = input("   - Calibrate Batch Time ['h:mm:ss'] = ")
+            calibrate_time = input(f"   - Calibrate Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
             done = False
             while not done:
                 if ':' in calibrate_time:
                     self.calibrate_time = calibrate_time
                     done = True
                 else:
-                    calibrate_time = input("      Invalid format! Calibrate Batch Time ['h:mm:ss'] = ")
+                    calibrate_time = input(f"      Invalid format! Calibrate Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
         else:
             print(f'   - Calibrate Batch Time = {self.calibrate_time}')
 
         if self.calibrate_cpu is None:
-            calibrate_cpu = input("   - Calibrate Num CPUs [1-32] = ")
+            calibrate_cpu = input(f"   - Calibrate Num CPUs [1-32] ({suggestions[1]} suggested) = ")
             done = False
             while not done:
                 try:
@@ -1184,25 +1199,15 @@ class Tessellate():
                         self.calibrate_cpu = calibrate_cpu
                         done = True
                     else:
-                        calibrate_cpu = input("      Invalid format! Calibrate Num CPUs [1-32] = ")
+                        calibrate_cpu = input(f"      Invalid format! Calibrate Num CPUs [1-32] ({suggestions[1]} suggested) = ")
                 except:
-                    calibrate_cpu = input("      Invalid format! Calibrate Num CPUs [1-32] = ")
+                    calibrate_cpu = input(f"      Invalid format! Calibrate Num CPUs [1-32] ({suggestions[1]} suggested) = ")
         else:
             print(f'   - Calibrate Num CPUs = {self.calibrate_cpu}')
 
         if self.calibrate_mem is None:
-            calibrate_mem = input("   - Calibrate Mem/CPU (GB) = ")
-            done = False
-            while not done:
-                try:
-                    calibrate_mem = int(calibrate_mem)
-                    if 0 < calibrate_mem < 500:
-                        self.calibrate_mem = calibrate_mem
-                        done = True
-                    else:
-                        calibrate_mem = input("      Invalid format! Calibrate Mem/CPU (GB) = ")
-                except:
-                    calibrate_mem = input("      Invalid format! Calibrate Mem/CPU (GB) = ")
+            self.calibrate_mem = int(np.ceil(suggestions[2] / self.calibrate_cpu))
+            print(f'   - Calibrate Mem/CPU = {self.calibrate_mem}G')
         else:
             print(f'   - Calibrate Mem/CPU = {self.calibrate_mem}G')
 
