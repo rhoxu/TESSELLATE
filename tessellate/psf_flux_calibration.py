@@ -15,7 +15,7 @@ from astropy.wcs import WCS
 
 with fits.open('Cam1/Ccd1/wcs/ref/corrected.fits') as f:
     image = f[1].data
-    wcs   = WCS(f[1].header)
+    wcs = WCS(f[1].header)
 
 cut_corners, _, _, _ = processor.find_cuts(cam=1, ccd=1, n=8, plot=False)
 
@@ -43,7 +43,7 @@ GAIA_RP_AB_OFFSET = 0.152
 
 TESS_PIX_SCALE = 21.0  # arcsec/pixel
 GAIA_PATH_DEFAULT = '/fred/oz335/GAIAdata/full_gaia_cat.csv'
-PRF_PATH_DEFAULT  = '/fred/oz335/_local_TESS_PRFs'
+PRF_PATH_DEFAULT = '/fred/oz335/_local_TESS_PRFs'
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +91,7 @@ def _select_isolated(gaia_all, gaia_cal, wcs, cut_corner, image_shape,
     loc_x = ccd_x - x0
     loc_y = ccd_y - y0
 
-    ra_all  = gaia_all.ra.values
+    ra_all = gaia_all.ra.values
     dec_all = gaia_all.dec.values
 
     keep = []
@@ -101,9 +101,9 @@ def _select_isolated(gaia_all, gaia_cal, wcs, cut_corner, image_shape,
                 edge_margin < ly < ny - edge_margin):
             continue
         cos_dec = np.cos(np.radians(gaia_cal.dec.values[i]))
-        dra  = (ra_all  - gaia_cal.ra.values[i])  * cos_dec
-        ddec =  dec_all - gaia_cal.dec.values[i]
-        sep  = np.sqrt(dra**2 + ddec**2) * 3600.0
+        dra = (ra_all - gaia_cal.ra.values[i]) * cos_dec
+        ddec = dec_all - gaia_cal.dec.values[i]
+        sep = np.sqrt(dra**2 + ddec**2) * 3600.0
         if np.sum((sep > 0.5) & (sep < iso_arcsec)) == 0:
             keep.append(i)
 
@@ -136,7 +136,7 @@ def _fit_star_worker(stamp, ccd_x, ccd_y, cam, ccd, sector, prf_dir,
     c = 2
     corners = np.concatenate([stamp[:c, :c].ravel(), stamp[:c, -c:].ravel(),
                                stamp[-c:, :c].ravel(), stamp[-c:, -c:].ravel()])
-    bg0      = np.nanmedian(corners)
+    bg0 = np.nanmedian(corners)
     sigma_bg = np.nanstd(corners)
     if not np.isfinite(sigma_bg) or sigma_bg <= 0:
         sigma_bg = max(np.sqrt(abs(bg0)), 1.0)
@@ -175,13 +175,13 @@ def _fit_star_worker(stamp, ccd_x, ccd_y, cam, ccd, sector, prf_dir,
         return None
 
     rp_ab = rp_vega + GAIA_RP_AB_OFFSET
-    zp    = rp_ab + 2.5 * np.log10(flux)
-    e_zp  = (2.5 / np.log(10)) * (e_flux / flux) if (np.isfinite(e_flux) and flux > 0) else np.nan
+    zp = rp_ab + 2.5 * np.log10(flux)
+    e_zp = (2.5 / np.log(10)) * (e_flux / flux) if (np.isfinite(e_flux) and flux > 0) else np.nan
 
     # Reconstruct model and residual for diagnostic plots
     p_fit = prf.locate(cent + float(dx), cent + float(dy), (stamp_size, stamp_size))
     p_fit = p_fit / np.nansum(p_fit)
-    model_stamp    = float(flux) * p_fit + float(bg)
+    model_stamp = float(flux) * p_fit + float(bg)
     residual_stamp = stamp - model_stamp
 
     return {
@@ -341,8 +341,8 @@ def run_calibration(image, wcs, sector, cam, ccd,
         raise RuntimeError('Fewer than 2 stars with valid fit errors.')
 
     weights = 1.0 / df.e_zp_ab.values[good]**2
-    zp_ab   = float(np.sum(weights * df.zp_ab.values[good]) / np.sum(weights))
-    zp_err  = float(1.0 / np.sqrt(np.sum(weights)))
+    zp_ab = float(np.sum(weights * df.zp_ab.values[good]) / np.sum(weights))
+    zp_err = float(1.0 / np.sqrt(np.sum(weights)))
 
     print(f'\nZeropoint (AB): {zp_ab:.4f} +/- {zp_err:.4f} mag  '
           f'(N={good.sum()} stars, error-weighted mean)')
@@ -411,7 +411,7 @@ def _frame_noise(flux_3d):
     """Spatial MAD per frame → per-pixel sigma. Returns shape (n_frames,)."""
     sigma = np.zeros(flux_3d.shape[0])
     for i in range(flux_3d.shape[0]):
-        frame  = flux_3d[i]
+        frame = flux_3d[i]
         finite = frame[np.isfinite(frame)]
         if finite.size == 0:
             sigma[i] = np.nan
@@ -465,7 +465,7 @@ def compute_detection_limits(reduced_flux, time_array, zp_ab,
     from PRF import TESS_PRF
 
     reduced_flux = np.asarray(reduced_flux, dtype=float)
-    time_array   = np.asarray(time_array,   dtype=float)
+    time_array = np.asarray(time_array, dtype=float)
     n_frames, ny, nx = reduced_flux.shape
 
     if time_bins is None:
@@ -492,9 +492,9 @@ def compute_detection_limits(reduced_flux, time_array, zp_ab,
     def _limits(sigma_bg, n_bins):
         out = {}
         for nsig, col in [(3, 'mag_lim_3sigma'), (5, 'mag_lim_5sigma'), (10, 'mag_lim_10sigma')]:
-            flux    = nsig * sigma_bg * prf_noise_factor
-            mag     = np.full(n_bins, np.nan)
-            ok      = flux > 0
+            flux = nsig * sigma_bg * prf_noise_factor
+            mag = np.full(n_bins, np.nan)
+            ok = flux > 0
             mag[ok] = zp_ab - 2.5 * np.log10(flux[ok])
             out[col] = mag
         return out
@@ -504,10 +504,10 @@ def compute_detection_limits(reduced_flux, time_array, zp_ab,
     print(f'\nDetection limits ({n_frames} frames):')
 
     for label, n_bin in zip(labels, frame_bins):
-        binned   = _bin_flux(reduced_flux, n_bin)
-        n_bins   = binned.shape[0]
+        binned = _bin_flux(reduced_flux, n_bin)
+        n_bins = binned.shape[0]
         sigma_bg = _frame_noise(binned)
-        lims     = _limits(sigma_bg, n_bins)
+        lims = _limits(sigma_bg, n_bins)
 
         results[label] = {'n_frames_binned': n_bin, 'sigma_bg': sigma_bg, **lims}
 
@@ -516,11 +516,11 @@ def compute_detection_limits(reduced_flux, time_array, zp_ab,
 
         if savepath is not None:
             df_lim = pd.DataFrame({
-                'bin_index':      np.arange(n_bins),
-                'sigma_bg':       sigma_bg,
+                'bin_index': np.arange(n_bins),
+                'sigma_bg': sigma_bg,
                 'mag_lim_3sigma': lims['mag_lim_3sigma'],
                 'mag_lim_5sigma': lims['mag_lim_5sigma'],
-                'mag_lim_10sigma':lims['mag_lim_10sigma'],
+                'mag_lim_10sigma': lims['mag_lim_10sigma'],
             })
             fout = f'{savepath}/detection_limits_{label}.csv'
             df_lim.to_csv(fout, index=False)
@@ -557,18 +557,18 @@ def _summary_figure(image, df, zp_ab, zp_err, savepath):
     })
 
     zp_vals = df.zp_ab.values
-    e_zp    = df.e_zp_ab.values
-    x_pix   = df.x_pix.values
-    y_pix   = df.y_pix.values
+    e_zp = df.e_zp_ab.values
+    x_pix = df.x_pix.values
+    y_pix = df.y_pix.values
 
     inliers = _sigma_clip_mask(zp_vals)
-    zp_in   = zp_vals[inliers]
-    med_zp  = float(np.median(zp_in))
-    std_zp  = float(np.std(zp_in))
-    n_in    = int(inliers.sum())
+    zp_in = zp_vals[inliers]
+    med_zp = float(np.median(zp_in))
+    std_zp = float(np.std(zp_in))
+    n_in = int(inliers.sum())
 
     fig = plt.figure(figsize=(14, 10))
-    gs  = gridspec.GridSpec(2, 2, figure=fig, hspace=0.35, wspace=0.32)
+    gs = gridspec.GridSpec(2, 2, figure=fig, hspace=0.35, wspace=0.32)
 
     # ---- Panel 1: ZP histogram ------------------------------------------------
     ax1 = fig.add_subplot(gs[0, 0])
@@ -681,8 +681,8 @@ def _star_fits_pdf(df, savepath):
                                      squeeze=False)
 
             for row_i, r in enumerate(chunk):
-                stamp    = getattr(r, '_stamp',    None)
-                model    = getattr(r, '_model',    None)
+                stamp = getattr(r, '_stamp', None)
+                model = getattr(r, '_model', None)
                 residual = getattr(r, '_residual', None)
 
                 if stamp is None:
@@ -696,8 +696,8 @@ def _star_fits_pdf(df, savepath):
 
                 titles = ['Data', 'PSF model', 'Residual']
                 arrays = [stamp, model, residual]
-                cmaps  = ['gray', 'gray', 'RdBu_r']
-                vlims  = [(vlo, vhi), (vlo, vhi), (-res_lim, res_lim)]
+                cmaps = ['gray', 'gray', 'RdBu_r']
+                vlims = [(vlo, vhi), (vlo, vhi), (-res_lim, res_lim)]
 
                 star_idx = page * stars_per_page + row_i + 1
                 param_line1 = (f'Star {star_idx}  |  '
@@ -766,7 +766,7 @@ if __name__ == '__main__':
 
     with fits.open(args.fits_path) as f:
         img = f[1].data.astype(float)
-        w   = WCS(f[1].header)
+        w = WCS(f[1].header)
 
     zp, zp_e, _ = run_calibration(
         img, w,
