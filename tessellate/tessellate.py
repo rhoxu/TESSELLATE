@@ -2147,9 +2147,7 @@ from astropy.io import fits\n\
 from astropy.wcs import WCS\n\
 from tessellate import DataProcessor\n\
 import os\n\
-import sys\n\
-sys.path.insert(0, '{self.working_path}')\n\
-from psf_flux_calibration import run_calibration, compute_detection_limits\n\
+from tessellate.psf_flux_calibration import run_calibration, compute_detection_limits\n\
 \n\
 cut_folder  = '{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'\n\
 wcs_path    = '{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/wcs/ref/corrected.fits'\n\
