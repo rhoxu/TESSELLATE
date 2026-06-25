@@ -2212,6 +2212,12 @@ python {script_py}'
             f'sbatch {script_sh}',
             shell=True, capture_output=True, text=True
         )
+        if result.returncode != 0 or not result.stdout.strip():
+            print(f'sbatch failed for Cut {cut}:')
+            print(f'  stdout: {result.stdout.strip()}')
+            print(f'  stderr: {result.stderr.strip()}')
+            print('\n')
+            return None
         job_id = result.stdout.strip().split()[-1]
         print(f'Submitted batch job {job_id}')
         print('\n')
