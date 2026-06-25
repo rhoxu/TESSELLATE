@@ -207,7 +207,7 @@ def run_calibration(image, wcs, sector, cam, ccd,
                     gaia_path=GAIA_PATH_DEFAULT,
                     prf_path=PRF_PATH_DEFAULT,
                     mag_lo=12.0, mag_hi=14.0,
-                    iso_radius_pix=5.0, stamp_size=9,
+                    iso_radius_pix=4.0, stamp_size=9,
                     neighbour_maglim=18.0, edge_margin=5,
                     n_jobs=-1,
                     plot=False, savepath=None):
