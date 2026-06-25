@@ -372,6 +372,114 @@ def run_calibration(image, wcs, sector, cam, ccd,
 
 
 # ---------------------------------------------------------------------------
+# Per-frame detection limits
+# ---------------------------------------------------------------------------
+
+def compute_detection_limits(reduced_flux, zp_ab,
+                              sector, cam, ccd,
+                              cut_corner=(0, 0),
+                              prf_path=PRF_PATH_DEFAULT,
+                              stamp_size=9,
+                              savepath=None):
+    """
+    Compute per-frame PSF detection limits using the calibrated zeropoint.
+
+    The background noise in each frame is estimated from the spatial MAD of
+    that frame (robust to transient sources).  The PSF noise factor is
+    1 / sqrt(sum(PSF^2)), which is the matched-filter (optimal) scaling
+    between per-pixel noise and point-source flux uncertainty.
+
+    Parameters
+    ----------
+    reduced_flux : ndarray, shape (n_frames, ny, nx)
+        Background-subtracted flux cube (e.g. ReducedFlux.npy).
+    zp_ab : float
+        AB zeropoint from run_calibration.
+    sector, cam, ccd : int
+    cut_corner : (x0, y0)
+        CCD pixel of the cut's bottom-left corner (from find_cuts).
+    prf_path : str
+    stamp_size : int
+        Stamp size used to evaluate the PRF noise factor.
+    savepath : str or None
+        If given, saves ``detection_limits.csv`` here.
+
+    Returns
+    -------
+    mag3 : ndarray, shape (n_frames,)  — 3-sigma limiting AB magnitude
+    mag5 : ndarray, shape (n_frames,)  — 5-sigma limiting AB magnitude
+    mag10 : ndarray, shape (n_frames,) — 10-sigma limiting AB magnitude
+    sigma_bg : ndarray, shape (n_frames,) — per-pixel noise per frame
+    """
+    from PRF import TESS_PRF
+
+    reduced_flux = np.asarray(reduced_flux, dtype=float)
+    n_frames, ny, nx = reduced_flux.shape
+
+    # PRF evaluated at the cut centre
+    x0, y0 = cut_corner
+    ccd_x = x0 + nx // 2
+    ccd_y = y0 + ny // 2
+
+    prf_dir = f'{prf_path}/Sectors4+' if sector >= 4 else f'{prf_path}/Sectors1_2_3'
+    prf = TESS_PRF(cam=cam, ccd=ccd, sector=sector,
+                   colnum=int(np.clip(ccd_x, 44, 2090)),
+                   rownum=int(np.clip(ccd_y,  1, 2040)),
+                   localdatadir=prf_dir)
+
+    cent = stamp_size // 2
+    p = prf.locate(float(cent), float(cent), (stamp_size, stamp_size))
+    p = p / np.nansum(p)
+    # Matched-filter noise factor: sigma_flux = sigma_bg / sqrt(sum(p^2))
+    prf_noise_factor = 1.0 / np.sqrt(np.nansum(p**2))
+
+    # Per-frame background noise via spatial MAD
+    sigma_bg = np.zeros(n_frames)
+    for i in range(n_frames):
+        frame = reduced_flux[i]
+        finite = frame[np.isfinite(frame)]
+        if finite.size == 0:
+            sigma_bg[i] = np.nan
+            continue
+        med = np.median(finite)
+        sigma_bg[i] = np.median(np.abs(finite - med)) * 1.4826
+
+    flux3  = 3.0  * sigma_bg * prf_noise_factor
+    flux5  = 5.0  * sigma_bg * prf_noise_factor
+    flux10 = 10.0 * sigma_bg * prf_noise_factor
+
+    def _to_mag(flux):
+        mag = np.full(n_frames, np.nan)
+        ok = flux > 0
+        mag[ok] = zp_ab - 2.5 * np.log10(flux[ok])
+        return mag
+
+    mag3  = _to_mag(flux3)
+    mag5  = _to_mag(flux5)
+    mag10 = _to_mag(flux10)
+
+    print(f'\nDetection limits (median over {n_frames} frames):')
+    for label, mag in [('3-sigma', mag3), ('5-sigma', mag5), ('10-sigma', mag10)]:
+        finite_mag = mag[np.isfinite(mag)]
+        if finite_mag.size:
+            print(f'  {label}: {np.median(finite_mag):.3f} AB mag')
+
+    if savepath is not None:
+        df_lim = pd.DataFrame({
+            'frame': np.arange(n_frames),
+            'sigma_bg': sigma_bg,
+            'mag_lim_3sigma': mag3,
+            'mag_lim_5sigma': mag5,
+            'mag_lim_10sigma': mag10,
+        })
+        out = f'{savepath}/detection_limits.csv'
+        df_lim.to_csv(out, index=False)
+        print(f'  Detection limits saved: {out}')
+
+    return mag3, mag5, mag10, sigma_bg
+
+
+# ---------------------------------------------------------------------------
 # Diagnostic plots
 # ---------------------------------------------------------------------------
 
