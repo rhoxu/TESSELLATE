@@ -375,19 +375,52 @@ def run_calibration(image, wcs, sector, cam, ccd,
 # Per-frame detection limits
 # ---------------------------------------------------------------------------
 
+def _cadence_default_bins(sector):
+    """Return default time bin sizes (in frames) based on sector cadence."""
+    if sector < 27:       # 30 min cadence
+        return [1, 2, 4, 48]        # 30min, 1hr, 2hr, 24hr
+    elif sector < 56:     # 10 min cadence
+        return [1, 3, 6, 18, 144]   # 10min, 30min, 1hr, 3hr, 24hr
+    else:                 # 200 sec cadence
+        return [1, 9, 27, 432]      # 200s, 30min, 1.5hr, 24hr
+
+
+def _bin_flux(flux, n):
+    """Average flux in blocks of n frames. Returns shape (n_bins, ny, nx)."""
+    n_frames = flux.shape[0]
+    n_bins   = n_frames // n
+    return flux[:n_bins * n].reshape(n_bins, n, flux.shape[1], flux.shape[2]).mean(axis=1)
+
+
+def _frame_noise(flux_3d):
+    """Spatial MAD per frame → per-pixel sigma. Returns shape (n_frames,)."""
+    n = flux_3d.shape[0]
+    sigma = np.zeros(n)
+    for i in range(n):
+        frame = flux_3d[i]
+        finite = frame[np.isfinite(frame)]
+        if finite.size == 0:
+            sigma[i] = np.nan
+        else:
+            med = np.median(finite)
+            sigma[i] = np.median(np.abs(finite - med)) * 1.4826
+    return sigma
+
+
 def compute_detection_limits(reduced_flux, zp_ab,
                               sector, cam, ccd,
                               cut_corner=(0, 0),
                               prf_path=PRF_PATH_DEFAULT,
                               stamp_size=9,
+                              time_bins=None,
                               savepath=None):
     """
-    Compute per-frame PSF detection limits using the calibrated zeropoint.
+    Compute PSF detection limits for one or more time bin sizes.
 
-    The background noise in each frame is estimated from the spatial MAD of
-    that frame (robust to transient sources).  The PSF noise factor is
-    1 / sqrt(sum(PSF^2)), which is the matched-filter (optimal) scaling
-    between per-pixel noise and point-source flux uncertainty.
+    For each bin size N, N consecutive frames are averaged and the background
+    noise is measured from the actual binned data via spatial MAD.  The PSF
+    matched-filter noise factor converts per-pixel noise to point-source flux
+    uncertainty.
 
     Parameters
     ----------
@@ -400,23 +433,27 @@ def compute_detection_limits(reduced_flux, zp_ab,
         CCD pixel of the cut's bottom-left corner (from find_cuts).
     prf_path : str
     stamp_size : int
-        Stamp size used to evaluate the PRF noise factor.
+    time_bins : list of int or None
+        Number of frames per bin for each averaging option.  None uses
+        cadence-appropriate defaults.
     savepath : str or None
         If given, saves ``detection_limits.csv`` here.
 
     Returns
     -------
-    mag3 : ndarray, shape (n_frames,)  — 3-sigma limiting AB magnitude
-    mag5 : ndarray, shape (n_frames,)  — 5-sigma limiting AB magnitude
-    mag10 : ndarray, shape (n_frames,) — 10-sigma limiting AB magnitude
-    sigma_bg : ndarray, shape (n_frames,) — per-pixel noise per frame
+    results : dict  keyed by n_bin (int)
+        Each value is a dict with keys sigma_bg, mag_lim_3sigma,
+        mag_lim_5sigma, mag_lim_10sigma — all 1D arrays over binned frames.
     """
     from PRF import TESS_PRF
 
     reduced_flux = np.asarray(reduced_flux, dtype=float)
     n_frames, ny, nx = reduced_flux.shape
 
-    # PRF evaluated at the cut centre
+    if time_bins is None:
+        time_bins = _cadence_default_bins(sector)
+
+    # PRF at cut centre — used for matched-filter noise factor
     x0, y0 = cut_corner
     ccd_x = x0 + nx // 2
     ccd_y = y0 + ny // 2
@@ -430,53 +467,52 @@ def compute_detection_limits(reduced_flux, zp_ab,
     cent = stamp_size // 2
     p = prf.locate(float(cent), float(cent), (stamp_size, stamp_size))
     p = p / np.nansum(p)
-    # Matched-filter noise factor: sigma_flux = sigma_bg / sqrt(sum(p^2))
     prf_noise_factor = 1.0 / np.sqrt(np.nansum(p**2))
 
-    # Per-frame background noise via spatial MAD
-    sigma_bg = np.zeros(n_frames)
-    for i in range(n_frames):
-        frame = reduced_flux[i]
-        finite = frame[np.isfinite(frame)]
-        if finite.size == 0:
-            sigma_bg[i] = np.nan
-            continue
-        med = np.median(finite)
-        sigma_bg[i] = np.median(np.abs(finite - med)) * 1.4826
+    def _limits(sigma_bg, n_bins):
+        rows = {}
+        for nsig, label in [(3, 'mag_lim_3sigma'), (5, 'mag_lim_5sigma'), (10, 'mag_lim_10sigma')]:
+            flux = nsig * sigma_bg * prf_noise_factor
+            mag  = np.full(n_bins, np.nan)
+            ok   = flux > 0
+            mag[ok] = zp_ab - 2.5 * np.log10(flux[ok])
+            rows[label] = mag
+        return rows
 
-    flux3  = 3.0  * sigma_bg * prf_noise_factor
-    flux5  = 5.0  * sigma_bg * prf_noise_factor
-    flux10 = 10.0 * sigma_bg * prf_noise_factor
+    results = {}
+    all_rows = []
 
-    def _to_mag(flux):
-        mag = np.full(n_frames, np.nan)
-        ok = flux > 0
-        mag[ok] = zp_ab - 2.5 * np.log10(flux[ok])
-        return mag
+    print(f'\nDetection limits ({n_frames} frames, {len(time_bins)} bin sizes):')
 
-    mag3  = _to_mag(flux3)
-    mag5  = _to_mag(flux5)
-    mag10 = _to_mag(flux10)
+    for n_bin in sorted(set(time_bins)):
+        binned     = _bin_flux(reduced_flux, n_bin)
+        n_bins     = binned.shape[0]
+        sigma_bg   = _frame_noise(binned)
+        lims       = _limits(sigma_bg, n_bins)
 
-    print(f'\nDetection limits (median over {n_frames} frames):')
-    for label, mag in [('3-sigma', mag3), ('5-sigma', mag5), ('10-sigma', mag10)]:
-        finite_mag = mag[np.isfinite(mag)]
-        if finite_mag.size:
-            print(f'  {label}: {np.median(finite_mag):.3f} AB mag')
+        results[n_bin] = {'sigma_bg': sigma_bg, **lims}
+
+        med5 = np.nanmedian(lims['mag_lim_5sigma'])
+        print(f'  {n_bin:4d} frame(s)  →  5-sigma median: {med5:.3f} AB mag  '
+              f'({n_bins} bins)')
+
+        for i in range(n_bins):
+            all_rows.append({
+                'n_bin':          n_bin,
+                'bin_index':      i,
+                'sigma_bg':       sigma_bg[i],
+                'mag_lim_3sigma': lims['mag_lim_3sigma'][i],
+                'mag_lim_5sigma': lims['mag_lim_5sigma'][i],
+                'mag_lim_10sigma':lims['mag_lim_10sigma'][i],
+            })
 
     if savepath is not None:
-        df_lim = pd.DataFrame({
-            'frame': np.arange(n_frames),
-            'sigma_bg': sigma_bg,
-            'mag_lim_3sigma': mag3,
-            'mag_lim_5sigma': mag5,
-            'mag_lim_10sigma': mag10,
-        })
+        df_lim = pd.DataFrame(all_rows)
         out = f'{savepath}/detection_limits.csv'
         df_lim.to_csv(out, index=False)
         print(f'  Detection limits saved: {out}')
 
-    return mag3, mag5, mag10, sigma_bg
+    return results
 
 
 # ---------------------------------------------------------------------------
