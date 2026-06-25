@@ -499,8 +499,7 @@ def compute_detection_limits(reduced_flux, time_array, zp_ab,
             out[col] = mag
         return out
 
-    results  = {}
-    all_rows = []
+    results = {}
 
     print(f'\nDetection limits ({n_frames} frames):')
 
@@ -515,22 +514,17 @@ def compute_detection_limits(reduced_flux, time_array, zp_ab,
         med5 = np.nanmedian(lims['mag_lim_5sigma'])
         print(f'  {label:>8s}  ({n_bin} frames)  →  5-sigma median: {med5:.3f} AB mag')
 
-        for i in range(n_bins):
-            all_rows.append({
-                'time_bin':       label,
-                'n_frames_binned':n_bin,
-                'bin_index':      i,
-                'sigma_bg':       sigma_bg[i],
-                'mag_lim_3sigma': lims['mag_lim_3sigma'][i],
-                'mag_lim_5sigma': lims['mag_lim_5sigma'][i],
-                'mag_lim_10sigma':lims['mag_lim_10sigma'][i],
+        if savepath is not None:
+            df_lim = pd.DataFrame({
+                'bin_index':      np.arange(n_bins),
+                'sigma_bg':       sigma_bg,
+                'mag_lim_3sigma': lims['mag_lim_3sigma'],
+                'mag_lim_5sigma': lims['mag_lim_5sigma'],
+                'mag_lim_10sigma':lims['mag_lim_10sigma'],
             })
-
-    if savepath is not None:
-        df_lim = pd.DataFrame(all_rows)
-        fout = f'{savepath}/detection_limits.csv'
-        df_lim.to_csv(fout, index=False)
-        print(f'  Detection limits saved: {fout}')
+            fout = f'{savepath}/detection_limits_{label}.csv'
+            df_lim.to_csv(fout, index=False)
+            print(f'  Saved: {fout}')
 
     return results
 
