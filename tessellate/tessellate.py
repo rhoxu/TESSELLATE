@@ -435,7 +435,7 @@ class Tessellate():
             print(f"   - Cube Num CPUs Needed = {self.cube_cpu}")
             print('\n')
 
-        if make_cuts | reduce | search | plot:
+        if make_cuts | reduce | calibrate | search | plot:
             print(f"   - n (Number of Cuts = n^2) = {self.n}")
     
             if self.cuts == list(range(1,17)):
@@ -1527,7 +1527,7 @@ class Tessellate():
             config['fix_wcs'] = {
                 'fix_wcs' : True}
 
-        if make_cuts | reduce | search | plot:
+        if make_cuts | reduce | calibrate | search | plot:
             config['cut_properties'] = {
                 'n' : self.n,
                 'cuts' : list(self.cuts)}
