@@ -165,9 +165,9 @@ class Tessellate():
 
         # -- Allows for no actual initialisation (TessTransient) -- #
         if go:
-            self.run_tessellate(download,make_cube,fix_wcs,make_cuts,reduce,search,plot,delete,overwrite,reset_logs,save_config)
+            self.run_tessellate(download,make_cube,fix_wcs,make_cuts,reduce,calibrate,search,plot,delete,overwrite,reset_logs,save_config)
 
-    def run_tessellate(self,download,make_cube,fix_wcs,make_cuts,reduce,search,plot,delete,overwrite,reset_logs,save_config):
+    def run_tessellate(self,download,make_cube,fix_wcs,make_cuts,reduce,calibrate,search,plot,delete,overwrite,reset_logs,save_config):
 
         # -- Initialise and check for previous config file -- #
         load_prev = self._initialise()
