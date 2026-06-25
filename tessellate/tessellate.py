@@ -2144,11 +2144,12 @@ from tessellate import DataProcessor\n\
 import os\n\
 import sys\n\
 sys.path.insert(0, '{self.working_path}')\n\
-from psf_flux_calibration import run_calibration\n\
+from psf_flux_calibration import run_calibration, compute_detection_limits\n\
 \n\
-cut_folder = '{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'\n\
-wcs_path   = '{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/wcs/ref/corrected.fits'\n\
-ref_path   = f'{{cut_folder}}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Ref.npy'\n\
+cut_folder  = '{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'\n\
+wcs_path    = '{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/wcs/ref/corrected.fits'\n\
+ref_path    = f'{{cut_folder}}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Ref.npy'\n\
+flux_path   = f'{{cut_folder}}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_ReducedFlux.npy'\n\
 \n\
 with fits.open(wcs_path) as f:\n\
     wcs = WCS(f[1].header)\n\
@@ -2157,14 +2158,26 @@ ref = np.load(ref_path)\n\
 \n\
 processor = DataProcessor(sector={self.sector}, data_path='{self.data_path}', verbose=0)\n\
 cut_corners, _, _, _ = processor.find_cuts(cam={cam}, ccd={ccd}, n={self.n}, plot=False, verbose=0)\n\
+cut_corner = cut_corners[{cut}-1]\n\
 \n\
 zp_ab, zp_err, _ = run_calibration(\n\
     ref, wcs,\n\
     sector={self.sector}, cam={cam}, ccd={ccd},\n\
-    cut_corner=cut_corners[{cut}-1],\n\
+    cut_corner=cut_corner,\n\
     n_jobs={self.calibrate_cpu},\n\
     savepath=cut_folder,\n\
 )\n\
+\n\
+if os.path.exists(flux_path):\n\
+    reduced_flux = np.load(flux_path)\n\
+    compute_detection_limits(\n\
+        reduced_flux, zp_ab,\n\
+        sector={self.sector}, cam={cam}, ccd={ccd},\n\
+        cut_corner=cut_corner,\n\
+        savepath=cut_folder,\n\
+    )\n\
+else:\n\
+    print('ReducedFlux not found — skipping detection limits.')\n\
 \n\
 with open(f'{{cut_folder}}/calibrated.txt', 'w') as file:\n\
     file.write(f'ZP_AB={{zp_ab:.6f}} E_ZP={{zp_err:.6f}}')"
