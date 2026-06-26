@@ -123,7 +123,7 @@ def _select_isolated(gaia_all, gaia_cal, wcs, cut_corner, image_shape,
 # ---------------------------------------------------------------------------
 
 def _fit_star_worker(stamp, ccd_x, ccd_y, cam, ccd, sector, prf_dir,
-                     stamp_size, ra, dec, loc_x, loc_y, rp_vega):
+                     stamp_size, ra, dec, loc_x, loc_y, rp_vega, bp_rp=np.nan):
     """
     Fit one calibration star.  Constructs TESS_PRF internally so the object
     does not need to cross process boundaries.
@@ -193,6 +193,7 @@ def _fit_star_worker(stamp, ccd_x, ccd_y, cam, ccd, sector, prf_dir,
         'flux_psf': float(flux), 'e_flux_psf': e_flux,
         'background': float(bg),
         'rp_vega': rp_vega, 'rp_ab': rp_ab,
+        'bp_rp': bp_rp,
         'zp_ab': zp, 'e_zp_ab': e_zp,
         '_stamp': stamp,
         '_model': model_stamp,
@@ -300,6 +301,8 @@ def run_calibration(image, wcs, sector, cam, ccd,
     prf_dir = f'{prf_path}/Sectors4+' if sector >= 4 else f'{prf_path}/Sectors1_2_3'
     half = stamp_size // 2
 
+    has_bp = 'BPmag' in gaia_iso.columns
+
     # Build per-star argument list; extract stamps here (serial, cheap)
     tasks = []
     for i in range(len(gaia_iso)):
@@ -312,6 +315,8 @@ def run_calibration(image, wcs, sector, cam, ccd,
         stamp = image[sy0:sy1, sx0:sx1].copy().astype(float)
         if not np.isfinite(stamp).all():
             continue
+        bp_rp = (float(gaia_iso.BPmag.values[i]) - float(gaia_iso.RPmag.values[i])
+                 if has_bp else np.nan)
         tasks.append((
             stamp,
             ccd_xs[i], ccd_ys[i],
@@ -321,6 +326,7 @@ def run_calibration(image, wcs, sector, cam, ccd,
             float(gaia_iso.dec.values[i]),
             float(loc_xs[i]), float(loc_ys[i]),
             float(gaia_iso.RPmag.values[i]),
+            bp_rp,
         ))
 
     print(f'  Fitting {len(tasks)} stars in parallel (n_jobs={n_jobs}) ...')
@@ -356,6 +362,7 @@ def run_calibration(image, wcs, sector, cam, ccd,
 
     if plot:
         _summary_figure(image, df, zp_ab, zp_err, savepath)
+        _colour_magnitude_figure(df, zp_ab, zp_err, savepath)
         _star_fits_pdf(df, savepath)
 
     if savepath is not None:
@@ -653,6 +660,81 @@ def _summary_figure(image, df, zp_ab, zp_err, savepath):
         fname = f'{savepath}/psf_calibration_diagnostic.pdf'
         fig.savefig(fname, bbox_inches='tight')
         print(f'  Summary diagnostic: {fname}')
+        subprocess.Popen(['open', fname])
+    else:
+        plt.show()
+    plt.close(fig)
+
+
+def _colour_magnitude_figure(df, zp_ab, zp_err, savepath):
+    import subprocess
+
+    matplotlib.rcParams.update({
+        'font.family': 'serif',
+        'text.usetex': False,
+        'font.size': 9,
+    })
+
+    inliers = _sigma_clip_mask(df.zp_ab.values)
+    rp_ab = df.rp_ab.values
+    zp_vals = df.zp_ab.values
+    e_zp = df.e_zp_ab.values
+    bp_rp = df.bp_rp.values if 'bp_rp' in df.columns else np.full(len(df), np.nan)
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(6, 8), tight_layout=True)
+
+    # ---- Top: source magnitude vs ZP -----------------------------------------
+    ax1.errorbar(rp_ab[inliers], zp_vals[inliers], yerr=e_zp[inliers],
+                 fmt='o', ms=4, color='C0', ecolor='C0', alpha=0.7,
+                 elinewidth=0.8, capsize=2, label='Inliers')
+    ax1.errorbar(rp_ab[~inliers], zp_vals[~inliers], yerr=e_zp[~inliers],
+                 fmt='x', ms=5, color='C3', ecolor='C3', alpha=0.7,
+                 elinewidth=0.8, capsize=2, label='Outliers')
+    if inliers.sum() >= 2:
+        cm = np.polyfit(rp_ab[inliers], zp_vals[inliers], 1)
+        xg = np.linspace(rp_ab[inliers].min(), rp_ab[inliers].max(), 100)
+        ax1.plot(xg, np.polyval(cm, xg), color='C3', lw=1.2,
+                 label=f'slope={cm[0]:.4f} mag/mag')
+    ax1.axhline(zp_ab, color='k', ls='--', lw=1.0, alpha=0.7, label=f'ZP={zp_ab:.4f}')
+    ax1.axhspan(zp_ab - zp_err, zp_ab + zp_err, alpha=0.12, color='k')
+    ax1.set_xlabel('Gaia Rp (AB mag)')
+    ax1.set_ylabel('Per-star ZP (AB mag)')
+    ax1.set_title('Zeropoint vs source magnitude')
+    ax1.legend(fontsize=7)
+
+    # ---- Bottom: ZP vs BP-RP colour ------------------------------------------
+    has_colour = np.isfinite(bp_rp).any()
+    if has_colour:
+        ok = inliers & np.isfinite(bp_rp)
+        ax2.errorbar(bp_rp[ok], zp_vals[ok], yerr=e_zp[ok],
+                     fmt='o', ms=4, color='C0', ecolor='C0', alpha=0.7,
+                     elinewidth=0.8, capsize=2, label='Inliers')
+        bad = (~inliers) & np.isfinite(bp_rp)
+        ax2.errorbar(bp_rp[bad], zp_vals[bad], yerr=e_zp[bad],
+                     fmt='x', ms=5, color='C3', ecolor='C3', alpha=0.7,
+                     elinewidth=0.8, capsize=2, label='Outliers')
+        if ok.sum() >= 2:
+            cc = np.polyfit(bp_rp[ok], zp_vals[ok], 1)
+            cg = np.linspace(bp_rp[ok].min(), bp_rp[ok].max(), 100)
+            ax2.plot(cg, np.polyval(cc, cg), color='C3', lw=1.2,
+                     label=f'slope={cc[0]:.4f} mag/mag')
+        ax2.axhline(zp_ab, color='k', ls='--', lw=1.0, alpha=0.7)
+        ax2.axhspan(zp_ab - zp_err, zp_ab + zp_err, alpha=0.12, color='k')
+        ax2.set_xlabel('Gaia BP - RP (mag)')
+        ax2.legend(fontsize=7)
+    else:
+        ax2.text(0.5, 0.5, 'BP-RP colour not available in catalog',
+                 transform=ax2.transAxes, ha='center', va='center', fontsize=9)
+    ax2.set_ylabel('Per-star ZP (AB mag)')
+    ax2.set_title('Zeropoint vs Gaia colour')
+
+    fig.suptitle(f'PSF Calibration Colour Diagnostics  —  ZP = {zp_ab:.4f} ± {zp_err:.4f}',
+                 fontsize=10)
+
+    if savepath is not None:
+        fname = f'{savepath}/psf_calibration_colour.pdf'
+        fig.savefig(fname, bbox_inches='tight')
+        print(f'  Colour diagnostic:  {fname}')
         subprocess.Popen(['open', fname])
     else:
         plt.show()
