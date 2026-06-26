@@ -212,7 +212,7 @@ def run_calibration(image, wcs, sector, cam, ccd,
                     iso_radius_pix=4.0, stamp_size=9,
                     delta_mag=2.0, edge_margin=5,
                     n_jobs=-1,
-                    plot=False, savepath=None):
+                    plot=True, savepath=None):
     """
     Derive a TESS-to-Gaia-Rp AB zeropoint from PSF photometry on a reference image.
 
