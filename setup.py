@@ -12,7 +12,8 @@ REQUIRED = ['astrocut @ git+https://github.com/CheerfulUser/astrocut.git',
             'sourcedetect @ git+https://github.com/andrewmoore73/SourceDetect.git',
             'shapely',
             'mastcasjobs',
-            'astro-datalab'
+            'astro-datalab',
+            'duckdb'
             ]
 
 
