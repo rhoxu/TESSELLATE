@@ -72,11 +72,12 @@ def _query_gaia(ra_centre, dec_centre, radius_arcsec, gaia_path, gmag_limit):
 # ---------------------------------------------------------------------------
 
 def _select_isolated(gaia_all, gaia_cal, wcs, cut_corner, image_shape,
-                     iso_radius_pix, edge_margin):
+                     iso_radius_pix, edge_margin, delta_mag=2.0):
     """
     Return calibration stars that:
       - fall within the cut image (with edge_margin buffer)
-      - have no Gaia neighbour within iso_radius_pix TESS pixels
+      - have no Gaia neighbour within iso_radius_pix TESS pixels that is
+        brighter than star_rp + delta_mag
 
     The WCS is the full CCD WCS; cut_corner=(x0,y0) gives the CCD pixel
     coordinate of the bottom-left corner of the cut image.
@@ -85,14 +86,13 @@ def _select_isolated(gaia_all, gaia_cal, wcs, cut_corner, image_shape,
     x0, y0 = cut_corner
     iso_arcsec = iso_radius_pix * TESS_PIX_SCALE
 
-    # CCD-level pixel positions for calibration candidates
     ccd_x, ccd_y = wcs.all_world2pix(gaia_cal.ra.values, gaia_cal.dec.values, 0)
-    # Local (cut-image) positions
     loc_x = ccd_x - x0
     loc_y = ccd_y - y0
 
     ra_all = gaia_all.ra.values
     dec_all = gaia_all.dec.values
+    rp_all = gaia_all.RPmag.values
 
     keep = []
     for i in range(len(gaia_cal)):
@@ -104,7 +104,9 @@ def _select_isolated(gaia_all, gaia_cal, wcs, cut_corner, image_shape,
         dra = (ra_all - gaia_cal.ra.values[i]) * cos_dec
         ddec = dec_all - gaia_cal.dec.values[i]
         sep = np.sqrt(dra**2 + ddec**2) * 3600.0
-        if np.sum((sep > 0.5) & (sep < iso_arcsec)) == 0:
+        mag_limit = gaia_cal.RPmag.values[i] + delta_mag
+        close = (sep > 0.5) & (sep < iso_arcsec) & (rp_all < mag_limit)
+        if np.sum(close) == 0:
             keep.append(i)
 
     keep = np.array(keep, dtype=int)
@@ -208,7 +210,7 @@ def run_calibration(image, wcs, sector, cam, ccd,
                     prf_path=PRF_PATH_DEFAULT,
                     mag_lo=12.0, mag_hi=14.0,
                     iso_radius_pix=4.0, stamp_size=9,
-                    neighbour_maglim=18.0, edge_margin=5,
+                    delta_mag=2.0, edge_margin=5,
                     n_jobs=-1,
                     plot=False, savepath=None):
     """
@@ -233,12 +235,12 @@ def run_calibration(image, wcs, sector, cam, ccd,
     mag_lo, mag_hi : float
         Gaia Rp (Vega) magnitude range for calibration stars.
     iso_radius_pix : float
-        Isolation radius in TESS pixels; stars with any Gaia neighbour
-        (Gmag < neighbour_maglim) inside this radius are rejected.
+        Isolation radius in TESS pixels.
     stamp_size : int (odd)
         Pixel width of the stamp cutout for each PSF fit.
-    neighbour_maglim : float
-        Gaia Gmag limit used to define neighbours for isolation checks.
+    delta_mag : float
+        A calibration star is rejected if any Gaia neighbour within
+        iso_radius_pix pixels is brighter than star_rp + delta_mag.
     edge_margin : int
         Minimum pixel distance from cut-image edge for a usable star.
     n_jobs : int
@@ -273,8 +275,10 @@ def run_calibration(image, wcs, sector, cam, ccd,
     print(f'Field centre: RA={ra_cen:.4f} Dec={dec_cen:.4f}')
     print(f'Querying Gaia DR3 within {radius_arcsec/60:.1f} arcmin ...')
 
-    gaia_all = _query_gaia(ra_cen, dec_cen, radius_arcsec, gaia_path, neighbour_maglim)
-    print(f'  {len(gaia_all)} sources (Gmag < {neighbour_maglim})')
+    # Query deep enough to catch all relevant neighbours (faintest cal star + delta_mag)
+    query_maglim = mag_hi + delta_mag
+    gaia_all = _query_gaia(ra_cen, dec_cen, radius_arcsec, gaia_path, query_maglim)
+    print(f'  {len(gaia_all)} sources (Gmag < {query_maglim})')
 
     if 'RPmag' not in gaia_all.columns:
         raise RuntimeError("'RPmag' column not found in Gaia catalog.")
@@ -287,7 +291,7 @@ def run_calibration(image, wcs, sector, cam, ccd,
         raise RuntimeError(f'No Gaia stars with {mag_lo} <= Rp <= {mag_hi} in field.')
 
     gaia_iso, ccd_xs, ccd_ys, loc_xs, loc_ys = _select_isolated(
-        gaia_all, gaia_cal, wcs, cut_corner, image.shape, iso_radius_pix, edge_margin)
+        gaia_all, gaia_cal, wcs, cut_corner, image.shape, iso_radius_pix, edge_margin, delta_mag)
     print(f'  {len(gaia_iso)} isolated, on-image calibration stars')
 
     if len(gaia_iso) == 0:
