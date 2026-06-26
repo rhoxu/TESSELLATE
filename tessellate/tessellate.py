@@ -517,9 +517,9 @@ class Tessellate():
             reduce_cpu_sug = '32'
             reduce_mem_req = 90
 
-            calibrate_time_sug = '15:00'
-            calibrate_cpu_sug = '32'
-            calibrate_mem_req = 16
+            calibrate_time_sug = '10:00'
+            calibrate_cpu_sug = '8'
+            calibrate_mem_req = 8
 
             search_time_sug = '20:00'
             search_cpu_sug = '32'
@@ -551,9 +551,9 @@ class Tessellate():
             reduce_cpu_sug = '32'
             reduce_mem_req = 64
 
-            calibrate_time_sug = '15:00'
-            calibrate_cpu_sug = '32'
-            calibrate_mem_req = 16
+            calibrate_time_sug = '10:00'
+            calibrate_cpu_sug = '8'
+            calibrate_mem_req = 8
 
             # search_time_sug = '30:00'
             # search_cpu_sug = '32'
@@ -583,9 +583,9 @@ class Tessellate():
             reduce_cpu_sug = '32'
             reduce_mem_req = 200
 
-            calibrate_time_sug = '15:00'
-            calibrate_cpu_sug = '32'
-            calibrate_mem_req = 16
+            calibrate_time_sug = '10:00'
+            calibrate_cpu_sug = '8'
+            calibrate_mem_req = 8
 
             search_time_sug = '1:00:00'
             search_cpu_sug = '32'
