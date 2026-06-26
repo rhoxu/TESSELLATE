@@ -684,19 +684,19 @@ def _colour_magnitude_figure(df, zp_ab, zp_err, savepath):
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(6, 8), tight_layout=True)
 
     # ---- Top: source magnitude vs ZP -----------------------------------------
+    ax1.axhline(zp_ab, color='k', ls='--', lw=1.0, alpha=0.7, zorder=1, label=f'ZP={zp_ab:.4f}')
+    ax1.axhspan(zp_ab - zp_err, zp_ab + zp_err, alpha=0.12, color='k', zorder=1)
     ax1.errorbar(rp_ab[inliers], zp_vals[inliers], yerr=e_zp[inliers],
                  fmt='o', ms=4, color='C0', ecolor='C0', alpha=0.7,
-                 elinewidth=0.8, capsize=2, label='Inliers')
+                 elinewidth=0.8, capsize=2, zorder=3, label='Inliers')
     ax1.errorbar(rp_ab[~inliers], zp_vals[~inliers], yerr=e_zp[~inliers],
                  fmt='x', ms=5, color='C3', ecolor='C3', alpha=0.7,
-                 elinewidth=0.8, capsize=2, label='Outliers')
+                 elinewidth=0.8, capsize=2, zorder=3, label='Outliers')
     if inliers.sum() >= 2:
         cm = np.polyfit(rp_ab[inliers], zp_vals[inliers], 1)
         xg = np.linspace(rp_ab[inliers].min(), rp_ab[inliers].max(), 100)
-        ax1.plot(xg, np.polyval(cm, xg), color='C3', lw=1.2,
+        ax1.plot(xg, np.polyval(cm, xg), color='C3', lw=1.2, zorder=2,
                  label=f'slope={cm[0]:.4f} mag/mag')
-    ax1.axhline(zp_ab, color='k', ls='--', lw=1.0, alpha=0.7, label=f'ZP={zp_ab:.4f}')
-    ax1.axhspan(zp_ab - zp_err, zp_ab + zp_err, alpha=0.12, color='k')
     ax1.set_xlabel('Gaia Rp (AB mag)')
     ax1.set_ylabel('Per-star ZP (AB mag)')
     ax1.set_title('Zeropoint vs source magnitude')
@@ -706,20 +706,20 @@ def _colour_magnitude_figure(df, zp_ab, zp_err, savepath):
     has_colour = np.isfinite(bp_rp).any()
     if has_colour:
         ok = inliers & np.isfinite(bp_rp)
+        bad = (~inliers) & np.isfinite(bp_rp)
+        ax2.axhline(zp_ab, color='k', ls='--', lw=1.0, alpha=0.7, zorder=1)
+        ax2.axhspan(zp_ab - zp_err, zp_ab + zp_err, alpha=0.12, color='k', zorder=1)
         ax2.errorbar(bp_rp[ok], zp_vals[ok], yerr=e_zp[ok],
                      fmt='o', ms=4, color='C0', ecolor='C0', alpha=0.7,
-                     elinewidth=0.8, capsize=2, label='Inliers')
-        bad = (~inliers) & np.isfinite(bp_rp)
+                     elinewidth=0.8, capsize=2, zorder=3, label='Inliers')
         ax2.errorbar(bp_rp[bad], zp_vals[bad], yerr=e_zp[bad],
                      fmt='x', ms=5, color='C3', ecolor='C3', alpha=0.7,
-                     elinewidth=0.8, capsize=2, label='Outliers')
+                     elinewidth=0.8, capsize=2, zorder=3, label='Outliers')
         if ok.sum() >= 2:
             cc = np.polyfit(bp_rp[ok], zp_vals[ok], 1)
             cg = np.linspace(bp_rp[ok].min(), bp_rp[ok].max(), 100)
-            ax2.plot(cg, np.polyval(cc, cg), color='C3', lw=1.2,
+            ax2.plot(cg, np.polyval(cc, cg), color='C3', lw=1.2, zorder=2,
                      label=f'slope={cc[0]:.4f} mag/mag')
-        ax2.axhline(zp_ab, color='k', ls='--', lw=1.0, alpha=0.7)
-        ax2.axhspan(zp_ab - zp_err, zp_ab + zp_err, alpha=0.12, color='k')
         ax2.set_xlabel('Gaia BP - RP (mag)')
         ax2.legend(fontsize=7)
     else:
