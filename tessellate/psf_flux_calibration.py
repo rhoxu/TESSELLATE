@@ -716,9 +716,6 @@ def _colour_magnitude_figure(df, zp_ab, zp_err, savepath):
     ax1.errorbar(rp_ab[inliers], zp_vals[inliers], yerr=e_zp[inliers],
                  fmt='o', ms=4, color='C0', ecolor='C0', alpha=0.7,
                  elinewidth=0.8, capsize=2, zorder=3, label='Inliers')
-    ax1.errorbar(rp_ab[~inliers], zp_vals[~inliers], yerr=e_zp[~inliers],
-                 fmt='x', ms=5, color='C3', ecolor='C3', alpha=0.7,
-                 elinewidth=0.8, capsize=2, zorder=3, label='Outliers')
     if inliers.sum() >= 2:
         cm = np.polyfit(rp_ab[inliers], zp_vals[inliers], 1)
         xg = np.linspace(rp_ab[inliers].min(), rp_ab[inliers].max(), 100)
@@ -733,15 +730,11 @@ def _colour_magnitude_figure(df, zp_ab, zp_err, savepath):
     has_colour = np.isfinite(bp_rp).any()
     if has_colour:
         ok = inliers & np.isfinite(bp_rp)
-        bad = (~inliers) & np.isfinite(bp_rp)
         ax2.axhline(zp_ab, color='k', ls='--', lw=1.0, alpha=0.7, zorder=1)
         ax2.axhspan(zp_ab - zp_err, zp_ab + zp_err, alpha=0.12, color='k', zorder=1)
         ax2.errorbar(bp_rp[ok], zp_vals[ok], yerr=e_zp[ok],
                      fmt='o', ms=4, color='C0', ecolor='C0', alpha=0.7,
                      elinewidth=0.8, capsize=2, zorder=3, label='Inliers')
-        ax2.errorbar(bp_rp[bad], zp_vals[bad], yerr=e_zp[bad],
-                     fmt='x', ms=5, color='C3', ecolor='C3', alpha=0.7,
-                     elinewidth=0.8, capsize=2, zorder=3, label='Outliers')
         if ok.sum() >= 2:
             cc = np.polyfit(bp_rp[ok], zp_vals[ok], 1)
             cg = np.linspace(bp_rp[ok].min(), bp_rp[ok].max(), 100)
