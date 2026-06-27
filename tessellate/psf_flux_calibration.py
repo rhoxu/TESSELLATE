@@ -881,7 +881,8 @@ def run_calibration(image, wcs, sector, cam, ccd,
         if stage2_done:
             plot_jobs.append((
                 _stage_comparison_figure,
-                (df_stage1, zp_stage1, ze_stage1, df, zp_ab, zp_err, scene_bins, savepath),
+                (df_stage1, zp_stage1, ze_stage1, df, zp_ab, zp_err, zp_scatter,
+                 scene_bins, savepath),
             ))
             plot_jobs.append((
                 _shift_figure,
@@ -1326,8 +1327,12 @@ def _colour_magnitude_figure(df, zp_ab, zp_err, savepath):
     plt.close(fig)
 
 
-def _stage_comparison_figure(df1, zp1, ze1, df2, zp2, ze2, bins, savepath):
-    """Compare the stage-1 (isolated) and stage-2 (scene) zeropoint solutions."""
+def _stage_comparison_figure(df1, zp1, ze1, df2, zp2, se2, sc2, bins, savepath):
+    """
+    Compare the stage-1 (isolated) and stage-2 (scene) zeropoint solutions.
+    Bands show the core scatter (ze1 for stage 1; sc2 for stage 2); se2 is the
+    stage-2 combine precision (shown in the text box).
+    """
 
     matplotlib.rcParams.update({
         'font.family': 'serif',
@@ -1351,9 +1356,9 @@ def _stage_comparison_figure(df1, zp1, ze1, df2, zp2, ze2, bins, savepath):
     ax1.axvline(zp1, color='C0', ls='--', lw=1.5)
     ax1.axvspan(zp1 - ze1, zp1 + ze1, color='C0', alpha=0.12)
     ax1.axvline(zp2, color='C1', ls='--', lw=1.5)
-    ax1.axvspan(zp2 - ze2, zp2 + ze2, color='C1', alpha=0.12)
-    txt = (f'Stage 1: {zp1:.4f} $\\pm$ {ze1:.4f}\n'
-           f'Stage 2: {zp2:.4f} $\\pm$ {ze2:.4f}\n'
+    ax1.axvspan(zp2 - sc2, zp2 + sc2, color='C1', alpha=0.12)
+    txt = (f'Stage 1: {zp1:.4f} (scatter {ze1:.4f})\n'
+           f'Stage 2: {zp2:.4f} (scatter {sc2:.4f}, SE {se2:.4f})\n'
            f'$\\Delta$ZP = {zp2 - zp1:+.4f} mag')
     ax1.text(0.97, 0.97, txt, transform=ax1.transAxes, ha='right', va='top',
              fontsize=8, bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.8))
@@ -1366,7 +1371,7 @@ def _stage_comparison_figure(df1, zp1, ze1, df2, zp2, ze2, bins, savepath):
     ax2.axhline(zp1, color='C0', ls='--', lw=1.0, alpha=0.7)
     ax2.axhspan(zp1 - ze1, zp1 + ze1, color='C0', alpha=0.10)
     ax2.axhline(zp2, color='C1', ls='--', lw=1.0, alpha=0.7)
-    ax2.axhspan(zp2 - ze2, zp2 + ze2, color='C1', alpha=0.10)
+    ax2.axhspan(zp2 - sc2, zp2 + sc2, color='C1', alpha=0.10)
     ax2.scatter(rp1, z1, s=18, color='C0', alpha=0.5, label='Stage 1')
     ax2.scatter(rp2, z2, s=18, color='C1', alpha=0.4, marker='s', label='Stage 2')
     # Empirical per-magnitude-bin median +/- robust scatter (the combine weights)
