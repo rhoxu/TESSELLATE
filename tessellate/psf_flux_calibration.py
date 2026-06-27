@@ -62,7 +62,42 @@ PRF_PATH_DEFAULT = '/fred/oz335/_local_TESS_PRFs'
 # ---------------------------------------------------------------------------
 
 def _query_gaia(ra_centre, dec_centre, radius_arcsec, gaia_path, gmag_limit):
+    """
+    Cone-search the local Gaia catalogue.
+
+    An RA/Dec bounding box and the Gmag cut are applied *inside* the scan so the
+    expensive haversine is only evaluated on the handful of rows near the field
+    (and, for a Parquet source, whole row groups are skipped).  If a Parquet
+    sibling of the CSV exists (same path with a .parquet suffix) it is used
+    automatically -- far less I/O than scanning the full CSV every cut.
+    See convert_gaia_to_parquet().
+    """
     import duckdb
+    import os
+
+    radius_deg = radius_arcsec / 3600.0
+    dec_lo = dec_centre - radius_deg
+    dec_hi = dec_centre + radius_deg
+    cosd = max(float(np.cos(np.radians(dec_centre))), 1e-3)
+    ra_pad = radius_deg / cosd
+
+    # Prefer a Parquet copy if present
+    src = gaia_path
+    if not src.endswith('.parquet'):
+        pq = src.rsplit('.', 1)[0] + '.parquet'
+        if os.path.exists(pq):
+            src = pq
+    reader = (f"read_parquet('{src}')" if src.endswith('.parquet')
+              else f"read_csv('{src}', ignore_errors=true)")
+
+    # RA bounding box, handling wraparound at 0/360 deg
+    ra_lo = ra_centre - ra_pad
+    ra_hi = ra_centre + ra_pad
+    if ra_lo < 0 or ra_hi > 360:
+        ra_cond = f"(ra >= {ra_lo % 360} OR ra <= {ra_hi % 360})"
+    else:
+        ra_cond = f"(ra BETWEEN {ra_lo} AND {ra_hi})"
+
     return duckdb.sql(f"""
         SELECT * FROM (
             SELECT *,
@@ -71,11 +106,34 @@ def _query_gaia(ra_centre, dec_centre, radius_arcsec, gaia_path, gmag_limit):
                     cos(radians("dec")) * cos(radians({dec_centre})) *
                     pow(sin(radians((ra - {ra_centre}) / 2)), 2)
                 ))) * 3600 AS dist_arcsec
-            FROM read_csv('{gaia_path}', ignore_errors=true)
+            FROM {reader}
+            WHERE "dec" BETWEEN {dec_lo} AND {dec_hi}
+              AND {ra_cond}
+              AND Gmag < {gmag_limit}
         )
         WHERE dist_arcsec < {radius_arcsec}
-          AND Gmag < {gmag_limit}
     """).df()
+
+
+def convert_gaia_to_parquet(csv_path=GAIA_PATH_DEFAULT, parquet_path=None):
+    """
+    One-off: convert the Gaia CSV to Parquet so cone searches are fast.
+
+    Run once on the cluster; _query_gaia then picks up the .parquet sibling
+    automatically.  Parquet gives columnar, compressed, predicate-pushdown
+    reads -- turning the multi-minute per-cut CSV scan into seconds.
+    """
+    import duckdb
+    if parquet_path is None:
+        parquet_path = csv_path.rsplit('.', 1)[0] + '.parquet'
+    print(f'Converting {csv_path} -> {parquet_path} ...')
+    _t = time.time()
+    duckdb.sql(f"""
+        COPY (SELECT * FROM read_csv('{csv_path}', ignore_errors=true))
+        TO '{parquet_path}' (FORMAT parquet)
+    """)
+    print(f'Done [{time.time() - _t:.1f}s]: {parquet_path}')
+    return parquet_path
 
 
 # ---------------------------------------------------------------------------
