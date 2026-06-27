@@ -444,6 +444,13 @@ def _scene_fit_worker(stamp, local_x, local_y, flux_lo, flux_hi, flux0,
     zp = rp_ab + 2.5 * np.log10(flux)
     e_zp = (2.5 / np.log(10)) * (e_flux / flux) if (np.isfinite(e_flux) and flux > 0) else np.nan
 
+    # Flag if the target flux railed against (or sits within its error of) the
+    # flux bound -- such a point is set by the prior, not the data.
+    lo_t = float(flux_lo[target_k])
+    hi_t = float(flux_hi[target_k])
+    ef = e_flux if np.isfinite(e_flux) else 0.0
+    at_bound = bool(flux - ef <= lo_t or flux + ef >= hi_t)
+
     return {
         'ra': ra, 'dec': dec,
         'x_pix': loc_x, 'y_pix': loc_y,
@@ -454,6 +461,7 @@ def _scene_fit_worker(stamp, local_x, local_y, flux_lo, flux_hi, flux0,
         'bp_rp': bp_rp,
         'zp_ab': zp, 'e_zp_ab': e_zp,
         'n_scene': int(K),
+        'at_bound': at_bound,
         'stamp_data': stamp,
         'model_data': model_stamp,
         'residual_data': residual_stamp,
@@ -572,8 +580,13 @@ def _refine_zeropoint_scene(image, wcs, gaia_deep, cut_corner, cam, ccd, sector,
             break
 
         df2 = pd.DataFrame(rows)
-        # Drop poorly-constrained scenes (large error)
-        df2 = df2[_err_keep_mask(df2.e_zp_ab.values, max_err_factor)].reset_index(drop=True)
+        # Drop scenes pinned to the flux bound (set by the prior, not the data)
+        # and poorly-constrained scenes (large error).
+        n_raw = len(df2)
+        n_bound = int(np.sum(df2.at_bound.values))
+        keep = (_err_keep_mask(df2.e_zp_ab.values, max_err_factor)
+                & ~df2.at_bound.values)
+        df2 = df2[keep].reset_index(drop=True)
         if len(df2) < 2:
             print(f'  [refine {it+1}] too few well-constrained scenes; stopping.')
             break
@@ -584,8 +597,8 @@ def _refine_zeropoint_scene(image, wcs, gaia_deep, cut_corner, cam, ccd, sector,
         ze_new = float(np.std(clipped))
         dzp = abs(zp_new - zp)
         print(f'  [refine {it+1}/{refine_iter}] zp={zp_new:.4f} +/- {ze_new:.4f}  '
-              f'(N={len(clipped)}/{len(df2)}, tol={tol:.3f} mag, dZP={dzp:.5f}, '
-              f'{time.time() - _t:.1f}s)')
+              f'(N={len(clipped)}/{n_raw}, {n_bound} at bound, tol={tol:.3f} mag, '
+              f'dZP={dzp:.5f}, {time.time() - _t:.1f}s)')
 
         zp = zp_new
         ze = ze_new
