@@ -314,12 +314,14 @@ def run_calibration(image, wcs, sector, cam, ccd,
     if 'RPmag' not in gaia_all.columns:
         raise RuntimeError("'RPmag' column not found in Gaia catalog.")
 
-    gaia_cal = gaia_all.dropna(subset=['RPmag'])
-    gaia_cal = gaia_cal[(gaia_cal.RPmag >= mag_lo) & (gaia_cal.RPmag <= mag_hi)].copy()
-    print(f'  {len(gaia_cal)} candidates with {mag_lo} <= Rp <= {mag_hi}')
+    # Selection limits apply to the AB-converted Gaia Rp magnitude
+    gaia_cal = gaia_all.dropna(subset=['RPmag']).copy()
+    rp_ab_all = gaia_cal.RPmag.values + GAIA_RP_AB_OFFSET
+    gaia_cal = gaia_cal[(rp_ab_all >= mag_lo) & (rp_ab_all <= mag_hi)].copy()
+    print(f'  {len(gaia_cal)} candidates with {mag_lo} <= Rp_AB <= {mag_hi}')
 
     if len(gaia_cal) == 0:
-        raise RuntimeError(f'No Gaia stars with {mag_lo} <= Rp <= {mag_hi} in field.')
+        raise RuntimeError(f'No Gaia stars with {mag_lo} <= Rp_AB <= {mag_hi} in field.')
 
     gaia_iso, ccd_xs, ccd_ys, loc_xs, loc_ys = _select_isolated(
         gaia_all, gaia_cal, wcs, cut_corner, image.shape, iso_radius_pix, edge_margin, delta_mag)
