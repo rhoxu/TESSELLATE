@@ -187,6 +187,8 @@ def _remove_calibrations(data_path, sector, n, cams, ccds, cuts, part):
                     os.system('rm -f psf_calibration_zp.csv')
                     os.system('rm -f psf_calibration_stars.csv')
                     os.system('rm -f psf_calibration_diagnostic.pdf')
+                    os.system('rm -f psf_calibration_colour.pdf')
+                    os.system('rm -f psf_calibration_star_fits.pdf')
                 except:
                     pass
     os.chdir(home_path)
