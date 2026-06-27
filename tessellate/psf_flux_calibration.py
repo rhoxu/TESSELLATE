@@ -1340,6 +1340,18 @@ def _stage_comparison_figure(df1, zp1, ze1, df2, zp2, se2, sc2, bins, savepath):
         'font.size': 9,
     })
 
+    # Drop massive outliers for display only (does not affect the ZP, which is
+    # already robustly estimated).  Keep points within a generous robust window.
+    def _disp_mask(z):
+        z = np.asarray(z, dtype=float)
+        med = np.nanmedian(z)
+        mad = 1.4826 * np.nanmedian(np.abs(z - med))
+        w = max(6.0 * mad, 0.75)
+        return np.isfinite(z) & (np.abs(z - med) < w)
+
+    df1 = df1[_disp_mask(df1.zp_ab.values)]
+    df2 = df2[_disp_mask(df2.zp_ab.values)]
+
     z1 = df1.zp_ab.values
     z2 = df2.zp_ab.values
     rp1 = df1.rp_ab.values
