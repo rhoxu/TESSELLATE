@@ -185,6 +185,7 @@ def _remove_calibrations(data_path, sector, n, cams, ccds, cuts, part):
                     os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}')
                     os.system('rm -f calibrated.txt')
                     os.system('rm -f psf_calibration_zp.csv')
+                    os.system('rm -f psf_calibration_zp_bins.csv')
                     os.system('rm -f psf_calibration_stars.csv')
                     os.system('rm -f psf_calibration_diagnostic.pdf')
                     os.system('rm -f psf_calibration_colour.pdf')

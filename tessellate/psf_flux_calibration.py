@@ -477,7 +477,8 @@ def _refine_zeropoint_scene(image, wcs, gaia_deep, cut_corner, cam, ccd, sector,
                             n_jobs, zp_ab0, zp_err0,
                             pos_tol_x=0.0, pos_tol_y=0.0,
                             var_tol_mag=0.5, refine_iter=3, refine_tol=1e-3,
-                            max_err_factor=3.0, max_zp_err=0.1):
+                            max_err_factor=3.0, max_zp_err=0.1,
+                            zp_bin_width=0.5, zp_bin_min_n=5):
     """
     Stage 2: drop the isolation cut and refine a single zeropoint that is
     constant across the cut and common to every scene.
@@ -541,7 +542,7 @@ def _refine_zeropoint_scene(image, wcs, gaia_deep, cut_corner, cam, ccd, sector,
 
     if len(base) < 2:
         print('  Scene refinement skipped: too few on-image candidates.')
-        return None, None, None
+        return None, None, None, None, None
 
     pos_msg = (f'positions free within +/-({pos_tol_x:.3f},{pos_tol_y:.3f}) px'
                if (pos_tol_x > 0 or pos_tol_y > 0) else 'positions fixed')
@@ -590,15 +591,14 @@ def _refine_zeropoint_scene(image, wcs, gaia_deep, cut_corner, cam, ccd, sector,
         if len(df2) < 2:
             print(f'  [refine {it+1}] too few well-constrained scenes; stopping.')
             break
-        fin = np.isfinite(df2.zp_ab.values)
-        cm = _sigma_clip_mask(df2.zp_ab.values[fin], nsigma=3)
-        clipped = df2.zp_ab.values[fin][cm]
-        zp_new = float(np.mean(clipped))
-        ze_new = float(np.std(clipped))
+        # Empirical magnitude-binned robust combine (handles the faint wing)
+        zp_new, ze_new, scat_new, bins = _binned_zeropoint(
+            df2.zp_ab.values, df2.rp_ab.values, zp_bin_width, zp_bin_min_n)
         dzp = abs(zp_new - zp)
-        print(f'  [refine {it+1}/{refine_iter}] zp={zp_new:.4f} +/- {ze_new:.4f}  '
-              f'(N={len(clipped)}/{n_raw}, {n_bound} at bound, tol={tol:.3f} mag, '
-              f'dZP={dzp:.5f}, {time.time() - _t:.1f}s)')
+        print(f'  [refine {it+1}/{refine_iter}] zp={zp_new:.4f} +/- {ze_new:.4f} '
+              f'(scatter={scat_new:.3f})  (N={len(df2)}/{n_raw}, {n_bound} at bound, '
+              f'{len(bins)} bins, tol={tol:.3f} mag, dZP={dzp:.5f}, '
+              f'{time.time() - _t:.1f}s)')
 
         zp = zp_new
         ze = ze_new
@@ -607,16 +607,13 @@ def _refine_zeropoint_scene(image, wcs, gaia_deep, cut_corner, cam, ccd, sector,
             break
 
     if df2 is None:
-        return None, None, None
+        return None, None, None, None, None
 
-    fin = np.isfinite(df2.zp_ab.values)
-    cm = _sigma_clip_mask(df2.zp_ab.values[fin], nsigma=3)
-    clipped = df2.zp_ab.values[fin][cm]
-    zp_ab = float(np.mean(clipped))
-    zp_err = float(np.std(clipped))
-    print(f'  Global ZP (scene): {zp_ab:.4f} +/- {zp_err:.4f} mag  '
-          f'(N={len(clipped)}/{len(df2)} stamps, single cut-wide ZP)')
-    return zp_ab, zp_err, df2
+    zp_ab, zp_err, zp_scatter, bins = _binned_zeropoint(
+        df2.zp_ab.values, df2.rp_ab.values, zp_bin_width, zp_bin_min_n)
+    print(f'  Global ZP (scene): {zp_ab:.4f} +/- {zp_err:.4f} mag '
+          f'(core scatter {zp_scatter:.3f}, N={len(df2)} stamps, {len(bins)} mag bins)')
+    return zp_ab, zp_err, zp_scatter, df2, bins
 
 
 # ---------------------------------------------------------------------------
@@ -634,6 +631,7 @@ def run_calibration(image, wcs, sector, cam, ccd,
                     var_tol_mag=0.5, pos_flex=True, pos_nsig=3.0,
                     refine_iter=3, refine_tol=1e-3,
                     max_err_factor=3.0, max_zp_err=0.1,
+                    zp_bin_width=0.5, zp_bin_min_n=5,
                     n_jobs=-1,
                     plot=True, savepath=None):
     """
@@ -677,9 +675,13 @@ def run_calibration(image, wcs, sector, cam, ccd,
     Returns
     -------
     zp_ab : float
-        3-sigma-clipped mean AB zeropoint: Rp_AB = -2.5*log10(flux) + zp_ab.
+        AB zeropoint: Rp_AB = -2.5*log10(flux) + zp_ab.  Stage 1 uses a
+        3-sigma-clipped mean; stage 2 uses the empirical magnitude-binned
+        robust combine (median per Rp_AB bin, inverse-variance weighted by the
+        per-bin scatter).
     zp_err : float
-        Standard deviation of the clipped per-star zeropoints.
+        Uncertainty on the combined zeropoint (stage 1: clipped std; stage 2:
+        standard error of the magnitude-binned combine).
     results : pd.DataFrame
         Full per-star table.
     Writes (if savepath is set):
@@ -804,6 +806,8 @@ def run_calibration(image, wcs, sector, cam, ccd,
     # Keep the stage-1 (isolated-star) solution for the comparison figure
     df_stage1 = df
     zp_stage1, ze_stage1 = zp_ab, zp_err
+    zp_scatter = zp_err          # stage-1 std is its scatter; stage 2 overrides
+    scene_bins = None
     stage2_done = False
 
     # Stage 2: scene-model refinement using the full (un-isolated) source list.
@@ -829,15 +833,17 @@ def run_calibration(image, wcs, sector, cam, ccd,
         gaia_deep = gaia_all.dropna(subset=['RPmag']).copy()
         rp_ab_deep = gaia_deep.RPmag.values + GAIA_RP_AB_OFFSET
         gaia_deep = gaia_deep[rp_ab_deep <= scene_maglim].copy()
-        zp2, ze2, df2 = _refine_zeropoint_scene(
+        zp2, ze2, sc2, df2, bins2 = _refine_zeropoint_scene(
             image, wcs, gaia_deep, cut_corner, cam, ccd, sector, prf_dir,
             stamp_size, mag_lo, mag_hi, edge_margin, n_jobs,
             zp_ab0=zp_ab, zp_err0=zp_err,
             pos_tol_x=pos_tol_x, pos_tol_y=pos_tol_y,
             var_tol_mag=var_tol_mag, refine_iter=refine_iter, refine_tol=refine_tol,
-            max_err_factor=max_err_factor, max_zp_err=max_zp_err)
+            max_err_factor=max_err_factor, max_zp_err=max_zp_err,
+            zp_bin_width=zp_bin_width, zp_bin_min_n=zp_bin_min_n)
         if zp2 is not None:
-            zp_ab, zp_err, df = zp2, ze2, df2
+            zp_ab, zp_err, zp_scatter, df = zp2, ze2, sc2, df2
+            scene_bins = bins2
             stage2_done = True
             print(f'  Adopted scene ZP: {zp_ab:.4f} +/- {zp_err:.4f} mag')
         else:
@@ -846,10 +852,17 @@ def run_calibration(image, wcs, sector, cam, ccd,
     n_stars_final = int(np.isfinite(df.zp_ab.values).sum())
     if savepath is not None:
         summary = pd.DataFrame({'zp_ab': [zp_ab], 'e_zp_ab': [zp_err],
+                                'zp_scatter': [zp_scatter],
                                 'n_stars': [n_stars_final]})
         summary_path = f'{savepath}/psf_calibration_zp.csv'
         summary.to_csv(summary_path, index=False)
         print(f'  Zeropoint saved:  {summary_path}')
+
+        if scene_bins:
+            bins_df = pd.DataFrame(scene_bins)[['rp_centre', 'median', 'scatter', 'n']]
+            bins_path = f'{savepath}/psf_calibration_zp_bins.csv'
+            bins_df.to_csv(bins_path, index=False)
+            print(f'  ZP mag bins saved: {bins_path}')
 
         stars = df[['x_pix', 'y_pix', 'ra', 'dec',
                     'flux_psf', 'e_flux_psf', 'background', 'rp_ab']].copy()
@@ -868,7 +881,7 @@ def run_calibration(image, wcs, sector, cam, ccd,
         if stage2_done:
             plot_jobs.append((
                 _stage_comparison_figure,
-                (df_stage1, zp_stage1, ze_stage1, df, zp_ab, zp_err, savepath),
+                (df_stage1, zp_stage1, ze_stage1, df, zp_ab, zp_err, scene_bins, savepath),
             ))
             plot_jobs.append((
                 _shift_figure,
@@ -1077,6 +1090,69 @@ def _err_keep_mask(e_zp, max_err_factor, max_zp_err=None):
     return keep
 
 
+def _binned_zeropoint(zp_vals, rp_ab, bin_width=0.5, min_bin_n=5):
+    """
+    Empirical magnitude-binned robust zeropoint combine.
+
+    The per-source ZP scatter is heteroscedastic (grows toward faint mags), so a
+    single mean/clip is dragged by the faint wing.  Instead, bin by Rp_AB, take a
+    robust centre (median) and scatter (1.4826*MAD) per bin, and combine the bin
+    medians inverse-variance weighted by the EMPIRICAL per-bin median error.
+    Faint, noisy bins down-weight themselves without being cut.
+
+    Returns (zp_ab, zp_err, zp_scatter, bins) where bins is a list of dicts
+    (rp_centre, median, scatter, n).  Falls back to a global median/MAD if fewer
+    than two usable bins.
+    """
+    zp = np.asarray(zp_vals, dtype=float)
+    rp = np.asarray(rp_ab, dtype=float)
+    ok = np.isfinite(zp) & np.isfinite(rp)
+    zp, rp = zp[ok], rp[ok]
+
+    def _global():
+        med = float(np.median(zp))
+        s = float(1.4826 * np.median(np.abs(zp - med)))
+        se = s / np.sqrt(max(len(zp), 1))
+        return med, (se if se > 0 else s), s, []
+
+    if len(zp) < min_bin_n:
+        return _global()
+
+    lo = np.floor(rp.min() / bin_width) * bin_width
+    hi = np.ceil(rp.max() / bin_width) * bin_width
+    edges = np.arange(lo, hi + 0.5 * bin_width, bin_width)
+
+    bins = []
+    for i in range(len(edges) - 1):
+        sel = (rp >= edges[i]) & (rp < edges[i + 1])
+        n = int(sel.sum())
+        if n < min_bin_n:
+            continue
+        v = zp[sel]
+        med = float(np.median(v))
+        s = float(1.4826 * np.median(np.abs(v - med)))
+        if not (s > 0):
+            s = float(np.std(v))
+        if not (s > 0):
+            continue
+        bins.append({'rp_centre': float(0.5 * (edges[i] + edges[i + 1])),
+                     'median': med, 'scatter': s, 'n': n,
+                     'se': s / np.sqrt(n)})
+
+    if len(bins) < 2:
+        return _global()
+
+    meds = np.array([b['median'] for b in bins])
+    ses = np.array([b['se'] for b in bins])
+    scat = np.array([b['scatter'] for b in bins])
+    w = 1.0 / ses**2
+    zp_ab = float(np.sum(w * meds) / np.sum(w))
+    zp_err = float(np.sqrt(1.0 / np.sum(w)))
+    # Core width: inverse-variance-weighted mean of the per-bin robust scatter
+    zp_scatter = float(np.sum(w * scat) / np.sum(w))
+    return zp_ab, zp_err, zp_scatter, bins
+
+
 def _summary_figure(image, df, zp_ab, zp_err, savepath):
     import matplotlib.gridspec as gridspec
 
@@ -1250,7 +1326,7 @@ def _colour_magnitude_figure(df, zp_ab, zp_err, savepath):
     plt.close(fig)
 
 
-def _stage_comparison_figure(df1, zp1, ze1, df2, zp2, ze2, savepath):
+def _stage_comparison_figure(df1, zp1, ze1, df2, zp2, ze2, bins, savepath):
     """Compare the stage-1 (isolated) and stage-2 (scene) zeropoint solutions."""
 
     matplotlib.rcParams.update({
@@ -1291,8 +1367,15 @@ def _stage_comparison_figure(df1, zp1, ze1, df2, zp2, ze2, savepath):
     ax2.axhspan(zp1 - ze1, zp1 + ze1, color='C0', alpha=0.10)
     ax2.axhline(zp2, color='C1', ls='--', lw=1.0, alpha=0.7)
     ax2.axhspan(zp2 - ze2, zp2 + ze2, color='C1', alpha=0.10)
-    ax2.scatter(rp1, z1, s=18, color='C0', alpha=0.7, label='Stage 1')
-    ax2.scatter(rp2, z2, s=18, color='C1', alpha=0.7, marker='s', label='Stage 2')
+    ax2.scatter(rp1, z1, s=18, color='C0', alpha=0.5, label='Stage 1')
+    ax2.scatter(rp2, z2, s=18, color='C1', alpha=0.4, marker='s', label='Stage 2')
+    # Empirical per-magnitude-bin median +/- robust scatter (the combine weights)
+    if bins:
+        bc = np.array([b['rp_centre'] for b in bins])
+        bm = np.array([b['median'] for b in bins])
+        bs = np.array([b['scatter'] for b in bins])
+        ax2.errorbar(bc, bm, yerr=bs, fmt='o-', color='k', ms=5, lw=1.4,
+                     capsize=3, zorder=6, label='Stage 2 mag bins (median$\\pm$MAD)')
     ax2.set_xlabel('Gaia Rp (AB mag)')
     ax2.set_ylabel('Per-star ZP (AB mag)')
     ax2.set_title('Zeropoint vs magnitude')
