@@ -232,6 +232,307 @@ def _fit_star_worker(stamp, ccd_x, ccd_y, cam, ccd, sector, prf_dir,
 
 
 # ---------------------------------------------------------------------------
+# Stage-2 scene fit worker  (shared ZP centre, per-source variability freedom)
+# ---------------------------------------------------------------------------
+
+def _scene_fit_worker(stamp, local_x, local_y, flux_lo, flux_hi, flux0,
+                      pos_tol_x, pos_tol_y, target_k,
+                      ccd_x, ccd_y, cam, ccd, sector, prf_dir, stamp_size,
+                      ra, dec, rp_ab, bp_rp, loc_x, loc_y):
+    """
+    Fit one calibrator together with every catalogued neighbour overlapping its
+    stamp.  The single cut-wide zeropoint sets the CENTRE of each source's flux
+    bound (flux_lo/flux_hi = ZP-predicted flux over the allowed magnitude
+    tolerance), but each flux is free within that window so stellar variability
+    (and catalogue/colour error) is absorbed rather than forced onto the residual.
+
+    Positions: each source may shift by at most +/- (pos_tol_x, pos_tol_y) pixels
+    from its catalogue position, where the tolerance is the stage-1 position
+    scatter.  This bounds how far a faint source can be pulled toward a bright
+    neighbour.  If the tolerance is zero, positions are fixed and the scene is a
+    single bounded linear least-squares solve; otherwise a bounded nonlinear
+    solve fits the small per-source offsets as well.
+
+    Error region: the inner 5x5 pixels around the target.
+    Returns a dict for the target source, or None.
+    """
+    from PRF import TESS_PRF
+    from scipy.optimize import lsq_linear, least_squares
+
+    npix = stamp_size * stamp_size
+    cent = stamp_size // 2
+    inner = 2  # half-width of the inner 5x5 error region
+
+    try:
+        prf = TESS_PRF(cam=cam, ccd=ccd, sector=sector,
+                       colnum=int(np.clip(ccd_x, 44, 2090)),
+                       rownum=int(np.clip(ccd_y, 1, 2040)),
+                       localdatadir=prf_dir)
+    except Exception:
+        return None
+
+    K = len(local_x)
+    data = stamp.ravel()
+    finite = np.isfinite(data)
+    if finite.sum() < K + 1:
+        return None
+
+    def _psf_col(lx, ly):
+        p = prf.locate(lx, ly, (stamp_size, stamp_size))
+        s = np.nansum(p)
+        if not np.isfinite(s) or s <= 0:
+            return np.zeros(npix)
+        return (p / s).ravel()
+
+    pos_tol_x = np.asarray(pos_tol_x, dtype=float)
+    pos_tol_y = np.asarray(pos_tol_y, dtype=float)
+    fit_positions = bool(np.any(pos_tol_x > 0) or np.any(pos_tol_y > 0))
+
+    if not fit_positions:
+        # ---- Fixed positions: linear bounded least squares -------------------
+        A = np.column_stack([_psf_col(local_x[k], local_y[k]) for k in range(K)]
+                            + [np.ones(npix)])
+        good = finite & np.all(np.isfinite(A), axis=1)
+        if good.sum() < K + 1:
+            return None
+        try:
+            res = lsq_linear(A[good], data[good],
+                             bounds=(np.concatenate([flux_lo, [-np.inf]]),
+                                     np.concatenate([flux_hi, [np.inf]])),
+                             method='trf', max_iter=200)
+        except Exception:
+            return None
+        fluxes = res.x[:K]
+        bg = float(res.x[K])
+        dx_t = dy_t = 0.0
+        Acov = A[good]
+    else:
+        # ---- Bounded positions: nonlinear least squares ----------------------
+        # params = [flux(K), dx(K), dy(K), bg]
+        bg0 = float(np.nanmedian(data[finite]))
+
+        def _model(params):
+            fl = params[:K]
+            dxs = params[K:2 * K]
+            dys = params[2 * K:3 * K]
+            bgv = params[3 * K]
+            m = np.zeros(npix)
+            for k in range(K):
+                m += fl[k] * _psf_col(local_x[k] + dxs[k], local_y[k] + dys[k])
+            return m + bgv
+
+        def _resid(params):
+            return (_model(params) - data)[finite]
+
+        p0 = np.concatenate([np.clip(flux0, flux_lo, flux_hi),
+                             np.zeros(K), np.zeros(K), [bg0]])
+        lb = np.concatenate([flux_lo, -pos_tol_x, -pos_tol_y, [-np.inf]])
+        ub = np.concatenate([flux_hi, pos_tol_x, pos_tol_y, [np.inf]])
+        # Guard against degenerate (zero-width) bounds for sources with no tol
+        eps = 1e-6
+        ub = np.where(ub <= lb, lb + eps, ub)
+        p0 = np.minimum(np.maximum(p0, lb + eps / 2), ub - eps / 2)
+        try:
+            res = least_squares(_resid, p0, bounds=(lb, ub), method='trf',
+                                max_nfev=200 * (3 * K + 1))
+        except Exception:
+            return None
+        fluxes = res.x[:K]
+        dx_t = float(res.x[K + target_k])
+        dy_t = float(res.x[2 * K + target_k])
+        bg = float(res.x[3 * K])
+        # Covariance design matrix: PSFs evaluated at the fitted positions
+        Acov = np.column_stack(
+            [_psf_col(local_x[k] + res.x[K + k], local_y[k] + res.x[2 * K + k])
+             for k in range(K)] + [np.ones(npix)])[finite]
+
+    flux = float(fluxes[target_k])
+    if not (flux > 0 and np.isfinite(flux)):
+        return None
+
+    if not fit_positions:
+        model_stamp = (np.column_stack(
+            [_psf_col(local_x[k], local_y[k]) for k in range(K)]
+            + [np.ones(npix)]) @ np.concatenate([fluxes, [bg]])).reshape(stamp_size, stamp_size)
+    else:
+        model_stamp = _model(res.x).reshape(stamp_size, stamp_size)
+    residual_stamp = stamp - model_stamp
+
+    # Per-pixel variance from the inner-region residuals (PSF mismatch inflates it)
+    inner_mask = np.zeros((stamp_size, stamp_size), dtype=bool)
+    inner_mask[cent - inner:cent + inner + 1, cent - inner:cent + inner + 1] = True
+    inner_good = inner_mask & np.isfinite(residual_stamp)
+    dof_inner = int(inner_good.sum()) - (K + 1)
+    if dof_inner > 0:
+        s2 = float(np.sum(residual_stamp[inner_good]**2) / dof_inner)
+    else:
+        s2 = float(np.sum(residual_stamp[np.isfinite(residual_stamp)]**2) /
+                   max(int(finite.sum()) - (K + 1), 1))
+
+    # Flux covariance (positions held at solution), scaled by the local variance
+    try:
+        cov = s2 * np.linalg.inv(Acov.T @ Acov)
+        e_flux = float(np.sqrt(cov[target_k, target_k]))
+    except Exception:
+        e_flux = np.nan
+
+    zp = rp_ab + 2.5 * np.log10(flux)
+    e_zp = (2.5 / np.log(10)) * (e_flux / flux) if (np.isfinite(e_flux) and flux > 0) else np.nan
+
+    return {
+        'ra': ra, 'dec': dec,
+        'x_pix': loc_x, 'y_pix': loc_y,
+        'dx_fit': dx_t, 'dy_fit': dy_t,
+        'flux_psf': flux, 'e_flux_psf': e_flux,
+        'background': bg,
+        'rp_vega': rp_ab - GAIA_RP_AB_OFFSET, 'rp_ab': rp_ab,
+        'bp_rp': bp_rp,
+        'zp_ab': zp, 'e_zp_ab': e_zp,
+        'n_scene': int(K),
+        'stamp_data': stamp,
+        'model_data': model_stamp,
+        'residual_data': residual_stamp,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Stage-2 ZP refinement via scene modelling (single cut-wide zeropoint)
+# ---------------------------------------------------------------------------
+
+def _refine_zeropoint_scene(image, wcs, gaia_deep, cut_corner, cam, ccd, sector,
+                            prf_dir, stamp_size, mag_lo, mag_hi, edge_margin,
+                            n_jobs, zp_ab0, zp_err0,
+                            pos_tol_x=0.0, pos_tol_y=0.0,
+                            var_tol_mag=0.5, refine_iter=5, refine_tol=1e-3):
+    """
+    Stage 2: drop the isolation cut and refine a single zeropoint that is
+    constant across the cut and common to every scene.
+
+    The zeropoint sets the centre of each source's flux bound, but every flux is
+    free within +/- a magnitude tolerance (max of 3*sigma_scatter and
+    var_tol_mag) so stellar variability is absorbed.  Each iteration fits all
+    candidate stamps in parallel, then recomputes the 3-sigma-clipped global ZP;
+    this block-coordinate scheme (parallel per-stamp fit <-> global ZP update)
+    converges to a joint fit with one shared ZP.
+
+    Returns (zp_ab, zp_err, df) or (None, None, None) if it cannot proceed.
+    """
+    from joblib import Parallel, delayed
+
+    ny, nx = image.shape
+    x0, y0 = cut_corner
+    half = stamp_size // 2
+
+    ccd_x_all, ccd_y_all = wcs.all_world2pix(gaia_deep.ra.values,
+                                             gaia_deep.dec.values, 0)
+    loc_x_all = ccd_x_all - x0
+    loc_y_all = ccd_y_all - y0
+    rp_ab_all = gaia_deep.RPmag.values + GAIA_RP_AB_OFFSET
+    has_bp = 'BPmag' in gaia_deep.columns
+    bp_all = ((gaia_deep.BPmag.values - gaia_deep.RPmag.values)
+              if has_bp else np.full(len(gaia_deep), np.nan))
+
+    # Candidate calibrators: in-band and on-image, but NO isolation requirement
+    cand = np.where((rp_ab_all >= mag_lo) & (rp_ab_all <= mag_hi) &
+                    (loc_x_all > edge_margin) & (loc_x_all < nx - edge_margin) &
+                    (loc_y_all > edge_margin) & (loc_y_all < ny - edge_margin))[0]
+
+    # Static per-candidate setup (stamp + neighbour list); reused every iteration
+    base = []
+    for ci in cand:
+        lx_int = int(np.round(loc_x_all[ci]))
+        ly_int = int(np.round(loc_y_all[ci]))
+        sy0, sy1 = ly_int - half, ly_int + half + 1
+        sx0, sx1 = lx_int - half, lx_int + half + 1
+        if sy0 < 0 or sx0 < 0 or sy1 > ny or sx1 > nx:
+            continue
+        stamp = image[sy0:sy1, sx0:sx1].astype(float).copy()
+        if not np.isfinite(stamp).all():
+            continue
+        in_stamp = np.where((loc_x_all >= sx0 - 0.5) & (loc_x_all < sx1 + 0.5) &
+                            (loc_y_all >= sy0 - 0.5) & (loc_y_all < sy1 + 0.5))[0]
+        tk = int(np.where(in_stamp == ci)[0][0])
+        base.append({
+            'stamp': stamp, 'in_stamp': in_stamp,
+            'lx_local': loc_x_all[in_stamp] - sx0,
+            'ly_local': loc_y_all[in_stamp] - sy0,
+            'rp_src': rp_ab_all[in_stamp],
+            'tk': tk,
+            'ccd_x': ccd_x_all[ci], 'ccd_y': ccd_y_all[ci],
+            'ra': float(gaia_deep.ra.values[ci]),
+            'dec': float(gaia_deep.dec.values[ci]),
+            'rp_ab': float(rp_ab_all[ci]), 'bp_rp': float(bp_all[ci]),
+            'loc_x': float(loc_x_all[ci]), 'loc_y': float(loc_y_all[ci]),
+        })
+
+    if len(base) < 2:
+        print('  Scene refinement skipped: too few on-image candidates.')
+        return None, None, None
+
+    pos_msg = (f'positions free within +/-({pos_tol_x:.3f},{pos_tol_y:.3f}) px'
+               if (pos_tol_x > 0 or pos_tol_y > 0) else 'positions fixed')
+    print(f'  Scene refinement: {len(base)} candidates '
+          f'(isolation cut dropped, {pos_msg})')
+
+    zp = float(zp_ab0)
+    ze = float(zp_err0) if np.isfinite(zp_err0) else var_tol_mag
+    df2 = None
+    for it in range(refine_iter):
+        # Per-source flux window: ZP-predicted flux over the variability tolerance
+        tol = max(3.0 * ze, var_tol_mag)
+        args_list = []
+        for t in base:
+            f_lo = 10 ** ((zp - tol - t['rp_src']) / 2.5)
+            f_hi = 10 ** ((zp + tol - t['rp_src']) / 2.5)
+            f0 = 10 ** ((zp - t['rp_src']) / 2.5)
+            ns = len(t['rp_src'])
+            ptx = np.full(ns, pos_tol_x)
+            pty = np.full(ns, pos_tol_y)
+            args_list.append((
+                t['stamp'], t['lx_local'], t['ly_local'], f_lo, f_hi, f0,
+                ptx, pty, t['tk'],
+                t['ccd_x'], t['ccd_y'], cam, ccd, sector, prf_dir, stamp_size,
+                t['ra'], t['dec'], t['rp_ab'], t['bp_rp'], t['loc_x'], t['loc_y'],
+            ))
+
+        results = Parallel(n_jobs=n_jobs, backend='loky')(
+            delayed(_scene_fit_worker)(*a) for a in args_list
+        )
+        rows = [r for r in results if r is not None]
+        if len(rows) < 2:
+            print(f'  [refine {it+1}] too few successful scene fits; stopping.')
+            break
+
+        df2 = pd.DataFrame(rows)
+        fin = np.isfinite(df2.zp_ab.values)
+        cm = _sigma_clip_mask(df2.zp_ab.values[fin], nsigma=3)
+        clipped = df2.zp_ab.values[fin][cm]
+        zp_new = float(np.mean(clipped))
+        ze_new = float(np.std(clipped))
+        dzp = abs(zp_new - zp)
+        print(f'  [refine {it+1}] zp={zp_new:.4f} +/- {ze_new:.4f}  '
+              f'(N={len(clipped)}/{len(df2)}, tol={tol:.3f} mag, dZP={dzp:.5f})')
+
+        zp = zp_new
+        ze = ze_new
+        if dzp < refine_tol:
+            print(f'  Scene refinement converged after {it+1} iteration(s).')
+            break
+
+    if df2 is None:
+        return None, None, None
+
+    fin = np.isfinite(df2.zp_ab.values)
+    cm = _sigma_clip_mask(df2.zp_ab.values[fin], nsigma=3)
+    clipped = df2.zp_ab.values[fin][cm]
+    zp_ab = float(np.mean(clipped))
+    zp_err = float(np.std(clipped))
+    print(f'  Global ZP (scene): {zp_ab:.4f} +/- {zp_err:.4f} mag  '
+          f'(N={len(clipped)}/{len(df2)} stamps, single cut-wide ZP)')
+    return zp_ab, zp_err, df2
+
+
+# ---------------------------------------------------------------------------
 # Main calibration routine
 # ---------------------------------------------------------------------------
 
@@ -242,6 +543,9 @@ def run_calibration(image, wcs, sector, cam, ccd,
                     mag_lo=11.0, mag_hi=15.5,
                     iso_radius_pix=4.0, stamp_size=9,
                     delta_mag=2.0, edge_margin=5,
+                    scene_refine=True, scene_maglim=18.0,
+                    var_tol_mag=0.5, pos_flex=True, pos_nsig=3.0,
+                    refine_iter=5, refine_tol=1e-3,
                     n_jobs=-1,
                     plot=True, savepath=None):
     """
@@ -306,8 +610,12 @@ def run_calibration(image, wcs, sector, cam, ccd,
     print(f'Field centre: RA={ra_cen:.4f} Dec={dec_cen:.4f}')
     print(f'Querying Gaia DR3 within {radius_arcsec/60:.1f} arcmin ...')
 
-    # Query deep enough to catch all relevant neighbours (faintest cal star + delta_mag)
+    # Query deep enough to catch all relevant neighbours.  Stage 1 needs the
+    # faintest cal star + delta_mag; stage 2 scene fitting needs the full source
+    # list down to scene_maglim so neighbour flux is not dumped into targets.
     query_maglim = mag_hi + delta_mag
+    if scene_refine:
+        query_maglim = max(query_maglim, scene_maglim)
     gaia_all = _query_gaia(ra_cen, dec_cen, radius_arcsec, gaia_path, query_maglim)
     print(f'  {len(gaia_all)} sources (Gmag < {query_maglim})')
 
@@ -385,15 +693,57 @@ def run_calibration(image, wcs, sector, cam, ccd,
     zp_ab = float(np.mean(zp_vals_clipped))
     zp_err = float(np.std(zp_vals_clipped))
 
-    print(f'\nZeropoint (AB): {zp_ab:.4f} +/- {zp_err:.4f} mag  '
-          f'(N={len(zp_vals_clipped)} stars, 3-sigma clipped mean)')
+    print(f'\nStage 1 Zeropoint (AB): {zp_ab:.4f} +/- {zp_err:.4f} mag  '
+          f'(N={len(zp_vals_clipped)} isolated stars, 3-sigma clipped mean)')
     print(f'  formula: Rp_AB = -2.5 * log10(flux) + {zp_ab:.4f}')
     print(f'  (Gaia Rp Vega-to-AB offset: +{GAIA_RP_AB_OFFSET:.3f} mag, '
           'Casagrande & VandenBerg 2018)')
 
+    # Keep the stage-1 (isolated-star) solution for the comparison figure
+    df_stage1 = df
+    zp_stage1, ze_stage1 = zp_ab, zp_err
+    stage2_done = False
+
+    # Stage 2: scene-model refinement using the full (un-isolated) source list.
+    # Positions are held fixed (no per-source freedom); fluxes float within a
+    # magnitude tolerance about the single cut-wide ZP to absorb variability.
+    if scene_refine:
+        print('\nStage 2: scene-model ZP refinement ...')
+        # Position freedom for stage 2 = stage-1 sub-pixel offset scatter.
+        # This bounds how far a faint source can be pulled toward a bright one.
+        pos_tol_x = pos_tol_y = 0.0
+        if pos_flex:
+            dxv = df_stage1.dx_fit.values
+            dyv = df_stage1.dy_fit.values
+            mdx = _sigma_clip_mask(dxv, nsigma=3) if np.isfinite(dxv).sum() >= 2 else np.ones(len(dxv), bool)
+            mdy = _sigma_clip_mask(dyv, nsigma=3) if np.isfinite(dyv).sum() >= 2 else np.ones(len(dyv), bool)
+            sx = float(np.std(dxv[mdx])) if mdx.sum() >= 2 else 0.0
+            sy = float(np.std(dyv[mdy])) if mdy.sum() >= 2 else 0.0
+            pos_tol_x = pos_nsig * sx
+            pos_tol_y = pos_nsig * sy
+            print(f'  Stage-1 position scatter: sx={sx:.3f} sy={sy:.3f} px '
+                  f'-> position tolerance +/-({pos_tol_x:.3f},{pos_tol_y:.3f}) px '
+                  f'({pos_nsig:g}-sigma)')
+        gaia_deep = gaia_all.dropna(subset=['RPmag']).copy()
+        rp_ab_deep = gaia_deep.RPmag.values + GAIA_RP_AB_OFFSET
+        gaia_deep = gaia_deep[rp_ab_deep <= scene_maglim].copy()
+        zp2, ze2, df2 = _refine_zeropoint_scene(
+            image, wcs, gaia_deep, cut_corner, cam, ccd, sector, prf_dir,
+            stamp_size, mag_lo, mag_hi, edge_margin, n_jobs,
+            zp_ab0=zp_ab, zp_err0=zp_err,
+            pos_tol_x=pos_tol_x, pos_tol_y=pos_tol_y,
+            var_tol_mag=var_tol_mag, refine_iter=refine_iter, refine_tol=refine_tol)
+        if zp2 is not None:
+            zp_ab, zp_err, df = zp2, ze2, df2
+            stage2_done = True
+            print(f'  Adopted scene ZP: {zp_ab:.4f} +/- {zp_err:.4f} mag')
+        else:
+            print('  Scene refinement unavailable; keeping stage-1 ZP.')
+
+    n_stars_final = int(np.isfinite(df.zp_ab.values).sum())
     if savepath is not None:
         summary = pd.DataFrame({'zp_ab': [zp_ab], 'e_zp_ab': [zp_err],
-                                'n_stars': [int(len(zp_vals_clipped))]})
+                                'n_stars': [n_stars_final]})
         summary_path = f'{savepath}/psf_calibration_zp.csv'
         summary.to_csv(summary_path, index=False)
         print(f'  Zeropoint saved:  {summary_path}')
@@ -406,11 +756,17 @@ def run_calibration(image, wcs, sector, cam, ccd,
         print(f'  Star catalog saved: {stars_path}')
 
     if plot:
-        for fn, args in [
+        plot_jobs = [
             (_summary_figure,         (image, df, zp_ab, zp_err, savepath)),
             (_colour_magnitude_figure, (df, zp_ab, zp_err, savepath)),
             (_star_fits_pdf,           (df, savepath)),
-        ]:
+        ]
+        if stage2_done:
+            plot_jobs.append((
+                _stage_comparison_figure,
+                (df_stage1, zp_stage1, ze_stage1, df, zp_ab, zp_err, savepath),
+            ))
+        for fn, args in plot_jobs:
             try:
                 fn(*args)
             except Exception:
@@ -764,6 +1120,99 @@ def _colour_magnitude_figure(df, zp_ab, zp_err, savepath):
         fname = f'{savepath}/psf_calibration_colour.pdf'
         fig.savefig(fname, bbox_inches='tight')
         print(f'  Colour diagnostic:  {fname}')
+    else:
+        plt.show()
+    plt.close(fig)
+
+
+def _stage_comparison_figure(df1, zp1, ze1, df2, zp2, ze2, savepath):
+    """Compare the stage-1 (isolated) and stage-2 (scene) zeropoint solutions."""
+
+    matplotlib.rcParams.update({
+        'font.family': 'serif',
+        'text.usetex': False,
+        'font.size': 9,
+    })
+
+    z1 = df1.zp_ab.values
+    z2 = df2.zp_ab.values
+    rp1 = df1.rp_ab.values
+    rp2 = df2.rp_ab.values
+
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5), tight_layout=True)
+
+    # ---- Panel 1: per-star ZP histograms + global values ---------------------
+    lo = np.nanpercentile(np.concatenate([z1, z2]), 1)
+    hi = np.nanpercentile(np.concatenate([z1, z2]), 99)
+    bins = np.linspace(lo, hi, 30)
+    ax1.hist(z1, bins=bins, color='C0', alpha=0.55, label=f'Stage 1 (N={len(z1)})')
+    ax1.hist(z2, bins=bins, color='C1', alpha=0.55, label=f'Stage 2 (N={len(z2)})')
+    ax1.axvline(zp1, color='C0', ls='--', lw=1.5)
+    ax1.axvspan(zp1 - ze1, zp1 + ze1, color='C0', alpha=0.12)
+    ax1.axvline(zp2, color='C1', ls='--', lw=1.5)
+    ax1.axvspan(zp2 - ze2, zp2 + ze2, color='C1', alpha=0.12)
+    txt = (f'Stage 1: {zp1:.4f} $\\pm$ {ze1:.4f}\n'
+           f'Stage 2: {zp2:.4f} $\\pm$ {ze2:.4f}\n'
+           f'$\\Delta$ZP = {zp2 - zp1:+.4f} mag')
+    ax1.text(0.97, 0.97, txt, transform=ax1.transAxes, ha='right', va='top',
+             fontsize=8, bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.8))
+    ax1.set_xlabel('Per-star ZP (AB mag)')
+    ax1.set_ylabel('N stars')
+    ax1.set_title('Zeropoint distributions')
+    ax1.legend(fontsize=7, loc='upper left')
+
+    # ---- Panel 2: per-star ZP vs magnitude, both stages ----------------------
+    ax2.axhline(zp1, color='C0', ls='--', lw=1.0, alpha=0.7)
+    ax2.axhspan(zp1 - ze1, zp1 + ze1, color='C0', alpha=0.10)
+    ax2.axhline(zp2, color='C1', ls='--', lw=1.0, alpha=0.7)
+    ax2.axhspan(zp2 - ze2, zp2 + ze2, color='C1', alpha=0.10)
+    ax2.scatter(rp1, z1, s=18, color='C0', alpha=0.7, label='Stage 1')
+    ax2.scatter(rp2, z2, s=18, color='C1', alpha=0.7, marker='s', label='Stage 2')
+    ax2.set_xlabel('Gaia Rp (AB mag)')
+    ax2.set_ylabel('Per-star ZP (AB mag)')
+    ax2.set_title('Zeropoint vs magnitude')
+    ax2.legend(fontsize=7)
+
+    # ---- Panel 3: matched per-star comparison (same stars, both stages) ------
+    # Match by sky position (nearest within 1 arcsec)
+    ra1, dec1 = df1.ra.values, df1.dec.values
+    ra2, dec2 = df2.ra.values, df2.dec.values
+    mz1, mz2 = [], []
+    for i in range(len(df1)):
+        cosd = np.cos(np.radians(dec1[i]))
+        sep = np.hypot((ra2 - ra1[i]) * cosd, dec2 - dec1[i]) * 3600.0
+        j = int(np.argmin(sep))
+        if sep[j] < 1.0:
+            mz1.append(z1[i])
+            mz2.append(z2[j])
+    mz1 = np.array(mz1)
+    mz2 = np.array(mz2)
+    if len(mz1) >= 1:
+        ax3.scatter(mz1, mz2, s=20, color='C3', alpha=0.7)
+        lim_lo = float(np.nanmin([mz1.min(), mz2.min()]))
+        lim_hi = float(np.nanmax([mz1.max(), mz2.max()]))
+        ax3.plot([lim_lo, lim_hi], [lim_lo, lim_hi], 'k--', lw=1.0, alpha=0.6,
+                 label='1:1')
+        dmed = float(np.median(mz2 - mz1))
+        ax3.text(0.03, 0.97,
+                 f'matched N={len(mz1)}\nmedian $\\Delta$={dmed:+.4f} mag',
+                 transform=ax3.transAxes, ha='left', va='top', fontsize=8,
+                 bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.8))
+        ax3.legend(fontsize=7, loc='lower right')
+    else:
+        ax3.text(0.5, 0.5, 'No stars matched between stages',
+                 transform=ax3.transAxes, ha='center', va='center')
+    ax3.set_xlabel('Stage 1 per-star ZP (AB mag)')
+    ax3.set_ylabel('Stage 2 per-star ZP (AB mag)')
+    ax3.set_title('Matched per-star ZP')
+
+    fig.suptitle(f'Stage 1 vs Stage 2 Zeropoint  —  '
+                 f'$\\Delta$ZP = {zp2 - zp1:+.4f} mag', fontsize=11)
+
+    if savepath is not None:
+        fname = f'{savepath}/psf_calibration_stage_comparison.pdf'
+        fig.savefig(fname, bbox_inches='tight')
+        print(f'  Stage comparison:   {fname}')
     else:
         plt.show()
     plt.close(fig)
