@@ -1345,9 +1345,9 @@ def _stage_comparison_figure(df1, zp1, ze1, df2, zp2, ze2, bins, savepath):
     # ---- Panel 1: per-star ZP histograms + global values ---------------------
     lo = np.nanpercentile(np.concatenate([z1, z2]), 1)
     hi = np.nanpercentile(np.concatenate([z1, z2]), 99)
-    bins = np.linspace(lo, hi, 30)
-    ax1.hist(z1, bins=bins, color='C0', alpha=0.55, label=f'Stage 1 (N={len(z1)})')
-    ax1.hist(z2, bins=bins, color='C1', alpha=0.55, label=f'Stage 2 (N={len(z2)})')
+    hist_bins = np.linspace(lo, hi, 30)
+    ax1.hist(z1, bins=hist_bins, color='C0', alpha=0.55, label=f'Stage 1 (N={len(z1)})')
+    ax1.hist(z2, bins=hist_bins, color='C1', alpha=0.55, label=f'Stage 2 (N={len(z2)})')
     ax1.axvline(zp1, color='C0', ls='--', lw=1.5)
     ax1.axvspan(zp1 - ze1, zp1 + ze1, color='C0', alpha=0.12)
     ax1.axvline(zp2, color='C1', ls='--', lw=1.5)
