@@ -246,18 +246,19 @@ def _scene_fit_worker(stamp, local_x, local_y, flux_lo, flux_hi, flux0,
     tolerance), but each flux is free within that window so stellar variability
     (and catalogue/colour error) is absorbed rather than forced onto the residual.
 
-    Positions: each source may shift by at most +/- (pos_tol_x, pos_tol_y) pixels
-    from its catalogue position, where the tolerance is the stage-1 position
-    scatter.  This bounds how far a faint source can be pulled toward a bright
-    neighbour.  If the tolerance is zero, positions are fixed and the scene is a
-    single bounded linear least-squares solve; otherwise a bounded nonlinear
-    solve fits the small per-source offsets as well.
+    Positions: only the TARGET may shift, by at most +/- (pos_tol_x, pos_tol_y)
+    pixels from its catalogue position (the tolerance is the stage-1 position
+    scatter); all neighbours are held fixed.  Fitting just the target keeps the
+    problem a fast 2-D search with a linear inner flux solve, and -- because
+    neighbours cannot move -- removes any chance of a faint source being pulled
+    toward a bright neighbour.  If the tolerance is zero, positions are fixed and
+    the scene is a single bounded linear least-squares solve.
 
     Error region: the inner 5x5 pixels around the target.
     Returns a dict for the target source, or None.
     """
     from PRF import TESS_PRF
-    from scipy.optimize import lsq_linear, least_squares
+    from scipy.optimize import lsq_linear
 
     npix = stamp_size * stamp_size
     cent = stamp_size // 2
@@ -288,74 +289,67 @@ def _scene_fit_worker(stamp, local_x, local_y, flux_lo, flux_hi, flux0,
     pos_tol_y = np.asarray(pos_tol_y, dtype=float)
     fit_positions = bool(np.any(pos_tol_x > 0) or np.any(pos_tol_y > 0))
 
-    if not fit_positions:
-        # ---- Fixed positions: linear bounded least squares -------------------
-        A = np.column_stack([_psf_col(local_x[k], local_y[k]) for k in range(K)]
-                            + [np.ones(npix)])
-        good = finite & np.all(np.isfinite(A), axis=1)
-        if good.sum() < K + 1:
-            return None
+    ones = np.ones(npix)
+    flux_bounds = (np.concatenate([flux_lo, [-np.inf]]),
+                   np.concatenate([flux_hi, [np.inf]]))
+
+    # Neighbour + background columns are fixed; only the target may move
+    fixed_cols = [None] * K
+    for k in range(K):
+        if k != target_k:
+            fixed_cols[k] = _psf_col(local_x[k], local_y[k])
+
+    def _build_A(dx, dy):
+        cols = [fixed_cols[k] if k != target_k
+                else _psf_col(local_x[k] + dx, local_y[k] + dy)
+                for k in range(K)]
+        return np.column_stack(cols + [ones])
+
+    tol_x = float(np.max(pos_tol_x)) if pos_tol_x.size else 0.0
+    tol_y = float(np.max(pos_tol_y)) if pos_tol_y.size else 0.0
+
+    if fit_positions and (tol_x > 0 or tol_y > 0):
+        # ---- Bounded TARGET position only: 2-D search, linear inner solve ----
+        from scipy.optimize import minimize
+        df_idx = finite
+
+        def _chi2(dxy):
+            A = _build_A(dxy[0], dxy[1])
+            Ag = A[df_idx]
+            if not np.all(np.isfinite(Ag)):
+                return 1e30
+            sol, *_ = np.linalg.lstsq(Ag, data[df_idx], rcond=None)
+            r = Ag @ sol - data[df_idx]
+            return float(r @ r)
+
         try:
-            res = lsq_linear(A[good], data[good],
-                             bounds=(np.concatenate([flux_lo, [-np.inf]]),
-                                     np.concatenate([flux_hi, [np.inf]])),
-                             method='trf', max_iter=200)
+            opt = minimize(_chi2, [0.0, 0.0], method='L-BFGS-B',
+                           bounds=[(-tol_x, tol_x), (-tol_y, tol_y)])
+            dx_t, dy_t = float(opt.x[0]), float(opt.x[1])
         except Exception:
-            return None
-        fluxes = res.x[:K]
-        bg = float(res.x[K])
-        dx_t = dy_t = 0.0
-        Acov = A[good]
+            dx_t = dy_t = 0.0
     else:
-        # ---- Bounded positions: nonlinear least squares ----------------------
-        # params = [flux(K), dx(K), dy(K), bg]
-        bg0 = float(np.nanmedian(data[finite]))
+        dx_t = dy_t = 0.0
 
-        def _model(params):
-            fl = params[:K]
-            dxs = params[K:2 * K]
-            dys = params[2 * K:3 * K]
-            bgv = params[3 * K]
-            m = np.zeros(npix)
-            for k in range(K):
-                m += fl[k] * _psf_col(local_x[k] + dxs[k], local_y[k] + dys[k])
-            return m + bgv
-
-        def _resid(params):
-            return (_model(params) - data)[finite]
-
-        p0 = np.concatenate([np.clip(flux0, flux_lo, flux_hi),
-                             np.zeros(K), np.zeros(K), [bg0]])
-        lb = np.concatenate([flux_lo, -pos_tol_x, -pos_tol_y, [-np.inf]])
-        ub = np.concatenate([flux_hi, pos_tol_x, pos_tol_y, [np.inf]])
-        # Guard against degenerate (zero-width) bounds for sources with no tol
-        eps = 1e-6
-        ub = np.where(ub <= lb, lb + eps, ub)
-        p0 = np.minimum(np.maximum(p0, lb + eps / 2), ub - eps / 2)
-        try:
-            res = least_squares(_resid, p0, bounds=(lb, ub), method='trf',
-                                max_nfev=200 * (3 * K + 1))
-        except Exception:
-            return None
-        fluxes = res.x[:K]
-        dx_t = float(res.x[K + target_k])
-        dy_t = float(res.x[2 * K + target_k])
-        bg = float(res.x[3 * K])
-        # Covariance design matrix: PSFs evaluated at the fitted positions
-        Acov = np.column_stack(
-            [_psf_col(local_x[k] + res.x[K + k], local_y[k] + res.x[2 * K + k])
-             for k in range(K)] + [np.ones(npix)])[finite]
+    # Final bounded flux solve at the chosen position
+    A = _build_A(dx_t, dy_t)
+    good = finite & np.all(np.isfinite(A), axis=1)
+    if good.sum() < K + 1:
+        return None
+    try:
+        res = lsq_linear(A[good], data[good], bounds=flux_bounds,
+                         method='trf', max_iter=200)
+    except Exception:
+        return None
+    fluxes = res.x[:K]
+    bg = float(res.x[K])
+    Acov = A[good]
 
     flux = float(fluxes[target_k])
     if not (flux > 0 and np.isfinite(flux)):
         return None
 
-    if not fit_positions:
-        model_stamp = (np.column_stack(
-            [_psf_col(local_x[k], local_y[k]) for k in range(K)]
-            + [np.ones(npix)]) @ np.concatenate([fluxes, [bg]])).reshape(stamp_size, stamp_size)
-    else:
-        model_stamp = _model(res.x).reshape(stamp_size, stamp_size)
+    model_stamp = (A @ np.concatenate([fluxes, [bg]])).reshape(stamp_size, stamp_size)
     residual_stamp = stamp - model_stamp
 
     # Per-pixel variance from the inner-region residuals (PSF mismatch inflates it)
@@ -403,7 +397,7 @@ def _refine_zeropoint_scene(image, wcs, gaia_deep, cut_corner, cam, ccd, sector,
                             prf_dir, stamp_size, mag_lo, mag_hi, edge_margin,
                             n_jobs, zp_ab0, zp_err0,
                             pos_tol_x=0.0, pos_tol_y=0.0,
-                            var_tol_mag=0.5, refine_iter=5, refine_tol=1e-3):
+                            var_tol_mag=0.5, refine_iter=3, refine_tol=1e-3):
     """
     Stage 2: drop the isolation cut and refine a single zeropoint that is
     constant across the cut and common to every scene.
@@ -545,7 +539,7 @@ def run_calibration(image, wcs, sector, cam, ccd,
                     delta_mag=2.0, edge_margin=5,
                     scene_refine=True, scene_maglim=18.0,
                     var_tol_mag=0.5, pos_flex=True, pos_nsig=3.0,
-                    refine_iter=5, refine_tol=1e-3,
+                    refine_iter=3, refine_tol=1e-3,
                     n_jobs=-1,
                     plot=True, savepath=None):
     """
