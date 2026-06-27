@@ -360,24 +360,24 @@ def run_calibration(image, wcs, sector, cam, ccd,
     print(f'  (Gaia Rp Vega-to-AB offset: +{GAIA_RP_AB_OFFSET:.3f} mag, '
           'Casagrande & VandenBerg 2018)')
 
-    if plot:
-        _summary_figure(image, df, zp_ab, zp_err, savepath)
-        _colour_magnitude_figure(df, zp_ab, zp_err, savepath)
-        _star_fits_pdf(df, savepath)
-
     if savepath is not None:
         summary = pd.DataFrame({'zp_ab': [zp_ab], 'e_zp_ab': [zp_err],
-                                 'n_stars': [int(good.sum())]})
+                                'n_stars': [int(good.sum())]})
         summary_path = f'{savepath}/psf_calibration_zp.csv'
         summary.to_csv(summary_path, index=False)
         print(f'  Zeropoint saved:  {summary_path}')
 
         stars = df[['x_pix', 'y_pix', 'ra', 'dec',
-                     'flux_psf', 'e_flux_psf', 'background', 'rp_ab']].copy()
+                    'flux_psf', 'e_flux_psf', 'background', 'rp_ab']].copy()
         stars.columns = ['x', 'y', 'ra', 'dec', 'flux', 'e_flux', 'background', 'Rp_ab']
         stars_path = f'{savepath}/psf_calibration_stars.csv'
         stars.to_csv(stars_path, index=False)
         print(f'  Star catalog saved: {stars_path}')
+
+    if plot:
+        _summary_figure(image, df, zp_ab, zp_err, savepath)
+        _colour_magnitude_figure(df, zp_ab, zp_err, savepath)
+        _star_fits_pdf(df, savepath)
 
     return zp_ab, zp_err, df
 
