@@ -374,9 +374,17 @@ def run_calibration(image, wcs, sector, cam, ccd,
         print(f'  Star catalog saved: {stars_path}')
 
     if plot:
-        _summary_figure(image, df, zp_ab, zp_err, savepath)
-        _colour_magnitude_figure(df, zp_ab, zp_err, savepath)
-        _star_fits_pdf(df, savepath)
+        for fn, args in [
+            (_summary_figure,         (image, df, zp_ab, zp_err, savepath)),
+            (_colour_magnitude_figure, (df, zp_ab, zp_err, savepath)),
+            (_star_fits_pdf,           (df, savepath)),
+        ]:
+            try:
+                fn(*args)
+            except Exception:
+                import traceback
+                print(f'  WARNING: {fn.__name__} failed:')
+                traceback.print_exc()
 
     return zp_ab, zp_err, df
 
