@@ -566,7 +566,6 @@ def _sigma_clip_mask(values, nsigma=3, maxiter=5):
 
 def _summary_figure(image, df, zp_ab, zp_err, savepath):
     import matplotlib.gridspec as gridspec
-    import subprocess
 
     matplotlib.rcParams.update({
         'font.family': 'serif',
@@ -667,14 +666,12 @@ def _summary_figure(image, df, zp_ab, zp_err, savepath):
         fname = f'{savepath}/psf_calibration_diagnostic.pdf'
         fig.savefig(fname, bbox_inches='tight')
         print(f'  Summary diagnostic: {fname}')
-        subprocess.Popen(['open', fname])
     else:
         plt.show()
     plt.close(fig)
 
 
 def _colour_magnitude_figure(df, zp_ab, zp_err, savepath):
-    import subprocess
 
     matplotlib.rcParams.update({
         'font.family': 'serif',
@@ -742,7 +739,6 @@ def _colour_magnitude_figure(df, zp_ab, zp_err, savepath):
         fname = f'{savepath}/psf_calibration_colour.pdf'
         fig.savefig(fname, bbox_inches='tight')
         print(f'  Colour diagnostic:  {fname}')
-        subprocess.Popen(['open', fname])
     else:
         plt.show()
     plt.close(fig)
@@ -750,7 +746,6 @@ def _colour_magnitude_figure(df, zp_ab, zp_err, savepath):
 
 def _star_fits_pdf(df, savepath):
     from matplotlib.backends.backend_pdf import PdfPages
-    import subprocess
 
     matplotlib.rcParams.update({
         'font.family': 'serif',
