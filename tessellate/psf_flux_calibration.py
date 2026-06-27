@@ -1179,7 +1179,7 @@ def _summary_figure(image, df, zp_ab, zp_err, savepath):
 
     # ---- Panel 1: ZP histogram ------------------------------------------------
     ax1 = fig.add_subplot(gs[0, 0])
-    bins = max(6, n_in // 3)
+    bins = int(np.clip(np.sqrt(n_in), 10, 40))
     ax1.hist(zp_in, bins=bins, color='C0', alpha=0.75, edgecolor='white', linewidth=0.5)
     ax1.axvline(zp_ab,  color='k',   ls='--', lw=1.5, label=f'Clipped mean = {zp_ab:.3f}')
     ax1.axvline(med_zp, color='C3',  ls=':',  lw=1.5, label=f'Median = {med_zp:.3f}')
