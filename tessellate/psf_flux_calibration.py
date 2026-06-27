@@ -847,7 +847,9 @@ def run_calibration(image, wcs, sector, cam, ccd,
             ))
         for fn, args in plot_jobs:
             try:
+                _t = time.time()
                 fn(*args)
+                print(f'    {fn.__name__}: {time.time() - _t:.1f}s', flush=True)
             except Exception:
                 import traceback
                 print(f'  WARNING: {fn.__name__} failed:')
@@ -1359,7 +1361,7 @@ def _shift_figure(df1, df2, pos_tol_x, pos_tol_y, savepath):
     plt.close(fig)
 
 
-def _star_fits_pdf(df, savepath):
+def _star_fits_pdf(df, savepath, max_stars=60):
     from matplotlib.backends.backend_pdf import PdfPages
 
     matplotlib.rcParams.update({
@@ -1369,6 +1371,12 @@ def _star_fits_pdf(df, savepath):
     })
 
     stars_per_page = 3
+    # Cap the number of per-star pages: rendering thousands of multi-panel pages
+    # is a slow serial bottleneck.  Sample evenly across the catalogue.
+    if len(df) > max_stars:
+        idx = np.linspace(0, len(df) - 1, max_stars).astype(int)
+        df = df.iloc[idx]
+        print(f'    (star-fit pages capped to {max_stars} of {len(idx)} sampled)')
     rows = list(df.itertuples())
     n_pages = int(np.ceil(len(rows) / stars_per_page))
 
