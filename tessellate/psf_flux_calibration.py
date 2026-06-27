@@ -343,26 +343,25 @@ def run_calibration(image, wcs, sector, cam, ccd,
     df = pd.DataFrame(rows)
     print(f'  {len(df)} successful PSF fits')
 
-    # Error-weighted mean zeropoint
-    good = (np.isfinite(df.zp_ab.values) &
-            np.isfinite(df.e_zp_ab.values) &
-            (df.e_zp_ab.values > 0))
-    if good.sum() < 2:
-        raise RuntimeError('Fewer than 2 stars with valid fit errors.')
+    # Sigma-clipped zeropoint (sigma=3)
+    finite = np.isfinite(df.zp_ab.values)
+    if finite.sum() < 2:
+        raise RuntimeError('Fewer than 2 stars with finite zeropoints.')
 
-    weights = 1.0 / df.e_zp_ab.values[good]**2
-    zp_ab = float(np.sum(weights * df.zp_ab.values[good]) / np.sum(weights))
-    zp_err = float(1.0 / np.sqrt(np.sum(weights)))
+    clip_mask = _sigma_clip_mask(df.zp_ab.values[finite], nsigma=3)
+    zp_vals_clipped = df.zp_ab.values[finite][clip_mask]
+    zp_ab = float(np.mean(zp_vals_clipped))
+    zp_err = float(np.std(zp_vals_clipped))
 
     print(f'\nZeropoint (AB): {zp_ab:.4f} +/- {zp_err:.4f} mag  '
-          f'(N={good.sum()} stars, error-weighted mean)')
+          f'(N={len(zp_vals_clipped)} stars, 3-sigma clipped mean)')
     print(f'  formula: Rp_AB = -2.5 * log10(flux) + {zp_ab:.4f}')
     print(f'  (Gaia Rp Vega-to-AB offset: +{GAIA_RP_AB_OFFSET:.3f} mag, '
           'Casagrande & VandenBerg 2018)')
 
     if savepath is not None:
         summary = pd.DataFrame({'zp_ab': [zp_ab], 'e_zp_ab': [zp_err],
-                                'n_stars': [int(good.sum())]})
+                                'n_stars': [int(len(zp_vals_clipped))]})
         summary_path = f'{savepath}/psf_calibration_zp.csv'
         summary.to_csv(summary_path, index=False)
         print(f'  Zeropoint saved:  {summary_path}')
