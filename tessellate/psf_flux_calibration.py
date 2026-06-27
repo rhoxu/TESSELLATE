@@ -37,6 +37,7 @@ for _v in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS',
            'NUMEXPR_NUM_THREADS', 'VECLIB_MAXIMUM_THREADS'):
     os.environ[_v] = '1'
 
+import time
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -515,7 +516,10 @@ def _refine_zeropoint_scene(image, wcs, gaia_deep, cut_corner, cam, ccd, sector,
                 t['ra'], t['dec'], t['rp_ab'], t['bp_rp'], t['loc_x'], t['loc_y'],
             ))
 
-        results = Parallel(n_jobs=n_jobs, backend='loky')(
+        print(f'  [refine {it+1}/{refine_iter}] fitting {len(args_list)} scenes '
+              f'(n_jobs={n_jobs}) ...')
+        _t = time.time()
+        results = Parallel(n_jobs=n_jobs, backend='loky', verbose=5)(
             delayed(_scene_fit_worker)(*a) for a in args_list
         )
         rows = [r for r in results if r is not None]
@@ -530,8 +534,9 @@ def _refine_zeropoint_scene(image, wcs, gaia_deep, cut_corner, cam, ccd, sector,
         zp_new = float(np.mean(clipped))
         ze_new = float(np.std(clipped))
         dzp = abs(zp_new - zp)
-        print(f'  [refine {it+1}] zp={zp_new:.4f} +/- {ze_new:.4f}  '
-              f'(N={len(clipped)}/{len(df2)}, tol={tol:.3f} mag, dZP={dzp:.5f})')
+        print(f'  [refine {it+1}/{refine_iter}] zp={zp_new:.4f} +/- {ze_new:.4f}  '
+              f'(N={len(clipped)}/{len(df2)}, tol={tol:.3f} mag, dZP={dzp:.5f}, '
+              f'{time.time() - _t:.1f}s)')
 
         zp = zp_new
         ze = ze_new
@@ -620,6 +625,10 @@ def run_calibration(image, wcs, sector, cam, ccd,
     """
     from joblib import Parallel, delayed
 
+    _t_start = time.time()
+    print(f'=== PSF flux calibration: Sector{sector} Cam{cam} Ccd{ccd} '
+          f'cut_corner={cut_corner} ===')
+
     ny, nx = image.shape
     x0, y0 = cut_corner
 
@@ -636,8 +645,10 @@ def run_calibration(image, wcs, sector, cam, ccd,
     query_maglim = mag_hi + delta_mag
     if scene_refine:
         query_maglim = max(query_maglim, scene_maglim)
+    _t = time.time()
     gaia_all = _query_gaia(ra_cen, dec_cen, radius_arcsec, gaia_path, query_maglim)
-    print(f'  {len(gaia_all)} sources (Gmag < {query_maglim})')
+    print(f'  {len(gaia_all)} sources (Gmag < {query_maglim})  '
+          f'[Gaia query {time.time() - _t:.1f}s]')
 
     if 'RPmag' not in gaia_all.columns:
         raise RuntimeError("'RPmag' column not found in Gaia catalog.")
@@ -689,9 +700,11 @@ def run_calibration(image, wcs, sector, cam, ccd,
             bp_rp,
         ))
 
-    print(f'  Fitting {len(tasks)} stars in parallel (n_jobs={n_jobs}) ...')
+    print(f'  Stage 1: fitting {len(tasks)} isolated stars '
+          f'(n_jobs={n_jobs}) ...')
 
-    results_raw = Parallel(n_jobs=n_jobs, backend='loky')(
+    _t = time.time()
+    results_raw = Parallel(n_jobs=n_jobs, backend='loky', verbose=5)(
         delayed(_fit_star_worker)(*args) for args in tasks
     )
 
@@ -701,7 +714,7 @@ def run_calibration(image, wcs, sector, cam, ccd,
         raise RuntimeError('PSF fitting failed for all calibration stars.')
 
     df = pd.DataFrame(rows)
-    print(f'  {len(df)} successful PSF fits')
+    print(f'  {len(df)} successful PSF fits  [stage 1 fit {time.time() - _t:.1f}s]')
 
     # Sigma-clipped zeropoint (sigma=3)
     finite = np.isfinite(df.zp_ab.values)
@@ -776,6 +789,7 @@ def run_calibration(image, wcs, sector, cam, ccd,
         print(f'  Star catalog saved: {stars_path}')
 
     if plot:
+        print('  Generating diagnostic figures ...')
         plot_jobs = [
             (_summary_figure,         (image, df, zp_ab, zp_err, savepath)),
             (_colour_magnitude_figure, (df, zp_ab, zp_err, savepath)),
@@ -798,6 +812,8 @@ def run_calibration(image, wcs, sector, cam, ccd,
                 print(f'  WARNING: {fn.__name__} failed:')
                 traceback.print_exc()
 
+    print(f'=== Calibration complete: ZP={zp_ab:.4f} +/- {zp_err:.4f} '
+          f'[total {time.time() - _t_start:.1f}s] ===')
     return zp_ab, zp_err, df
 
 
@@ -929,6 +945,7 @@ def compute_detection_limits(reduced_flux, time_array, zp_ab,
     print(f'\nDetection limits ({n_frames} frames):')
 
     for label, n_bin in zip(labels, frame_bins):
+        _t = time.time()
         binned = _bin_flux(reduced_flux, n_bin)
         n_bins = binned.shape[0]
         sigma_bg = _frame_noise(binned)
@@ -937,7 +954,8 @@ def compute_detection_limits(reduced_flux, time_array, zp_ab,
         results[label] = {'n_frames_binned': n_bin, 'sigma_bg': sigma_bg, **lims}
 
         med5 = np.nanmedian(lims['mag_lim_5sigma'])
-        print(f'  {label:>8s}  ({n_bin} frames)  →  5-sigma median: {med5:.3f} AB mag')
+        print(f'  {label:>8s}  ({n_bin} frames, {n_bins} bins)  ->  '
+              f'5-sigma median: {med5:.3f} AB mag  [{time.time() - _t:.1f}s]')
 
         if savepath is not None:
             df_lim = pd.DataFrame({
