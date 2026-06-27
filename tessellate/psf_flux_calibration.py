@@ -477,7 +477,7 @@ def _refine_zeropoint_scene(image, wcs, gaia_deep, cut_corner, cam, ccd, sector,
                             n_jobs, zp_ab0, zp_err0,
                             pos_tol_x=0.0, pos_tol_y=0.0,
                             var_tol_mag=0.5, refine_iter=3, refine_tol=1e-3,
-                            max_err_factor=3.0):
+                            max_err_factor=3.0, max_zp_err=0.1):
     """
     Stage 2: drop the isolation cut and refine a single zeropoint that is
     constant across the cut and common to every scene.
@@ -584,7 +584,7 @@ def _refine_zeropoint_scene(image, wcs, gaia_deep, cut_corner, cam, ccd, sector,
         # and poorly-constrained scenes (large error).
         n_raw = len(df2)
         n_bound = int(np.sum(df2.at_bound.values))
-        keep = (_err_keep_mask(df2.e_zp_ab.values, max_err_factor)
+        keep = (_err_keep_mask(df2.e_zp_ab.values, max_err_factor, max_zp_err)
                 & ~df2.at_bound.values)
         df2 = df2[keep].reset_index(drop=True)
         if len(df2) < 2:
@@ -632,7 +632,8 @@ def run_calibration(image, wcs, sector, cam, ccd,
                     delta_mag=2.0, edge_margin=5,
                     scene_refine=True, scene_maglim=16.5,
                     var_tol_mag=0.5, pos_flex=True, pos_nsig=3.0,
-                    refine_iter=3, refine_tol=1e-3, max_err_factor=3.0,
+                    refine_iter=3, refine_tol=1e-3,
+                    max_err_factor=3.0, max_zp_err=0.1,
                     n_jobs=-1,
                     plot=True, savepath=None):
     """
@@ -778,10 +779,11 @@ def run_calibration(image, wcs, sector, cam, ccd,
 
     # Drop poorly-constrained fits (large error) before anything downstream
     n_before = len(df)
-    df = df[_err_keep_mask(df.e_zp_ab.values, max_err_factor)].reset_index(drop=True)
+    df = df[_err_keep_mask(df.e_zp_ab.values, max_err_factor,
+                           max_zp_err)].reset_index(drop=True)
     if len(df) < n_before:
         print(f'  Dropped {n_before - len(df)} stars with large errors '
-              f'(> {max_err_factor:g}x median)')
+              f'(> {max_err_factor:g}x median or > {max_zp_err:g} mag)')
 
     # Sigma-clipped zeropoint (sigma=3)
     finite = np.isfinite(df.zp_ab.values)
@@ -833,7 +835,7 @@ def run_calibration(image, wcs, sector, cam, ccd,
             zp_ab0=zp_ab, zp_err0=zp_err,
             pos_tol_x=pos_tol_x, pos_tol_y=pos_tol_y,
             var_tol_mag=var_tol_mag, refine_iter=refine_iter, refine_tol=refine_tol,
-            max_err_factor=max_err_factor)
+            max_err_factor=max_err_factor, max_zp_err=max_zp_err)
         if zp2 is not None:
             zp_ab, zp_err, df = zp2, ze2, df2
             stage2_done = True
@@ -1059,16 +1061,19 @@ def _sigma_clip_mask(values, nsigma=3, maxiter=5):
     return mask
 
 
-def _err_keep_mask(e_zp, max_err_factor):
+def _err_keep_mask(e_zp, max_err_factor, max_zp_err=None):
     """
-    Boolean mask of points to keep: finite, positive error, and error not larger
-    than max_err_factor times the median error (drops poorly-constrained fits).
+    Boolean mask of points to keep: finite, positive error, error not larger than
+    max_err_factor times the median error (drops poorly-constrained fits), and
+    (if set) error not larger than the absolute cap max_zp_err.
     """
     e = np.asarray(e_zp, dtype=float)
     keep = np.isfinite(e) & (e > 0)
     if keep.sum() >= 2 and np.isfinite(max_err_factor) and max_err_factor > 0:
         emed = float(np.median(e[keep]))
         keep &= e <= max_err_factor * emed
+    if max_zp_err is not None and np.isfinite(max_zp_err) and max_zp_err > 0:
+        keep &= e <= max_zp_err
     return keep
 
 
