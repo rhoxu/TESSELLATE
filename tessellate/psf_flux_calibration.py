@@ -61,66 +61,12 @@ PRF_PATH_DEFAULT = '/fred/oz335/_local_TESS_PRFs'
 # Gaia query
 # ---------------------------------------------------------------------------
 
-def _ensure_parquet(csv_path):
-    """
-    Return a fast Parquet version of the Gaia catalogue, building it once and
-    caching it next to the CSV.  Self-contained: the first calibration to run
-    creates it; concurrent cut jobs are serialised with an exclusive lock and
-    simply wait for it.  Falls back to the CSV path on any failure.
-    """
-    import duckdb
-    import os
-
-    if csv_path.endswith('.parquet'):
-        return csv_path
-    pq = csv_path.rsplit('.', 1)[0] + '.parquet'
-    if os.path.exists(pq):
-        return pq
-
-    lock = pq + '.lock'
-    try:
-        # Try to become the single builder via an atomic exclusive create
-        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        os.close(fd)
-    except FileExistsError:
-        # Another job is building it; wait (bounded) for it to appear
-        for _ in range(600):  # up to ~10 min
-            if os.path.exists(pq):
-                return pq
-            time.sleep(1.0)
-        return csv_path if not os.path.exists(pq) else pq
-
-    # We hold the lock: build atomically (temp file + rename), then release
-    try:
-        tmp = f'{pq}.tmp.{os.getpid()}'
-        print(f'  Building Gaia Parquet cache {pq} (one-off) ...')
-        _t = time.time()
-        duckdb.sql(f"""
-            COPY (SELECT * FROM read_csv('{csv_path}', ignore_errors=true))
-            TO '{tmp}' (FORMAT parquet)
-        """)
-        os.replace(tmp, pq)
-        print(f'  Gaia Parquet cache built [{time.time() - _t:.1f}s]: {pq}')
-        return pq
-    except Exception as exc:
-        print(f'  Gaia Parquet build failed ({exc}); using CSV.')
-        return csv_path
-    finally:
-        try:
-            os.remove(lock)
-        except OSError:
-            pass
-
-
 def _query_gaia(ra_centre, dec_centre, radius_arcsec, gaia_path, gmag_limit):
     """
     Cone-search the local Gaia catalogue.
 
-    An RA/Dec bounding box and the Gmag cut are applied *inside* the scan so the
-    expensive haversine is only evaluated on the handful of rows near the field
-    (and, for a Parquet source, whole row groups are skipped).  A Parquet cache
-    is built automatically on first use (see _ensure_parquet) so subsequent
-    queries are columnar pushdown reads rather than full CSV scans.
+    An RA/Dec bounding box and the Gmag cut are applied inside the scan so the
+    haversine is only evaluated on the rows near the field.
     """
     import duckdb
 
@@ -129,10 +75,6 @@ def _query_gaia(ra_centre, dec_centre, radius_arcsec, gaia_path, gmag_limit):
     dec_hi = dec_centre + radius_deg
     cosd = max(float(np.cos(np.radians(dec_centre))), 1e-3)
     ra_pad = radius_deg / cosd
-
-    src = _ensure_parquet(gaia_path)
-    reader = (f"read_parquet('{src}')" if src.endswith('.parquet')
-              else f"read_csv('{src}', ignore_errors=true)")
 
     # RA bounding box, handling wraparound at 0/360 deg
     ra_lo = ra_centre - ra_pad
@@ -150,32 +92,13 @@ def _query_gaia(ra_centre, dec_centre, radius_arcsec, gaia_path, gmag_limit):
                     cos(radians("dec")) * cos(radians({dec_centre})) *
                     pow(sin(radians((ra - {ra_centre}) / 2)), 2)
                 ))) * 3600 AS dist_arcsec
-            FROM {reader}
+            FROM read_csv('{gaia_path}', ignore_errors=true)
             WHERE "dec" BETWEEN {dec_lo} AND {dec_hi}
               AND {ra_cond}
               AND Gmag < {gmag_limit}
         )
         WHERE dist_arcsec < {radius_arcsec}
     """).df()
-
-
-def convert_gaia_to_parquet(csv_path=GAIA_PATH_DEFAULT, parquet_path=None):
-    """
-    Optional: pre-build the Gaia Parquet cache.  Not required -- _query_gaia
-    builds it automatically on first use -- but provided so the cache can be
-    created ahead of time if desired.
-    """
-    import duckdb
-    if parquet_path is None:
-        parquet_path = csv_path.rsplit('.', 1)[0] + '.parquet'
-    print(f'Converting {csv_path} -> {parquet_path} ...')
-    _t = time.time()
-    duckdb.sql(f"""
-        COPY (SELECT * FROM read_csv('{csv_path}', ignore_errors=true))
-        TO '{parquet_path}' (FORMAT parquet)
-    """)
-    print(f'Done [{time.time() - _t:.1f}s]: {parquet_path}')
-    return parquet_path
 
 
 def _parallel_map(worker, tasks, n_jobs, label, batch=64):
