@@ -169,22 +169,34 @@ def _fit_star_worker(stamp, ccd_x, ccd_y, cam, ccd, sector, prf_dir,
         flux, dx, dy, bg = res.x
         if not (flux > 0 and np.isfinite(flux)):
             return None
-        if res.success and hasattr(res, 'hess_inv') and np.isfinite(res.hess_inv).all():
-            e_flux = float(np.sqrt(res.hess_inv[0, 0]))
-        else:
-            e_flux = np.nan
     except Exception:
         return None
 
-    rp_ab = rp_vega + GAIA_RP_AB_OFFSET
-    zp = rp_ab + 2.5 * np.log10(flux)
-    e_zp = (2.5 / np.log(10)) * (e_flux / flux) if (np.isfinite(e_flux) and flux > 0) else np.nan
-
-    # Reconstruct model and residual for diagnostic plots
+    # Model and residual at the best fit
     p_fit = prf.locate(cent + float(dx), cent + float(dy), (stamp_size, stamp_size))
     p_fit = p_fit / np.nansum(p_fit)
     model_stamp = float(flux) * p_fit + float(bg)
     residual_stamp = stamp - model_stamp
+
+    # Flux uncertainty from the analytic linear least-squares solution.
+    # The model is linear in (flux, bg): data = flux * P + bg, with P the
+    # normalised PSF. With per-pixel variance var_pix the parameter covariance
+    # is var_pix * inv(A^T A) for design columns A = [P, 1]; the flux variance
+    # is var_pix * S11 / (Spp*S11 - Sp1^2).
+    finite_pix = np.isfinite(stamp) & np.isfinite(p_fit)
+    P = p_fit[finite_pix]
+    Spp = float(np.sum(P * P))
+    Sp1 = float(np.sum(P))
+    S11 = float(P.size)
+    det = Spp * S11 - Sp1**2
+    if det > 0 and var_pix > 0:
+        e_flux = float(np.sqrt(var_pix * S11 / det))
+    else:
+        e_flux = np.nan
+
+    rp_ab = rp_vega + GAIA_RP_AB_OFFSET
+    zp = rp_ab + 2.5 * np.log10(flux)
+    e_zp = (2.5 / np.log(10)) * (e_flux / flux) if (np.isfinite(e_flux) and flux > 0) else np.nan
 
     return {
         'ra': ra, 'dec': dec,
