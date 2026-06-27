@@ -2169,6 +2169,7 @@ zp_ab, zp_err, _ = run_calibration(\n\
     sector={self.sector}, cam={cam}, ccd={ccd},\n\
     cut_corner=cut_corner,\n\
     n_jobs={self.calibrate_cpu},\n\
+    plot=True,\n\
     savepath=cut_folder,\n\
 )\n\
 \n\
