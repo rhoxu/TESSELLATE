@@ -178,6 +178,27 @@ def convert_gaia_to_parquet(csv_path=GAIA_PATH_DEFAULT, parquet_path=None):
     return parquet_path
 
 
+def _parallel_map(worker, tasks, n_jobs, label, batch=64):
+    """
+    Run `worker(*task)` over `tasks` in parallel, in batches, printing progress
+    to stdout (flushed) after each batch so a long run shows real progress in
+    the job output log -- and pinpoints where it stalls if it does.
+    """
+    from joblib import Parallel, delayed
+    n = len(tasks)
+    out = []
+    _t0 = time.time()
+    for i in range(0, n, batch):
+        chunk = tasks[i:i + batch]
+        out.extend(Parallel(n_jobs=n_jobs, backend='loky')(
+            delayed(worker)(*a) for a in chunk))
+        done = min(i + batch, n)
+        n_ok = sum(r is not None for r in out)
+        print(f'    {label}: {done}/{n} processed '
+              f'({n_ok} ok, {time.time() - _t0:.1f}s)', flush=True)
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Star selection
 # ---------------------------------------------------------------------------
@@ -617,11 +638,10 @@ def _refine_zeropoint_scene(image, wcs, gaia_deep, cut_corner, cam, ccd, sector,
             ))
 
         print(f'  [refine {it+1}/{refine_iter}] fitting {len(args_list)} scenes '
-              f'(n_jobs={n_jobs}) ...')
+              f'(n_jobs={n_jobs}) ...', flush=True)
         _t = time.time()
-        results = Parallel(n_jobs=n_jobs, backend='loky', verbose=5)(
-            delayed(_scene_fit_worker)(*a) for a in args_list
-        )
+        results = _parallel_map(_scene_fit_worker, args_list, n_jobs,
+                                f'refine {it+1}')
         rows = [r for r in results if r is not None]
         if len(rows) < 2:
             print(f'  [refine {it+1}] too few successful scene fits; stopping.')
@@ -801,12 +821,10 @@ def run_calibration(image, wcs, sector, cam, ccd,
         ))
 
     print(f'  Stage 1: fitting {len(tasks)} isolated stars '
-          f'(n_jobs={n_jobs}) ...')
+          f'(n_jobs={n_jobs}) ...', flush=True)
 
     _t = time.time()
-    results_raw = Parallel(n_jobs=n_jobs, backend='loky', verbose=5)(
-        delayed(_fit_star_worker)(*args) for args in tasks
-    )
+    results_raw = _parallel_map(_fit_star_worker, tasks, n_jobs, 'stage 1')
 
     rows = [r for r in results_raw if r is not None]
 
