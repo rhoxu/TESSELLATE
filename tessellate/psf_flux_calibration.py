@@ -195,9 +195,9 @@ def _fit_star_worker(stamp, ccd_x, ccd_y, cam, ccd, sector, prf_dir,
         'rp_vega': rp_vega, 'rp_ab': rp_ab,
         'bp_rp': bp_rp,
         'zp_ab': zp, 'e_zp_ab': e_zp,
-        '_stamp': stamp,
-        '_model': model_stamp,
-        '_residual': residual_stamp,
+        'stamp_data': stamp,
+        'model_data': model_stamp,
+        'residual_data': residual_stamp,
     }
 
 
@@ -769,9 +769,9 @@ def _star_fits_pdf(df, savepath):
                                      squeeze=False)
 
             for row_i, r in enumerate(chunk):
-                stamp = getattr(r, '_stamp', None)
-                model = getattr(r, '_model', None)
-                residual = getattr(r, '_residual', None)
+                stamp = getattr(r, 'stamp_data', None)
+                model = getattr(r, 'model_data', None)
+                residual = getattr(r, 'residual_data', None)
 
                 if stamp is None:
                     for col_i in range(3):
