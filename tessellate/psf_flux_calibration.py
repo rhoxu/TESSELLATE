@@ -61,19 +61,68 @@ PRF_PATH_DEFAULT = '/fred/oz335/_local_TESS_PRFs'
 # Gaia query
 # ---------------------------------------------------------------------------
 
+def _ensure_parquet(csv_path):
+    """
+    Return a fast Parquet version of the Gaia catalogue, building it once and
+    caching it next to the CSV.  Self-contained: the first calibration to run
+    creates it; concurrent cut jobs are serialised with an exclusive lock and
+    simply wait for it.  Falls back to the CSV path on any failure.
+    """
+    import duckdb
+    import os
+
+    if csv_path.endswith('.parquet'):
+        return csv_path
+    pq = csv_path.rsplit('.', 1)[0] + '.parquet'
+    if os.path.exists(pq):
+        return pq
+
+    lock = pq + '.lock'
+    try:
+        # Try to become the single builder via an atomic exclusive create
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.close(fd)
+    except FileExistsError:
+        # Another job is building it; wait (bounded) for it to appear
+        for _ in range(600):  # up to ~10 min
+            if os.path.exists(pq):
+                return pq
+            time.sleep(1.0)
+        return csv_path if not os.path.exists(pq) else pq
+
+    # We hold the lock: build atomically (temp file + rename), then release
+    try:
+        tmp = f'{pq}.tmp.{os.getpid()}'
+        print(f'  Building Gaia Parquet cache {pq} (one-off) ...')
+        _t = time.time()
+        duckdb.sql(f"""
+            COPY (SELECT * FROM read_csv('{csv_path}', ignore_errors=true))
+            TO '{tmp}' (FORMAT parquet)
+        """)
+        os.replace(tmp, pq)
+        print(f'  Gaia Parquet cache built [{time.time() - _t:.1f}s]: {pq}')
+        return pq
+    except Exception as exc:
+        print(f'  Gaia Parquet build failed ({exc}); using CSV.')
+        return csv_path
+    finally:
+        try:
+            os.remove(lock)
+        except OSError:
+            pass
+
+
 def _query_gaia(ra_centre, dec_centre, radius_arcsec, gaia_path, gmag_limit):
     """
     Cone-search the local Gaia catalogue.
 
     An RA/Dec bounding box and the Gmag cut are applied *inside* the scan so the
     expensive haversine is only evaluated on the handful of rows near the field
-    (and, for a Parquet source, whole row groups are skipped).  If a Parquet
-    sibling of the CSV exists (same path with a .parquet suffix) it is used
-    automatically -- far less I/O than scanning the full CSV every cut.
-    See convert_gaia_to_parquet().
+    (and, for a Parquet source, whole row groups are skipped).  A Parquet cache
+    is built automatically on first use (see _ensure_parquet) so subsequent
+    queries are columnar pushdown reads rather than full CSV scans.
     """
     import duckdb
-    import os
 
     radius_deg = radius_arcsec / 3600.0
     dec_lo = dec_centre - radius_deg
@@ -81,12 +130,7 @@ def _query_gaia(ra_centre, dec_centre, radius_arcsec, gaia_path, gmag_limit):
     cosd = max(float(np.cos(np.radians(dec_centre))), 1e-3)
     ra_pad = radius_deg / cosd
 
-    # Prefer a Parquet copy if present
-    src = gaia_path
-    if not src.endswith('.parquet'):
-        pq = src.rsplit('.', 1)[0] + '.parquet'
-        if os.path.exists(pq):
-            src = pq
+    src = _ensure_parquet(gaia_path)
     reader = (f"read_parquet('{src}')" if src.endswith('.parquet')
               else f"read_csv('{src}', ignore_errors=true)")
 
@@ -117,11 +161,9 @@ def _query_gaia(ra_centre, dec_centre, radius_arcsec, gaia_path, gmag_limit):
 
 def convert_gaia_to_parquet(csv_path=GAIA_PATH_DEFAULT, parquet_path=None):
     """
-    One-off: convert the Gaia CSV to Parquet so cone searches are fast.
-
-    Run once on the cluster; _query_gaia then picks up the .parquet sibling
-    automatically.  Parquet gives columnar, compressed, predicate-pushdown
-    reads -- turning the multi-minute per-cut CSV scan into seconds.
+    Optional: pre-build the Gaia Parquet cache.  Not required -- _query_gaia
+    builds it automatically on first use -- but provided so the cache can be
+    created ahead of time if desired.
     """
     import duckdb
     if parquet_path is None:
