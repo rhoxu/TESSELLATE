@@ -119,6 +119,31 @@ def _select_isolated(gaia_all, gaia_cal, wcs, cut_corner, image_shape,
 
 
 # ---------------------------------------------------------------------------
+# Cached PRF construction
+# ---------------------------------------------------------------------------
+
+# Module-level cache, persistent within each (loky) worker process.  The TESS
+# PRF varies slowly across the CCD, so positions are bucketed to a coarse grid
+# and one PRF is built per bucket instead of one per star.
+_PRF_CACHE = {}
+
+
+def _get_prf(cam, ccd, sector, ccd_x, ccd_y, prf_dir, bucket=100):
+    from PRF import TESS_PRF
+    col = int(np.clip(ccd_x, 44, 2090))
+    row = int(np.clip(ccd_y, 1, 2040))
+    cb = int(np.clip((col // bucket) * bucket + bucket // 2, 44, 2090))
+    rb = int(np.clip((row // bucket) * bucket + bucket // 2, 1, 2040))
+    key = (cam, ccd, sector, cb, rb, prf_dir)
+    prf = _PRF_CACHE.get(key)
+    if prf is None:
+        prf = TESS_PRF(cam=cam, ccd=ccd, sector=sector,
+                       colnum=cb, rownum=rb, localdatadir=prf_dir)
+        _PRF_CACHE[key] = prf
+    return prf
+
+
+# ---------------------------------------------------------------------------
 # Per-star PSF fit worker  (top-level so joblib can pickle it)
 # ---------------------------------------------------------------------------
 
@@ -130,8 +155,6 @@ def _fit_star_worker(stamp, ccd_x, ccd_y, cam, ccd, sector, prf_dir,
 
     Returns a dict of results, or None on failure.
     """
-    from PRF import TESS_PRF
-
     cent = stamp_size // 2
 
     # Per-pixel noise from stamp corners
@@ -147,10 +170,7 @@ def _fit_star_worker(stamp, ccd_x, ccd_y, cam, ccd, sector, prf_dir,
     flux0 = max(float(np.nansum(stamp - bg0)), 1.0)
 
     try:
-        prf = TESS_PRF(cam=cam, ccd=ccd, sector=sector,
-                       colnum=int(np.clip(ccd_x, 44, 2090)),
-                       rownum=int(np.clip(ccd_y,  1, 2040)),
-                       localdatadir=prf_dir)
+        prf = _get_prf(cam, ccd, sector, ccd_x, ccd_y, prf_dir)
     except Exception:
         return None
 
@@ -257,7 +277,6 @@ def _scene_fit_worker(stamp, local_x, local_y, flux_lo, flux_hi, flux0,
     Error region: the inner 5x5 pixels around the target.
     Returns a dict for the target source, or None.
     """
-    from PRF import TESS_PRF
     from scipy.optimize import lsq_linear
 
     npix = stamp_size * stamp_size
@@ -265,10 +284,7 @@ def _scene_fit_worker(stamp, local_x, local_y, flux_lo, flux_hi, flux0,
     inner = 2  # half-width of the inner 5x5 error region
 
     try:
-        prf = TESS_PRF(cam=cam, ccd=ccd, sector=sector,
-                       colnum=int(np.clip(ccd_x, 44, 2090)),
-                       rownum=int(np.clip(ccd_y, 1, 2040)),
-                       localdatadir=prf_dir)
+        prf = _get_prf(cam, ccd, sector, ccd_x, ccd_y, prf_dir)
     except Exception:
         return None
 
@@ -866,8 +882,6 @@ def compute_detection_limits(reduced_flux, time_array, zp_ab,
         Each value is a dict with keys sigma_bg, mag_lim_3sigma,
         mag_lim_5sigma, mag_lim_10sigma — all 1D arrays over binned frames.
     """
-    from PRF import TESS_PRF
-
     reduced_flux = np.asarray(reduced_flux, dtype=float)
     time_array = np.asarray(time_array, dtype=float)
     n_frames, ny, nx = reduced_flux.shape
@@ -883,10 +897,7 @@ def compute_detection_limits(reduced_flux, time_array, zp_ab,
     ccd_y = y0 + ny // 2
 
     prf_dir = f'{prf_path}/Sectors4+' if sector >= 4 else f'{prf_path}/Sectors1_2_3'
-    prf = TESS_PRF(cam=cam, ccd=ccd, sector=sector,
-                   colnum=int(np.clip(ccd_x, 44, 2090)),
-                   rownum=int(np.clip(ccd_y,  1, 2040)),
-                   localdatadir=prf_dir)
+    prf = _get_prf(cam, ccd, sector, ccd_x, ccd_y, prf_dir)
 
     cent = stamp_size // 2
     p = prf.locate(float(cent), float(cent), (stamp_size, stamp_size))
