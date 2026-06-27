@@ -149,7 +149,7 @@ class Navigator():
         if cut is None:
             raise ValueError('Please specify a cut!')
         else:
-            self.gather_results(cut)
+            self.gather_results(cut,sources=False)
 
         # -- Remove events near sources in reduction source mask (ie. stars) -- #
         if starkiller == True:
