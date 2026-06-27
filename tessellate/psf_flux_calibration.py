@@ -801,9 +801,15 @@ def _star_fits_pdf(df, savepath):
                         axes[row_i, col_i].axis('off')
                     continue
 
-                vlo = float(np.nanpercentile(stamp, 2))
-                vhi = float(np.nanpercentile(stamp, 98))
-                res_lim = float(np.nanmax(np.abs(residual))) * 1.05
+                # Scale the colour range to the inner 5x5 region used for the fit
+                cent = stamp.shape[0] // 2
+                inner = 2
+                sl = np.s_[cent - inner:cent + inner + 1, cent - inner:cent + inner + 1]
+                stamp_inner = stamp[sl]
+                res_inner = residual[sl]
+                vlo = float(np.nanmin(stamp_inner))
+                vhi = float(np.nanmax(stamp_inner))
+                res_lim = float(np.nanmax(np.abs(res_inner))) * 1.05
 
                 titles = ['Data', 'PSF model', 'Residual']
                 arrays = [stamp, model, residual]
