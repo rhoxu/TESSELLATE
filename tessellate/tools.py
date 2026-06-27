@@ -189,6 +189,8 @@ def _remove_calibrations(data_path, sector, n, cams, ccds, cuts, part):
                     os.system('rm -f psf_calibration_diagnostic.pdf')
                     os.system('rm -f psf_calibration_colour.pdf')
                     os.system('rm -f psf_calibration_star_fits.pdf')
+                    os.system('rm -f psf_calibration_stage_comparison.pdf')
+                    os.system('rm -f psf_calibration_shifts.pdf')
                     os.system('rm -f detection_limits_*.csv')
                 except:
                     pass

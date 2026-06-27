@@ -766,6 +766,10 @@ def run_calibration(image, wcs, sector, cam, ccd,
                 _stage_comparison_figure,
                 (df_stage1, zp_stage1, ze_stage1, df, zp_ab, zp_err, savepath),
             ))
+            plot_jobs.append((
+                _shift_figure,
+                (df_stage1, df, pos_tol_x, pos_tol_y, savepath),
+            ))
         for fn, args in plot_jobs:
             try:
                 fn(*args)
@@ -1213,6 +1217,69 @@ def _stage_comparison_figure(df1, zp1, ze1, df2, zp2, ze2, savepath):
         fname = f'{savepath}/psf_calibration_stage_comparison.pdf'
         fig.savefig(fname, bbox_inches='tight')
         print(f'  Stage comparison:   {fname}')
+    else:
+        plt.show()
+    plt.close(fig)
+
+
+def _shift_figure(df1, df2, pos_tol_x, pos_tol_y, savepath):
+    """Per-source fitted position offsets (dx, dy): stage 1 and stage 2."""
+
+    matplotlib.rcParams.update({
+        'font.family': 'serif',
+        'text.usetex': False,
+        'font.size': 9,
+    })
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5.2), tight_layout=True)
+
+    panels = [
+        (ax1, df1, 'Stage 1 (isolated)', 'C0', None, None),
+        (ax2, df2, 'Stage 2 (scene)', 'C1', pos_tol_x, pos_tol_y),
+    ]
+    # Common symmetric limits across both panels
+    alld = np.concatenate([df1.dx_fit.values, df1.dy_fit.values,
+                           df2.dx_fit.values, df2.dy_fit.values])
+    alld = alld[np.isfinite(alld)]
+    lim = float(np.nanpercentile(np.abs(alld), 99)) * 1.2 if alld.size else 0.5
+    lim = max(lim, pos_tol_x, pos_tol_y, 0.05)
+
+    for ax, dfx, title, col, tx, ty in panels:
+        dx = dfx.dx_fit.values
+        dy = dfx.dy_fit.values
+        ok = np.isfinite(dx) & np.isfinite(dy)
+        ax.axhline(0, color='k', lw=0.8, alpha=0.5)
+        ax.axvline(0, color='k', lw=0.8, alpha=0.5)
+        ax.scatter(dx[ok], dy[ok], s=18, color=col, alpha=0.7,
+                   edgecolors='none')
+        # Mean offset marker
+        if ok.sum() >= 1:
+            mx, my = float(np.mean(dx[ok])), float(np.mean(dy[ok]))
+            ax.scatter([mx], [my], s=90, marker='+', color='k', lw=1.8,
+                       zorder=5, label=f'mean=({mx:+.3f},{my:+.3f})')
+            sx, sy = float(np.std(dx[ok])), float(np.std(dy[ok]))
+            ax.text(0.03, 0.97, f'N={ok.sum()}\nstd=({sx:.3f},{sy:.3f}) px',
+                    transform=ax.transAxes, ha='left', va='top', fontsize=8,
+                    bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.8))
+        # Position tolerance box (stage 2 only)
+        if tx is not None and (tx > 0 or ty > 0):
+            ax.add_patch(plt.Rectangle((-tx, -ty), 2 * tx, 2 * ty, fill=False,
+                                       ec='C3', ls='--', lw=1.2,
+                                       label=f'tol +/-({tx:.3f},{ty:.3f})'))
+        ax.set_xlim(-lim, lim)
+        ax.set_ylim(-lim, lim)
+        ax.set_aspect('equal')
+        ax.set_xlabel('dx (px)')
+        ax.set_ylabel('dy (px)')
+        ax.set_title(title)
+        ax.legend(fontsize=7, loc='lower right')
+
+    fig.suptitle('Fitted position offsets', fontsize=11)
+
+    if savepath is not None:
+        fname = f'{savepath}/psf_calibration_shifts.pdf'
+        fig.savefig(fname, bbox_inches='tight')
+        print(f'  Shift diagnostic:   {fname}')
     else:
         plt.show()
     plt.close(fig)
