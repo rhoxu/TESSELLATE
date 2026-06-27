@@ -468,7 +468,8 @@ def _refine_zeropoint_scene(image, wcs, gaia_deep, cut_corner, cam, ccd, sector,
                             prf_dir, stamp_size, mag_lo, mag_hi, edge_margin,
                             n_jobs, zp_ab0, zp_err0,
                             pos_tol_x=0.0, pos_tol_y=0.0,
-                            var_tol_mag=0.5, refine_iter=3, refine_tol=1e-3):
+                            var_tol_mag=0.5, refine_iter=3, refine_tol=1e-3,
+                            max_err_factor=3.0):
     """
     Stage 2: drop the isolation cut and refine a single zeropoint that is
     constant across the cut and common to every scene.
@@ -571,6 +572,11 @@ def _refine_zeropoint_scene(image, wcs, gaia_deep, cut_corner, cam, ccd, sector,
             break
 
         df2 = pd.DataFrame(rows)
+        # Drop poorly-constrained scenes (large error)
+        df2 = df2[_err_keep_mask(df2.e_zp_ab.values, max_err_factor)].reset_index(drop=True)
+        if len(df2) < 2:
+            print(f'  [refine {it+1}] too few well-constrained scenes; stopping.')
+            break
         fin = np.isfinite(df2.zp_ab.values)
         cm = _sigma_clip_mask(df2.zp_ab.values[fin], nsigma=3)
         clipped = df2.zp_ab.values[fin][cm]
@@ -613,7 +619,7 @@ def run_calibration(image, wcs, sector, cam, ccd,
                     delta_mag=2.0, edge_margin=5,
                     scene_refine=True, scene_maglim=16.5,
                     var_tol_mag=0.5, pos_flex=True, pos_nsig=3.0,
-                    refine_iter=3, refine_tol=1e-3,
+                    refine_iter=3, refine_tol=1e-3, max_err_factor=3.0,
                     n_jobs=-1,
                     plot=True, savepath=None):
     """
@@ -657,9 +663,9 @@ def run_calibration(image, wcs, sector, cam, ccd,
     Returns
     -------
     zp_ab : float
-        Error-weighted mean AB zeropoint: Rp_AB = -2.5*log10(flux) + zp_ab.
+        3-sigma-clipped mean AB zeropoint: Rp_AB = -2.5*log10(flux) + zp_ab.
     zp_err : float
-        Formal uncertainty: 1 / sqrt(sum(1/e_zp_i^2)).
+        Standard deviation of the clipped per-star zeropoints.
     results : pd.DataFrame
         Full per-star table.
     Writes (if savepath is set):
@@ -757,6 +763,13 @@ def run_calibration(image, wcs, sector, cam, ccd,
     df = pd.DataFrame(rows)
     print(f'  {len(df)} successful PSF fits  [stage 1 fit {time.time() - _t:.1f}s]')
 
+    # Drop poorly-constrained fits (large error) before anything downstream
+    n_before = len(df)
+    df = df[_err_keep_mask(df.e_zp_ab.values, max_err_factor)].reset_index(drop=True)
+    if len(df) < n_before:
+        print(f'  Dropped {n_before - len(df)} stars with large errors '
+              f'(> {max_err_factor:g}x median)')
+
     # Sigma-clipped zeropoint (sigma=3)
     finite = np.isfinite(df.zp_ab.values)
     if finite.sum() < 2:
@@ -806,7 +819,8 @@ def run_calibration(image, wcs, sector, cam, ccd,
             stamp_size, mag_lo, mag_hi, edge_margin, n_jobs,
             zp_ab0=zp_ab, zp_err0=zp_err,
             pos_tol_x=pos_tol_x, pos_tol_y=pos_tol_y,
-            var_tol_mag=var_tol_mag, refine_iter=refine_iter, refine_tol=refine_tol)
+            var_tol_mag=var_tol_mag, refine_iter=refine_iter, refine_tol=refine_tol,
+            max_err_factor=max_err_factor)
         if zp2 is not None:
             zp_ab, zp_err, df = zp2, ze2, df2
             stage2_done = True
@@ -1032,6 +1046,19 @@ def _sigma_clip_mask(values, nsigma=3, maxiter=5):
     return mask
 
 
+def _err_keep_mask(e_zp, max_err_factor):
+    """
+    Boolean mask of points to keep: finite, positive error, and error not larger
+    than max_err_factor times the median error (drops poorly-constrained fits).
+    """
+    e = np.asarray(e_zp, dtype=float)
+    keep = np.isfinite(e) & (e > 0)
+    if keep.sum() >= 2 and np.isfinite(max_err_factor) and max_err_factor > 0:
+        emed = float(np.median(e[keep]))
+        keep &= e <= max_err_factor * emed
+    return keep
+
+
 def _summary_figure(image, df, zp_ab, zp_err, savepath):
     import matplotlib.gridspec as gridspec
 
@@ -1059,7 +1086,7 @@ def _summary_figure(image, df, zp_ab, zp_err, savepath):
     ax1 = fig.add_subplot(gs[0, 0])
     bins = max(6, n_in // 3)
     ax1.hist(zp_in, bins=bins, color='C0', alpha=0.75, edgecolor='white', linewidth=0.5)
-    ax1.axvline(zp_ab,  color='k',   ls='--', lw=1.5, label=f'Weighted mean = {zp_ab:.3f}')
+    ax1.axvline(zp_ab,  color='k',   ls='--', lw=1.5, label=f'Clipped mean = {zp_ab:.3f}')
     ax1.axvline(med_zp, color='C3',  ls=':',  lw=1.5, label=f'Median = {med_zp:.3f}')
     ax1.axvspan(zp_ab - zp_err, zp_ab + zp_err, alpha=0.15, color='k',
                 label=f'$\\pm$1$\\sigma$ = {zp_err:.4f}')
