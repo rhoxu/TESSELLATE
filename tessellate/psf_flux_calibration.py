@@ -1361,7 +1361,7 @@ def _shift_figure(df1, df2, pos_tol_x, pos_tol_y, savepath):
     plt.close(fig)
 
 
-def _star_fits_pdf(df, savepath, max_stars=50):
+def _star_fits_pdf(df, savepath, max_stars=20):
     from matplotlib.backends.backend_pdf import PdfPages
 
     matplotlib.rcParams.update({
