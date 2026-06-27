@@ -27,6 +27,16 @@ zp_ab, zp_err, df = run_calibration(
 )
 """
 
+# Pin BLAS to a single thread per process BEFORE numpy imports.  Each joblib
+# worker does its own linear algebra; without this, every worker spawns one BLAS
+# thread per core, massively oversubscribing the node and starving CPU use.
+import os
+# Force single-threaded BLAS (overriding any SLURM-exported OMP_NUM_THREADS):
+# parallelism here is across joblib processes, not BLAS threads.
+for _v in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS',
+           'NUMEXPR_NUM_THREADS', 'VECLIB_MAXIMUM_THREADS'):
+    os.environ[_v] = '1'
+
 import numpy as np
 import pandas as pd
 import matplotlib
