@@ -180,17 +180,28 @@ def _fit_star_worker(stamp, ccd_x, ccd_y, cam, ccd, sector, prf_dir,
 
     # Flux uncertainty from the analytic linear least-squares solution.
     # The model is linear in (flux, bg): data = flux * P + bg, with P the
-    # normalised PSF. With per-pixel variance var_pix the parameter covariance
-    # is var_pix * inv(A^T A) for design columns A = [P, 1]; the flux variance
-    # is var_pix * S11 / (Spp*S11 - Sp1^2).
-    finite_pix = np.isfinite(stamp) & np.isfinite(p_fit)
+    # normalised PSF.  The parameter covariance is s2 * inv(A^T A) for design
+    # columns A = [P, 1], giving flux variance s2 * S11 / (Spp*S11 - Sp1^2).
+    #
+    # The per-pixel variance s2 is estimated from the fit residuals (not the
+    # corners), so that an imperfect PSF model -- which biases the flux --
+    # inflates the reported error.  This is the standard residual-variance
+    # estimator (equivalent to scaling the covariance by reduced chi^2).
+    finite_pix = np.isfinite(stamp) & np.isfinite(p_fit) & np.isfinite(residual_stamp)
     P = p_fit[finite_pix]
     Spp = float(np.sum(P * P))
     Sp1 = float(np.sum(P))
     S11 = float(P.size)
     det = Spp * S11 - Sp1**2
-    if det > 0 and var_pix > 0:
-        e_flux = float(np.sqrt(var_pix * S11 / det))
+
+    n_params = 4  # flux, dx, dy, bg
+    dof = P.size - n_params
+    if dof > 0:
+        s2 = float(np.sum(residual_stamp[finite_pix]**2) / dof)
+    else:
+        s2 = var_pix
+    if det > 0 and s2 > 0:
+        e_flux = float(np.sqrt(s2 * S11 / det))
     else:
         e_flux = np.nan
 
