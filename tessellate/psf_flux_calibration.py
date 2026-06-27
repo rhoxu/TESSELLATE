@@ -187,7 +187,14 @@ def _fit_star_worker(stamp, ccd_x, ccd_y, cam, ccd, sector, prf_dir,
     # corners), so that an imperfect PSF model -- which biases the flux --
     # inflates the reported error.  This is the standard residual-variance
     # estimator (equivalent to scaling the covariance by reduced chi^2).
-    finite_pix = np.isfinite(stamp) & np.isfinite(p_fit) & np.isfinite(residual_stamp)
+    #
+    # Restrict to the inner 5x5 region around the centre, where essentially all
+    # of the source flux and PSF-model power lies.
+    inner = 2  # half-width of the 5x5 region
+    inner_mask = np.zeros_like(stamp, dtype=bool)
+    inner_mask[cent - inner:cent + inner + 1, cent - inner:cent + inner + 1] = True
+    finite_pix = (inner_mask & np.isfinite(stamp) &
+                  np.isfinite(p_fit) & np.isfinite(residual_stamp))
     P = p_fit[finite_pix]
     Spp = float(np.sum(P * P))
     Sp1 = float(np.sum(P))
