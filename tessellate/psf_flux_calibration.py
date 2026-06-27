@@ -820,7 +820,6 @@ def _star_fits_pdf(df, savepath):
             plt.close(fig)
 
     print(f'  Star fit pages:     {fname}')
-    subprocess.Popen(['open', fname])
 
 
 # ---------------------------------------------------------------------------
