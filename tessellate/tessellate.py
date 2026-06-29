@@ -2150,6 +2150,8 @@ import os\n\
 from tessellate.psf_flux_calibration import run_calibration, compute_detection_limits\n\
 \n\
 cut_folder = '{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'\n\
+cal_folder = f'{{cut_folder}}/calibration'\n\
+os.makedirs(cal_folder, exist_ok=True)\n\
 wcs_path = '{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/wcs/ref/corrected.fits'\n\
 ref_path = f'{{cut_folder}}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Ref.npy'\n\
 flux_path = f'{{cut_folder}}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_ReducedFlux.npy'\n\
@@ -2170,7 +2172,7 @@ zp_ab, zp_err, _ = run_calibration(\n\
     cut_corner=cut_corner,\n\
     n_jobs={self.calibrate_cpu},\n\
     plot=True,\n\
-    savepath=cut_folder,\n\
+    savepath=cal_folder,\n\
 )\n\
 \n\
 if os.path.exists(flux_path) and os.path.exists(times_path):\n\
@@ -2180,12 +2182,12 @@ if os.path.exists(flux_path) and os.path.exists(times_path):\n\
         reduced_flux, time_array, zp_ab,\n\
         sector={self.sector}, cam={cam}, ccd={ccd},\n\
         cut_corner=cut_corner,\n\
-        savepath=cut_folder,\n\
+        savepath=cal_folder,\n\
     )\n\
 else:\n\
     print('ReducedFlux or Times not found — skipping detection limits.')\n\
 \n\
-with open(f'{{cut_folder}}/calibrated.txt', 'w') as file:\n\
+with open(f'{{cal_folder}}/calibrated.txt', 'w') as file:\n\
     file.write(f'ZP_AB={{zp_ab:.6f}} E_ZP={{zp_err:.6f}}')"
 
         script_py = f'{self.working_path}/calibration_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py'
@@ -2255,7 +2257,7 @@ python {script_py}'
                         print('\n')
                         continue
 
-                    cal_check = f'{cut_folder}/calibrated.txt'
+                    cal_check = f'{cut_folder}/calibration/calibrated.txt'
                     if os.path.exists(cal_check):
                         print(f'Cam {cam} CCD {ccd} Cut {cut} already calibrated!')
                         print('\n')

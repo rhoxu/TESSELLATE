@@ -183,15 +183,12 @@ def _remove_calibrations(data_path, sector, n, cams, ccds, cuts, part):
             for cut in cuts:
                 try:
                     os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}')
+                    # Calibration products now live in the calibration/ subdir
+                    os.system('rm -rf calibration')
+                    # Legacy: products previously written directly in the cut dir
                     os.system('rm -f calibrated.txt')
-                    os.system('rm -f psf_calibration_zp.csv')
-                    os.system('rm -f psf_calibration_zp_bins.csv')
-                    os.system('rm -f psf_calibration_stars.csv')
-                    os.system('rm -f psf_calibration_diagnostic.pdf')
-                    os.system('rm -f psf_calibration_colour.pdf')
-                    os.system('rm -f psf_calibration_star_fits.pdf')
-                    os.system('rm -f psf_calibration_stage_comparison.pdf')
-                    os.system('rm -f psf_calibration_shifts.pdf')
+                    os.system('rm -f psf_calibration_*.csv')
+                    os.system('rm -f psf_calibration_*.pdf')
                     os.system('rm -f detection_limits_*.csv')
                 except:
                     pass
