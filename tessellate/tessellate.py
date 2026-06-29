@@ -1688,6 +1688,7 @@ with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', '
 #SBATCH --time={self.cube_time}\n\
 #SBATCH --cpus-per-task={self.cube_cpu}\n\
 #SBATCH --mem-per-cpu={self.cube_mem}G\n\
+#SBATCH --account=oz335\n\
 \n\
 PYTHONUNBUFFERED=1\n\
 source {VENV_PATH}/bin/activate\n\
@@ -1934,6 +1935,7 @@ if not part:\n\
 #SBATCH --time={self.cut_time}\n\
 #SBATCH --cpus-per-task={self.cut_cpu}\n\
 #SBATCH --mem-per-cpu={self.cut_mem}G\n\
+#SBATCH --account=oz335\n\
 \n\
 PYTHONUNBUFFERED=1\n\
 source {VENV_PATH}/bin/activate\n\
@@ -1994,6 +1996,7 @@ if not part:\n\
 #SBATCH --time={self.reduce_time if time is None else time}\n\
 #SBATCH --cpus-per-task={self.reduce_cpu}\n\
 #SBATCH --mem-per-cpu={self.reduce_mem}G\n\
+#SBATCH --account=oz335\n\
 \n\
 PYTHONUNBUFFERED=1\n\
 source {VENV_PATH}/bin/activate\n\
@@ -2208,6 +2211,7 @@ with open(f'{{cal_folder}}/calibrated.txt', 'w') as file:\n\
 #SBATCH --time={self.calibrate_time}\n\
 #SBATCH --cpus-per-task={self.calibrate_cpu}\n\
 #SBATCH --mem-per-cpu={self.calibrate_mem}G\n\
+#SBATCH --account=oz335\n\
 \n\
 PYTHONUNBUFFERED=1\n\
 source {VENV_PATH}/bin/activate\n\
@@ -2303,6 +2307,7 @@ else:\n\
 #SBATCH --time={self.search_time}\n\
 #SBATCH --cpus-per-task={self.search_cpu}\n\
 #SBATCH --mem-per-cpu={self.search_mem}G\n\
+#SBATCH --account=oz335\n\
 \n\
 PYTHONUNBUFFERED=1\n\
 source {VENV_PATH}/bin/activate\n\
@@ -2544,6 +2549,7 @@ else:\n\
 #SBATCH --time={self.plot_time}\n\
 #SBATCH --cpus-per-task={self.plot_cpu}\n\
 #SBATCH --mem-per-cpu={self.plot_mem}G\n\
+#SBATCH --account=oz335\n\
 \n\
 PYTHONUNBUFFERED=1\n\
 source {VENV_PATH}/bin/activate\n\
