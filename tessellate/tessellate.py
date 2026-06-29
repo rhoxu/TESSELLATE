@@ -2261,8 +2261,10 @@ python {script_py}'
                         print('\n')
                         continue
 
-                    cal_check = f'{cut_folder}/calibration/calibrated.txt'
-                    if os.path.exists(cal_check):
+                    cal_dir = f'{cut_folder}/calibration'
+                    cal_done = (os.path.exists(f'{cal_dir}/calibrated.txt') and
+                                os.path.exists(f'{cal_dir}/psf_calibration_zp.csv'))
+                    if cal_done:
                         print(f'Cam {cam} CCD {ccd} Cut {cut} already calibrated!')
                         print('\n')
                     else:
