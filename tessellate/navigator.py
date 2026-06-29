@@ -394,9 +394,35 @@ class Navigator():
 
     # ----------------------------- Extracting light curves / images of events ----------------------------- #
 
-    def event_lc(self,objid,eventid,cut=None,frame_buffer=10,plot=True,frame_bin=None):
+    def _cut_corner(self,cut):
+        """CCD pixel coordinate of the cut's bottom-left corner."""
+        from .dataprocessor import DataProcessor
+        processor = DataProcessor(sector=self.sector,data_path=self.data_path,verbose=0)
+        cut_corners,_,_,_ = processor.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,
+                                                plot=False,verbose=0)
+        return cut_corners[cut-1]
+
+    def _calibration_zp(self,cut):
+        """Return the AB zeropoint for this cut, or None if not calibrated."""
+        zp_path = f'{self.path}/Cut{cut}of{self.n**2}/calibration/psf_calibration_zp.csv'
+        if os.path.exists(zp_path):
+            try:
+                return float(pd.read_csv(zp_path)['zp_ab'].iloc[0])
+            except Exception:
+                return None
+        return None
+
+    def event_lc(self,objid,eventid,cut=None,frame_buffer=10,plot=True,frame_bin=None,
+                 method='aperture',calibrate=False,stamp_size=9):
         """
-        Extract an aperture light curve for a desired event (objid/eventid pair).
+        Extract a light curve for a desired event (objid/eventid pair).
+
+        method : 'aperture' (default) uses a fixed aperture at the integer
+            position; 'psf' does forced PSF photometry fixed to the event's
+            sub-pixel PSF position (xcentroid_psf/ycentroid_psf) on the
+            differenced flux -- the same scene model used for calibration.
+        calibrate : if True and a calibration zeropoint exists for the cut,
+            return calibrated AB magnitudes (PSF method only); otherwise counts.
         """
 
         # -- Gather data -- #
@@ -407,16 +433,44 @@ class Navigator():
         elif cut != self.cut:
             self.gather_data(cut)
             self.gather_results(cut)
-        
+
         # -- Isolate and extract event with frame buffer either side -- #
         event = self.events[(self.events.objid==objid)&(self.events.eventid==eventid)].iloc[0]
 
         time, flux = (Frame_Bin(self.sector, self.cam, self.time, self.flux, event.frame_bin) if event.frame_bin > 1 else (self.time, self.flux))
 
-        x = RoundToInt(event.xint)     # x coordinate of the source
-        y = RoundToInt(event.yint)      # y coordinate of the source
         frame_start = RoundToInt(event.frame_start)        # Start frame of the event
         frame_end = RoundToInt(event.frame_end)            # End frame of the event
+
+        if method == 'psf':
+            from .psf_flux_calibration import psf_lightcurve
+            xpsf = float(event.get('xcentroid_psf', event.xint))
+            ypsf = float(event.get('ycentroid_psf', event.yint))
+            zp = self._calibration_zp(cut) if calibrate else None
+            if calibrate and zp is None:
+                print('No calibration zeropoint found for this cut; using counts.')
+            lc = psf_lightcurve(flux, time, xpsf, ypsf,
+                                sector=self.sector, cam=self.cam, ccd=self.ccd,
+                                cut_corner=self._cut_corner(cut), stamp_size=stamp_size,
+                                zp_ab=zp)
+            t = lc['time']
+            in_mag = 'mag' in lc
+            f = lc['mag'] if in_mag else lc['flux']
+            ferr = lc['e_mag'] if in_mag else lc['e_flux']
+
+            if plot:
+                cadence = np.median(np.diff(time))
+                fig,ax = plt.subplots()
+                ax.errorbar(t,f,yerr=ferr,fmt='x-',c='k',ecolor='0.6',capsize=2)
+                ax.axvspan(t[frame_start]-cadence/2,t[frame_end]+cadence/2,color='C1',alpha=0.4)
+                ax.set_xlabel('Time (MJD)')
+                ax.set_ylabel('AB mag' if in_mag else 'TESS Counts (PSF)')
+                if in_mag:
+                    ax.invert_yaxis()
+            return t, f, ferr
+
+        x = RoundToInt(event.xint)     # x coordinate of the source
+        y = RoundToInt(event.yint)      # y coordinate of the source
 
         window_start = np.max([frame_start-frame_buffer,0])
         window_end = np.min([frame_end+frame_buffer+1,len(time)-1])
@@ -543,9 +597,15 @@ class Navigator():
         else:
             return images
 
-    def object_lc(self,objid,cut=None):
+    def object_lc(self,objid,cut=None,method='aperture',calibrate=False,stamp_size=9):
         """
-        Extract an aperture light curve for a desired object.
+        Extract a light curve for a desired object.
+
+        method : 'aperture' (default) or 'psf' (forced PSF photometry fixed to
+            the object's sub-pixel PSF position on the differenced flux, the same
+            scene model used for calibration).
+        calibrate : if True and a calibration zeropoint exists for the cut,
+            return calibrated AB magnitudes (PSF method only); otherwise counts.
         """
 
         # -- Gather data -- #
@@ -556,13 +616,30 @@ class Navigator():
         elif cut != self.cut:
             self.gather_data(cut)
             self.gather_results(cut)
-        
+
         # -- Isolate object and generate light curve -- #
         obj = self.objects[self.objects['objid']==objid].iloc[0]
-        x = RoundToInt(obj['xcentroid'])     # x coordinate of the source
-        y = RoundToInt(obj['ycentroid'])     # x coordinate of the source
 
         time, flux = (Frame_Bin(self.sector, self.cam,self.time, self.flux, obj.frame_bin) if obj.frame_bin > 1 else (self.time, self.flux))
+
+        if method == 'psf':
+            from .psf_flux_calibration import psf_lightcurve
+            xpsf = float(obj.get('xcentroid_psf', obj.xcentroid))
+            ypsf = float(obj.get('ycentroid_psf', obj.ycentroid))
+            zp = self._calibration_zp(cut) if calibrate else None
+            if calibrate and zp is None:
+                print('No calibration zeropoint found for this cut; using counts.')
+            lc = psf_lightcurve(flux, time, xpsf, ypsf,
+                                sector=self.sector, cam=self.cam, ccd=self.ccd,
+                                cut_corner=self._cut_corner(cut), stamp_size=stamp_size,
+                                zp_ab=zp)
+            in_mag = 'mag' in lc
+            f = lc['mag'] if in_mag else lc['flux']
+            ferr = lc['e_mag'] if in_mag else lc['e_flux']
+            return lc['time'], f, ferr
+
+        x = RoundToInt(obj['xcentroid'])     # x coordinate of the source
+        y = RoundToInt(obj['ycentroid'])     # x coordinate of the source
 
         t,f = Generate_LC(time,flux,x,y)#,
                           #orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)

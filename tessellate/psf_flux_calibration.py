@@ -1059,6 +1059,111 @@ def compute_detection_limits(reduced_flux, time_array, zp_ab,
 
 
 # ---------------------------------------------------------------------------
+# Forced PSF photometry light curves (differenced images)
+# ---------------------------------------------------------------------------
+
+def psf_lightcurve(flux_cube, time_array, x, y, sector, cam, ccd,
+                   cut_corner=(0, 0), prf_path=PRF_PATH_DEFAULT,
+                   stamp_size=9, neighbours=None, zp_ab=None):
+    """
+    Forced PSF photometry light curve at a FIXED position on a (differenced)
+    flux cube, using the same fixed-position scene model as the calibration.
+
+    The TESS PRF is evaluated once at the source's fixed sub-pixel position;
+    because the position never changes, the design matrix [PRF, (neighbours,)
+    flat background] is built once and applied to every frame as a single linear
+    projection (a matched filter).  This gives an optimal, background-limited
+    flux(t) and e_flux(t) in one vectorised solve over the whole cube.
+
+    Parameters
+    ----------
+    flux_cube : (n_frames, ny, nx) ndarray
+        The differenced/reduced flux cube for the cut.
+    time_array : (n_frames,) ndarray
+    x, y : float
+        Source position in CUT-frame pixels (e.g. xcentroid_psf, ycentroid_psf
+        from the event table).  Held fixed.
+    sector, cam, ccd : int
+    cut_corner : (x0, y0)
+        CCD pixel coordinate of the cut's bottom-left corner (for the PRF).
+    prf_path : str
+        Root directory of local TESS PRF files.
+    stamp_size : int (odd)
+        Stamp width used for the fit.
+    neighbours : (M, 2) array or None
+        Nearby source positions (cut-frame pixels) to deblend as extra fixed
+        PRF components.  On difference images static neighbours subtract out, so
+        this is usually only needed for nearby *variable* sources.
+    zp_ab : float or None
+        If given, also return a calibrated AB magnitude where flux > 0.
+
+    Returns
+    -------
+    dict with keys: time, flux, e_flux, background  (arrays over frames), and
+    mag, e_mag if zp_ab is given.
+    """
+    flux_cube = np.asarray(flux_cube, dtype=float)
+    nfr, ny, nx = flux_cube.shape
+    cent = stamp_size // 2
+    half = stamp_size // 2
+    npix = stamp_size * stamp_size
+
+    xi, yi = int(np.round(x)), int(np.round(y))
+    if xi - half < 0 or yi - half < 0 or xi + half + 1 > nx or yi + half + 1 > ny:
+        raise ValueError(f'Source ({x:.1f},{y:.1f}) too close to the cut edge '
+                         f'for a {stamp_size}px stamp.')
+
+    stamp_cube = flux_cube[:, yi - half:yi + half + 1, xi - half:xi + half + 1]
+
+    prf_dir = f'{prf_path}/Sectors4+' if sector >= 4 else f'{prf_path}/Sectors1_2_3'
+    prf = _get_prf(cam, ccd, sector, cut_corner[0] + x, cut_corner[1] + y, prf_dir)
+
+    def _col(dx, dy):
+        p = prf.locate(cent + dx, cent + dy, (stamp_size, stamp_size))
+        s = np.nansum(p)
+        return (p / s).ravel() if (np.isfinite(s) and s > 0) else np.zeros(npix)
+
+    cols = [_col(x - xi, y - yi)]
+    if neighbours is not None:
+        for nxp, nyp in np.asarray(neighbours, dtype=float):
+            if (abs(nxp - x) <= half and abs(nyp - y) <= half
+                    and not (nxp == x and nyp == y)):
+                cols.append(_col(nxp - xi, nyp - yi))
+    cols.append(np.ones(npix))           # flat background
+    A = np.column_stack(cols)            # npix x M  (target, neighbours..., bg)
+
+    D = stamp_cube.reshape(nfr, npix)
+    good = np.all(np.isfinite(D), axis=0) & np.all(np.isfinite(A), axis=1)
+    if good.sum() < A.shape[1] + 1:
+        raise RuntimeError('Too few finite pixels for PSF photometry.')
+    Ag = A[good]
+    Dg = D[:, good]
+
+    ATA_inv = np.linalg.inv(Ag.T @ Ag)
+    coeffs = (ATA_inv @ Ag.T) @ Dg.T     # M x n_frames
+    flux = coeffs[0]
+    bg = coeffs[-1]
+
+    # Per-frame noise from the fit residuals -> flux error
+    resid = Dg.T - Ag @ coeffs           # n_good x n_frames
+    med = np.median(resid, axis=0)
+    sigma = 1.4826 * np.median(np.abs(resid - med), axis=0)
+    e_flux = sigma * np.sqrt(ATA_inv[0, 0])
+
+    out = {'time': np.asarray(time_array, dtype=float),
+           'flux': flux, 'e_flux': e_flux, 'background': bg}
+    if zp_ab is not None:
+        mag = np.full(nfr, np.nan)
+        emag = np.full(nfr, np.nan)
+        pos = flux > 0
+        mag[pos] = zp_ab - 2.5 * np.log10(flux[pos])
+        emag[pos] = 1.0857 * e_flux[pos] / flux[pos]
+        out['mag'] = mag
+        out['e_mag'] = emag
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Diagnostic plots
 # ---------------------------------------------------------------------------
 
