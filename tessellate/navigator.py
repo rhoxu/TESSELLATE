@@ -431,8 +431,23 @@ class Navigator():
                 'mujy':'Flux ($\\mu$Jy)','ujy':'Flux ($\\mu$Jy)','mag':'AB mag'
                 }.get(units.lower(), units)
 
+    def _save_lc(self,savedir,cut,objid,method,units,t,f,ferr,eventid=None):
+        """
+        Save a light curve to savedir using the standard tessellate name:
+        S{sector}C{cam}C{ccd}C{cut}O{objid}[E{eventid}]_{method}_{units}.csv
+        Columns: mjd, flux, flux_err.
+        """
+        os.makedirs(savedir, exist_ok=True)
+        ev = f'E{int(eventid)}' if eventid is not None else ''
+        name = (f'S{self.sector}C{self.cam}C{self.ccd}C{cut}'
+                f'O{int(objid)}{ev}_{method}_{units}.csv')
+        path = os.path.join(savedir, name)
+        pd.DataFrame({'mjd': t, 'flux': f, 'flux_err': ferr}).to_csv(path, index=False)
+        print(f'Saved light curve: {path}')
+        return path
+
     def event_lc(self,objid,eventid,cut=None,frame_buffer=10,plot=True,frame_bin=None,
-                 method='aperture',units='counts',stamp_size=9):
+                 method='aperture',units='counts',stamp_size=9,savedir=None):
         """
         Extract a light curve for a desired event (objid/eventid pair).
 
@@ -445,6 +460,9 @@ class Navigator():
             to counts).  For 'mag', negative flux is treated as a non-detection.
             For the aperture method the zeropoint is aperture-corrected for the
             PRF flux lost outside the box.
+        savedir : if given, save the light curve there as
+            S{sector}C{cam}C{ccd}C{cut}O{objid}E{eventid}_{method}_{units}.csv
+            (columns mjd, flux, flux_err).  Default None does not save.
 
         Returns t, flux, flux_err (flux in the requested units).
         """
@@ -489,6 +507,8 @@ class Navigator():
                 ax.set_ylabel(ylabel)
                 if is_mag:
                     ax.invert_yaxis()
+            if savedir is not None:
+                self._save_lc(savedir,cut,objid,'psf',units,t,f,ferr,eventid=eventid)
             return t, f, ferr
 
         # -- Aperture photometry -- #
@@ -530,6 +550,8 @@ class Navigator():
             if is_mag:
                 ax.invert_yaxis()
 
+        if savedir is not None:
+            self._save_lc(savedir,cut,objid,'aperture',units,t,f,ferr,eventid=eventid)
         return t, f, ferr
     
 
@@ -627,7 +649,8 @@ class Navigator():
         else:
             return images
 
-    def object_lc(self,objid,cut=None,method='aperture',units='counts',stamp_size=9):
+    def object_lc(self,objid,cut=None,method='aperture',units='counts',stamp_size=9,
+                  savedir=None):
         """
         Extract a light curve for a desired object.
 
@@ -637,6 +660,9 @@ class Navigator():
         units : 'counts' (default), 'Jy', 'mJy', 'muJy', or 'mag'.  Non-count
             units need the cut's calibration zeropoint (else falls back to
             counts); the aperture method also applies the aperture correction.
+        savedir : if given, save the light curve there as
+            S{sector}C{cam}C{ccd}C{cut}O{objid}_{method}_{units}.csv
+            (columns mjd, flux, flux_err).  Default None does not save.
 
         Returns t, flux, flux_err (flux in the requested units).
         """
@@ -665,7 +691,10 @@ class Navigator():
                                 sector=self.sector, cam=self.cam, ccd=self.ccd,
                                 cut_corner=self._cut_corner(cut), stamp_size=stamp_size,
                                 units=units, zp_ab=zp)
-            return lc['time'], lc['flux'], lc['e_flux']
+            t, f, ferr = lc['time'], lc['flux'], lc['e_flux']
+            if savedir is not None:
+                self._save_lc(savedir,cut,objid,'psf',units,t,f,ferr)
+            return t, f, ferr
 
         # -- Aperture photometry -- #
         x = RoundToInt(obj['xcentroid'])
@@ -690,6 +719,8 @@ class Navigator():
             print(f'Aperture correction: {frac:.3f} of PRF flux (ZP {zp:.3f} -> {zp_eff:.3f})')
             f, ferr, _ = _convert_flux_units(f, ferr, units, zp_eff)
 
+        if savedir is not None:
+            self._save_lc(savedir,cut,objid,'aperture',units,t,f,ferr)
         return t, f, ferr
     
     def object_frames(self,objid,cut=None,image_size=11):
