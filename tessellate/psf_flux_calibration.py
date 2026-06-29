@@ -1062,9 +1062,46 @@ def compute_detection_limits(reduced_flux, time_array, zp_ab,
 # Forced PSF photometry light curves (differenced images)
 # ---------------------------------------------------------------------------
 
+# AB reference flux density: mag_AB = -2.5*log10(f / 3631 Jy)
+_AB_ZERO_JY = 3631.0
+_UNIT_SCALE = {'jy': 1.0, 'mjy': 1e3, 'mujy': 1e6, 'ujy': 1e6, 'µjy': 1e6,
+               'μjy': 1e6}
+
+
+def _convert_flux_units(flux, e_flux, units, zp_ab):
+    """
+    Convert counts (e/s) to the requested units.
+
+    'count'/'counts' -> raw e/s (no zeropoint needed).
+    'Jy'/'mJy'/'muJy' -> flux density, linear in flux (negative values kept,
+        as expected for difference photometry).
+    'mag' -> AB magnitude; negative/zero flux is a non-detection (NaN).
+    """
+    u = units.lower()
+    if u in ('count', 'counts'):
+        return flux, e_flux, 'counts'
+    if zp_ab is None:
+        raise ValueError(f"units='{units}' requires a zeropoint (zp_ab).")
+
+    if u == 'mag':
+        mag = np.full_like(flux, np.nan, dtype=float)
+        emag = np.full_like(flux, np.nan, dtype=float)
+        pos = flux > 0                       # negative flux -> non-detection
+        mag[pos] = zp_ab - 2.5 * np.log10(flux[pos])
+        emag[pos] = 1.0857 * e_flux[pos] / flux[pos]
+        return mag, emag, 'mag'
+
+    scale = _UNIT_SCALE.get(u)
+    if scale is None:
+        raise ValueError(f"Unknown units '{units}'. Use counts, Jy, mJy, muJy, or mag.")
+    # f_Jy = 3631 * 10^(-0.4*zp_ab) * flux_counts  (linear, so signs preserved)
+    c = _AB_ZERO_JY * 10 ** (-0.4 * zp_ab) * scale
+    return flux * c, e_flux * c, units
+
+
 def psf_lightcurve(flux_cube, time_array, x, y, sector, cam, ccd,
                    cut_corner=(0, 0), prf_path=PRF_PATH_DEFAULT,
-                   stamp_size=9, neighbours=None, zp_ab=None):
+                   stamp_size=9, neighbours=None, units='counts', zp_ab=None):
     """
     Forced PSF photometry light curve at a FIXED position on a (differenced)
     flux cube, using the same fixed-position scene model as the calibration.
@@ -1094,13 +1131,18 @@ def psf_lightcurve(flux_cube, time_array, x, y, sector, cam, ccd,
         Nearby source positions (cut-frame pixels) to deblend as extra fixed
         PRF components.  On difference images static neighbours subtract out, so
         this is usually only needed for nearby *variable* sources.
+    units : str
+        Output units: 'counts' (default, raw e/s), 'Jy', 'mJy', 'muJy', or
+        'mag'.  All except 'counts' require zp_ab.  Flux-density units are
+        linear in flux (negative difference-flux preserved); 'mag' treats
+        negative/zero flux as a non-detection (NaN).
     zp_ab : float or None
-        If given, also return a calibrated AB magnitude where flux > 0.
+        AB zeropoint (from the cut's calibration), required for non-count units.
 
     Returns
     -------
-    dict with keys: time, flux, e_flux, background  (arrays over frames), and
-    mag, e_mag if zp_ab is given.
+    dict with keys: time, flux, e_flux (in `units`), units, and the raw
+    flux_counts, e_flux_counts, background (all arrays over frames).
     """
     flux_cube = np.asarray(flux_cube, dtype=float)
     nfr, ny, nx = flux_cube.shape
@@ -1150,17 +1192,33 @@ def psf_lightcurve(flux_cube, time_array, x, y, sector, cam, ccd,
     sigma = 1.4826 * np.median(np.abs(resid - med), axis=0)
     e_flux = sigma * np.sqrt(ATA_inv[0, 0])
 
-    out = {'time': np.asarray(time_array, dtype=float),
-           'flux': flux, 'e_flux': e_flux, 'background': bg}
-    if zp_ab is not None:
-        mag = np.full(nfr, np.nan)
-        emag = np.full(nfr, np.nan)
-        pos = flux > 0
-        mag[pos] = zp_ab - 2.5 * np.log10(flux[pos])
-        emag[pos] = 1.0857 * e_flux[pos] / flux[pos]
-        out['mag'] = mag
-        out['e_mag'] = emag
-    return out
+    value, e_value, unit_label = _convert_flux_units(flux, e_flux, units, zp_ab)
+    return {'time': np.asarray(time_array, dtype=float),
+            'flux': value, 'e_flux': e_value, 'units': unit_label,
+            'flux_counts': flux, 'e_flux_counts': e_flux, 'background': bg}
+
+
+def aperture_correction(sector, cam, ccd, ccd_x, ccd_y, x_sub=0.0, y_sub=0.0,
+                        radius=1.5, prf_path=PRF_PATH_DEFAULT, stamp_size=13):
+    """
+    Fraction of a point source's PRF flux captured by Generate_LC's 'sum'
+    aperture -- a (2*floor(radius)+1) box centred on the nearest pixel.
+
+    The PSF zeropoint assumes total flux, but aperture photometry only sums the
+    box, so the aperture-corrected zeropoint is
+
+        zp_aperture = zp_ab + 2.5 * log10(fraction).
+
+    x_sub, y_sub : sub-pixel offset of the source from the box-centre pixel.
+    """
+    prf_dir = f'{prf_path}/Sectors4+' if sector >= 4 else f'{prf_path}/Sectors1_2_3'
+    prf = _get_prf(cam, ccd, sector, ccd_x, ccd_y, prf_dir)
+    cent = stamp_size // 2
+    p = prf.locate(cent + x_sub, cent + y_sub, (stamp_size, stamp_size))
+    p = p / np.nansum(p)                       # normalise to total flux
+    buf = int(np.floor(radius))
+    box = p[cent - buf:cent + buf + 1, cent - buf:cent + buf + 1]
+    return float(np.nansum(box))
 
 
 # ---------------------------------------------------------------------------

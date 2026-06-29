@@ -412,17 +412,41 @@ class Navigator():
                 return None
         return None
 
+    def _resolve_units(self,units,cut):
+        """
+        Return (units, zp_ab).  Calibrated units need the cut's zeropoint; if it
+        is missing, fall back to counts.
+        """
+        if units.lower() in ('count','counts'):
+            return 'counts', None
+        zp = self._calibration_zp(cut)
+        if zp is None:
+            print('No calibration zeropoint found for this cut; using counts.')
+            return 'counts', None
+        return units, zp
+
+    @staticmethod
+    def _unit_label(units):
+        return {'counts':'TESS counts (e/s)','jy':'Flux (Jy)','mjy':'Flux (mJy)',
+                'mujy':'Flux ($\\mu$Jy)','ujy':'Flux ($\\mu$Jy)','mag':'AB mag'
+                }.get(units.lower(), units)
+
     def event_lc(self,objid,eventid,cut=None,frame_buffer=10,plot=True,frame_bin=None,
-                 method='aperture',calibrate=False,stamp_size=9):
+                 method='aperture',units='counts',stamp_size=9):
         """
         Extract a light curve for a desired event (objid/eventid pair).
 
-        method : 'aperture' (default) uses a fixed aperture at the integer
-            position; 'psf' does forced PSF photometry fixed to the event's
-            sub-pixel PSF position (xcentroid_psf/ycentroid_psf) on the
-            differenced flux -- the same scene model used for calibration.
-        calibrate : if True and a calibration zeropoint exists for the cut,
-            return calibrated AB magnitudes (PSF method only); otherwise counts.
+        method : 'aperture' (default) sums a fixed box at the integer position;
+            'psf' does forced PSF photometry fixed to the event's sub-pixel PSF
+            position (xcentroid_psf/ycentroid_psf) on the differenced flux -- the
+            same scene model used for calibration.
+        units : 'counts' (default, raw e/s), 'Jy', 'mJy', 'muJy', or 'mag'.
+            Non-count units need the cut's calibration zeropoint (else falls back
+            to counts).  For 'mag', negative flux is treated as a non-detection.
+            For the aperture method the zeropoint is aperture-corrected for the
+            PRF flux lost outside the box.
+
+        Returns t, flux, flux_err (flux in the requested units).
         """
 
         # -- Gather data -- #
@@ -433,6 +457,10 @@ class Navigator():
         elif cut != self.cut:
             self.gather_data(cut)
             self.gather_results(cut)
+
+        units, zp = self._resolve_units(units, cut)
+        ylabel = self._unit_label(units)
+        is_mag = units.lower() == 'mag'
 
         # -- Isolate and extract event with frame buffer either side -- #
         event = self.events[(self.events.objid==objid)&(self.events.eventid==eventid)].iloc[0]
@@ -446,17 +474,11 @@ class Navigator():
             from .psf_flux_calibration import psf_lightcurve
             xpsf = float(event.get('xcentroid_psf', event.xint))
             ypsf = float(event.get('ycentroid_psf', event.yint))
-            zp = self._calibration_zp(cut) if calibrate else None
-            if calibrate and zp is None:
-                print('No calibration zeropoint found for this cut; using counts.')
             lc = psf_lightcurve(flux, time, xpsf, ypsf,
                                 sector=self.sector, cam=self.cam, ccd=self.ccd,
                                 cut_corner=self._cut_corner(cut), stamp_size=stamp_size,
-                                zp_ab=zp)
-            t = lc['time']
-            in_mag = 'mag' in lc
-            f = lc['mag'] if in_mag else lc['flux']
-            ferr = lc['e_mag'] if in_mag else lc['e_flux']
+                                units=units, zp_ab=zp)
+            t, f, ferr = lc['time'], lc['flux'], lc['e_flux']
 
             if plot:
                 cadence = np.median(np.diff(time))
@@ -464,43 +486,51 @@ class Navigator():
                 ax.errorbar(t,f,yerr=ferr,fmt='x-',c='k',ecolor='0.6',capsize=2)
                 ax.axvspan(t[frame_start]-cadence/2,t[frame_end]+cadence/2,color='C1',alpha=0.4)
                 ax.set_xlabel('Time (MJD)')
-                ax.set_ylabel('AB mag' if in_mag else 'TESS Counts (PSF)')
-                if in_mag:
+                ax.set_ylabel(ylabel)
+                if is_mag:
                     ax.invert_yaxis()
             return t, f, ferr
 
-        x = RoundToInt(event.xint)     # x coordinate of the source
-        y = RoundToInt(event.yint)      # y coordinate of the source
+        # -- Aperture photometry -- #
+        x = RoundToInt(event.xint)
+        y = RoundToInt(event.yint)
 
         window_start = np.max([frame_start-frame_buffer,0])
         window_end = np.min([frame_end+frame_buffer+1,len(time)-1])
 
         t,f = Generate_LC(time,flux,x,y,window_start,window_end,radius=1.5)
-                          #orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
+
+        # Background-limited aperture error (3x3 box on the difference frames)
+        buf = 1
+        fl_win = flux[window_start:window_end+1]
+        med = np.nanmedian(fl_win, axis=(1,2), keepdims=True)
+        sig = 1.4826 * np.nanmedian(np.abs(fl_win - med), axis=(1,2))
+        ferr = np.sqrt((2*buf+1)**2) * sig
+
+        if units.lower() not in ('count','counts'):
+            from .psf_flux_calibration import aperture_correction, _convert_flux_units
+            cc = self._cut_corner(cut)
+            xs = float(event.get('xcentroid_psf', x))
+            ys = float(event.get('ycentroid_psf', y))
+            frac = aperture_correction(self.sector, self.cam, self.ccd,
+                                       cc[0]+xs, cc[1]+ys,
+                                       xs-np.round(xs), ys-np.round(ys), radius=1.5)
+            zp_eff = zp + 2.5*np.log10(frac)   # aperture loss folded into the ZP
+            print(f'Aperture correction: {frac:.3f} of PRF flux (ZP {zp:.3f} -> {zp_eff:.3f})')
+            f, ferr, _ = _convert_flux_units(f, ferr, units, zp_eff)
 
         # -- Plot lightcurve -- #
         if plot:
             cadence = np.median(np.diff(time))
             fig,ax = plt.subplots()
-            ax.plot(t,f,'x-',c='k')
+            ax.errorbar(t,f,yerr=ferr,fmt='x-',c='k',ecolor='0.6',capsize=2)
             ax.axvspan(t[frame_start-window_start]-cadence/2,t[frame_end-window_start]+cadence/2,color='C1',alpha=0.4)
             ax.set_xlabel('Time (MJD)')
-            ax.set_ylabel('TESS Counts')
-            if event.frame_bin > 1:
-                rawt,rawf = Generate_LC(self.time,self.flux,x,y,
-                                        window_start*event.frame_bin,window_end*event.frame_bin,
-                                        radius=1.5)#,orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
-                ax.plot(rawt,rawf,'.',c='k',alpha=0.3)
+            ax.set_ylabel(ylabel)
+            if is_mag:
+                ax.invert_yaxis()
 
-            if frame_bin is not None and frame_bin > event.frame_bin:
-                largertime, largerflux = (Frame_Bin(self.sector, self.cam,self.time, self.flux, frame_bin))
-                largert,largerf = Generate_LC(largertime,largerflux,x,y,
-                                              int(window_start/frame_bin*event.frame_bin),int(window_end/frame_bin*event.frame_bin),
-                                              radius=1.5)#,orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
-                ax.plot(largert, largerf, '^', c='r', alpha=0.8)
-
-        
-        return t,f
+        return t, f, ferr
     
 
     def event_frames(self,objid,eventid,cut=None,
@@ -597,15 +627,18 @@ class Navigator():
         else:
             return images
 
-    def object_lc(self,objid,cut=None,method='aperture',calibrate=False,stamp_size=9):
+    def object_lc(self,objid,cut=None,method='aperture',units='counts',stamp_size=9):
         """
         Extract a light curve for a desired object.
 
         method : 'aperture' (default) or 'psf' (forced PSF photometry fixed to
             the object's sub-pixel PSF position on the differenced flux, the same
             scene model used for calibration).
-        calibrate : if True and a calibration zeropoint exists for the cut,
-            return calibrated AB magnitudes (PSF method only); otherwise counts.
+        units : 'counts' (default), 'Jy', 'mJy', 'muJy', or 'mag'.  Non-count
+            units need the cut's calibration zeropoint (else falls back to
+            counts); the aperture method also applies the aperture correction.
+
+        Returns t, flux, flux_err (flux in the requested units).
         """
 
         # -- Gather data -- #
@@ -617,6 +650,8 @@ class Navigator():
             self.gather_data(cut)
             self.gather_results(cut)
 
+        units, zp = self._resolve_units(units, cut)
+
         # -- Isolate object and generate light curve -- #
         obj = self.objects[self.objects['objid']==objid].iloc[0]
 
@@ -626,25 +661,36 @@ class Navigator():
             from .psf_flux_calibration import psf_lightcurve
             xpsf = float(obj.get('xcentroid_psf', obj.xcentroid))
             ypsf = float(obj.get('ycentroid_psf', obj.ycentroid))
-            zp = self._calibration_zp(cut) if calibrate else None
-            if calibrate and zp is None:
-                print('No calibration zeropoint found for this cut; using counts.')
             lc = psf_lightcurve(flux, time, xpsf, ypsf,
                                 sector=self.sector, cam=self.cam, ccd=self.ccd,
                                 cut_corner=self._cut_corner(cut), stamp_size=stamp_size,
-                                zp_ab=zp)
-            in_mag = 'mag' in lc
-            f = lc['mag'] if in_mag else lc['flux']
-            ferr = lc['e_mag'] if in_mag else lc['e_flux']
-            return lc['time'], f, ferr
+                                units=units, zp_ab=zp)
+            return lc['time'], lc['flux'], lc['e_flux']
 
-        x = RoundToInt(obj['xcentroid'])     # x coordinate of the source
-        y = RoundToInt(obj['ycentroid'])     # x coordinate of the source
+        # -- Aperture photometry -- #
+        x = RoundToInt(obj['xcentroid'])
+        y = RoundToInt(obj['ycentroid'])
 
-        t,f = Generate_LC(time,flux,x,y)#,
-                          #orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
+        t,f = Generate_LC(time,flux,x,y)
 
-        return t,f
+        buf = 1
+        med = np.nanmedian(flux, axis=(1,2), keepdims=True)
+        sig = 1.4826 * np.nanmedian(np.abs(flux - med), axis=(1,2))
+        ferr = np.sqrt((2*buf+1)**2) * sig
+
+        if units.lower() not in ('count','counts'):
+            from .psf_flux_calibration import aperture_correction, _convert_flux_units
+            cc = self._cut_corner(cut)
+            xs = float(obj.get('xcentroid_psf', x))
+            ys = float(obj.get('ycentroid_psf', y))
+            frac = aperture_correction(self.sector, self.cam, self.ccd,
+                                       cc[0]+xs, cc[1]+ys,
+                                       xs-np.round(xs), ys-np.round(ys), radius=1.5)
+            zp_eff = zp + 2.5*np.log10(frac)
+            print(f'Aperture correction: {frac:.3f} of PRF flux (ZP {zp:.3f} -> {zp_eff:.3f})')
+            f, ferr, _ = _convert_flux_units(f, ferr, units, zp_eff)
+
+        return t, f, ferr
     
     def object_frames(self,objid,cut=None,image_size=11):
         """
