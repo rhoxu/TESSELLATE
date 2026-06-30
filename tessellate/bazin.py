@@ -83,23 +83,36 @@ def fit_bazin(t, f, ferr=None, p0=None, maxfev=20000):
     }
 
 
-def bazin_detection(t, f, ferr=None, **kwargs):
+def bazin_detection(t, f, ferr=None, event_window=None, above_frac=0.05, **kwargs):
     """
-    Fit Bazin and compare it to a flat baseline.
+    Fit Bazin over the WHOLE light curve, then evaluate the detection statistics
+    only over the EVENT REGION so a faint event is not diluted by long flat
+    baseline.
+
+    The Bazin baseline term ``c`` is the global flux offset (the difference-image
+    zero level); it is constrained by the whole light curve and used as the null
+    (flat) model in the region.
+
+    Region = (where the fitted model is above baseline by > above_frac of its
+    peak) UNION (the detected event window, if given as (t_start, t_end)).
 
     Adds to the fit dict:
-      chi2_flat   : chi2 of the best constant model
-      delta_chi2  : chi2_flat - chi2_bazin   (>0 favours Bazin)
-      delta_bic   : BIC_bazin - BIC_flat     (<0 favours Bazin)
-
-    delta_chi2 / delta_bic are the detection statistics for ranking how
-    convincingly a Bazin-shaped signal is present.
+      offset            : global flux offset c
+      n_region          : points in the event region
+      chi2_region       : Bazin chi2 over the region
+      chi2_flat_region  : flat (offset) chi2 over the region
+      redchi2_region    : region Bazin reduced chi2
+      delta_chi2        : chi2_flat_region - chi2_region   (>0 favours Bazin)
+      delta_bic         : BIC_bazin - BIC_flat over region (<0 favours Bazin)
     """
     fit = fit_bazin(t, f, ferr, **kwargs)
     if fit is None:
         return None
 
-    # Rebuild the same cleaning mask used inside fit_bazin, to align the errors
+    tc, fc, model = fit['t'], fit['f'], fit['model']
+    c = fit['params']['c']
+
+    # Errors aligned to the cleaned data (same mask fit_bazin used)
     t = np.asarray(t, dtype=float)
     f = np.asarray(f, dtype=float)
     m = np.isfinite(t) & np.isfinite(f)
@@ -108,18 +121,33 @@ def bazin_detection(t, f, ferr=None, **kwargs):
         ferr = np.asarray(ferr, dtype=float)
         m &= np.isfinite(ferr) & (ferr > 0)
         sig = ferr[m]
-    ff = f[m]
 
+    # Event region: model above baseline, plus the detected window
+    bump = model - c
+    peak = np.nanmax(bump) if abs(np.nanmax(bump)) >= abs(np.nanmin(bump)) else np.nanmin(bump)
+    region = (bump / peak) > above_frac if peak != 0 else np.zeros(len(tc), dtype=bool)
+    if event_window is not None:
+        t0w, t1w = event_window
+        region |= (tc >= t0w) & (tc <= t1w)
+    if region.sum() < 3:
+        region = np.ones(len(tc), dtype=bool)   # fallback: use everything
+
+    fr, mr = fc[region], model[region]
     if sig is not None:
-        w = 1.0 / sig ** 2
-        c = float(np.sum(w * ff) / np.sum(w))
-        chi2_flat = float(np.sum(w * (ff - c) ** 2))
+        wr = 1.0 / sig[region] ** 2
+        chi2_b = float(np.sum(wr * (fr - mr) ** 2))
+        chi2_0 = float(np.sum(wr * (fr - c) ** 2))
     else:
-        c = float(np.mean(ff))
-        chi2_flat = float(np.sum((ff - c) ** 2))
+        chi2_b = float(np.sum((fr - mr) ** 2))
+        chi2_0 = float(np.sum((fr - c) ** 2))
 
-    n = fit['n']
-    fit['chi2_flat'] = chi2_flat
-    fit['delta_chi2'] = chi2_flat - fit['chi2']
-    fit['delta_bic'] = (fit['chi2'] + len(_PARAMS) * np.log(n)) - (chi2_flat + 1 * np.log(n))
+    nreg = int(region.sum())
+    k_extra = 4   # Bazin shape params over the global-offset null (c is shared)
+    fit['offset'] = float(c)
+    fit['n_region'] = nreg
+    fit['chi2_region'] = chi2_b
+    fit['chi2_flat_region'] = chi2_0
+    fit['redchi2_region'] = chi2_b / (nreg - len(_PARAMS)) if nreg > len(_PARAMS) else np.nan
+    fit['delta_chi2'] = chi2_0 - chi2_b
+    fit['delta_bic'] = (chi2_b - chi2_0) + k_extra * np.log(nreg)
     return fit

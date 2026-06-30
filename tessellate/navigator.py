@@ -609,7 +609,17 @@ class Navigator():
         t, f, ferr = self.event_lc(objid, eventid, cut=cut, method='psf', units=units,
                                    frame_buffer=frame_buffer, stamp_size=stamp_size,
                                    plot=False)
-        res = bazin_detection(t, f, ferr, p0=p0)
+
+        # Detected event window (times) to focus the detection statistics on
+        if cut is None:
+            cut = self.cut
+        event = self.events[(self.events.objid==objid)&(self.events.eventid==eventid)].iloc[0]
+        etime = (Frame_Bin(self.sector, self.cam, self.time, self.flux, event.frame_bin)[0]
+                 if event.frame_bin > 1 else self.time)
+        fs, fe = RoundToInt(event.frame_start), RoundToInt(event.frame_end)
+        event_window = (float(etime[fs]), float(etime[fe]))
+
+        res = bazin_detection(t, f, ferr, event_window=event_window, p0=p0)
         if res is None:
             print('Bazin fit failed.')
             return None
@@ -620,12 +630,15 @@ class Navigator():
                         alpha=0.7, label='PSF data')
             tt = np.linspace(np.nanmin(t), np.nanmax(t), 1000)
             ax.plot(tt, bazin(tt, **res['params']), '-', c='C1', lw=1.8, label='Bazin')
+            ax.axhline(res['offset'], color='0.5', ls=':', lw=1.0)   # global offset
+            # shade the event region the statistics are evaluated over
+            ax.axvspan(event_window[0], event_window[1], color='C1', alpha=0.12)
             p, e = res['params'], res['perr']
             txt = (f"$\\tau_r$={p['tau_rise']:.3f}$\\pm${e['tau_rise']:.3f}\n"
                    f"$\\tau_f$={p['tau_fall']:.3f}$\\pm${e['tau_fall']:.3f}\n"
                    f"A/$\\sigma_A$={res['A_snr']:.1f}\n"
-                   f"$\\chi^2_\\nu$={res['redchi2']:.2f}\n"
-                   f"$\\Delta$BIC={res['delta_bic']:.1f}")
+                   f"$\\chi^2_\\nu$(reg)={res['redchi2_region']:.2f}\n"
+                   f"$\\Delta$BIC={res['delta_bic']:.1f} (N={res['n_region']})")
             ax.text(0.97, 0.97, txt, transform=ax.transAxes, ha='right', va='top',
                     fontsize=8, bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.8))
             ax.set_xlabel('Time (MJD)')
