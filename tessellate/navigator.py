@@ -488,58 +488,45 @@ class Navigator():
         frame_start = RoundToInt(event.frame_start)        # Start frame of the event
         frame_end = RoundToInt(event.frame_end)            # End frame of the event
 
+        window_start = np.max([frame_start-frame_buffer,0])
+        window_end = np.min([frame_end+frame_buffer+1,len(time)-1])
+
         if method == 'psf':
             from .psf_flux_calibration import psf_lightcurve
             xpsf = float(event.get('xcentroid_psf', event.xint))
             ypsf = float(event.get('ycentroid_psf', event.yint))
-            lc = psf_lightcurve(flux, time, xpsf, ypsf,
+            lc = psf_lightcurve(flux[window_start:window_end+1], time[window_start:window_end+1], xpsf, ypsf,
                                 sector=self.sector, cam=self.cam, ccd=self.ccd,
                                 cut_corner=self._cut_corner(cut), stamp_size=stamp_size,
                                 units=units, zp_ab=zp)
             t, f, ferr = lc['time'], lc['flux'], lc['e_flux']
 
-            if plot:
-                cadence = np.median(np.diff(time))
-                fig,ax = plt.subplots()
-                ax.errorbar(t,f,yerr=ferr,fmt='x-',c='k',ecolor='0.6',capsize=2)
-                ax.axvspan(t[frame_start]-cadence/2,t[frame_end]+cadence/2,color='C1',alpha=0.4)
-                ax.set_xlabel('Time (MJD)')
-                ax.set_ylabel(ylabel)
-                if is_mag:
-                    ax.invert_yaxis()
-            if savedir is not None:
-                self._save_lc(savedir,cut,objid,'psf',units,t,f,ferr,eventid=eventid)
-            return t, f, ferr
-
         # -- Aperture photometry -- #
-        x = RoundToInt(event.xint)
-        y = RoundToInt(event.yint)
+        elif method == 'aperture':
+            x = RoundToInt(event.xint)
+            y = RoundToInt(event.yint)
 
-        window_start = np.max([frame_start-frame_buffer,0])
-        window_end = np.min([frame_end+frame_buffer+1,len(time)-1])
+            t,f = Generate_LC(time,flux,x,y,window_start,window_end,radius=1.5)
 
-        t,f = Generate_LC(time,flux,x,y,window_start,window_end,radius=1.5)
+            # Background-limited aperture error (3x3 box on the difference frames)
+            buf = 1
+            fl_win = flux[window_start:window_end+1]
+            med = np.nanmedian(fl_win, axis=(1,2), keepdims=True)
+            sig = 1.4826 * np.nanmedian(np.abs(fl_win - med), axis=(1,2))
+            ferr = np.sqrt((2*buf+1)**2) * sig
 
-        # Background-limited aperture error (3x3 box on the difference frames)
-        buf = 1
-        fl_win = flux[window_start:window_end+1]
-        med = np.nanmedian(fl_win, axis=(1,2), keepdims=True)
-        sig = 1.4826 * np.nanmedian(np.abs(fl_win - med), axis=(1,2))
-        ferr = np.sqrt((2*buf+1)**2) * sig
+            if units.lower() not in ('count','counts'):
+                from .psf_flux_calibration import aperture_correction, _convert_flux_units
+                cc = self._cut_corner(cut)
+                xs = float(event.get('xcentroid_psf', x))
+                ys = float(event.get('ycentroid_psf', y))
+                frac = aperture_correction(self.sector, self.cam, self.ccd,
+                                        cc[0]+xs, cc[1]+ys,
+                                        xs-np.round(xs), ys-np.round(ys), radius=1.5)
+                zp_eff = zp + 2.5*np.log10(frac)   # aperture loss folded into the ZP
+                print(f'Aperture correction: {frac:.3f} of PRF flux (ZP {zp:.3f} -> {zp_eff:.3f})')
+                f, ferr, _ = _convert_flux_units(f, ferr, units, zp_eff)
 
-        if units.lower() not in ('count','counts'):
-            from .psf_flux_calibration import aperture_correction, _convert_flux_units
-            cc = self._cut_corner(cut)
-            xs = float(event.get('xcentroid_psf', x))
-            ys = float(event.get('ycentroid_psf', y))
-            frac = aperture_correction(self.sector, self.cam, self.ccd,
-                                       cc[0]+xs, cc[1]+ys,
-                                       xs-np.round(xs), ys-np.round(ys), radius=1.5)
-            zp_eff = zp + 2.5*np.log10(frac)   # aperture loss folded into the ZP
-            print(f'Aperture correction: {frac:.3f} of PRF flux (ZP {zp:.3f} -> {zp_eff:.3f})')
-            f, ferr, _ = _convert_flux_units(f, ferr, units, zp_eff)
-
-        # -- Plot lightcurve -- #
         if plot:
             cadence = np.median(np.diff(time))
             fig,ax = plt.subplots()
@@ -547,14 +534,29 @@ class Navigator():
             ax.axvspan(t[frame_start-window_start]-cadence/2,t[frame_end-window_start]+cadence/2,color='C1',alpha=0.4)
             ax.set_xlabel('Time (MJD)')
             ax.set_ylabel(ylabel)
+
+            if event.frame_bin > 1:
+                rawt,rawf = Generate_LC(self.time,self.flux,x,y,
+                                        window_start*event.frame_bin,window_end*event.frame_bin,
+                                        radius=1.5)#,orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
+                ax.plot(rawt,rawf,'.',c='k',alpha=0.3)
+
+            if frame_bin is not None and frame_bin > event.frame_bin:
+                largertime, largerflux = (Frame_Bin(self.sector, self.cam,self.time, self.flux, frame_bin))
+                largert,largerf = Generate_LC(largertime,largerflux,x,y,
+                                              int(window_start/frame_bin*event.frame_bin),int(window_end/frame_bin*event.frame_bin),
+                                              radius=1.5)#,orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
+                ax.plot(largert, largerf, '^', c='r', alpha=0.8)
+            
             if is_mag:
                 ax.invert_yaxis()
 
         if savedir is not None:
-            self._save_lc(savedir,cut,objid,'aperture',units,t,f,ferr,eventid=eventid)
-        return t, f, ferr
-    
+            self._save_lc(savedir,cut,objid,method,units,t,f,ferr,eventid=eventid)
 
+        return t, f, ferr
+
+    
     def event_frames(self,objid,eventid,cut=None,
                      frame_buffer=2,frame_interval=1,image_size=11,vmin=10,vmax=90,
                      plot=True,frame_bin=None,return_plot=False):

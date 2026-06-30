@@ -41,7 +41,7 @@ import time
 import numpy as np
 import pandas as pd
 import matplotlib
-matplotlib.use('Agg')
+# matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 from astropy.io import fits
