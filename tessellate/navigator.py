@@ -529,39 +529,57 @@ class Navigator():
 
         if plot:
             cadence = np.median(np.diff(time))
-            fig,ax = plt.subplots()
-            ax.errorbar(t,f,yerr=ferr,fmt='x-',c='k',ecolor='0.6',capsize=2)
-            ax.axvspan(t[frame_start-window_start]-cadence/2,t[frame_end-window_start]+cadence/2,color='C1',alpha=0.4)
+            fig, ax = plt.subplots()
+
+            # determine y-limits from the data points only, before errorbars/other plots affect autoscale
+            finite_f = f[np.isfinite(f)]
+            ymin, ymax = np.nanmin(finite_f), np.nanmax(finite_f)
+            ypad = 0.05 * (ymax - ymin) if ymax > ymin else 1.0
+
+            ax.errorbar(t, f, yerr=ferr, fmt='x-', c='k', ecolor='0.6', capsize=2)
+            ax.axvspan(t[frame_start-window_start]-cadence/2, t[frame_end-window_start]+cadence/2, color='C1', alpha=0.4)
             ax.set_xlabel('Time (MJD)')
             ax.set_ylabel(ylabel)
 
             if event.frame_bin > 1:
-                rawt,rawf = Generate_LC(self.time,self.flux,x,y,
-                                        window_start*event.frame_bin,window_end*event.frame_bin,
-                                        radius=1.5)#,orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
-                ax.plot(rawt,rawf,'.',c='k',alpha=0.3)
+                rawt, rawf = Generate_LC(self.time, self.flux, x, y,
+                                        window_start*event.frame_bin, window_end*event.frame_bin,
+                                        radius=1.5)
+                ax.plot(rawt, rawf, '.', c='k', alpha=0.3)
 
             if frame_bin is not None and frame_bin > event.frame_bin:
-                largertime, largerflux = (Frame_Bin(self.sector, self.cam,self.time, self.flux, frame_bin))
+                largertime, largerflux = Frame_Bin(self.sector, self.cam, self.time, self.flux, frame_bin)
 
                 if method == 'psf':
-                    lc = psf_lightcurve(largerflux[int(window_start/frame_bin*event.frame_bin):int(window_end/frame_bin*event.frame_bin)+1], 
+                    lc = psf_lightcurve(largerflux[int(window_start/frame_bin*event.frame_bin):int(window_end/frame_bin*event.frame_bin)+1],
                                         largertime[int(window_start/frame_bin*event.frame_bin):int(window_end/frame_bin*event.frame_bin)+1],
-                                        x, y,sector=self.sector, cam=self.cam, ccd=self.ccd,cut_corner=self._cut_corner(cut), 
+                                        x, y, sector=self.sector, cam=self.cam, ccd=self.ccd, cut_corner=self._cut_corner(cut),
                                         stamp_size=stamp_size, units=units, zp_ab=zp)
                     largert, largerf = lc['time'], lc['flux']
 
                 elif method == 'aperture':
-                    largert,largerf = Generate_LC(largertime,largerflux,x,y,
-                                                int(window_start/frame_bin*event.frame_bin),int(window_end/frame_bin*event.frame_bin),
-                                                radius=1.5)#,orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
-                    if units.lower() not in ('count','counts'): 
+                    largert, largerf = Generate_LC(largertime, largerflux, x, y,
+                                                    int(window_start/frame_bin*event.frame_bin), int(window_end/frame_bin*event.frame_bin),
+                                                    radius=1.5)
+                    if units.lower() not in ('count', 'counts'):
                         largerf, _, _ = _convert_flux_units(largerf, np.ones_like(largerf), units, zp_eff)
-                
+
                 ax.plot(largert, largerf, '^', c='r', alpha=0.8)
-            
+
+                # include larger-binned flux in the ylim calc too, if you want it considered
+                finite_largerf = largerf[np.isfinite(largerf)]
+                if finite_largerf.size:
+                    ymin = min(ymin, np.nanmin(finite_largerf))
+                    ymax = max(ymax, np.nanmax(finite_largerf))
+                    ypad = 0.05 * (ymax - ymin) if ymax > ymin else 1.0
+
             if is_mag:
                 ax.invert_yaxis()
+
+            # force ylim to ignore errorbar extents regardless of inversion above
+            ax.set_ylim(ymin - ypad, ymax + ypad)
+            if is_mag:
+                ax.set_ylim(ymax + ypad, ymin - ypad)  # re-invert since set_ylim resets order
 
         if savedir is not None:
             self._save_lc(savedir,cut,objid,method,units,t,f,ferr,eventid=eventid)
