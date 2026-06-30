@@ -628,11 +628,15 @@ class Navigator():
             fig, ax = plt.subplots()
             ax.errorbar(t, f, yerr=ferr, fmt='x', c='k', ecolor='0.6', capsize=2,
                         alpha=0.7, label='PSF data')
-            tt = np.linspace(np.nanmin(t), np.nanmax(t), 1000)
+            # Bazin model drawn over the fit window only (it was fit there)
+            w0, w1 = res['fit_window']
+            tt = np.linspace(w0, w1, 1000)
             ax.plot(tt, bazin(tt, **res['params']), '-', c='C1', lw=1.8, label='Bazin')
-            ax.axhline(res['offset'], color='0.5', ls=':', lw=1.0)   # global offset
-            # shade the event region the statistics are evaluated over
-            ax.axvspan(event_window[0], event_window[1], color='C1', alpha=0.12)
+            ax.axhline(res['offset'], color='0.5', ls=':', lw=1.0, label='offset')
+            # event times (shaded) and the fit window (dashed bounds)
+            ax.axvspan(event_window[0], event_window[1], color='C1', alpha=0.15, label='event')
+            ax.axvline(w0, color='0.4', ls='--', lw=0.8)
+            ax.axvline(w1, color='0.4', ls='--', lw=0.8)
             p, e = res['params'], res['perr']
             txt = (f"$\\tau_r$={p['tau_rise']:.3f}$\\pm${e['tau_rise']:.3f}\n"
                    f"$\\tau_f$={p['tau_fall']:.3f}$\\pm${e['tau_fall']:.3f}\n"

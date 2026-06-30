@@ -24,80 +24,99 @@ def bazin(t, A, t0, tau_rise, tau_fall, c):
     return A * fall / (1.0 + rise) + c
 
 
-def fit_bazin(t, f, ferr=None, p0=None, maxfev=20000):
+def fit_bazin(t, f, ferr=None, p0=None, maxfev=20000, fit_mask=None, fix_c=None):
     """
     Fit the Bazin profile to (t, f) with optional errors.
 
-    Returns a dict with the fitted params/errors, chi2/dof/reduced-chi2, the
-    amplitude S/N, and the (cleaned) data + model arrays -- or None on failure.
+    fit_mask : optional boolean array selecting the points to fit (the rest are
+        ignored).  fix_c : if given, the baseline offset c is held fixed and only
+        the 4 shape parameters (A, t0, tau_rise, tau_fall) are fit.
+
+    Returns a dict with the fitted params/errors, chi2/dof/reduced-chi2, amplitude
+    S/N, the number of free parameters, and the (cleaned, fitted) data + model
+    arrays -- or None on failure.
     """
     from scipy.optimize import curve_fit
 
     t = np.asarray(t, dtype=float)
     f = np.asarray(f, dtype=float)
     m = np.isfinite(t) & np.isfinite(f)
-    sig = None
     if ferr is not None:
         ferr = np.asarray(ferr, dtype=float)
         m &= np.isfinite(ferr) & (ferr > 0)
+    if fit_mask is not None:
+        m &= np.asarray(fit_mask, dtype=bool)
     t, f = t[m], f[m]
-    if ferr is not None:
-        sig = ferr[m]
-    if len(t) < 6:
+    sig = ferr[m] if ferr is not None else None
+
+    n_free = 4 if fix_c is not None else 5
+    if len(t) < n_free + 1:
         return None
 
-    # Initial guess
-    c0 = float(np.median(f))
+    c0 = float(fix_c) if fix_c is not None else float(np.median(f))
     imax = int(np.argmax(f - c0))
     A0 = float((f - c0)[imax]) or 1.0
     t0_0 = float(t[imax])
     span = float(t.max() - t.min()) or 1.0
-    if p0 is None:
-        p0 = [A0, t0_0, 0.05 * span, 0.2 * span, c0]
 
-    lb = [-np.inf, t.min() - span, 1e-3, 1e-3, -np.inf]
-    ub = [np.inf, t.max() + span, 5 * span, 10 * span, np.inf]
+    if fix_c is not None:
+        func = lambda tv, A, t0, tr, tf: bazin(tv, A, t0, tr, tf, fix_c)
+        guess = [A0, t0_0, 0.05 * span, 0.2 * span]
+        lb = [-np.inf, t.min() - span, 1e-3, 1e-3]
+        ub = [np.inf, t.max() + span, 5 * span, 10 * span]
+    else:
+        func = bazin
+        guess = [A0, t0_0, 0.05 * span, 0.2 * span, c0]
+        lb = [-np.inf, t.min() - span, 1e-3, 1e-3, -np.inf]
+        ub = [np.inf, t.max() + span, 5 * span, 10 * span, np.inf]
+    if p0 is None:
+        p0 = guess
     p0 = [min(max(v, lo + 1e-6), hi - 1e-6) for v, lo, hi in zip(p0, lb, ub)]
 
     try:
-        popt, pcov = curve_fit(bazin, t, f, p0=p0, sigma=sig,
+        popt, pcov = curve_fit(func, t, f, p0=p0, sigma=sig,
                                absolute_sigma=sig is not None,
                                bounds=(lb, ub), maxfev=maxfev)
     except Exception:
         return None
 
     perr = np.sqrt(np.clip(np.diag(pcov), 0, np.inf))
+    if fix_c is not None:
+        popt = np.append(popt, fix_c)
+        perr = np.append(perr, 0.0)
     model = bazin(t, *popt)
     resid = f - model
     chi2 = float(np.sum((resid / sig) ** 2)) if sig is not None else float(np.sum(resid ** 2))
-    dof = len(t) - len(_PARAMS)
+    dof = len(t) - n_free
 
     return {
         'params': dict(zip(_PARAMS, [float(v) for v in popt])),
         'perr': dict(zip(_PARAMS, [float(v) for v in perr])),
         'chi2': chi2, 'dof': dof,
         'redchi2': chi2 / dof if dof > 0 else np.nan,
-        'n': len(t),
+        'n': len(t), 'n_free': n_free,
         'A_snr': float(popt[0] / perr[0]) if perr[0] > 0 else np.nan,
         't': t, 'f': f, 'model': model,
     }
 
 
-def bazin_detection(t, f, ferr=None, event_window=None, above_frac=0.05, **kwargs):
+def bazin_detection(t, f, ferr=None, event_window=None, n_durations=3.0,
+                    above_frac=0.05, **kwargs):
     """
-    Fit Bazin over the WHOLE light curve, then evaluate the detection statistics
-    only over the EVENT REGION so a faint event is not diluted by long flat
-    baseline.
+    Fit Bazin simultaneously (all 5 params, including the baseline offset c) over
+    a window of n_durations event durations centred on the detected event window,
+    then evaluate the detection statistics over the event region.
 
-    The Bazin baseline term ``c`` is the global flux offset (the difference-image
-    zero level); it is constrained by the whole light curve and used as the null
-    (flat) model in the region.
+    The fit window (default 3 event durations) gives one event duration of
+    baseline shoulder on each side, which constrains the global flux offset c
+    (the difference-image zero level) in the same simultaneous fit.
 
-    Region = (where the fitted model is above baseline by > above_frac of its
-    peak) UNION (the detected event window, if given as (t_start, t_end)).
+    The statistics region = (where the model is above baseline by > above_frac of
+    its peak) UNION (the detected event window).
 
     Adds to the fit dict:
-      offset            : global flux offset c
+      fit_window        : (t_lo, t_hi) of the fitted region
+      offset            : baseline flux offset c
       n_region          : points in the event region
       chi2_region       : Bazin chi2 over the region
       chi2_flat_region  : flat (offset) chi2 over the region
@@ -105,32 +124,48 @@ def bazin_detection(t, f, ferr=None, event_window=None, above_frac=0.05, **kwarg
       delta_chi2        : chi2_flat_region - chi2_region   (>0 favours Bazin)
       delta_bic         : BIC_bazin - BIC_flat over region (<0 favours Bazin)
     """
-    fit = fit_bazin(t, f, ferr, **kwargs)
+    t = np.asarray(t, dtype=float)
+    f = np.asarray(f, dtype=float)
+
+    # Fit window: n_durations event durations, centred on the event window
+    if event_window is not None:
+        t0w, t1w = event_window
+        finite_t = np.sort(t[np.isfinite(t)])
+        cad = float(np.median(np.diff(finite_t))) if finite_t.size > 1 else 0.0
+        dur = max(t1w - t0w, cad)                      # at least one cadence
+        if not (dur > 0):
+            dur = 0.05 * (np.nanmax(t) - np.nanmin(t))
+        centre = 0.5 * (t0w + t1w)
+        half = 0.5 * n_durations * dur
+        roi = np.isfinite(t) & (t >= centre - half) & (t <= centre + half)
+        fit_window = (centre - half, centre + half)
+    else:
+        roi = np.isfinite(t)
+        fit_window = (float(np.nanmin(t)), float(np.nanmax(t)))
+
+    fit = fit_bazin(t, f, ferr, fit_mask=roi, **kwargs)
     if fit is None:
         return None
 
     tc, fc, model = fit['t'], fit['f'], fit['model']
     c = fit['params']['c']
 
-    # Errors aligned to the cleaned data (same mask fit_bazin used)
-    t = np.asarray(t, dtype=float)
-    f = np.asarray(f, dtype=float)
-    m = np.isfinite(t) & np.isfinite(f)
+    # Errors aligned to the fitted (roi) data
+    m = np.isfinite(t) & np.isfinite(f) & roi
     sig = None
     if ferr is not None:
         ferr = np.asarray(ferr, dtype=float)
         m &= np.isfinite(ferr) & (ferr > 0)
         sig = ferr[m]
 
-    # Event region: model above baseline, plus the detected window
+    # Event region (within the fit window): model above baseline + detected window
     bump = model - c
     peak = np.nanmax(bump) if abs(np.nanmax(bump)) >= abs(np.nanmin(bump)) else np.nanmin(bump)
     region = (bump / peak) > above_frac if peak != 0 else np.zeros(len(tc), dtype=bool)
     if event_window is not None:
-        t0w, t1w = event_window
         region |= (tc >= t0w) & (tc <= t1w)
     if region.sum() < 3:
-        region = np.ones(len(tc), dtype=bool)   # fallback: use everything
+        region = np.ones(len(tc), dtype=bool)
 
     fr, mr = fc[region], model[region]
     if sig is not None:
@@ -142,7 +177,8 @@ def bazin_detection(t, f, ferr=None, event_window=None, above_frac=0.05, **kwarg
         chi2_0 = float(np.sum((fr - c) ** 2))
 
     nreg = int(region.sum())
-    k_extra = 4   # Bazin shape params over the global-offset null (c is shared)
+    k_extra = 4   # Bazin shape params over the flat-offset null (c is shared)
+    fit['fit_window'] = fit_window
     fit['offset'] = float(c)
     fit['n_region'] = nreg
     fit['chi2_region'] = chi2_b
