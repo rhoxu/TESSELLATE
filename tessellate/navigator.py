@@ -593,7 +593,48 @@ class Navigator():
 
         return t, f, ferr
 
-    
+    def fit_event_bazin(self,objid,eventid,cut=None,units='counts',frame_buffer=-1,
+                        stamp_size=9,plot=True,p0=None):
+        """
+        Fit a Bazin profile to an event's PSF light curve and report the fit.
+
+        Uses forced PSF photometry (method='psf') over the requested window
+        (default the whole light curve), then fits Bazin and compares it to a
+        flat baseline.  Returns the fit dict from bazin.bazin_detection, which
+        includes the parameters, their errors, reduced chi^2, amplitude S/N, and
+        the delta_chi2 / delta_bic detection statistics for ranking.
+        """
+        from .bazin import bazin, bazin_detection
+
+        t, f, ferr = self.event_lc(objid, eventid, cut=cut, method='psf', units=units,
+                                   frame_buffer=frame_buffer, stamp_size=stamp_size,
+                                   plot=False)
+        res = bazin_detection(t, f, ferr, p0=p0)
+        if res is None:
+            print('Bazin fit failed.')
+            return None
+
+        if plot:
+            fig, ax = plt.subplots()
+            ax.errorbar(t, f, yerr=ferr, fmt='x', c='k', ecolor='0.6', capsize=2,
+                        alpha=0.7, label='PSF data')
+            tt = np.linspace(np.nanmin(t), np.nanmax(t), 1000)
+            ax.plot(tt, bazin(tt, **res['params']), '-', c='C1', lw=1.8, label='Bazin')
+            p, e = res['params'], res['perr']
+            txt = (f"$\\tau_r$={p['tau_rise']:.3f}$\\pm${e['tau_rise']:.3f}\n"
+                   f"$\\tau_f$={p['tau_fall']:.3f}$\\pm${e['tau_fall']:.3f}\n"
+                   f"A/$\\sigma_A$={res['A_snr']:.1f}\n"
+                   f"$\\chi^2_\\nu$={res['redchi2']:.2f}\n"
+                   f"$\\Delta$BIC={res['delta_bic']:.1f}")
+            ax.text(0.97, 0.97, txt, transform=ax.transAxes, ha='right', va='top',
+                    fontsize=8, bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.8))
+            ax.set_xlabel('Time (MJD)')
+            ax.set_ylabel(self._unit_label(units))
+            if units.lower() == 'mag':
+                ax.invert_yaxis()
+            ax.legend(fontsize=8, loc='upper left')
+        return res
+
     def event_frames(self,objid,eventid,cut=None,
                      frame_buffer=2,frame_interval=1,image_size=11,vmin=10,vmax=90,
                      plot=True,frame_bin=None,return_plot=False):
