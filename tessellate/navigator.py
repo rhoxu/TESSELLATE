@@ -593,7 +593,7 @@ class Navigator():
 
         return t, f, ferr
 
-    def fit_event_bazin(self,objid,eventid,cut=None,units='counts',frame_buffer=-1,
+    def fit_event_bazin(self,objid,eventid,cut=None,units='mJy',frame_buffer=-1,
                         stamp_size=9,plot=True,p0=None):
         """
         Fit a Bazin profile to an event's PSF light curve and report the fit.
