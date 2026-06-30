@@ -543,9 +543,19 @@ class Navigator():
 
             if frame_bin is not None and frame_bin > event.frame_bin:
                 largertime, largerflux = (Frame_Bin(self.sector, self.cam,self.time, self.flux, frame_bin))
-                largert,largerf = Generate_LC(largertime,largerflux,x,y,
-                                              int(window_start/frame_bin*event.frame_bin),int(window_end/frame_bin*event.frame_bin),
-                                              radius=1.5)#,orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
+
+                if method == 'psf':
+                    lc = psf_lightcurve(largerflux[int(window_start/frame_bin*event.frame_bin):int(window_end/frame_bin*event.frame_bin)+1], 
+                                        largertime[int(window_start/frame_bin*event.frame_bin):int(window_end/frame_bin*event.frame_bin)+1],
+                                        x, y,sector=self.sector, cam=self.cam, ccd=self.ccd,cut_corner=self._cut_corner(cut), 
+                                        stamp_size=stamp_size, units=units, zp_ab=zp)
+                    largert, largerf = lc['time'], lc['flux']
+
+                elif method == 'aperture':
+                    largert,largerf = Generate_LC(largertime,largerflux,x,y,
+                                                int(window_start/frame_bin*event.frame_bin),int(window_end/frame_bin*event.frame_bin),
+                                                radius=1.5)#,orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
+                
                 ax.plot(largert, largerf, '^', c='r', alpha=0.8)
             
             if is_mag:
