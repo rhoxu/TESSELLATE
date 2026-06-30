@@ -555,6 +555,8 @@ class Navigator():
                     largert,largerf = Generate_LC(largertime,largerflux,x,y,
                                                 int(window_start/frame_bin*event.frame_bin),int(window_end/frame_bin*event.frame_bin),
                                                 radius=1.5)#,orbit_refs=self.orbit_refs,orbit_segments=self.orbit_segments)
+                    if units.lower() not in ('count','counts'): 
+                        largerf, _, _ = _convert_flux_units(f, np.ones_like(largerf), units, zp_eff)
                 
                 ax.plot(largert, largerf, '^', c='r', alpha=0.8)
             
