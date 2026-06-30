@@ -451,6 +451,8 @@ class Navigator():
         """
         Extract a light curve for a desired event (objid/eventid pair).
 
+        frame_buffer : number of frames either side of the event to include.
+            Set to -1 to use the entire light curve.
         method : 'aperture' (default) sums a fixed box at the integer position;
             'psf' does forced PSF photometry fixed to the event's sub-pixel PSF
             position (xcentroid_psf/ycentroid_psf) on the differenced flux -- the
@@ -488,8 +490,13 @@ class Navigator():
         frame_start = RoundToInt(event.frame_start)        # Start frame of the event
         frame_end = RoundToInt(event.frame_end)            # End frame of the event
 
-        window_start = np.max([frame_start-frame_buffer,0])
-        window_end = np.min([frame_end+frame_buffer+1,len(time)-1])
+        if frame_buffer == -1:
+            # Use the entire light curve
+            window_start = 0
+            window_end = len(time) - 1
+        else:
+            window_start = np.max([frame_start-frame_buffer,0])
+            window_end = np.min([frame_end+frame_buffer+1,len(time)-1])
 
         if method == 'psf':
             from .psf_flux_calibration import psf_lightcurve
