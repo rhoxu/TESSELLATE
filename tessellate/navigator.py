@@ -493,9 +493,9 @@ class Navigator():
 
         if method == 'psf':
             from .psf_flux_calibration import psf_lightcurve
-            xpsf = float(event.get('xcentroid_psf', event.xint))
-            ypsf = float(event.get('ycentroid_psf', event.yint))
-            lc = psf_lightcurve(flux[window_start:window_end+1], time[window_start:window_end+1], xpsf, ypsf,
+            x = float(event.get('xcentroid_psf', event.xint))
+            y = float(event.get('ycentroid_psf', event.yint))
+            lc = psf_lightcurve(flux[window_start:window_end+1], time[window_start:window_end+1], x, y,
                                 sector=self.sector, cam=self.cam, ccd=self.ccd,
                                 cut_corner=self._cut_corner(cut), stamp_size=stamp_size,
                                 units=units, zp_ab=zp)
