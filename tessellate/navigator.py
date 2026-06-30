@@ -647,7 +647,21 @@ class Navigator():
                     fontsize=8, bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.8))
             ax.set_xlabel('Time (MJD)')
             ax.set_ylabel(self._unit_label(units))
-            if units.lower() == 'mag':
+
+            # x-limits = fit window; y-limits = data within the window
+            ax.set_xlim(w0, w1)
+            inwin = np.isfinite(t) & np.isfinite(f) & (t >= w0) & (t <= w1)
+            if inwin.any():
+                fw = f[inwin]
+                ew_ = ferr[inwin] if ferr is not None else 0
+                ylo = np.nanmin(fw - ew_)
+                yhi = np.nanmax(fw + ew_)
+                ypad = 0.05 * (yhi - ylo) if yhi > ylo else 1.0
+                if units.lower() == 'mag':
+                    ax.set_ylim(yhi + ypad, ylo - ypad)
+                else:
+                    ax.set_ylim(ylo - ypad, yhi + ypad)
+            elif units.lower() == 'mag':
                 ax.invert_yaxis()
             ax.legend(fontsize=8, loc='upper left')
         return res
