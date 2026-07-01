@@ -1224,6 +1224,40 @@ def _psf_lc_core(stamp_cube, time_array, x_sub, y_sub, ccd_x, ccd_y, cam, ccd,
             'flux_counts': flux, 'e_flux_counts': e_flux, 'background': bg}
 
 
+def _aperture_lc_core(stamp_cube, time_array, x_sub, y_sub, ccd_x, ccd_y, cam, ccd,
+                      sector, prf_path=PRF_PATH_DEFAULT, stamp_size=9, radius=1.5,
+                      units='counts', zp_ab=None):
+    """
+    Aperture-photometry light curve from a PRE-EXTRACTED stamp cube.
+
+    Sums the central (2*floor(radius)+1) box per frame, with a background-limited
+    error from the stamp scatter.  For non-count units the zeropoint is aperture-
+    corrected for the PRF flux lost outside the box.
+    """
+    stamp_cube = np.asarray(stamp_cube, dtype=float)
+    cent = stamp_size // 2
+    buf = int(np.floor(radius))
+    box = stamp_cube[:, cent - buf:cent + buf + 1, cent - buf:cent + buf + 1]
+    flux = np.nansum(box, axis=(1, 2))
+
+    med = np.nanmedian(stamp_cube, axis=(1, 2), keepdims=True)
+    sig = 1.4826 * np.nanmedian(np.abs(stamp_cube - med), axis=(1, 2))
+    e_flux = np.sqrt((2 * buf + 1) ** 2) * sig
+
+    unit_label = 'counts'
+    value, e_value = flux, e_flux
+    if units.lower() not in ('count', 'counts'):
+        frac = aperture_correction(sector, cam, ccd, ccd_x, ccd_y, x_sub, y_sub,
+                                   radius=radius, prf_path=prf_path)
+        zp_eff = zp_ab + 2.5 * np.log10(frac)   # aperture loss folded into the ZP
+        value, e_value, unit_label = _convert_flux_units(flux, e_flux, units, zp_eff)
+
+    return {'time': np.asarray(time_array, dtype=float),
+            'flux': value, 'e_flux': e_value, 'units': unit_label,
+            'flux_counts': flux, 'e_flux_counts': e_flux,
+            'background': np.squeeze(med)}
+
+
 def aperture_correction(sector, cam, ccd, ccd_x, ccd_y, x_sub=0.0, y_sub=0.0,
                         radius=1.5, prf_path=PRF_PATH_DEFAULT, stamp_size=13):
     """

@@ -16,20 +16,26 @@ from .tools import RoundToInt, Generate_LC, Frame_Bin
 
 def _bazin_fit_worker(stamp_cube, sub_time, x_sub, y_sub, ccd_x, ccd_y,
                       event_window, n_ev_frames, sector, cam, ccd, units, zp,
-                      stamp_size, n_durations, supersample, objid, eventid):
+                      stamp_size, n_durations, supersample, objid, eventid,
+                      method='psf'):
     """
-    Fit Bazin to one event's PSF light curve from a PRE-EXTRACTED stamp cube
-    (top-level so joblib can pickle it).  Returns a result row dict; fit_ok=False
-    if the fit failed.
+    Fit Bazin to one event's light curve from a PRE-EXTRACTED stamp cube
+    (top-level so joblib can pickle it).  method='psf' (default) or 'aperture'.
+    Returns a result row dict; fit_ok=False if the fit failed.
     """
-    from .psf_flux_calibration import _psf_lc_core
+    from .psf_flux_calibration import _psf_lc_core, _aperture_lc_core
     from .bazin import bazin_detection, bazin_features
 
     row = {'objid': int(objid), 'eventid': int(eventid), 'fit_ok': False}
     try:
-        lc = _psf_lc_core(stamp_cube, sub_time, x_sub, y_sub, ccd_x, ccd_y,
-                          cam, ccd, sector, stamp_size=stamp_size,
-                          units=units, zp_ab=zp)
+        if method == 'aperture':
+            lc = _aperture_lc_core(stamp_cube, sub_time, x_sub, y_sub, ccd_x, ccd_y,
+                                   cam, ccd, sector, stamp_size=stamp_size,
+                                   units=units, zp_ab=zp)
+        else:
+            lc = _psf_lc_core(stamp_cube, sub_time, x_sub, y_sub, ccd_x, ccd_y,
+                              cam, ccd, sector, stamp_size=stamp_size,
+                              units=units, zp_ab=zp)
     except Exception:
         return row
 
@@ -642,14 +648,15 @@ class Navigator():
 
         return t, f, ferr
 
-    def fit_event_bazin(self,objid,eventid,cut=None,units='mJy',n_durations=3,
-                        min_duration=3,frame_buffer=None,stamp_size=9,
+    def fit_event_bazin(self,objid,eventid,cut=None,units='mJy',method='psf',
+                        n_durations=3,min_duration=3,frame_buffer=None,stamp_size=9,
                         plot=True,p0=None,exp_time=None,supersample=7):
         """
-        Fit a Bazin profile to an event's PSF light curve and report the fit.
+        Fit a Bazin profile to an event's light curve and report the fit.
 
-        PSF photometry is only computed over the FITTING WINDOW (n_durations
-        event durations centred on the detected window; default 3), not the whole
+        method : 'psf' (default) or 'aperture' photometry for the light curve.
+        Photometry is only computed over the FITTING WINDOW (n_durations event
+        durations centred on the detected window; default 3), not the whole
         light curve.  Bazin is fit there (baseline included, amplitude A >= 0 so
         only brightening events are modelled), the model is averaged over each
         exposure (exp_time defaults to the cadence), and the detection statistics
@@ -692,7 +699,7 @@ class Navigator():
             dur = max(fe - fs, 1)
             frame_buffer = int(round((n_durations - 1) / 2.0 * dur))
 
-        t, f, ferr = self.event_lc(objid, eventid, cut=cut, method='psf', units=units,
+        t, f, ferr = self.event_lc(objid, eventid, cut=cut, method=method, units=units,
                                    frame_buffer=frame_buffer, stamp_size=stamp_size,
                                    plot=False)
 
@@ -761,8 +768,8 @@ class Navigator():
             ax.legend(fontsize=8, loc='upper left')
         return res
 
-    def fit_events(self,cut=None,units='mJy',n_durations=3,min_duration=3,stamp_size=9,
-                   events=None,n_jobs=-1,supersample=7,
+    def fit_events(self,cut=None,units='mJy',method='psf',n_durations=3,min_duration=3,
+                   stamp_size=9,events=None,n_jobs=-1,supersample=7,
                    min_dbic=-6.0,max_redchi2=None,min_asnr=None,
                    tau_rise_range=None,tau_fall_range=None,
                    savepath=None,verbose=True):
@@ -846,7 +853,8 @@ class Navigator():
                     stamp, sub_time, xpsf - xi, ypsf - yi,
                     cut_corner[0] + xpsf, cut_corner[1] + ypsf, event_window,
                     (fe - fs) + 1, self.sector, self.cam, self.ccd, units, zp,
-                    stamp_size, n_durations, supersample, objid, eventid))
+                    stamp_size, n_durations, supersample, objid, eventid,
+                    method))
             if verbose:
                 print(f'  Fitting {len(tasks)} events (frame_bin={fb}, n_jobs={n_jobs}) ...',
                       flush=True)

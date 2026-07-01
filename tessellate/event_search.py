@@ -23,8 +23,8 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 
 def fit_cut_events(sector, cam, ccd, cut, data_path='/fred/oz335/TESSdata', n=8,
-                   units='mJy', n_durations=3, min_duration=3, n_jobs=-1,
-                   savepath=None, **fit_kwargs):
+                   units='mJy', method='psf', n_durations=3, min_duration=3,
+                   n_jobs=-1, savepath=None, **fit_kwargs):
     """
     Fit Bazin to every positive event in one cut and return / save the table.
 
@@ -44,7 +44,7 @@ def fit_cut_events(sector, cam, ccd, cut, data_path='/fred/oz335/TESSdata', n=8,
     if savepath is None:
         savepath = (f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/'
                     f'Cut{cut}of{n**2}/bazin_events.csv')
-    df = nav.fit_events(cut=cut, units=units, n_durations=n_durations,
+    df = nav.fit_events(cut=cut, units=units, method=method, n_durations=n_durations,
                         min_duration=min_duration, n_jobs=n_jobs,
                         savepath=savepath, **fit_kwargs)
     if df is not None:
@@ -64,7 +64,7 @@ def fit_cut_events(sector, cam, ccd, cut, data_path='/fred/oz335/TESSdata', n=8,
 def submit_sector_search(sector, cams=(1, 2, 3, 4), ccds=(1, 2, 3, 4), cuts=None,
                          n=8, data_path='/fred/oz335/TESSdata',
                          script_dir=None, log_dir=None,
-                         units='mJy', n_durations=3, min_duration=3,
+                         units='mJy', method='psf', n_durations=3, min_duration=3,
                          time='01:00:00', cpus=8, mem=4, account='oz335',
                          submit=True):
     """
@@ -95,7 +95,7 @@ def submit_sector_search(sector, cams=(1, 2, 3, 4), ccds=(1, 2, 3, 4), cuts=None
                         'from tessellate.event_search import fit_cut_events\n'
                         f'fit_cut_events(sector={sector}, cam={cam}, ccd={ccd}, '
                         f'cut={cut}, data_path="{data_path}", n={n}, '
-                        f'units="{units}", n_durations={n_durations}, '
+                        f'units="{units}", method="{method}", n_durations={n_durations}, '
                         f'min_duration={min_duration}, n_jobs={cpus})\n'
                     )
                 with open(base + '.sh', 'w') as f:
