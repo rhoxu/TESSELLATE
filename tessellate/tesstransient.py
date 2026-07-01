@@ -82,6 +82,23 @@ class TessTransient():
             print('\n')
             self.run()
 
+    def _get_wcs(self,cam,ccd):
+
+        data_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}'
+
+        if not os.path.exists(f'{data_path}/wcs/ref/corrected.fits'):
+            if len(glob(f'{data_path}/image_files/*ffic.fits')) == 0:
+                data_processor = DataProcessor(sector=self.sector,data_path=self.data_path,verbose=0)
+                data_processor.download(cam=cam,ccd=ccd,number=1)
+
+            file = glob(f'{data_path}/image_files/*ffic.fits')[0]
+            wcsItem = WCS(fits.open(file)[1].header)
+
+        else:
+            wcsItem = WCS(fits.open(f'{data_path}/wcs/ref/corrected.fits')[1].header)
+
+        return wcsItem
+
     def _location_observed(self):
         """
         Check whether any part of error region is on a TESS CCD. 
@@ -273,19 +290,8 @@ class TessTransient():
             cam = self.cam
         if ccd is None:
             ccd = self.ccd
-
-        data_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}'
         
-        if not os.path.exists(f'{data_path}/wcs/ref/corrected.fits'):
-            if len(glob(f'{data_path}/image_files/*ffic.fits')) == 0:
-                data_processor = DataProcessor(sector=self.sector,data_path=self.data_path,verbose=0)
-                data_processor.download(cam=cam,ccd=ccd,number=1)
-
-            file = glob(f'{data_path}/image_files/*ffic.fits')[0]
-            wcsItem = WCS(fits.open(file)[1].header)
-
-        else:
-            wcsItem = WCS(fits.open(f'{data_path}/wcs/ref/corrected.fits')[1].header)
+        wcsItem = self._get_wcs(cam,ccd)
         
         ellipse = self._gen_ellipse(wcsItem)
         
@@ -847,11 +853,8 @@ class TessTransient():
         """
         timeBuffer is in minutes
         """
-
-        data_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}'
-        # wcsItem = _get_wcs(f'{data_path}/image_files',f'{data_path}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits',verbose=0)
         
-        wcsItem = WCS(fits.open(f'{data_path}/wcs/ref/corrected.fits')[1].header)    
+        wcsItem = self._get_wcs(cam,ccd)
         
         ellipse = self._gen_ellipse(wcsItem)
         d = DataProcessor(sector=self.sector,data_path=self.data_path)
@@ -898,7 +901,7 @@ class TessTransient():
 
     
         # wcsItem = _get_wcs(f"{self.data_path}/Sector{self.sector}/Cam{event['camera']}/Ccd{event['ccd']}/image_files",f"{self.data_path}/sector{self.sector}_cam{event['camera']}_ccd{event['ccd']}_wcs.fits",verbose=0)
-        wcsItem = WCS(fits.open(f"{self.data_path}/Sector{self.sector}/Cam{event.camera}/Ccd{event.ccd}/wcs/ref/corrected.fits")[1].header)
+        wcsItem = self._get_wcs(event.camera, event.ccd)
 
         fig = plt.figure(figsize=(12,4),constrained_layout=True)
         fig.suptitle(f"Cam {event['camera']} CCD {event['ccd']} Cut {event['Cut']} Object {event['objid']}", fontsize=16)

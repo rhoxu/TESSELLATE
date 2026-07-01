@@ -171,10 +171,22 @@ class DataProcessor():
         import matplotlib.pyplot as plt
         from astropy.wcs import WCS
         from astropy.io import fits
+        from glob import glob
 
         newpath = f'{self.path}/Cam{cam}/Ccd{ccd}'
 
-        wcsItem = WCS(fits.open(f'{newpath}/wcs/ref/corrected.fits')[1].header)
+        # wcsItem = WCS(fits.open(f'{newpath}/wcs/ref/corrected.fits')[1].header)
+
+        if not os.path.exists(f'{newpath}/wcs/ref/corrected.fits'):
+            if len(glob(f'{newpath}/image_files/*ffic.fits')) == 0:
+                data_processor = DataProcessor(sector=self.sector,data_path=self.data_path,verbose=0)
+                data_processor.download(cam=cam,ccd=ccd,number=1)
+
+            file = glob(f'{newpath}/image_files/*ffic.fits')[0]
+            wcsItem = WCS(fits.open(file)[1].header)
+
+        else:
+            wcsItem = WCS(fits.open(f'{newpath}/wcs/ref/corrected.fits')[1].header)
 
         # wcsItem = _get_wcs(f'{newpath}/image_files',f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits') 
         # if not os.path.exists(f'{newpath}/sector{self.sector}_cam{cam}_ccd{ccd}_wcs.fits'):
