@@ -147,12 +147,13 @@ def submit_sector_search(sector, cams=(1, 2, 3, 4), ccds=(1, 2, 3, 4), cuts=None
 # Aggregation
 # ---------------------------------------------------------------------------
 
-def aggregate_fits(paths):
+def aggregate_fits(paths, n_jobs=-1):
     """
     Concatenate per-cut Bazin CSVs into one table.
 
     paths : a directory (searched recursively for bazin_events.csv), a glob
     pattern, or a list of file paths.
+    n_jobs : read the CSVs in parallel (joblib); 1 = serial.
     """
     if isinstance(paths, str):
         if os.path.isdir(paths):
@@ -164,7 +165,13 @@ def aggregate_fits(paths):
         files = list(paths)
     if not files:
         raise FileNotFoundError('No Bazin event CSVs found.')
-    frames = [pd.read_csv(f) for f in files]
+
+    if n_jobs == 1 or len(files) < 4:
+        frames = [pd.read_csv(f) for f in files]
+    else:
+        from joblib import Parallel, delayed
+        frames = Parallel(n_jobs=n_jobs, backend='threading')(
+            delayed(pd.read_csv)(f) for f in files)
     return pd.concat(frames, ignore_index=True)
 
 
