@@ -638,7 +638,8 @@ class Navigator():
             # Bazin model drawn over the fit window only (it was fit there)
             w0, w1 = res['fit_window']
             tt = np.linspace(w0, w1, 1000)
-            ax.plot(tt, bazin(tt, **res['params']), '-', c='C1', lw=1.8, label='Bazin')
+            model_curve = bazin(tt, **res['params'])
+            ax.plot(tt, model_curve, '-', c='C1', lw=1.8, label='Bazin')
             ax.axhline(res['offset'], color='0.5', ls=':', lw=1.0, label='offset')
             # event times (shaded) and the fit window (dashed bounds)
             ax.axvspan(event_window[0], event_window[1], color='C1', alpha=0.15, label='event')
@@ -655,14 +656,14 @@ class Navigator():
             ax.set_xlabel('Time (MJD)')
             ax.set_ylabel(self._unit_label(units))
 
-            # x-limits = fit window; y-limits = data within the window
+            # x-limits = fit window; y-limits = data within the window + model peak
             ax.set_xlim(w0, w1)
             inwin = np.isfinite(t) & np.isfinite(f) & (t >= w0) & (t <= w1)
             if inwin.any():
                 fw = f[inwin]
                 ew_ = ferr[inwin] if ferr is not None else 0
-                ylo = np.nanmin(fw - ew_)
-                yhi = np.nanmax(fw + ew_)
+                ylo = np.nanmin([np.nanmin(fw - ew_), np.nanmin(model_curve)])
+                yhi = np.nanmax([np.nanmax(fw + ew_), np.nanmax(model_curve)])
                 ypad = 0.05 * (yhi - ylo) if yhi > ylo else 1.0
                 if units.lower() == 'mag':
                     ax.set_ylim(yhi + ypad, ylo - ypad)
