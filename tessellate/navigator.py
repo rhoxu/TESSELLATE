@@ -769,7 +769,7 @@ class Navigator():
         return res
 
     def fit_events(self,cut=None,units='mJy',method='psf',n_durations=3,min_duration=3,
-                   stamp_size=9,events=None,n_jobs=-1,supersample=7,
+                   max_events=None,stamp_size=9,events=None,n_jobs=-1,supersample=7,
                    min_dbic=-6.0,max_redchi2=None,min_asnr=None,
                    tau_rise_range=None,tau_fall_range=None,
                    savepath=None,verbose=True):
@@ -782,9 +782,10 @@ class Navigator():
         For each event: forced PSF photometry over the fitting window, a
         simultaneous Bazin fit (amplitude >= 0), and the region-focused detection
         statistics.  Negative (dimming) events and events shorter than
-        min_duration frames are skipped.  A row per event records the parameters
-        and statistics; a 'pass' column flags events meeting all the (optional)
-        thresholds:
+        min_duration frames are skipped, and (if max_events is set) objects with
+        more than max_events events are dropped entirely.  A row per event records
+        the parameters and statistics; a 'pass' column flags events meeting all
+        the (optional) thresholds:
 
           min_dbic        : keep delta_bic <= this   (more negative = better)
           max_redchi2     : keep redchi2_region <= this
@@ -814,6 +815,15 @@ class Navigator():
         # Positive (brightening) events only
         if 'flux_sign' in ev.columns:
             ev = ev[ev['flux_sign'] > 0]
+
+        # Drop objects with more than max_events events (recurrent variables etc.)
+        if max_events is not None:
+            counts = ev.groupby('objid')['eventid'].transform('count')
+            n_before = ev['objid'].nunique()
+            ev = ev[counts <= max_events]
+            n_after = ev['objid'].nunique()
+            if verbose and n_after < n_before:
+                print(f'  Dropped {n_before - n_after} objects with > {max_events} events.')
 
         units, zp = self._resolve_units(units, cut)
         cut_corner = self._cut_corner(cut)
