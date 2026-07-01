@@ -171,7 +171,7 @@ class TessFixer():
                     data_processor.download(cam=cam,ccd=ccd,single=ref_idx_full,number=None)
                     image_path = glob(f'{ccd_folder}/image_files/*.fits')[0]
                 elif len(glob(f'{ccd_folder}/image_files/*.fits')) < 100:
-                    os.remove(f'{ccd_folder}/image_files/*.fits')
+                    os.system(f'rm -r {ccd_folder}/image_files')
                     data_processor.download(cam=cam,ccd=ccd,single=ref_idx_full,number=None)
                     image_path = glob(f'{ccd_folder}/image_files/*.fits')[0]    
                 else:
