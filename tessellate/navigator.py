@@ -14,42 +14,33 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 from .tools import RoundToInt, Generate_LC, Frame_Bin
 
 
-def _bazin_fit_worker(flux_cube, time_array, xpsf, ypsf, frame_start, frame_end,
-                      sector, cam, ccd, cut_corner, units, zp, stamp_size,
-                      n_durations, min_duration, supersample, objid, eventid):
+def _bazin_fit_worker(stamp_cube, sub_time, x_sub, y_sub, ccd_x, ccd_y,
+                      event_window, n_ev_frames, sector, cam, ccd, units, zp,
+                      stamp_size, n_durations, supersample, objid, eventid):
     """
-    Fit Bazin to one event's PSF light curve (top-level so joblib can pickle it).
-    Returns a result row dict; fit_ok=False if skipped or the fit failed.
+    Fit Bazin to one event's PSF light curve from a PRE-EXTRACTED stamp cube
+    (top-level so joblib can pickle it).  Returns a result row dict; fit_ok=False
+    if the fit failed.
     """
-    from .psf_flux_calibration import psf_lightcurve
+    from .psf_flux_calibration import _psf_lc_core
     from .bazin import bazin_detection, bazin_features
 
     row = {'objid': int(objid), 'eventid': int(eventid), 'fit_ok': False}
-    fs, fe = RoundToInt(frame_start), RoundToInt(frame_end)
-    if (fe - fs) + 1 < min_duration:
-        return row
-
-    # Fitting window: n_durations event durations centred on the event
-    dur = max(fe - fs, 1)
-    buf = int(round((n_durations - 1) / 2.0 * dur))
-    w0 = max(fs - buf, 0)
-    w1 = min(fe + buf + 1, len(time_array) - 1)
-    sub_flux = flux_cube[w0:w1 + 1]
-    sub_time = time_array[w0:w1 + 1]
-    event_window = (float(time_array[fs]), float(time_array[fe]))
-
     try:
-        lc = psf_lightcurve(sub_flux, sub_time, float(xpsf), float(ypsf),
-                            sector=sector, cam=cam, ccd=ccd, cut_corner=cut_corner,
-                            units=units, zp_ab=zp, stamp_size=stamp_size)
+        lc = _psf_lc_core(stamp_cube, sub_time, x_sub, y_sub, ccd_x, ccd_y,
+                          cam, ccd, sector, stamp_size=stamp_size,
+                          units=units, zp_ab=zp)
     except Exception:
         return row
 
     dt = np.diff(np.sort(sub_time[np.isfinite(sub_time)]))
     exp_time = float(np.median(dt)) if dt.size else 0.0
+    # Exposure averaging only matters for fast events; skip it (supersample=1)
+    # for events resolved by many frames.
+    eff_ss = supersample if n_ev_frames <= 6 else 1
     res = bazin_detection(lc['time'], lc['flux'], lc['e_flux'],
                           event_window=event_window, n_durations=n_durations,
-                          exp_time=exp_time, supersample=supersample)
+                          exp_time=exp_time, supersample=eff_ss)
     if res is None:
         return row
 
@@ -821,25 +812,47 @@ class Navigator():
         cut_corner = self._cut_corner(cut)
         fb_col = ev['frame_bin'] if 'frame_bin' in ev.columns else pd.Series(1, index=ev.index)
 
-        # Build tasks per frame_bin (bin the cube once per group; shared read-only)
+        # Build tasks per frame_bin.  Stamps are extracted here from the in-RAM
+        # cube and only the small stamp is sent to each worker (no big-cube memmap).
+        half = stamp_size // 2
         rows = []
         for fb, group in ev.groupby(fb_col):
             fb = int(fb)
             time_b, flux_b = (Frame_Bin(self.sector, self.cam, self.time, self.flux, fb)
                               if fb > 1 else (self.time, self.flux))
+            nt, ny, nx = flux_b.shape
             tasks = []
             for _, e in group.iterrows():
+                objid, eventid = int(e.objid), int(e.eventid)
+                fs, fe = RoundToInt(e.frame_start), RoundToInt(e.frame_end)
+                if (fe - fs) + 1 < min_duration:
+                    rows.append({'objid': objid, 'eventid': eventid, 'fit_ok': False})
+                    continue
                 xpsf = float(e.get('xcentroid_psf', e.xint))
                 ypsf = float(e.get('ycentroid_psf', e.yint))
+                xi, yi = int(np.round(xpsf)), int(np.round(ypsf))
+                if xi - half < 0 or yi - half < 0 or xi + half + 1 > nx or yi + half + 1 > ny:
+                    rows.append({'objid': objid, 'eventid': eventid, 'fit_ok': False})
+                    continue
+                dur = max(fe - fs, 1)
+                buf = int(round((n_durations - 1) / 2.0 * dur))
+                w0 = max(fs - buf, 0)
+                w1 = min(fe + buf + 1, nt - 1)
+                stamp = flux_b[w0:w1 + 1, yi - half:yi + half + 1,
+                               xi - half:xi + half + 1].copy()
+                sub_time = np.asarray(time_b[w0:w1 + 1], dtype=float)
+                event_window = (float(time_b[fs]), float(time_b[fe]))
                 tasks.append(delayed(_bazin_fit_worker)(
-                    flux_b, time_b, xpsf, ypsf, e.frame_start, e.frame_end,
-                    self.sector, self.cam, self.ccd, cut_corner, units, zp,
-                    stamp_size, n_durations, min_duration, supersample,
-                    int(e.objid), int(e.eventid)))
+                    stamp, sub_time, xpsf - xi, ypsf - yi,
+                    cut_corner[0] + xpsf, cut_corner[1] + ypsf, event_window,
+                    (fe - fs) + 1, self.sector, self.cam, self.ccd, units, zp,
+                    stamp_size, n_durations, supersample, objid, eventid))
             if verbose:
                 print(f'  Fitting {len(tasks)} events (frame_bin={fb}, n_jobs={n_jobs}) ...',
                       flush=True)
-            rows.extend(Parallel(n_jobs=n_jobs, backend='loky')(tasks))
+            if tasks:
+                rows.extend(Parallel(n_jobs=n_jobs, backend='loky',
+                                     max_nbytes=None)(tasks))
 
         df = pd.DataFrame(rows)
 
