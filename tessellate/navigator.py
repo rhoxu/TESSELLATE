@@ -673,9 +673,11 @@ class Navigator():
             tt = np.linspace(w0, w1, 1000)
             model_curve = bazin(tt, **res['params'])
             ax.plot(tt, model_curve, '-', c='C1', lw=1.8, label='Bazin')
-            # exposure-averaged model at the data cadence (what the data measure)
+            # exposure-averaged model at the data cadence -- only shown when the
+            # evolution is fast enough that averaging visibly differs from the
+            # instantaneous model (rise timescale within ~5 exposures)
             tw = np.sort(t[np.isfinite(t) & (t >= w0) & (t <= w1)])
-            if tw.size:
+            if tw.size and exp_time > 0 and res['params']['tau_rise'] < 5 * exp_time:
                 binned = bazin_binned(tw, **res['params'], exp_time=exp_time,
                                       supersample=supersample)
                 ax.plot(tw, binned, 'o-', c='C2', ms=3, lw=1.0, alpha=0.8,
