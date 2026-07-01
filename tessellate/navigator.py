@@ -768,7 +768,15 @@ class Navigator():
             except Exception:
                 res = None
             row = {'objid': objid, 'eventid': eventid, 'fit_ok': res is not None}
+            # Event metadata that may aid clustering
+            for col in ('ra', 'dec', 'xccd', 'yccd', 'xcentroid_psf', 'ycentroid_psf',
+                        'frame_bin', 'frame_start', 'frame_end', 'flux_sign',
+                        'psf_like', 'sig_max', 'sig_med'):
+                if col in ev.columns:
+                    row[col] = e[col]
+            row['n_frames_event'] = int(RoundToInt(e.frame_end) - RoundToInt(e.frame_start)) + 1
             if res is not None:
+                from .bazin import bazin_features
                 p, pe = res['params'], res['perr']
                 row.update({
                     'A': p['A'], 'A_err': pe['A'], 't0': p['t0'],
@@ -777,8 +785,9 @@ class Navigator():
                     'offset': res['offset'], 'A_snr': res['A_snr'],
                     'redchi2_region': res['redchi2_region'],
                     'delta_bic': res['delta_bic'], 'delta_chi2': res['delta_chi2'],
-                    'n_region': res['n_region'],
+                    'n_region': res['n_region'], 'units': units,
                 })
+                row.update(bazin_features(res['params']))
             rows.append(row)
             if verbose:
                 print(f'  [{i+1}/{n}] obj {objid} ev {eventid}: '

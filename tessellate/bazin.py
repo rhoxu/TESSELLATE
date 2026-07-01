@@ -24,6 +24,44 @@ def bazin(t, A, t0, tau_rise, tau_fall, c):
     return A * fall / (1.0 + rise) + c
 
 
+def bazin_features(params):
+    """
+    Derived, physically meaningful descriptors of a Bazin fit, for clustering.
+
+    Computes the shape numerically (baseline removed) and returns:
+      tau_ratio   : tau_fall / tau_rise (rise/decay asymmetry)
+      t_peak_off  : peak time relative to t0
+      peak        : model peak above baseline
+      fwhm        : full width at half maximum
+      rise_time   : half-max(rise) -> peak
+      decay_time  : peak -> half-max(decay)
+      fluence     : integral of the shape (peak flux x time)
+    """
+    A = params['A']; t0 = params['t0']
+    tr = params['tau_rise']; tf = params['tau_fall']
+    out = dict(tau_ratio=(tf / tr) if tr > 0 else np.nan,
+               t_peak_off=np.nan, peak=np.nan, fwhm=np.nan,
+               rise_time=np.nan, decay_time=np.nan, fluence=np.nan)
+    if not (np.isfinite(A) and A > 0 and tr > 0 and tf > 0):
+        return out
+
+    tt = np.linspace(t0 - 12 * tr, t0 + 18 * tf, 6000)
+    shape = bazin(tt, A, t0, tr, tf, 0.0)   # baseline-subtracted
+    ip = int(np.argmax(shape))
+    peak = float(shape[ip]); tpk = float(tt[ip])
+    out['peak'] = peak
+    out['t_peak_off'] = tpk - t0
+    out['fluence'] = float(np.trapz(shape, tt))
+    half = peak / 2.0
+    above = shape >= half
+    if above.any():
+        tlo = float(tt[above][0]); thi = float(tt[above][-1])
+        out['fwhm'] = thi - tlo
+        out['rise_time'] = tpk - tlo
+        out['decay_time'] = thi - tpk
+    return out
+
+
 def bazin_binned(t, A, t0, tau_rise, tau_fall, c, exp_time=0.0, supersample=7):
     """
     Bazin profile averaged over the exposure of each data point.
