@@ -768,13 +768,6 @@ class Navigator():
             except Exception:
                 res = None
             row = {'objid': objid, 'eventid': eventid, 'fit_ok': res is not None}
-            # Event metadata that may aid clustering
-            for col in ('ra', 'dec', 'xccd', 'yccd', 'xcentroid_psf', 'ycentroid_psf',
-                        'frame_bin', 'frame_start', 'frame_end', 'flux_sign',
-                        'psf_like', 'sig_max', 'sig_med'):
-                if col in ev.columns:
-                    row[col] = e[col]
-            row['n_frames_event'] = int(RoundToInt(e.frame_end) - RoundToInt(e.frame_start)) + 1
             if res is not None:
                 from .bazin import bazin_features
                 p, pe = res['params'], res['perr']
