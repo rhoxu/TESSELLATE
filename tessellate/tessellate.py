@@ -2286,6 +2286,8 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
         cutting_status = {}
         for cam in self.cam:
             for ccd in self.ccd:
+                print(_Print_buff(60,f'Searching Cut(s) for Sector{self.sector} Cam{cam} Ccd{ccd}'))
+                print('\n')
                 for cut in self.cuts:
                     if self.part:
                         save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
