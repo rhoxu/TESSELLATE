@@ -1026,7 +1026,7 @@ class TessTransient():
     #     else:
     #         return 2
 
-    def candidate_events(self,timeStartBuffer=120,eventDuration=12,significanceCut=None,num_plot=10,save=False):
+    def candidate_events(self,timeStartBuffer=120,eventDuration=24,significanceCut=None,num_plot=10,save=False):
         """
         timeStartBuffer in minutes, eventDuration in hours
         """
