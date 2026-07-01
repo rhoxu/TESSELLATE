@@ -79,13 +79,13 @@ class TessTransient():
 
         self.download = download
 
-        self._location_observed()
-        _ = self._sector_suggestions()
+        self._location_observed()            
 
         self.ErrorEllipse = None
         self.neighbours = None
 
         if self.obs & run:
+            _ = self._sector_suggestions()
             print('\n')
             self.run()
 
