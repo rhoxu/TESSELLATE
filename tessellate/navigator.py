@@ -605,7 +605,7 @@ class Navigator():
         cadence.  Returns the bazin.bazin_detection dict (params, errors,
         reduced chi^2, amplitude S/N, delta_chi2 / delta_bic).
         """
-        from .bazin import bazin, bazin_detection
+        from .bazin import bazin, bazin_binned, bazin_detection
 
         t, f, ferr = self.event_lc(objid, eventid, cut=cut, method='psf', units=units,
                                    frame_buffer=frame_buffer, stamp_size=stamp_size,
@@ -640,6 +640,13 @@ class Navigator():
             tt = np.linspace(w0, w1, 1000)
             model_curve = bazin(tt, **res['params'])
             ax.plot(tt, model_curve, '-', c='C1', lw=1.8, label='Bazin')
+            # exposure-averaged model at the data cadence (what the data measure)
+            tw = np.sort(t[np.isfinite(t) & (t >= w0) & (t <= w1)])
+            if tw.size:
+                binned = bazin_binned(tw, **res['params'], exp_time=exp_time,
+                                      supersample=supersample)
+                ax.plot(tw, binned, 'o-', c='C2', ms=3, lw=1.0, alpha=0.8,
+                        label='Bazin (exp-avg)')
             ax.axhline(res['offset'], color='0.5', ls=':', lw=1.0, label='offset')
             # event times (shaded) and the fit window (dashed bounds)
             ax.axvspan(event_window[0], event_window[1], color='C1', alpha=0.15, label='event')
