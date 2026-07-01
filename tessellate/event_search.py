@@ -348,6 +348,68 @@ def template_cluster(df, objid, eventid, sector=None, cam=None, ccd=None, cut=No
     return group
 
 
+# ---------------------------------------------------------------------------
+# Light curves for a group of events
+# ---------------------------------------------------------------------------
+
+def group_lightcurves(group, method='psf', units='mJy', events=None, n=None,
+                      frame_buffer=-1, savedir=None, plot=False,
+                      data_path='/fred/oz335/TESSdata', n_cuts=8, verbose=True):
+    """
+    Generate light curves for the events in a group / cluster.
+
+    group : DataFrame with columns sector, cam, ccd, cut, objid, eventid
+        (e.g. the output of template_cluster on an aggregated table).
+    method : 'psf' (default) or 'aperture'.
+    events : optional list of (objid, eventid) tuples to select specific events.
+    n : if events is None, use up to n events (the most significant by delta_bic,
+        else by stability, else the first n).  If both are None, all are used.
+    frame_buffer : window either side of the event; -1 = whole light curve.
+    savedir : if given, each light curve is written there via Navigator.event_lc
+        as S{sector}C{cam}C{ccd}C{cut}O{objid}E{eventid}_{method}_{units}.csv.
+
+    Returns dict keyed by (sector, cam, ccd, cut, objid, eventid) -> (t, flux, ferr).
+    """
+    from .navigator import Navigator
+
+    need = {'sector', 'cam', 'ccd', 'cut', 'objid', 'eventid'}
+    missing = need - set(group.columns)
+    if missing:
+        raise ValueError(f'group is missing columns: {sorted(missing)} '
+                         '(use an aggregated table with provenance).')
+
+    g = group.copy()
+    if events is not None:
+        want = {(int(o), int(e)) for o, e in events}
+        g = g[[(int(o), int(e)) in want for o, e in zip(g['objid'], g['eventid'])]]
+    elif n is not None:
+        if 'delta_bic' in g:
+            g = g.sort_values('delta_bic')
+        elif 'stability' in g:
+            g = g.sort_values('stability', ascending=False)
+        g = g.head(n)
+
+    out = {}
+    for (sec, cam, ccd), sub in g.groupby(['sector', 'cam', 'ccd']):
+        nav = Navigator(sector=int(sec), cam=int(cam), ccd=int(ccd),
+                        data_path=data_path, n=n_cuts)
+        for _, r in sub.sort_values('cut').iterrows():
+            cut, objid, eventid = int(r.cut), int(r.objid), int(r.eventid)
+            try:
+                res = nav.event_lc(objid, eventid, cut=cut, method=method, units=units,
+                                   frame_buffer=frame_buffer, savedir=savedir, plot=plot)
+            except Exception as exc:
+                if verbose:
+                    print(f'  failed S{sec}C{cam}C{ccd}C{cut} O{objid}E{eventid}: {exc}')
+                continue
+            out[(int(sec), int(cam), int(ccd), cut, objid, eventid)] = res
+            if verbose:
+                print(f'  S{sec}C{cam}C{ccd}C{cut} O{objid}E{eventid} done', flush=True)
+
+    print(f'Generated {len(out)} light curves ({method}, {units}).')
+    return out
+
+
 def plot_clusters(df, features=('tau_rise', 'tau_fall'), log=True,
                   template=None, savepath=None):
     """
