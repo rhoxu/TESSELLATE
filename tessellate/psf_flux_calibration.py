@@ -1146,9 +1146,7 @@ def psf_lightcurve(flux_cube, time_array, x, y, sector, cam, ccd,
     """
     flux_cube = np.asarray(flux_cube, dtype=float)
     nfr, ny, nx = flux_cube.shape
-    cent = stamp_size // 2
     half = stamp_size // 2
-    npix = stamp_size * stamp_size
 
     xi, yi = int(np.round(x)), int(np.round(y))
     if xi - half < 0 or yi - half < 0 or xi + half + 1 > nx or yi + half + 1 > ny:
@@ -1157,20 +1155,49 @@ def psf_lightcurve(flux_cube, time_array, x, y, sector, cam, ccd,
 
     stamp_cube = flux_cube[:, yi - half:yi + half + 1, xi - half:xi + half + 1]
 
+    neigh_sub = None
+    if neighbours is not None:
+        neigh_sub = [(nxp - xi, nyp - yi) for nxp, nyp in np.asarray(neighbours, float)
+                     if (abs(nxp - x) <= half and abs(nyp - y) <= half
+                         and not (nxp == x and nyp == y))]
+
+    return _psf_lc_core(stamp_cube, time_array, x - xi, y - yi,
+                        cut_corner[0] + x, cut_corner[1] + y, cam, ccd, sector,
+                        prf_path=prf_path, stamp_size=stamp_size,
+                        neighbours_sub=neigh_sub, units=units, zp_ab=zp_ab)
+
+
+def _psf_lc_core(stamp_cube, time_array, x_sub, y_sub, ccd_x, ccd_y, cam, ccd,
+                 sector, prf_path=PRF_PATH_DEFAULT, stamp_size=9,
+                 neighbours_sub=None, units='counts', zp_ab=None):
+    """
+    PSF-photometry light curve from a PRE-EXTRACTED stamp cube.
+
+    stamp_cube : (n_frames, stamp_size, stamp_size), already centred on the
+        source's nearest pixel.  x_sub, y_sub : sub-pixel offset of the source
+        from the stamp centre.  ccd_x, ccd_y : CCD position (for the PRF).
+        neighbours_sub : list of (dx, dy) neighbour offsets from the stamp centre.
+
+    Splitting extraction from the solve lets callers slice the stamp from an
+    in-RAM cube and pass only the small stamp to workers (no big-cube memmap).
+    """
+    stamp_cube = np.asarray(stamp_cube, dtype=float)
+    nfr = stamp_cube.shape[0]
+    cent = stamp_size // 2
+    npix = stamp_size * stamp_size
+
     prf_dir = f'{prf_path}/Sectors4+' if sector >= 4 else f'{prf_path}/Sectors1_2_3'
-    prf = _get_prf(cam, ccd, sector, cut_corner[0] + x, cut_corner[1] + y, prf_dir)
+    prf = _get_prf(cam, ccd, sector, ccd_x, ccd_y, prf_dir)
 
     def _col(dx, dy):
         p = prf.locate(cent + dx, cent + dy, (stamp_size, stamp_size))
         s = np.nansum(p)
         return (p / s).ravel() if (np.isfinite(s) and s > 0) else np.zeros(npix)
 
-    cols = [_col(x - xi, y - yi)]
-    if neighbours is not None:
-        for nxp, nyp in np.asarray(neighbours, dtype=float):
-            if (abs(nxp - x) <= half and abs(nyp - y) <= half
-                    and not (nxp == x and nyp == y)):
-                cols.append(_col(nxp - xi, nyp - yi))
+    cols = [_col(x_sub, y_sub)]
+    if neighbours_sub is not None:
+        for dx, dy in neighbours_sub:
+            cols.append(_col(dx, dy))
     cols.append(np.ones(npix))           # flat background
     A = np.column_stack(cols)            # npix x M  (target, neighbours..., bg)
 
@@ -1186,8 +1213,7 @@ def psf_lightcurve(flux_cube, time_array, x, y, sector, cam, ccd,
     flux = coeffs[0]
     bg = coeffs[-1]
 
-    # Per-frame noise from the fit residuals -> flux error
-    resid = Dg.T - Ag @ coeffs           # n_good x n_frames
+    resid = Dg.T - Ag @ coeffs
     med = np.median(resid, axis=0)
     sigma = 1.4826 * np.median(np.abs(resid - med), axis=0)
     e_flux = sigma * np.sqrt(ATA_inv[0, 0])
@@ -1196,6 +1222,40 @@ def psf_lightcurve(flux_cube, time_array, x, y, sector, cam, ccd,
     return {'time': np.asarray(time_array, dtype=float),
             'flux': value, 'e_flux': e_value, 'units': unit_label,
             'flux_counts': flux, 'e_flux_counts': e_flux, 'background': bg}
+
+
+def _aperture_lc_core(stamp_cube, time_array, x_sub, y_sub, ccd_x, ccd_y, cam, ccd,
+                      sector, prf_path=PRF_PATH_DEFAULT, stamp_size=9, radius=1.5,
+                      units='counts', zp_ab=None):
+    """
+    Aperture-photometry light curve from a PRE-EXTRACTED stamp cube.
+
+    Sums the central (2*floor(radius)+1) box per frame, with a background-limited
+    error from the stamp scatter.  For non-count units the zeropoint is aperture-
+    corrected for the PRF flux lost outside the box.
+    """
+    stamp_cube = np.asarray(stamp_cube, dtype=float)
+    cent = stamp_size // 2
+    buf = int(np.floor(radius))
+    box = stamp_cube[:, cent - buf:cent + buf + 1, cent - buf:cent + buf + 1]
+    flux = np.nansum(box, axis=(1, 2))
+
+    med = np.nanmedian(stamp_cube, axis=(1, 2), keepdims=True)
+    sig = 1.4826 * np.nanmedian(np.abs(stamp_cube - med), axis=(1, 2))
+    e_flux = np.sqrt((2 * buf + 1) ** 2) * sig
+
+    unit_label = 'counts'
+    value, e_value = flux, e_flux
+    if units.lower() not in ('count', 'counts'):
+        frac = aperture_correction(sector, cam, ccd, ccd_x, ccd_y, x_sub, y_sub,
+                                   radius=radius, prf_path=prf_path)
+        zp_eff = zp_ab + 2.5 * np.log10(frac)   # aperture loss folded into the ZP
+        value, e_value, unit_label = _convert_flux_units(flux, e_flux, units, zp_eff)
+
+    return {'time': np.asarray(time_array, dtype=float),
+            'flux': value, 'e_flux': e_value, 'units': unit_label,
+            'flux_counts': flux, 'e_flux_counts': e_flux,
+            'background': np.squeeze(med)}
 
 
 def aperture_correction(sector, cam, ccd, ccd_x, ccd_y, x_sub=0.0, y_sub=0.0,

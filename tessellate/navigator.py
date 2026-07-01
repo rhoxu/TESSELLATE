@@ -13,6 +13,57 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 from .tools import RoundToInt, Generate_LC, Frame_Bin
 
+
+def _bazin_fit_worker(stamp_cube, sub_time, x_sub, y_sub, ccd_x, ccd_y,
+                      event_window, n_ev_frames, sector, cam, ccd, units, zp,
+                      stamp_size, n_durations, supersample, objid, eventid,
+                      method='psf'):
+    """
+    Fit Bazin to one event's light curve from a PRE-EXTRACTED stamp cube
+    (top-level so joblib can pickle it).  method='psf' (default) or 'aperture'.
+    Returns a result row dict; fit_ok=False if the fit failed.
+    """
+    from .psf_flux_calibration import _psf_lc_core, _aperture_lc_core
+    from .bazin import bazin_detection, bazin_features
+
+    row = {'objid': int(objid), 'eventid': int(eventid), 'fit_ok': False}
+    try:
+        if method == 'aperture':
+            lc = _aperture_lc_core(stamp_cube, sub_time, x_sub, y_sub, ccd_x, ccd_y,
+                                   cam, ccd, sector, stamp_size=stamp_size,
+                                   units=units, zp_ab=zp)
+        else:
+            lc = _psf_lc_core(stamp_cube, sub_time, x_sub, y_sub, ccd_x, ccd_y,
+                              cam, ccd, sector, stamp_size=stamp_size,
+                              units=units, zp_ab=zp)
+    except Exception:
+        return row
+
+    dt = np.diff(np.sort(sub_time[np.isfinite(sub_time)]))
+    exp_time = float(np.median(dt)) if dt.size else 0.0
+    # Exposure averaging only matters for fast events; skip it (supersample=1)
+    # for events resolved by many frames.
+    eff_ss = supersample if n_ev_frames <= 6 else 1
+    res = bazin_detection(lc['time'], lc['flux'], lc['e_flux'],
+                          event_window=event_window, n_durations=n_durations,
+                          exp_time=exp_time, supersample=eff_ss)
+    if res is None:
+        return row
+
+    p, pe = res['params'], res['perr']
+    row.update({
+        'A': p['A'], 'A_err': pe['A'], 't0': p['t0'],
+        'tau_rise': p['tau_rise'], 'tau_rise_err': pe['tau_rise'],
+        'tau_fall': p['tau_fall'], 'tau_fall_err': pe['tau_fall'],
+        'offset': res['offset'], 'A_snr': res['A_snr'],
+        'redchi2_region': res['redchi2_region'],
+        'delta_bic': res['delta_bic'], 'delta_chi2': res['delta_chi2'],
+        'n_region': res['n_region'], 'units': units,
+    })
+    row.update(bazin_features(res['params']))
+    row['fit_ok'] = True
+    return row
+
 class Navigator():
 
     def __init__(self,sector,cam,ccd,data_path='/fred/oz335/TESSdata',n=8):
@@ -395,12 +446,16 @@ class Navigator():
     # ----------------------------- Extracting light curves / images of events ----------------------------- #
 
     def _cut_corner(self,cut):
-        """CCD pixel coordinate of the cut's bottom-left corner."""
-        from .dataprocessor import DataProcessor
-        processor = DataProcessor(sector=self.sector,data_path=self.data_path,verbose=0)
-        cut_corners,_,_,_ = processor.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,
-                                                plot=False,verbose=0)
-        return cut_corners[cut-1]
+        """CCD pixel coordinate of the cut's bottom-left corner (cached)."""
+        if not hasattr(self,'_ccorner_cache'):
+            self._ccorner_cache = {}
+        if cut not in self._ccorner_cache:
+            from .dataprocessor import DataProcessor
+            processor = DataProcessor(sector=self.sector,data_path=self.data_path,verbose=0)
+            cut_corners,_,_,_ = processor.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,
+                                                    plot=False,verbose=0)
+            self._ccorner_cache[cut] = cut_corners[cut-1]
+        return self._ccorner_cache[cut]
 
     def _calibration_zp(self,cut):
         """Return the AB zeropoint for this cut, or None if not calibrated."""
@@ -451,6 +506,8 @@ class Navigator():
         """
         Extract a light curve for a desired event (objid/eventid pair).
 
+        frame_buffer : number of frames either side of the event to include.
+            Set to -1 to use the entire light curve.
         method : 'aperture' (default) sums a fixed box at the integer position;
             'psf' does forced PSF photometry fixed to the event's sub-pixel PSF
             position (xcentroid_psf/ycentroid_psf) on the differenced flux -- the
@@ -488,8 +545,13 @@ class Navigator():
         frame_start = RoundToInt(event.frame_start)        # Start frame of the event
         frame_end = RoundToInt(event.frame_end)            # End frame of the event
 
-        window_start = np.max([frame_start-frame_buffer,0])
-        window_end = np.min([frame_end+frame_buffer+1,len(time)-1])
+        if frame_buffer == -1:
+            # Use the entire light curve
+            window_start = 0
+            window_end = len(time) - 1
+        else:
+            window_start = np.max([frame_start-frame_buffer,0])
+            window_end = np.min([frame_end+frame_buffer+1,len(time)-1])
 
         if method == 'psf':
             from .psf_flux_calibration import psf_lightcurve
@@ -586,7 +648,246 @@ class Navigator():
 
         return t, f, ferr
 
-    
+    def fit_event_bazin(self,objid,eventid,cut=None,units='mJy',method='psf',
+                        n_durations=3,min_duration=3,frame_buffer=None,stamp_size=9,
+                        plot=True,p0=None,exp_time=None,supersample=7):
+        """
+        Fit a Bazin profile to an event's light curve and report the fit.
+
+        method : 'psf' (default) or 'aperture' photometry for the light curve.
+        Photometry is only computed over the FITTING WINDOW (n_durations event
+        durations centred on the detected window; default 3), not the whole
+        light curve.  Bazin is fit there (baseline included, amplitude A >= 0 so
+        only brightening events are modelled), the model is averaged over each
+        exposure (exp_time defaults to the cadence), and the detection statistics
+        are focused on the event region.
+
+        min_duration : events spanning fewer than this many frames are not fit
+            (returns None).  Negative-flux (dimming) events are always skipped.
+            Returns the bazin.bazin_detection dict, or None if skipped/failed.
+        """
+        from .bazin import bazin, bazin_binned, bazin_detection
+
+        # Gather data/results so the event (and its window) are available
+        if cut is None:
+            cut = self.cut
+        if cut is None:
+            raise ValueError('Please specify a cut!')
+        if cut != self.cut:
+            self.gather_data(cut)
+            self.gather_results(cut)
+
+        event = self.events[(self.events.objid==objid)&(self.events.eventid==eventid)].iloc[0]
+        etime = (Frame_Bin(self.sector, self.cam, self.time, self.flux, event.frame_bin)[0]
+                 if event.frame_bin > 1 else self.time)
+        fs, fe = RoundToInt(event.frame_start), RoundToInt(event.frame_end)
+        event_window = (float(etime[fs]), float(etime[fe]))
+
+        # Reject too-short and negative (dimming) events
+        n_dur_frames = (fe - fs) + 1
+        if n_dur_frames < min_duration:
+            if plot:
+                print(f'Event duration {n_dur_frames} < min_duration {min_duration} frames; skipping.')
+            return None
+        if float(event.get('flux_sign', 1)) < 0:
+            if plot:
+                print('Negative (dimming) event; skipping.')
+            return None
+
+        # Only photometer the fitting window: n_durations event durations
+        if frame_buffer is None:
+            dur = max(fe - fs, 1)
+            frame_buffer = int(round((n_durations - 1) / 2.0 * dur))
+
+        t, f, ferr = self.event_lc(objid, eventid, cut=cut, method=method, units=units,
+                                   frame_buffer=frame_buffer, stamp_size=stamp_size,
+                                   plot=False)
+
+        # Exposure time per point = light-curve cadence unless overridden
+        if exp_time is None:
+            dt = np.diff(np.sort(t[np.isfinite(t)]))
+            exp_time = float(np.median(dt)) if dt.size else 0.0
+
+        res = bazin_detection(t, f, ferr, event_window=event_window,
+                              n_durations=n_durations, p0=p0,
+                              exp_time=exp_time, supersample=supersample)
+        if res is None:
+            if plot:
+                print('Bazin fit failed.')
+            return None
+
+        if plot:
+            fig, ax = plt.subplots()
+            ax.errorbar(t, f, yerr=ferr, fmt='x', c='k', ecolor='0.6', capsize=2,
+                        alpha=0.7, label='PSF data')
+            # Bazin model drawn over the fit window only (it was fit there)
+            w0, w1 = res['fit_window']
+            tt = np.linspace(w0, w1, 1000)
+            model_curve = bazin(tt, **res['params'])
+            ax.plot(tt, model_curve, '-', c='C1', lw=1.8, label='Bazin')
+            # exposure-averaged model at the data cadence -- only shown when the
+            # evolution is fast enough that averaging visibly differs from the
+            # instantaneous model (rise timescale within ~5 exposures)
+            tw = np.sort(t[np.isfinite(t) & (t >= w0) & (t <= w1)])
+            if tw.size and exp_time > 0 and res['params']['tau_rise'] < 5 * exp_time:
+                binned = bazin_binned(tw, **res['params'], exp_time=exp_time,
+                                      supersample=supersample)
+                ax.plot(tw, binned, 'o-', c='C2', ms=3, lw=1.0, alpha=0.8,
+                        label='Bazin (exp-avg)')
+            ax.axhline(res['offset'], color='0.5', ls=':', lw=1.0, label='offset')
+            # event times (shaded) and the fit window (dashed bounds)
+            ax.axvspan(event_window[0], event_window[1], color='C1', alpha=0.15, label='event')
+            ax.axvline(w0, color='0.4', ls='--', lw=0.8)
+            ax.axvline(w1, color='0.4', ls='--', lw=0.8)
+            p, e = res['params'], res['perr']
+            txt = (f"$\\tau_r$={p['tau_rise']:.3f}$\\pm${e['tau_rise']:.3f}\n"
+                   f"$\\tau_f$={p['tau_fall']:.3f}$\\pm${e['tau_fall']:.3f}\n"
+                   f"A/$\\sigma_A$={res['A_snr']:.1f}\n"
+                   f"$\\chi^2_\\nu$(reg)={res['redchi2_region']:.2f}\n"
+                   f"$\\Delta$BIC={res['delta_bic']:.1f} (N={res['n_region']})")
+            ax.text(0.97, 0.97, txt, transform=ax.transAxes, ha='right', va='top',
+                    fontsize=8, bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.8))
+            ax.set_xlabel('Time (MJD)')
+            ax.set_ylabel(self._unit_label(units))
+
+            # x-limits = fit window; y-limits = data within the window + model peak
+            ax.set_xlim(w0, w1)
+            inwin = np.isfinite(t) & np.isfinite(f) & (t >= w0) & (t <= w1)
+            if inwin.any():
+                fw = f[inwin]
+                ew_ = ferr[inwin] if ferr is not None else 0
+                ylo = np.nanmin([np.nanmin(fw - ew_), np.nanmin(model_curve)])
+                yhi = np.nanmax([np.nanmax(fw + ew_), np.nanmax(model_curve)])
+                ypad = 0.05 * (yhi - ylo) if yhi > ylo else 1.0
+                if units.lower() == 'mag':
+                    ax.set_ylim(yhi + ypad, ylo - ypad)
+                else:
+                    ax.set_ylim(ylo - ypad, yhi + ypad)
+            elif units.lower() == 'mag':
+                ax.invert_yaxis()
+            ax.legend(fontsize=8, loc='upper left')
+        return res
+
+    def fit_events(self,cut=None,units='mJy',method='psf',n_durations=3,min_duration=3,
+                   stamp_size=9,events=None,n_jobs=-1,supersample=7,
+                   min_dbic=-6.0,max_redchi2=None,min_asnr=None,
+                   tau_rise_range=None,tau_fall_range=None,
+                   savepath=None,verbose=True):
+        """
+        Fit a Bazin profile to every (positive) event in a cut and return a
+        ranked, filtered table -- for identifying Bazin-like candidates across a
+        large event set.  The event list is split across n_jobs worker processes
+        (joblib); the flux cube is shared read-only across workers.
+
+        For each event: forced PSF photometry over the fitting window, a
+        simultaneous Bazin fit (amplitude >= 0), and the region-focused detection
+        statistics.  Negative (dimming) events and events shorter than
+        min_duration frames are skipped.  A row per event records the parameters
+        and statistics; a 'pass' column flags events meeting all the (optional)
+        thresholds:
+
+          min_dbic        : keep delta_bic <= this   (more negative = better)
+          max_redchi2     : keep redchi2_region <= this
+          min_asnr        : keep A_snr >= this
+          tau_rise_range  : (lo, hi) keep tau_rise in range
+          tau_fall_range  : (lo, hi) keep tau_fall in range
+
+        events : optional events DataFrame (subset) to fit instead of all.
+        savepath : optional CSV path to write the table.
+        Returns the full table sorted by delta_bic (most negative first).
+        """
+        from joblib import Parallel, delayed
+
+        if cut is None:
+            cut = self.cut
+        if cut is None:
+            raise ValueError('Please specify a cut!')
+        if cut != self.cut:
+            self.gather_data(cut)
+            self.gather_results(cut)
+
+        ev = self.events if events is None else events
+        if ev is None or len(ev) == 0:
+            print('No events to fit.')
+            return None
+
+        # Positive (brightening) events only
+        if 'flux_sign' in ev.columns:
+            ev = ev[ev['flux_sign'] > 0]
+
+        units, zp = self._resolve_units(units, cut)
+        cut_corner = self._cut_corner(cut)
+        fb_col = ev['frame_bin'] if 'frame_bin' in ev.columns else pd.Series(1, index=ev.index)
+
+        # Build tasks per frame_bin.  Stamps are extracted here from the in-RAM
+        # cube and only the small stamp is sent to each worker (no big-cube memmap).
+        half = stamp_size // 2
+        rows = []
+        for fb, group in ev.groupby(fb_col):
+            fb = int(fb)
+            time_b, flux_b = (Frame_Bin(self.sector, self.cam, self.time, self.flux, fb)
+                              if fb > 1 else (self.time, self.flux))
+            nt, ny, nx = flux_b.shape
+            tasks = []
+            for _, e in group.iterrows():
+                objid, eventid = int(e.objid), int(e.eventid)
+                fs, fe = RoundToInt(e.frame_start), RoundToInt(e.frame_end)
+                if (fe - fs) + 1 < min_duration:
+                    rows.append({'objid': objid, 'eventid': eventid, 'fit_ok': False})
+                    continue
+                xpsf = float(e.get('xcentroid_psf', e.xint))
+                ypsf = float(e.get('ycentroid_psf', e.yint))
+                xi, yi = int(np.round(xpsf)), int(np.round(ypsf))
+                if xi - half < 0 or yi - half < 0 or xi + half + 1 > nx or yi + half + 1 > ny:
+                    rows.append({'objid': objid, 'eventid': eventid, 'fit_ok': False})
+                    continue
+                dur = max(fe - fs, 1)
+                buf = int(round((n_durations - 1) / 2.0 * dur))
+                w0 = max(fs - buf, 0)
+                w1 = min(fe + buf + 1, nt - 1)
+                stamp = flux_b[w0:w1 + 1, yi - half:yi + half + 1,
+                               xi - half:xi + half + 1].copy()
+                sub_time = np.asarray(time_b[w0:w1 + 1], dtype=float)
+                event_window = (float(time_b[fs]), float(time_b[fe]))
+                tasks.append(delayed(_bazin_fit_worker)(
+                    stamp, sub_time, xpsf - xi, ypsf - yi,
+                    cut_corner[0] + xpsf, cut_corner[1] + ypsf, event_window,
+                    (fe - fs) + 1, self.sector, self.cam, self.ccd, units, zp,
+                    stamp_size, n_durations, supersample, objid, eventid,
+                    method))
+            if verbose:
+                print(f'  Fitting {len(tasks)} events (frame_bin={fb}, n_jobs={n_jobs}) ...',
+                      flush=True)
+            if tasks:
+                rows.extend(Parallel(n_jobs=n_jobs, backend='loky',
+                                     max_nbytes=None)(tasks))
+
+        df = pd.DataFrame(rows)
+
+        # Filter
+        passed = df['fit_ok'].fillna(False).to_numpy(dtype=bool)
+        if min_dbic is not None and 'delta_bic' in df:
+            passed &= (df['delta_bic'] <= min_dbic).fillna(False).to_numpy()
+        if max_redchi2 is not None and 'redchi2_region' in df:
+            passed &= (df['redchi2_region'] <= max_redchi2).fillna(False).to_numpy()
+        if min_asnr is not None and 'A_snr' in df:
+            passed &= (df['A_snr'] >= min_asnr).fillna(False).to_numpy()
+        if tau_rise_range is not None and 'tau_rise' in df:
+            passed &= df['tau_rise'].between(*tau_rise_range).fillna(False).to_numpy()
+        if tau_fall_range is not None and 'tau_fall' in df:
+            passed &= df['tau_fall'].between(*tau_fall_range).fillna(False).to_numpy()
+        df['pass'] = passed
+
+        if 'delta_bic' in df:
+            df = df.sort_values('delta_bic', na_position='last').reset_index(drop=True)
+
+        print(f'Fit {int(df["fit_ok"].sum())}/{len(df)} events; '
+              f'{int(df["pass"].sum())} passed the filters.')
+        if savepath is not None:
+            df.to_csv(savepath, index=False)
+            print(f'Saved: {savepath}')
+        return df
+
     def event_frames(self,objid,eventid,cut=None,
                      frame_buffer=2,frame_interval=1,image_size=11,vmin=10,vmax=90,
                      plot=True,frame_bin=None,return_plot=False):
