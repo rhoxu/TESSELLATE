@@ -245,11 +245,11 @@ class Tessellate():
         if reduce:
             reduce = self.reduce()     # returns reduction slurm job ids for use in transient search
 
-        if calibrate:
-            self.calibrate()
-
         if search:
             self.transient_search(reduction_status=reduce)
+
+        if calibrate:
+            self.calibrate()
         
         if plot:
             self.transient_plot(searching=search)
@@ -2080,62 +2080,6 @@ python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                             reduction_status[(cam, ccd, cut)]['job_id'] = job_id
                             reduction_status[(cam, ccd, cut)]['job_time'] = self.reduce_time
                     
-                    
-
-
-#                     if go:                    
-#                         # -- Create python file for reducing a cut-- # 
-#                         print(f'Creating Reduction Python File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
-#                         python_text = f"\
-# from tessellate import DataProcessor\n\
-# import os\n\
-# \n\
-# part={self.part}\n\
-# processor = DataProcessor(sector={self.sector},data_path='{self.data_path}',verbose=2)\n\
-# processor.reduce(cam={cam},ccd={ccd},n={self.n},cut={cut},part=part)\n\
-# if not part:\n\
-#     if os.path.exists('{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Shifts.npy'):\n\
-#         with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reduced.txt', 'w') as file:\n\
-#             file.write('Reduced!')"   
-#             # file.write('Reduced with TESSreduce version {tr.__version__}.')"
-#                         with open(f"{self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
-#                             python_file.write(python_text)
-
-#                         # -- Create bash file to submit job -- #
-#                         #print('Creating Reduction Batch File')
-#                         batch_text = f'\
-# #!/bin/bash\n\
-# #\n\
-# #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cut{cut}_Reduction\n\
-# #SBATCH --output={self.job_output_path}/tessellate_reduction_logs/%A_%x_job_output.txt\n\
-# #SBATCH --error={self.job_output_path}/tessellate_reduction_logs/%A_%x_errors.txt\n\
-# #\n\
-# #SBATCH --ntasks=1\n\
-# #SBATCH --time={self.reduce_time}\n\
-# #SBATCH --cpus-per-task={self.reduce_cpu}\n\
-# #SBATCH --mem-per-cpu={self.reduce_mem}G\n\
-# \n\
-# python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py'
-
-#                         with open(f"{self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh", "w") as batch_file:
-#                             batch_file.write(batch_text)
-                                
-#                         #print('Submitting Reduction Batch File')
-#                         # os.system(f'sbatch {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh')
-
-#                         result = subprocess.run(
-#                             f'sbatch {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.sh',
-#                             shell=True, capture_output=True, text=True
-#                         )
-
-#                         job_id = result.stdout.strip().split()[-1]
-#                         print(f'Submitted batch job {job_id}')
-#                         reduction_status[(cam, ccd, cut)]['job_id'] = job_id
-#                         reduction_status[(cam, ccd, cut)]['status'] = 'UNCOMPLETED'
-#                         reduction_status[(cam, ccd, cut)]['job_time'] = self.reduce_time
-                        
-#                         print('\n')
-
         return reduction_status
 
     def _cut_calibrate(self, cam, ccd, cut):
@@ -2257,7 +2201,7 @@ python {script_py}'
                     cut_folder = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
                     ref_check = f'{cut_folder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Ref.npy'
                     if not os.path.exists(ref_check):
-                        print(f'No reference image found for Cut {cut} — skipping (run reduce first).')
+                        print(f'No reference image found for Cut {cut} - skipping (run reduce first).')
                         print('\n')
                         continue
 
