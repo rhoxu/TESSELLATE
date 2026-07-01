@@ -269,7 +269,6 @@ def plot_clusters(df, features=('tau_rise', 'tau_fall'), log=True,
     template = (objid, eventid) marks the studied event.
     """
     import matplotlib
-    matplotlib.use('Agg')
     import matplotlib.pyplot as plt
 
     fx, fy = features[0], features[1]
