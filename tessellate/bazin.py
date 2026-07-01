@@ -24,7 +24,25 @@ def bazin(t, A, t0, tau_rise, tau_fall, c):
     return A * fall / (1.0 + rise) + c
 
 
-def fit_bazin(t, f, ferr=None, p0=None, maxfev=20000, fit_mask=None, fix_c=None):
+def bazin_binned(t, A, t0, tau_rise, tau_fall, c, exp_time=0.0, supersample=7):
+    """
+    Bazin profile averaged over the exposure of each data point.
+
+    Each observation is the mean flux over its integration, not the instantaneous
+    model at the bin centre.  For fast events (timescale <~ exp_time) this matters:
+    the model is supersampled across [t - exp_time/2, t + exp_time/2] and averaged.
+    With exp_time <= 0 this reduces to the instantaneous Bazin.
+    """
+    t = np.asarray(t, dtype=float)
+    if exp_time and exp_time > 0 and supersample and supersample > 1:
+        off = (np.arange(supersample) / (supersample - 1) - 0.5) * exp_time
+        tt = t[None, :] + off[:, None]
+        return bazin(tt, A, t0, tau_rise, tau_fall, c).mean(axis=0)
+    return bazin(t, A, t0, tau_rise, tau_fall, c)
+
+
+def fit_bazin(t, f, ferr=None, p0=None, maxfev=20000, fit_mask=None, fix_c=None,
+              exp_time=0.0, supersample=7):
     """
     Fit the Bazin profile to (t, f) with optional errors.
 
@@ -60,12 +78,14 @@ def fit_bazin(t, f, ferr=None, p0=None, maxfev=20000, fit_mask=None, fix_c=None)
     span = float(t.max() - t.min()) or 1.0
 
     if fix_c is not None:
-        func = lambda tv, A, t0, tr, tf: bazin(tv, A, t0, tr, tf, fix_c)
+        func = lambda tv, A, t0, tr, tf: bazin_binned(tv, A, t0, tr, tf, fix_c,
+                                                      exp_time, supersample)
         guess = [A0, t0_0, 0.05 * span, 0.2 * span]
         lb = [-np.inf, t.min() - span, 1e-3, 1e-3]
         ub = [np.inf, t.max() + span, 5 * span, 10 * span]
     else:
-        func = bazin
+        func = lambda tv, A, t0, tr, tf, cc: bazin_binned(tv, A, t0, tr, tf, cc,
+                                                          exp_time, supersample)
         guess = [A0, t0_0, 0.05 * span, 0.2 * span, c0]
         lb = [-np.inf, t.min() - span, 1e-3, 1e-3, -np.inf]
         ub = [np.inf, t.max() + span, 5 * span, 10 * span, np.inf]
@@ -84,7 +104,7 @@ def fit_bazin(t, f, ferr=None, p0=None, maxfev=20000, fit_mask=None, fix_c=None)
     if fix_c is not None:
         popt = np.append(popt, fix_c)
         perr = np.append(perr, 0.0)
-    model = bazin(t, *popt)
+    model = bazin_binned(t, *popt, exp_time=exp_time, supersample=supersample)
     resid = f - model
     chi2 = float(np.sum((resid / sig) ** 2)) if sig is not None else float(np.sum(resid ** 2))
     dof = len(t) - n_free

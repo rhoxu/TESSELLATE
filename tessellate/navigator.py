@@ -594,15 +594,16 @@ class Navigator():
         return t, f, ferr
 
     def fit_event_bazin(self,objid,eventid,cut=None,units='mJy',frame_buffer=-1,
-                        stamp_size=9,plot=True,p0=None):
+                        stamp_size=9,plot=True,p0=None,exp_time=None,supersample=7):
         """
         Fit a Bazin profile to an event's PSF light curve and report the fit.
 
-        Uses forced PSF photometry (method='psf') over the requested window
-        (default the whole light curve), then fits Bazin and compares it to a
-        flat baseline.  Returns the fit dict from bazin.bazin_detection, which
-        includes the parameters, their errors, reduced chi^2, amplitude S/N, and
-        the delta_chi2 / delta_bic detection statistics for ranking.
+        Uses forced PSF photometry (method='psf'), fits Bazin over a window of a
+        few event durations (see bazin.bazin_detection), and compares it to a flat
+        baseline.  The model is averaged over the exposure of each point so fast
+        events are not over-sharpened; exp_time defaults to the light-curve
+        cadence.  Returns the bazin.bazin_detection dict (params, errors,
+        reduced chi^2, amplitude S/N, delta_chi2 / delta_bic).
         """
         from .bazin import bazin, bazin_detection
 
@@ -619,7 +620,13 @@ class Navigator():
         fs, fe = RoundToInt(event.frame_start), RoundToInt(event.frame_end)
         event_window = (float(etime[fs]), float(etime[fe]))
 
-        res = bazin_detection(t, f, ferr, event_window=event_window, p0=p0)
+        # Exposure time per point = light-curve cadence unless overridden
+        if exp_time is None:
+            dt = np.diff(np.sort(t[np.isfinite(t)]))
+            exp_time = float(np.median(dt)) if dt.size else 0.0
+
+        res = bazin_detection(t, f, ferr, event_window=event_window, p0=p0,
+                              exp_time=exp_time, supersample=supersample)
         if res is None:
             print('Bazin fit failed.')
             return None
