@@ -166,12 +166,29 @@ def aggregate_fits(paths, n_jobs=-1):
     if not files:
         raise FileNotFoundError('No Bazin event CSVs found.')
 
+    def _safe_read(f):
+        try:
+            d = pd.read_csv(f)
+            return d if len(d) else None
+        except pd.errors.EmptyDataError:
+            return None
+        except Exception as exc:
+            print(f'  skipping unreadable {f}: {exc}')
+            return None
+
     if n_jobs == 1 or len(files) < 4:
-        frames = [pd.read_csv(f) for f in files]
+        frames = [_safe_read(f) for f in files]
     else:
         from joblib import Parallel, delayed
         frames = Parallel(n_jobs=n_jobs, backend='threading')(
-            delayed(pd.read_csv)(f) for f in files)
+            delayed(_safe_read)(f) for f in files)
+
+    frames = [d for d in frames if d is not None]
+    n_empty = len(files) - len(frames)
+    if not frames:
+        raise ValueError('All Bazin event CSVs were empty.')
+    if n_empty:
+        print(f'Aggregated {len(frames)} files ({n_empty} empty/skipped).')
     return pd.concat(frames, ignore_index=True)
 
 
