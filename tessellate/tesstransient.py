@@ -79,15 +79,15 @@ class TessTransient():
 
         self.download = download
 
-        self._location_observed()            
-
+        self._location_observed()   
         self.ErrorEllipse = None
         self.neighbours = None
 
-        if self.obs & run:
-            _ = self._sector_suggestions()
-            print('\n')
-            self.run()
+        if self.obs:
+            _ = self._sector_suggestions()         
+            if run:
+                print('\n')
+                self.run()
 
     def _get_wcs(self,cam,ccd):
 
