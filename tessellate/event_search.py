@@ -298,4 +298,3 @@ def plot_clusters(df, features=('tau_rise', 'tau_fall'), log=True,
         print(f'Saved: {savepath}')
     else:
         plt.show()
-    plt.close(fig)
