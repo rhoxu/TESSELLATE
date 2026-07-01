@@ -17,6 +17,8 @@ from time import time as t
 from astropy.wcs import WCS
 from astropy.time import Time
 from astropy.io import fits
+from astropy.coordinates import SkyCoord
+import astropy.units as u
 
 from .tessellate import Tessellate
 from .dataprocessor import DataProcessor
@@ -59,6 +61,11 @@ class TessTransient():
         """
 
         # Given
+        if type(ra) == str:
+            c = SkyCoord(ra,dec, unit=(u.hourangle, u.deg))
+            ra = c.ra.deg
+            dec = c.dec.deg
+
         self.ra = ra
         self.dec = dec
         self.error = error
