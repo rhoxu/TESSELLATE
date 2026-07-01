@@ -170,6 +170,10 @@ class TessFixer():
                 if not os.path.exists(f'{ccd_folder}/image_files/'):
                     data_processor.download(cam=cam,ccd=ccd,single=ref_idx_full,number=None)
                     image_path = glob(f'{ccd_folder}/image_files/*.fits')[0]
+                elif len(glob(f'{ccd_folder}/image_files/*.fits')) < 100:
+                    os.remove(f'{ccd_folder}/image_files/*.fits')
+                    data_processor.download(cam=cam,ccd=ccd,single=ref_idx_full,number=None)
+                    image_path = glob(f'{ccd_folder}/image_files/*.fits')[0]    
                 else:
                     image_path = sorted(glob(f'{ccd_folder}/image_files/*.fits'))[ref_idx_full]
             else:
