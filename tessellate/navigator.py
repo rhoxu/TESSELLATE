@@ -769,7 +769,7 @@ class Navigator():
         return res
 
     def fit_events(self,cut=None,units='mJy',method='psf',n_durations=3,min_duration=3,
-                   max_events=None,stamp_size=9,events=None,n_jobs=-1,supersample=7,
+                   max_events=10,stamp_size=9,events=None,n_jobs=-1,supersample=7,
                    min_dbic=-6.0,max_redchi2=None,min_asnr=None,
                    tau_rise_range=None,tau_fall_range=None,
                    savepath=None,verbose=True):

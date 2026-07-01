@@ -24,7 +24,7 @@ import pandas as pd
 
 def fit_cut_events(sector, cam, ccd, cut, data_path='/fred/oz335/TESSdata', n=8,
                    units='mJy', method='psf', n_durations=3, min_duration=3,
-                   max_events=None, n_jobs=-1, savepath=None, **fit_kwargs):
+                   max_events=10, n_jobs=-1, savepath=None, **fit_kwargs):
     """
     Fit Bazin to every positive event in one cut and return / save the table.
 
@@ -65,7 +65,7 @@ def submit_sector_search(sector, cams=(1, 2, 3, 4), ccds=(1, 2, 3, 4), cuts=None
                          n=8, data_path='/fred/oz335/TESSdata',
                          script_dir=None, log_dir=None,
                          units='mJy', method='psf', n_durations=5, min_duration=3,
-                         max_events=None,
+                         max_events=10,
                          time='01:00:00', cpus=8, mem=4, account='oz335',
                          submit=True):
     """
