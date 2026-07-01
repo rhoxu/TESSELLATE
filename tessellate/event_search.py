@@ -65,7 +65,7 @@ def submit_sector_search(sector, cams=(1, 2, 3, 4), ccds=(1, 2, 3, 4), cuts=None
                          n=8, data_path='/fred/oz335/TESSdata',
                          script_dir=None, log_dir=None,
                          units='mJy', method='psf', n_durations=3, min_duration=3,
-                         time='01:00:00', cpus=8, mem=4, account='oz335',
+                         time='01:00:00', cpus=8, mem=100, account='oz335',
                          submit=True):
     """
     Dispatch one slurm job per cut that fits Bazin to every positive event and
@@ -107,7 +107,7 @@ def submit_sector_search(sector, cams=(1, 2, 3, 4), ccds=(1, 2, 3, 4), cuts=None
                         '#SBATCH --ntasks=1\n'
                         f'#SBATCH --time={time}\n'
                         f'#SBATCH --cpus-per-task={cpus}\n'
-                        f'#SBATCH --mem-per-cpu={mem}G\n'
+                        f'#SBATCH --mem-per-cpu={mem}M\n'
                         f'#SBATCH --account={account}\n\n'
                         'PYTHONUNBUFFERED=1\n'
                         f'source {venv}/bin/activate\n'
