@@ -56,6 +56,76 @@ def fit_cut_events(sector, cam, ccd, cut, data_path='/fred/oz335/TESSdata', n=8,
 
 
 # ---------------------------------------------------------------------------
+# Sector-wide slurm dispatch (one job per cut)
+# ---------------------------------------------------------------------------
+
+def submit_sector_search(sector, cams=(1, 2, 3, 4), ccds=(1, 2, 3, 4), cuts=None,
+                         n=8, data_path='/fred/oz335/TESSdata',
+                         script_dir=None, log_dir=None,
+                         units='mJy', n_durations=3, min_duration=3,
+                         time='01:00:00', cpus=1, mem=4, account='oz335',
+                         submit=True):
+    """
+    Dispatch one slurm job per cut that fits Bazin to every positive event and
+    writes <cut>/bazin_events.csv.  After the jobs finish, collect them with
+    aggregate_fits('<data_path>/Sector<sector>') and cluster with cluster_events.
+
+    cuts defaults to all n**2 cuts.  Set submit=False to only write the scripts.
+    Returns the list of submitted job ids.
+    """
+    import sys
+    import subprocess
+
+    venv = sys.prefix
+    cuts = list(cuts) if cuts is not None else list(range(1, n ** 2 + 1))
+    script_dir = script_dir or f'{data_path}/Sector{sector}/bazin_search_scripts'
+    log_dir = log_dir or f'{data_path}/Sector{sector}/bazin_search_logs'
+    os.makedirs(script_dir, exist_ok=True)
+    os.makedirs(log_dir, exist_ok=True)
+
+    job_ids = []
+    for cam in cams:
+        for ccd in ccds:
+            for cut in cuts:
+                base = f'{script_dir}/S{sector}C{cam}C{ccd}C{cut}_bazin'
+                with open(base + '.py', 'w') as f:
+                    f.write(
+                        'from tessellate.event_search import fit_cut_events\n'
+                        f'fit_cut_events(sector={sector}, cam={cam}, ccd={ccd}, '
+                        f'cut={cut}, data_path="{data_path}", n={n}, '
+                        f'units="{units}", n_durations={n_durations}, '
+                        f'min_duration={min_duration})\n'
+                    )
+                with open(base + '.sh', 'w') as f:
+                    f.write(
+                        '#!/bin/bash\n'
+                        f'#SBATCH --job-name=TESS_S{sector}_C{cam}_C{ccd}_C{cut}_bazin\n'
+                        f'#SBATCH --output={log_dir}/%A_%x_out.txt\n'
+                        f'#SBATCH --error={log_dir}/%A_%x_err.txt\n'
+                        '#SBATCH --ntasks=1\n'
+                        f'#SBATCH --time={time}\n'
+                        f'#SBATCH --cpus-per-task={cpus}\n'
+                        f'#SBATCH --mem-per-cpu={mem}G\n'
+                        f'#SBATCH --account={account}\n\n'
+                        'PYTHONUNBUFFERED=1\n'
+                        f'source {venv}/bin/activate\n'
+                        f'python {base}.py\n'
+                    )
+                if submit:
+                    r = subprocess.run(f'sbatch {base}.sh', shell=True,
+                                       capture_output=True, text=True)
+                    if r.returncode == 0 and r.stdout.strip():
+                        job_ids.append(r.stdout.strip().split()[-1])
+                    else:
+                        print(f'sbatch failed S{sector}C{cam}C{ccd}C{cut}: '
+                              f'{r.stderr.strip()}')
+
+    print(f'{"Submitted" if submit else "Wrote"} {len(cams)*len(ccds)*len(cuts)} '
+          f'cut jobs ({len(job_ids)} submitted).')
+    return job_ids
+
+
+# ---------------------------------------------------------------------------
 # Aggregation
 # ---------------------------------------------------------------------------
 
