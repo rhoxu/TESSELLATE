@@ -24,15 +24,24 @@ import pandas as pd
 
 def fit_cut_events(sector, cam, ccd, cut, data_path='/fred/oz335/TESSdata', n=8,
                    units='mJy', method='psf', n_durations=3, min_duration=3,
-                   max_events=10, n_jobs=-1, savepath=None, **fit_kwargs):
+                   max_events=10, overwrite=False, n_jobs=-1, savepath=None,
+                   **fit_kwargs):
     """
     Fit Bazin to every positive event in one cut and return / save the table.
 
     Thin wrapper around Navigator.fit_events (which splits the events across
     n_jobs worker processes) so it can be driven from a slurm script.  savepath
-    defaults to the cut folder.
+    defaults to the cut folder.  overwrite=False skips the cut if its
+    bazin_events.csv already exists.
     """
     from .navigator import Navigator
+
+    if savepath is None:
+        savepath = (f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/'
+                    f'Cut{cut}of{n**2}/bazin_events.csv')
+    if not overwrite and os.path.exists(savepath):
+        print(f'Already fit (use overwrite=True): {savepath}')
+        return None
 
     nav = Navigator(sector=sector, cam=cam, ccd=ccd, data_path=data_path, n=n)
     nav.gather_data(cut)
@@ -41,9 +50,6 @@ def fit_cut_events(sector, cam, ccd, cut, data_path='/fred/oz335/TESSdata', n=8,
         print(f'No events for S{sector}C{cam}C{ccd}C{cut}.')
         return None
 
-    if savepath is None:
-        savepath = (f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/'
-                    f'Cut{cut}of{n**2}/bazin_events.csv')
     df = nav.fit_events(cut=cut, units=units, method=method, n_durations=n_durations,
                         min_duration=min_duration, max_events=max_events, n_jobs=n_jobs,
                         savepath=savepath, **fit_kwargs)
@@ -65,7 +71,7 @@ def submit_sector_search(sector, cams=(1, 2, 3, 4), ccds=(1, 2, 3, 4), cuts=None
                          n=8, data_path='/fred/oz335/TESSdata',
                          script_dir=None, log_dir=None,
                          units='mJy', method='psf', n_durations=5, min_duration=3,
-                         max_events=10,
+                         max_events=10, overwrite=False,
                          time='01:00:00', cpus=8, mem=4, account='oz335',
                          submit=True):
     """
@@ -73,7 +79,8 @@ def submit_sector_search(sector, cams=(1, 2, 3, 4), ccds=(1, 2, 3, 4), cuts=None
     writes <cut>/bazin_events.csv.  After the jobs finish, collect them with
     aggregate_fits('<data_path>/Sector<sector>') and cluster with cluster_events.
 
-    cuts defaults to all n**2 cuts.  Set submit=False to only write the scripts.
+    cuts defaults to all n**2 cuts.  overwrite=False skips cuts whose
+    bazin_events.csv already exists.  Set submit=False to only write the scripts.
     Returns the list of submitted job ids.
     """
     import sys
@@ -87,9 +94,15 @@ def submit_sector_search(sector, cams=(1, 2, 3, 4), ccds=(1, 2, 3, 4), cuts=None
     os.makedirs(log_dir, exist_ok=True)
 
     job_ids = []
+    n_skip = 0
     for cam in cams:
         for ccd in ccds:
             for cut in cuts:
+                out_csv = (f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/'
+                           f'Cut{cut}of{n**2}/bazin_events.csv')
+                if not overwrite and os.path.exists(out_csv):
+                    n_skip += 1
+                    continue
                 base = f'{script_dir}/S{sector}C{cam}C{ccd}C{cut}_bazin'
                 with open(base + '.py', 'w') as f:
                     f.write(
@@ -98,7 +111,7 @@ def submit_sector_search(sector, cams=(1, 2, 3, 4), ccds=(1, 2, 3, 4), cuts=None
                         f'cut={cut}, data_path="{data_path}", n={n}, '
                         f'units="{units}", method="{method}", n_durations={n_durations}, '
                         f'min_duration={min_duration}, max_events={max_events}, '
-                        f'n_jobs={cpus})\n'
+                        f'overwrite={overwrite}, n_jobs={cpus})\n'
                     )
                 with open(base + '.sh', 'w') as f:
                     f.write(
@@ -124,8 +137,9 @@ def submit_sector_search(sector, cams=(1, 2, 3, 4), ccds=(1, 2, 3, 4), cuts=None
                         print(f'sbatch failed S{sector}C{cam}C{ccd}C{cut}: '
                               f'{r.stderr.strip()}')
 
-    print(f'{"Submitted" if submit else "Wrote"} {len(cams)*len(ccds)*len(cuts)} '
-          f'cut jobs ({len(job_ids)} submitted).')
+    print(f'{"Submitted" if submit else "Wrote"} '
+          f'{len(cams)*len(ccds)*len(cuts) - n_skip} cut jobs '
+          f'({len(job_ids)} submitted, {n_skip} skipped as already done).')
     return job_ids
 
 
