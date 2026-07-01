@@ -23,13 +23,14 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 
 def fit_cut_events(sector, cam, ccd, cut, data_path='/fred/oz335/TESSdata', n=8,
-                   units='mJy', n_durations=3, min_duration=3, savepath=None,
-                   **fit_kwargs):
+                   units='mJy', n_durations=3, min_duration=3, n_jobs=-1,
+                   savepath=None, **fit_kwargs):
     """
     Fit Bazin to every positive event in one cut and return / save the table.
 
-    Thin wrapper around Navigator.fit_events so it can be driven from a slurm
-    script.  savepath defaults to the cut's calibration folder.
+    Thin wrapper around Navigator.fit_events (which splits the events across
+    n_jobs worker processes) so it can be driven from a slurm script.  savepath
+    defaults to the cut folder.
     """
     from .navigator import Navigator
 
@@ -44,7 +45,8 @@ def fit_cut_events(sector, cam, ccd, cut, data_path='/fred/oz335/TESSdata', n=8,
         savepath = (f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/'
                     f'Cut{cut}of{n**2}/bazin_events.csv')
     df = nav.fit_events(cut=cut, units=units, n_durations=n_durations,
-                        min_duration=min_duration, savepath=savepath, **fit_kwargs)
+                        min_duration=min_duration, n_jobs=n_jobs,
+                        savepath=savepath, **fit_kwargs)
     if df is not None:
         # Tag provenance so a sector-wide concatenation stays unambiguous
         df.insert(0, 'sector', sector)
@@ -63,7 +65,7 @@ def submit_sector_search(sector, cams=(1, 2, 3, 4), ccds=(1, 2, 3, 4), cuts=None
                          n=8, data_path='/fred/oz335/TESSdata',
                          script_dir=None, log_dir=None,
                          units='mJy', n_durations=3, min_duration=3,
-                         time='01:00:00', cpus=1, mem=4, account='oz335',
+                         time='01:00:00', cpus=8, mem=4, account='oz335',
                          submit=True):
     """
     Dispatch one slurm job per cut that fits Bazin to every positive event and
@@ -94,7 +96,7 @@ def submit_sector_search(sector, cams=(1, 2, 3, 4), ccds=(1, 2, 3, 4), cuts=None
                         f'fit_cut_events(sector={sector}, cam={cam}, ccd={ccd}, '
                         f'cut={cut}, data_path="{data_path}", n={n}, '
                         f'units="{units}", n_durations={n_durations}, '
-                        f'min_duration={min_duration})\n'
+                        f'min_duration={min_duration}, n_jobs={cpus})\n'
                     )
                 with open(base + '.sh', 'w') as f:
                     f.write(

@@ -13,6 +13,60 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 from .tools import RoundToInt, Generate_LC, Frame_Bin
 
+
+def _bazin_fit_worker(flux_cube, time_array, xpsf, ypsf, frame_start, frame_end,
+                      sector, cam, ccd, cut_corner, units, zp, stamp_size,
+                      n_durations, min_duration, supersample, objid, eventid):
+    """
+    Fit Bazin to one event's PSF light curve (top-level so joblib can pickle it).
+    Returns a result row dict; fit_ok=False if skipped or the fit failed.
+    """
+    from .psf_flux_calibration import psf_lightcurve
+    from .bazin import bazin_detection, bazin_features
+
+    row = {'objid': int(objid), 'eventid': int(eventid), 'fit_ok': False}
+    fs, fe = RoundToInt(frame_start), RoundToInt(frame_end)
+    if (fe - fs) + 1 < min_duration:
+        return row
+
+    # Fitting window: n_durations event durations centred on the event
+    dur = max(fe - fs, 1)
+    buf = int(round((n_durations - 1) / 2.0 * dur))
+    w0 = max(fs - buf, 0)
+    w1 = min(fe + buf + 1, len(time_array) - 1)
+    sub_flux = flux_cube[w0:w1 + 1]
+    sub_time = time_array[w0:w1 + 1]
+    event_window = (float(time_array[fs]), float(time_array[fe]))
+
+    try:
+        lc = psf_lightcurve(sub_flux, sub_time, float(xpsf), float(ypsf),
+                            sector=sector, cam=cam, ccd=ccd, cut_corner=cut_corner,
+                            units=units, zp_ab=zp, stamp_size=stamp_size)
+    except Exception:
+        return row
+
+    dt = np.diff(np.sort(sub_time[np.isfinite(sub_time)]))
+    exp_time = float(np.median(dt)) if dt.size else 0.0
+    res = bazin_detection(lc['time'], lc['flux'], lc['e_flux'],
+                          event_window=event_window, n_durations=n_durations,
+                          exp_time=exp_time, supersample=supersample)
+    if res is None:
+        return row
+
+    p, pe = res['params'], res['perr']
+    row.update({
+        'A': p['A'], 'A_err': pe['A'], 't0': p['t0'],
+        'tau_rise': p['tau_rise'], 'tau_rise_err': pe['tau_rise'],
+        'tau_fall': p['tau_fall'], 'tau_fall_err': pe['tau_fall'],
+        'offset': res['offset'], 'A_snr': res['A_snr'],
+        'redchi2_region': res['redchi2_region'],
+        'delta_bic': res['delta_bic'], 'delta_chi2': res['delta_chi2'],
+        'n_region': res['n_region'], 'units': units,
+    })
+    row.update(bazin_features(res['params']))
+    row['fit_ok'] = True
+    return row
+
 class Navigator():
 
     def __init__(self,sector,cam,ccd,data_path='/fred/oz335/TESSdata',n=8):
@@ -717,13 +771,15 @@ class Navigator():
         return res
 
     def fit_events(self,cut=None,units='mJy',n_durations=3,min_duration=3,stamp_size=9,
-                   events=None,min_dbic=-6.0,max_redchi2=None,min_asnr=None,
+                   events=None,n_jobs=-1,supersample=7,
+                   min_dbic=-6.0,max_redchi2=None,min_asnr=None,
                    tau_rise_range=None,tau_fall_range=None,
                    savepath=None,verbose=True):
         """
         Fit a Bazin profile to every (positive) event in a cut and return a
         ranked, filtered table -- for identifying Bazin-like candidates across a
-        large event set.
+        large event set.  The event list is split across n_jobs worker processes
+        (joblib); the flux cube is shared read-only across workers.
 
         For each event: forced PSF photometry over the fitting window, a
         simultaneous Bazin fit (amplitude >= 0), and the region-focused detection
@@ -742,6 +798,8 @@ class Navigator():
         savepath : optional CSV path to write the table.
         Returns the full table sorted by delta_bic (most negative first).
         """
+        from joblib import Parallel, delayed
+
         if cut is None:
             cut = self.cut
         if cut is None:
@@ -759,37 +817,29 @@ class Navigator():
         if 'flux_sign' in ev.columns:
             ev = ev[ev['flux_sign'] > 0]
 
+        units, zp = self._resolve_units(units, cut)
+        cut_corner = self._cut_corner(cut)
+        fb_col = ev['frame_bin'] if 'frame_bin' in ev.columns else pd.Series(1, index=ev.index)
+
+        # Build tasks per frame_bin (bin the cube once per group; shared read-only)
         rows = []
-        n = len(ev)
-        for i, (_, e) in enumerate(ev.iterrows()):
-            objid, eventid = int(e.objid), int(e.eventid)
-            try:
-                res = self.fit_event_bazin(objid, eventid, cut=cut, units=units,
-                                           n_durations=n_durations, min_duration=min_duration,
-                                           stamp_size=stamp_size, plot=False)
-            except Exception:
-                res = None
-            row = {'objid': objid, 'eventid': eventid, 'fit_ok': res is not None}
-            if res is not None:
-                from .bazin import bazin_features
-                p, pe = res['params'], res['perr']
-                row.update({
-                    'A': p['A'], 'A_err': pe['A'], 't0': p['t0'],
-                    'tau_rise': p['tau_rise'], 'tau_rise_err': pe['tau_rise'],
-                    'tau_fall': p['tau_fall'], 'tau_fall_err': pe['tau_fall'],
-                    'offset': res['offset'], 'A_snr': res['A_snr'],
-                    'redchi2_region': res['redchi2_region'],
-                    'delta_bic': res['delta_bic'], 'delta_chi2': res['delta_chi2'],
-                    'n_region': res['n_region'], 'units': units,
-                })
-                row.update(bazin_features(res['params']))
-            rows.append(row)
+        for fb, group in ev.groupby(fb_col):
+            fb = int(fb)
+            time_b, flux_b = (Frame_Bin(self.sector, self.cam, self.time, self.flux, fb)
+                              if fb > 1 else (self.time, self.flux))
+            tasks = []
+            for _, e in group.iterrows():
+                xpsf = float(e.get('xcentroid_psf', e.xint))
+                ypsf = float(e.get('ycentroid_psf', e.yint))
+                tasks.append(delayed(_bazin_fit_worker)(
+                    flux_b, time_b, xpsf, ypsf, e.frame_start, e.frame_end,
+                    self.sector, self.cam, self.ccd, cut_corner, units, zp,
+                    stamp_size, n_durations, min_duration, supersample,
+                    int(e.objid), int(e.eventid)))
             if verbose:
-                print(f'  [{i+1}/{n}] obj {objid} ev {eventid}: '
-                      + ('dBIC=%.1f A/sig=%.1f redchi2=%.2f' %
-                         (row.get('delta_bic', np.nan), row.get('A_snr', np.nan),
-                          row.get('redchi2_region', np.nan))
-                         if res is not None else 'fit failed'), flush=True)
+                print(f'  Fitting {len(tasks)} events (frame_bin={fb}, n_jobs={n_jobs}) ...',
+                      flush=True)
+            rows.extend(Parallel(n_jobs=n_jobs, backend='loky')(tasks))
 
         df = pd.DataFrame(rows)
 
