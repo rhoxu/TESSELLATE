@@ -166,8 +166,9 @@ def _quality_mask(df, delta_bic=-6.0, redchi2_max=3.0, min_asnr=5.0):
     return keep
 
 
-def cluster_events(df, features=('tau_rise', 'tau_fall'), log=True,
-                   delta_bic=-6.0, redchi2_max=3.0, min_asnr=5.0,
+def cluster_events(df, features=('tau_rise', 'tau_fall', 'tau_ratio', 'peak',
+                                 'fwhm', 'rise_time', 'decay_time', 'fluence'),
+                   log=True, delta_bic=-6.0, redchi2_max=3.0, min_asnr=5.0,
                    min_cluster_size=15, min_samples=None):
     """
     Cluster the well-fit events in Bazin-parameter space.
@@ -179,7 +180,10 @@ def cluster_events(df, features=('tau_rise', 'tau_fall'), log=True,
 
     Density clustering (HDBSCAN if available, else DBSCAN) is used so groups need
     not be specified in advance and outliers fall out as noise.  Features are
-    log-scaled (default) and standardised before clustering.
+    log-scaled (default) and standardised before clustering.  The default feature
+    set is the full derived Bazin descriptor set; note several are correlated
+    (e.g. tau_ratio, fwhm, rise/decay_time all follow from the timescales), so
+    they up-weight the shape axes -- pass a smaller `features` for a purer basis.
     """
     df = df.copy()
     df['cluster'] = -2
