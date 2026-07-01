@@ -395,12 +395,16 @@ class Navigator():
     # ----------------------------- Extracting light curves / images of events ----------------------------- #
 
     def _cut_corner(self,cut):
-        """CCD pixel coordinate of the cut's bottom-left corner."""
-        from .dataprocessor import DataProcessor
-        processor = DataProcessor(sector=self.sector,data_path=self.data_path,verbose=0)
-        cut_corners,_,_,_ = processor.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,
-                                                plot=False,verbose=0)
-        return cut_corners[cut-1]
+        """CCD pixel coordinate of the cut's bottom-left corner (cached)."""
+        if not hasattr(self,'_ccorner_cache'):
+            self._ccorner_cache = {}
+        if cut not in self._ccorner_cache:
+            from .dataprocessor import DataProcessor
+            processor = DataProcessor(sector=self.sector,data_path=self.data_path,verbose=0)
+            cut_corners,_,_,_ = processor.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,
+                                                    plot=False,verbose=0)
+            self._ccorner_cache[cut] = cut_corners[cut-1]
+        return self._ccorner_cache[cut]
 
     def _calibration_zp(self,cut):
         """Return the AB zeropoint for this cut, or None if not calibrated."""
@@ -593,39 +597,53 @@ class Navigator():
 
         return t, f, ferr
 
-    def fit_event_bazin(self,objid,eventid,cut=None,units='mJy',frame_buffer=-1,
-                        stamp_size=9,plot=True,p0=None,exp_time=None,supersample=7):
+    def fit_event_bazin(self,objid,eventid,cut=None,units='mJy',n_durations=3,
+                        frame_buffer=None,stamp_size=9,plot=True,p0=None,
+                        exp_time=None,supersample=7):
         """
         Fit a Bazin profile to an event's PSF light curve and report the fit.
 
-        Uses forced PSF photometry (method='psf'), fits Bazin over a window of a
-        few event durations (see bazin.bazin_detection), and compares it to a flat
-        baseline.  The model is averaged over the exposure of each point so fast
-        events are not over-sharpened; exp_time defaults to the light-curve
-        cadence.  Returns the bazin.bazin_detection dict (params, errors,
-        reduced chi^2, amplitude S/N, delta_chi2 / delta_bic).
+        PSF photometry is only computed over the FITTING WINDOW (n_durations
+        event durations centred on the detected window; default 3), not the whole
+        light curve.  Bazin is fit there (baseline included), the model is
+        averaged over each exposure (exp_time defaults to the cadence), and the
+        detection statistics are focused on the event region.  Returns the
+        bazin.bazin_detection dict (params, errors, reduced chi^2, amplitude S/N,
+        delta_chi2 / delta_bic).
         """
         from .bazin import bazin, bazin_binned, bazin_detection
 
-        t, f, ferr = self.event_lc(objid, eventid, cut=cut, method='psf', units=units,
-                                   frame_buffer=frame_buffer, stamp_size=stamp_size,
-                                   plot=False)
-
-        # Detected event window (times) to focus the detection statistics on
+        # Gather data/results so the event (and its window) are available
         if cut is None:
             cut = self.cut
+        if cut is None:
+            raise ValueError('Please specify a cut!')
+        if cut != self.cut:
+            self.gather_data(cut)
+            self.gather_results(cut)
+
         event = self.events[(self.events.objid==objid)&(self.events.eventid==eventid)].iloc[0]
         etime = (Frame_Bin(self.sector, self.cam, self.time, self.flux, event.frame_bin)[0]
                  if event.frame_bin > 1 else self.time)
         fs, fe = RoundToInt(event.frame_start), RoundToInt(event.frame_end)
         event_window = (float(etime[fs]), float(etime[fe]))
 
+        # Only photometer the fitting window: n_durations event durations
+        if frame_buffer is None:
+            dur = max(fe - fs, 1)
+            frame_buffer = int(round((n_durations - 1) / 2.0 * dur))
+
+        t, f, ferr = self.event_lc(objid, eventid, cut=cut, method='psf', units=units,
+                                   frame_buffer=frame_buffer, stamp_size=stamp_size,
+                                   plot=False)
+
         # Exposure time per point = light-curve cadence unless overridden
         if exp_time is None:
             dt = np.diff(np.sort(t[np.isfinite(t)]))
             exp_time = float(np.median(dt)) if dt.size else 0.0
 
-        res = bazin_detection(t, f, ferr, event_window=event_window, p0=p0,
+        res = bazin_detection(t, f, ferr, event_window=event_window,
+                              n_durations=n_durations, p0=p0,
                               exp_time=exp_time, supersample=supersample)
         if res is None:
             print('Bazin fit failed.')
@@ -680,6 +698,98 @@ class Navigator():
                 ax.invert_yaxis()
             ax.legend(fontsize=8, loc='upper left')
         return res
+
+    def fit_events(self,cut=None,units='mJy',n_durations=3,stamp_size=9,events=None,
+                   min_dbic=-6.0,max_redchi2=None,min_asnr=None,
+                   tau_rise_range=None,tau_fall_range=None,
+                   savepath=None,verbose=True):
+        """
+        Fit a Bazin profile to every event in a cut and return a ranked, filtered
+        table -- for identifying Bazin-like candidates across a large event set.
+
+        For each event: forced PSF photometry over the fitting window, a
+        simultaneous Bazin fit, and the region-focused detection statistics.  A
+        row per event records the parameters and statistics; a 'pass' column flags
+        events meeting all the (optional) thresholds:
+
+          min_dbic        : keep delta_bic <= this   (more negative = better)
+          max_redchi2     : keep redchi2_region <= this
+          min_asnr        : keep A_snr >= this  (positive amplitude, significant)
+          tau_rise_range  : (lo, hi) keep tau_rise in range
+          tau_fall_range  : (lo, hi) keep tau_fall in range
+
+        events : optional events DataFrame (subset) to fit instead of all.
+        savepath : optional CSV path to write the table.
+        Returns the full table sorted by delta_bic (most negative first).
+        """
+        if cut is None:
+            cut = self.cut
+        if cut is None:
+            raise ValueError('Please specify a cut!')
+        if cut != self.cut:
+            self.gather_data(cut)
+            self.gather_results(cut)
+
+        ev = self.events if events is None else events
+        if ev is None or len(ev) == 0:
+            print('No events to fit.')
+            return None
+
+        rows = []
+        n = len(ev)
+        for i, (_, e) in enumerate(ev.iterrows()):
+            objid, eventid = int(e.objid), int(e.eventid)
+            try:
+                res = self.fit_event_bazin(objid, eventid, cut=cut, units=units,
+                                           n_durations=n_durations, stamp_size=stamp_size,
+                                           plot=False)
+            except Exception:
+                res = None
+            row = {'objid': objid, 'eventid': eventid, 'fit_ok': res is not None}
+            if res is not None:
+                p, pe = res['params'], res['perr']
+                row.update({
+                    'A': p['A'], 'A_err': pe['A'], 't0': p['t0'],
+                    'tau_rise': p['tau_rise'], 'tau_rise_err': pe['tau_rise'],
+                    'tau_fall': p['tau_fall'], 'tau_fall_err': pe['tau_fall'],
+                    'offset': res['offset'], 'A_snr': res['A_snr'],
+                    'redchi2_region': res['redchi2_region'],
+                    'delta_bic': res['delta_bic'], 'delta_chi2': res['delta_chi2'],
+                    'n_region': res['n_region'],
+                })
+            rows.append(row)
+            if verbose:
+                print(f'  [{i+1}/{n}] obj {objid} ev {eventid}: '
+                      + ('dBIC=%.1f A/sig=%.1f redchi2=%.2f' %
+                         (row.get('delta_bic', np.nan), row.get('A_snr', np.nan),
+                          row.get('redchi2_region', np.nan))
+                         if res is not None else 'fit failed'), flush=True)
+
+        df = pd.DataFrame(rows)
+
+        # Filter
+        passed = df['fit_ok'].fillna(False).to_numpy(dtype=bool)
+        if min_dbic is not None and 'delta_bic' in df:
+            passed &= (df['delta_bic'] <= min_dbic).fillna(False).to_numpy()
+        if max_redchi2 is not None and 'redchi2_region' in df:
+            passed &= (df['redchi2_region'] <= max_redchi2).fillna(False).to_numpy()
+        if min_asnr is not None and 'A_snr' in df:
+            passed &= (df['A_snr'] >= min_asnr).fillna(False).to_numpy()
+        if tau_rise_range is not None and 'tau_rise' in df:
+            passed &= df['tau_rise'].between(*tau_rise_range).fillna(False).to_numpy()
+        if tau_fall_range is not None and 'tau_fall' in df:
+            passed &= df['tau_fall'].between(*tau_fall_range).fillna(False).to_numpy()
+        df['pass'] = passed
+
+        if 'delta_bic' in df:
+            df = df.sort_values('delta_bic', na_position='last').reset_index(drop=True)
+
+        print(f'Fit {int(df["fit_ok"].sum())}/{len(df)} events; '
+              f'{int(df["pass"].sum())} passed the filters.')
+        if savepath is not None:
+            df.to_csv(savepath, index=False)
+            print(f'Saved: {savepath}')
+        return df
 
     def event_frames(self,objid,eventid,cut=None,
                      frame_buffer=2,frame_interval=1,image_size=11,vmin=10,vmax=90,
