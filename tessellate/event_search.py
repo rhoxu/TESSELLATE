@@ -184,11 +184,60 @@ def _quality_mask(df, delta_bic=-6.0, redchi2_max=3.0, min_asnr=5.0):
     return keep
 
 
+def _feature_matrix(df, features, log, whiten, pca_variance,
+                    delta_bic, redchi2_max, min_asnr, verbose=True):
+    """
+    Build the (keep_mask, whitened feature matrix) used for clustering.  Doing
+    this once lets the (expensive) preprocessing be reused across HDBSCAN runs.
+    """
+    keep = _quality_mask(df, delta_bic, redchi2_max, min_asnr)
+    for feat in features:
+        keep &= np.isfinite(df[feat].to_numpy())
+        if log:
+            keep &= (df[feat].to_numpy() > 0)
+    if keep.sum() < 2:
+        return keep, None
+
+    X = np.column_stack([
+        np.log10(df.loc[keep, feat].to_numpy()) if log else df.loc[keep, feat].to_numpy()
+        for feat in features
+    ])
+    Xs = (X - X.mean(axis=0)) / (X.std(axis=0) + 1e-12)
+
+    if whiten and Xs.shape[1] > 1:
+        try:
+            from sklearn.decomposition import PCA
+            Xs = PCA(n_components=pca_variance, whiten=True,
+                     random_state=0).fit_transform(Xs)
+            if verbose:
+                print(f'  PCA-whitened to {Xs.shape[1]} independent component(s) '
+                      f'(>= {pca_variance:.0%} variance).')
+        except Exception as exc:
+            if verbose:
+                print(f'  PCA whitening skipped ({exc}); using raw features.')
+    return keep, Xs
+
+
+def _hdbscan(Xs, min_cluster_size, min_samples=None, n_jobs=-1):
+    """Density-cluster Xs (HDBSCAN, else DBSCAN).  Returns labels (-1 = noise)."""
+    try:
+        from sklearn.cluster import HDBSCAN
+        try:
+            return HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples,
+                           n_jobs=n_jobs).fit_predict(Xs)
+        except TypeError:   # older sklearn without n_jobs
+            return HDBSCAN(min_cluster_size=min_cluster_size,
+                           min_samples=min_samples).fit_predict(Xs)
+    except Exception:
+        from sklearn.cluster import DBSCAN
+        return DBSCAN(eps=0.5, min_samples=min_cluster_size, n_jobs=n_jobs).fit_predict(Xs)
+
+
 def cluster_events(df, features=('tau_rise', 'tau_fall', 'tau_ratio',
                                  'fwhm', 'rise_time', 'decay_time'),
                    log=True, whiten=True, pca_variance=0.99,
                    delta_bic=-6.0, redchi2_max=3.0, min_asnr=5.0,
-                   min_cluster_size=15, min_samples=None):
+                   min_cluster_size=15, min_samples=None, n_jobs=-1):
     """
     Cluster the well-fit events in Bazin-parameter space.
 
@@ -199,60 +248,81 @@ def cluster_events(df, features=('tau_rise', 'tau_fall', 'tau_ratio',
 
     Density clustering (HDBSCAN if available, else DBSCAN) is used so groups need
     not be specified in advance and outliers fall out as noise.  Features are
-    log-scaled (default) and standardised before clustering.  The default feature
-    set is shape-only (timescales and morphology) -- brightness features (peak,
-    fluence, A) are excluded since events span a range of brightnesses.  Note the
-    defaults are correlated (tau_ratio, fwhm, rise/decay_time all follow from the
-    timescales), which up-weights the shape axes.
+    log-scaled (default) and PCA-whitened before clustering.  The default feature
+    set is shape-only -- brightness features are excluded since events span a
+    range of brightnesses.
     """
     df = df.copy()
     df['cluster'] = -2
 
-    keep = _quality_mask(df, delta_bic, redchi2_max, min_asnr)
-    for feat in features:
-        keep &= np.isfinite(df[feat].to_numpy())
-        if log:
-            keep &= (df[feat].to_numpy() > 0)
-    if keep.sum() < min_cluster_size:
-        print(f'Only {int(keep.sum())} events pass quality cuts; '
-              'too few to cluster.')
+    keep, Xs = _feature_matrix(df, features, log, whiten, pca_variance,
+                               delta_bic, redchi2_max, min_asnr)
+    if Xs is None or keep.sum() < min_cluster_size:
+        print(f'Only {int(keep.sum())} events pass quality cuts; too few to cluster.')
         return df
 
-    X = np.column_stack([
-        np.log10(df.loc[keep, feat].to_numpy()) if log else df.loc[keep, feat].to_numpy()
-        for feat in features
-    ])
-    Xs = (X - X.mean(axis=0)) / (X.std(axis=0) + 1e-12)
-
-    # De-correlate: PCA-whiten onto the independent directions, dropping the
-    # near-degenerate ones (correlated features -> a lower-dimensional basis).
-    if whiten and Xs.shape[1] > 1:
-        try:
-            from sklearn.decomposition import PCA
-            Xs = PCA(n_components=pca_variance, whiten=True,
-                     random_state=0).fit_transform(Xs)
-            print(f'  PCA-whitened to {Xs.shape[1]} independent component(s) '
-                  f'(>= {pca_variance:.0%} variance).')
-        except Exception as exc:
-            print(f'  PCA whitening skipped ({exc}); clustering on raw features.')
-
-    labels = None
-    try:
-        from sklearn.cluster import HDBSCAN
-        labels = HDBSCAN(min_cluster_size=min_cluster_size,
-                         min_samples=min_samples).fit_predict(Xs)
-    except Exception:
-        try:
-            from sklearn.cluster import DBSCAN
-            labels = DBSCAN(eps=0.5, min_samples=min_cluster_size).fit_predict(Xs)
-        except Exception as exc:
-            raise ImportError('scikit-learn is required for clustering '
-                              f'(HDBSCAN/DBSCAN): {exc}')
-
+    labels = _hdbscan(Xs, min_cluster_size, min_samples, n_jobs)
     df.loc[keep, 'cluster'] = labels
     nclus = len(set(labels) - {-1})
     print(f'Clustered {int(keep.sum())} events into {nclus} group(s) '
           f'({int(np.sum(labels == -1))} noise).')
+    return df
+
+
+def cluster_stability(df, objid, eventid, sector=None, cam=None, ccd=None, cut=None,
+                      min_cluster_sizes=(10, 15, 20, 30, 50),
+                      features=('tau_rise', 'tau_fall', 'tau_ratio',
+                                'fwhm', 'rise_time', 'decay_time'),
+                      log=True, whiten=True, pca_variance=0.99,
+                      delta_bic=-6.0, redchi2_max=3.0, min_asnr=5.0,
+                      min_samples=None, n_jobs=-1):
+    """
+    Membership stability of the template event's group.
+
+    Re-clusters over a range of min_cluster_size values (reusing the same
+    whitened features) and, for every clustered event, records the fraction of
+    runs in which it shared the template's cluster.  Adds a 'stability' column
+    (NaN for events not in the clustering set).  Events with stability ~1 are
+    robustly grouped with the template; low values are marginal members.
+    """
+    df = df.copy()
+    df['stability'] = np.nan
+
+    keep, Xs = _feature_matrix(df, features, log, whiten, pca_variance,
+                               delta_bic, redchi2_max, min_asnr)
+    if Xs is None:
+        print('Too few events pass quality cuts.')
+        return df
+
+    # Locate the template within the kept subset
+    sel = (df['objid'] == objid) & (df['eventid'] == eventid)
+    for col, val in (('sector', sector), ('cam', cam), ('ccd', ccd), ('cut', cut)):
+        if val is not None and col in df:
+            sel &= df[col] == val
+    idx = np.where(sel.to_numpy())[0]
+    if len(idx) == 0:
+        print('Template event not found.')
+        return df
+    if not keep[idx[0]]:
+        print('Template event failed the quality cuts (not clustered).')
+        return df
+    pos = int(keep[:idx[0]].sum())          # template's row in Xs
+
+    co = np.zeros(int(keep.sum()))
+    runs = 0
+    for mcs in min_cluster_sizes:
+        labels = _hdbscan(Xs, mcs, min_samples, n_jobs)
+        tlbl = labels[pos]
+        if tlbl < 0:                        # template was noise this run
+            continue
+        co += (labels == tlbl)
+        runs += 1
+
+    stability = co / runs if runs else co
+    df.loc[keep, 'stability'] = stability
+    print(f'Stability over {runs}/{len(min_cluster_sizes)} runs where the '
+          f'template clustered; {int(np.sum(stability >= 0.5))} events with '
+          f'stability >= 0.5.')
     return df
 
 
