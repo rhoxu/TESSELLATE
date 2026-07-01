@@ -44,7 +44,8 @@ def bazin_binned(t, A, t0, tau_rise, tau_fall, c, exp_time=0.0, supersample=7):
 def fit_bazin(t, f, ferr=None, p0=None, maxfev=20000, fit_mask=None, fix_c=None,
               exp_time=0.0, supersample=7):
     """
-    Fit the Bazin profile to (t, f) with optional errors.
+    Fit the Bazin profile to (t, f) with optional errors.  The amplitude A is
+    constrained >= 0 (only brightening events are modelled).
 
     fit_mask : optional boolean array selecting the points to fit (the rest are
         ignored).  fix_c : if given, the baseline offset c is held fixed and only
@@ -77,17 +78,18 @@ def fit_bazin(t, f, ferr=None, p0=None, maxfev=20000, fit_mask=None, fix_c=None,
     t0_0 = float(t[imax])
     span = float(t.max() - t.min()) or 1.0
 
+    # Amplitude is constrained non-negative (brightening events only)
     if fix_c is not None:
         func = lambda tv, A, t0, tr, tf: bazin_binned(tv, A, t0, tr, tf, fix_c,
                                                       exp_time, supersample)
-        guess = [A0, t0_0, 0.05 * span, 0.2 * span]
-        lb = [-np.inf, t.min() - span, 1e-3, 1e-3]
+        guess = [max(A0, 0.0), t0_0, 0.05 * span, 0.2 * span]
+        lb = [0.0, t.min() - span, 1e-3, 1e-3]
         ub = [np.inf, t.max() + span, 5 * span, 10 * span]
     else:
         func = lambda tv, A, t0, tr, tf, cc: bazin_binned(tv, A, t0, tr, tf, cc,
                                                           exp_time, supersample)
-        guess = [A0, t0_0, 0.05 * span, 0.2 * span, c0]
-        lb = [-np.inf, t.min() - span, 1e-3, 1e-3, -np.inf]
+        guess = [max(A0, 0.0), t0_0, 0.05 * span, 0.2 * span, c0]
+        lb = [0.0, t.min() - span, 1e-3, 1e-3, -np.inf]
         ub = [np.inf, t.max() + span, 5 * span, 10 * span, np.inf]
     if p0 is None:
         p0 = guess

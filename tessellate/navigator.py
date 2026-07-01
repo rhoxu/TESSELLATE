@@ -598,18 +598,21 @@ class Navigator():
         return t, f, ferr
 
     def fit_event_bazin(self,objid,eventid,cut=None,units='mJy',n_durations=3,
-                        frame_buffer=None,stamp_size=9,plot=True,p0=None,
-                        exp_time=None,supersample=7):
+                        min_duration=3,frame_buffer=None,stamp_size=9,
+                        plot=True,p0=None,exp_time=None,supersample=7):
         """
         Fit a Bazin profile to an event's PSF light curve and report the fit.
 
         PSF photometry is only computed over the FITTING WINDOW (n_durations
         event durations centred on the detected window; default 3), not the whole
-        light curve.  Bazin is fit there (baseline included), the model is
-        averaged over each exposure (exp_time defaults to the cadence), and the
-        detection statistics are focused on the event region.  Returns the
-        bazin.bazin_detection dict (params, errors, reduced chi^2, amplitude S/N,
-        delta_chi2 / delta_bic).
+        light curve.  Bazin is fit there (baseline included, amplitude A >= 0 so
+        only brightening events are modelled), the model is averaged over each
+        exposure (exp_time defaults to the cadence), and the detection statistics
+        are focused on the event region.
+
+        min_duration : events spanning fewer than this many frames are not fit
+            (returns None).  Negative-flux (dimming) events are always skipped.
+            Returns the bazin.bazin_detection dict, or None if skipped/failed.
         """
         from .bazin import bazin, bazin_binned, bazin_detection
 
@@ -627,6 +630,17 @@ class Navigator():
                  if event.frame_bin > 1 else self.time)
         fs, fe = RoundToInt(event.frame_start), RoundToInt(event.frame_end)
         event_window = (float(etime[fs]), float(etime[fe]))
+
+        # Reject too-short and negative (dimming) events
+        n_dur_frames = (fe - fs) + 1
+        if n_dur_frames < min_duration:
+            if plot:
+                print(f'Event duration {n_dur_frames} < min_duration {min_duration} frames; skipping.')
+            return None
+        if float(event.get('flux_sign', 1)) < 0:
+            if plot:
+                print('Negative (dimming) event; skipping.')
+            return None
 
         # Only photometer the fitting window: n_durations event durations
         if frame_buffer is None:
@@ -646,7 +660,8 @@ class Navigator():
                               n_durations=n_durations, p0=p0,
                               exp_time=exp_time, supersample=supersample)
         if res is None:
-            print('Bazin fit failed.')
+            if plot:
+                print('Bazin fit failed.')
             return None
 
         if plot:
@@ -699,22 +714,25 @@ class Navigator():
             ax.legend(fontsize=8, loc='upper left')
         return res
 
-    def fit_events(self,cut=None,units='mJy',n_durations=3,stamp_size=9,events=None,
-                   min_dbic=-6.0,max_redchi2=None,min_asnr=None,
+    def fit_events(self,cut=None,units='mJy',n_durations=3,min_duration=3,stamp_size=9,
+                   events=None,min_dbic=-6.0,max_redchi2=None,min_asnr=None,
                    tau_rise_range=None,tau_fall_range=None,
                    savepath=None,verbose=True):
         """
-        Fit a Bazin profile to every event in a cut and return a ranked, filtered
-        table -- for identifying Bazin-like candidates across a large event set.
+        Fit a Bazin profile to every (positive) event in a cut and return a
+        ranked, filtered table -- for identifying Bazin-like candidates across a
+        large event set.
 
         For each event: forced PSF photometry over the fitting window, a
-        simultaneous Bazin fit, and the region-focused detection statistics.  A
-        row per event records the parameters and statistics; a 'pass' column flags
-        events meeting all the (optional) thresholds:
+        simultaneous Bazin fit (amplitude >= 0), and the region-focused detection
+        statistics.  Negative (dimming) events and events shorter than
+        min_duration frames are skipped.  A row per event records the parameters
+        and statistics; a 'pass' column flags events meeting all the (optional)
+        thresholds:
 
           min_dbic        : keep delta_bic <= this   (more negative = better)
           max_redchi2     : keep redchi2_region <= this
-          min_asnr        : keep A_snr >= this  (positive amplitude, significant)
+          min_asnr        : keep A_snr >= this
           tau_rise_range  : (lo, hi) keep tau_rise in range
           tau_fall_range  : (lo, hi) keep tau_fall in range
 
@@ -735,14 +753,18 @@ class Navigator():
             print('No events to fit.')
             return None
 
+        # Positive (brightening) events only
+        if 'flux_sign' in ev.columns:
+            ev = ev[ev['flux_sign'] > 0]
+
         rows = []
         n = len(ev)
         for i, (_, e) in enumerate(ev.iterrows()):
             objid, eventid = int(e.objid), int(e.eventid)
             try:
                 res = self.fit_event_bazin(objid, eventid, cut=cut, units=units,
-                                           n_durations=n_durations, stamp_size=stamp_size,
-                                           plot=False)
+                                           n_durations=n_durations, min_duration=min_duration,
+                                           stamp_size=stamp_size, plot=False)
             except Exception:
                 res = None
             row = {'objid': objid, 'eventid': eventid, 'fit_ok': res is not None}
