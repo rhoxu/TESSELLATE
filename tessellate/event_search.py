@@ -168,7 +168,8 @@ def _quality_mask(df, delta_bic=-6.0, redchi2_max=3.0, min_asnr=5.0):
 
 def cluster_events(df, features=('tau_rise', 'tau_fall', 'tau_ratio',
                                  'fwhm', 'rise_time', 'decay_time'),
-                   log=True, delta_bic=-6.0, redchi2_max=3.0, min_asnr=5.0,
+                   log=True, whiten=True, pca_variance=0.99,
+                   delta_bic=-6.0, redchi2_max=3.0, min_asnr=5.0,
                    min_cluster_size=15, min_samples=None):
     """
     Cluster the well-fit events in Bazin-parameter space.
@@ -204,6 +205,18 @@ def cluster_events(df, features=('tau_rise', 'tau_fall', 'tau_ratio',
         for feat in features
     ])
     Xs = (X - X.mean(axis=0)) / (X.std(axis=0) + 1e-12)
+
+    # De-correlate: PCA-whiten onto the independent directions, dropping the
+    # near-degenerate ones (correlated features -> a lower-dimensional basis).
+    if whiten and Xs.shape[1] > 1:
+        try:
+            from sklearn.decomposition import PCA
+            Xs = PCA(n_components=pca_variance, whiten=True,
+                     random_state=0).fit_transform(Xs)
+            print(f'  PCA-whitened to {Xs.shape[1]} independent component(s) '
+                  f'(>= {pca_variance:.0%} variance).')
+        except Exception as exc:
+            print(f'  PCA whitening skipped ({exc}); clustering on raw features.')
 
     labels = None
     try:
