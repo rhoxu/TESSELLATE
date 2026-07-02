@@ -941,14 +941,14 @@ class Navigator():
         while len(frames) < 5:
             frames = np.append(frames,frames[-1]+frame_interval)
         frames[frames<0] = 0
-        frames[frames>len(time)]=len(time)-1
+        frames[frames>=len(time)]=len(time)-1
         frames = np.unique(frames)
 
         # -- Define cutout -- #
         x = RoundToInt(event.xint) 
         y = RoundToInt(event.yint) 
         xmin = max(x-image_size//2,0)
-        xmax = min(x+image_size//2,flux.shape[1])
+        xmax = min(x+image_size//2,flux.shape[2])
         ymin = max(y-image_size//2,0)
         ymax = min(y+image_size//2,flux.shape[1])
 
