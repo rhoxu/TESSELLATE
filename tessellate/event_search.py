@@ -192,6 +192,24 @@ def aggregate_fits(paths, n_jobs=-1):
     return pd.concat(frames, ignore_index=True)
 
 
+def save_events(df, path):
+    """
+    Save an event table (e.g. a clustered table or a group) for later reload.
+    Uses Parquet if the path ends in .parquet (preserves dtypes), else CSV.
+    The cluster/stability columns are kept, so a saved group loads back intact.
+    """
+    if path.endswith('.parquet'):
+        df.to_parquet(path, index=False)
+    else:
+        df.to_csv(path, index=False)
+    print(f'Saved {len(df)} events -> {path}')
+
+
+def load_events(path):
+    """Load an event table written by save_events (Parquet or CSV)."""
+    return pd.read_parquet(path) if path.endswith('.parquet') else pd.read_csv(path)
+
+
 # ---------------------------------------------------------------------------
 # Clustering
 # ---------------------------------------------------------------------------
