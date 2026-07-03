@@ -1087,12 +1087,16 @@ def _convert_flux_units(flux, e_flux, units, zp_ab):
         e_flux = np.asarray(e_flux, dtype=float)
         mag = np.full_like(flux, np.nan)
         emag = np.full_like(flux, np.nan)
-        pos = flux > 0                       # negative flux -> non-detection
+
+        pos = flux > e_flux
         mag[pos] = zp_ab - 2.5 * np.log10(flux[pos])
         # Exact magnitude offset to the +1 sigma (brighter) flux; finite and
         # correct for faint points, unlike the linear 1.0857*e/flux which
         # diverges as e_flux -> flux.  (~1.0857*e/flux at high S/N.)
         emag[pos] = 2.5 * np.log10(1.0 + e_flux[pos] / flux[pos])
+
+        
+
         return mag, emag, 'mag'
 
     scale = _UNIT_SCALE.get(u)
