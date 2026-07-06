@@ -676,7 +676,7 @@ def _Lightcurve_significance(time,flux,frame_start,frame_end,pos,flux_sign,
 
 def _Lightcurve_event_checker(lc_sig,triggers,siglim=3,maxsep=5):
 
-    triggers = list(triggers)
+    triggers = list(np.unique(triggers))
     start = np.nanmin(triggers)
     end = np.nanmax(triggers)
 
@@ -734,6 +734,8 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
     half_small = small_size // 2
 
     h, w = flux.shape[1], flux.shape[2]
+
+    frames = np.unique(frames)
 
     # -- Generate a stacked 3x3 aperture to identify and lock onto brightest pixel -- #
     stacked_flux_3x3 = np.zeros((3, 3), dtype=np.float32) 
