@@ -933,42 +933,49 @@ class Navigator():
             frame_buffer = RoundToInt(frame_buffer * event.frame_bin/frame_bin)
 
         time, flux = (Frame_Bin(self.sector, self.cam,self.time, self.flux, frame_bin) if frame_bin > 1 else (self.time, self.flux))
-    
-        # -- Five frames centred on the brightest, clamped in-bounds -- #
-        step = max(int(frame_interval), 1)
-        frames = np.clip(brightest_frame + np.arange(-2, 3) * step, 0, len(time) - 1)
+
+        # -- Find frames to be included based on buffer and interval, ensuring brightest is included -- #
+        frames = np.arange(frame_start-frame_buffer, frame_end+1+frame_buffer,frame_interval).astype(int)
+        if brightest_frame not in frames:
+            frames = np.sort(np.append(frames,brightest_frame))
+        while len(frames) < 5:
+            frames = np.append(frames,frames[-1]+frame_interval)
+        frames[frames<0] = 0
+        frames[frames>len(time)]=len(time)-1
+        frames = np.unique(frames)
 
         # -- Define cutout -- #
-        x = RoundToInt(event.xint)
-        y = RoundToInt(event.yint)
+        x = RoundToInt(event.xint) 
+        y = RoundToInt(event.yint) 
         xmin = max(x-image_size//2,0)
-        xmax = min(x+image_size//2,flux.shape[2])
+        xmax = min(x+image_size//2,flux.shape[1])
         ymin = max(y-image_size//2,0)
         ymax = min(y+image_size//2,flux.shape[1])
 
         images = flux[frames,ymin:ymax+1,xmin:xmax+1]
 
-        # -- Plot the 5 frames; the brightest is the centre panel -- #
+        # -- Plot 5 images around the brightest frame -- #
+        
         fig = plt.figure(figsize=(15, 3))
         gs = gridspec.GridSpec(1, 6, width_ratios=[1, 1, 1, 1, 1, 0.05], wspace=0.35)
         ax = [fig.add_subplot(gs[i]) for i in range(5)]
         cax = fig.add_subplot(gs[5])
 
-        # Scale from the core of the brightest (centre) frame, clamped to the stamp
-        cy = min(image_size // 2, images.shape[1] - 1)
-        cx = min(image_size // 2, images.shape[2] - 1)
-        core = images[2, max(cy - 1, 0):cy + 2, max(cx - 1, 0):cx + 2]
-        vmax = np.percentile(core, vmax)
-        vmin = np.percentile(core, vmin)
+        brightest_loc = np.where(frames == brightest_frame)[0][0]
+        vmax = np.percentile(images[brightest_loc, image_size//2-1:image_size//2+2, image_size//2-1:image_size//2+2], vmax)
+        vmin = np.percentile(images[brightest_loc, image_size//2-1:image_size//2+2, image_size//2-1:image_size//2+2], vmin)
 
         for i in range(5):
-            im = ax[i].imshow(images[i], origin='lower', cmap='gray', vmax=vmax, vmin=vmin)
+            im = ax[i].imshow(images[brightest_loc-2+i], origin='lower', cmap='gray', vmax=vmax, vmin=vmin)
+
             ax[i].axis('off')
+
             add = ' Stacked ' if frame_bin > 1 else ' '
+
             if i == 2:
                 ax[i].set_title(f'Brightest{add}Frame ({brightest_frame})')
             else:
-                ax[i].set_title(f'{add}Frame {int(frames[i])}')
+                ax[i].set_title(f'{add}Frame {frames[brightest_loc-2+i]}')
 
         fig.colorbar(im, cax=cax, label='TESS Counts')
 
@@ -984,6 +991,7 @@ class Navigator():
             return images,fig
         else:
             return images
+        
 
     def object_lc(self,objid,cut=None,method='aperture',units='counts',stamp_size=9,
                   savedir=None):
