@@ -321,13 +321,13 @@ def simulate_cut_psf_fitting(path,sector,cam,ccd,cut,n=8,nfits=1000,nMedians=20,
         return get_snr_to_localisation_func(path,sector,cam,ccd,cut)
 
 
-def get_snr_to_localisation_func(path,sector,cam,ccd,cut,n=8,xy=True):
+def get_snr_to_localisation_func(path,cam,ccd,cut,sector=None,n=8,xy=True):
 
     import pickle
 
     if xy:
-        poptx = np.load(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/snr_localisation_coeffs_x.npy')
-        popty = np.load(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/snr_localisation_coeffs_y.npy')
+        poptx = np.load(f'{path}/cam{cam}_ccd{ccd}/snr_to_localisation/cut{cut}of{int(n**2)}_coeffs_x.npy')
+        popty = np.load(f'{path}/cam{cam}_ccd{ccd}/snr_to_localisation/cut{cut}of{int(n**2)}_coeffs_y.npy')
 
         def func_x(snr):
             return model(snr, *poptx) 
