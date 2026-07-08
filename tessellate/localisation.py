@@ -215,7 +215,7 @@ def gen_and_fit_source(snr,shift,image_size,prf):
 
     return [PSF_fitter.source_x,PSF_fitter.source_y]
 
-def simulate_cut_psf_fitting(path,sector,cam,ccd,cut,n=8,nfits=1000,nMedians=20,image_size=7,plot=False):
+def simulate_cut_psf_fitting(path,sector,cam,ccd,cut,n=8,nfits=1000,nMedians=20,image_size=7,plot=False,return_models=False):
 
     from .dataprocessor import DataProcessor
     from PRF import TESS_PRF
@@ -308,25 +308,42 @@ def simulate_cut_psf_fitting(path,sector,cam,ccd,cut,n=8,nfits=1000,nMedians=20,
 
     #     plt.xscale('log')
 
+    np.save(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/snr_localisation_coeffs_x.npy',poptx)
+    np.save(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/snr_localisation_coeffs_y.npy',popty)
 
-    with open(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/snr_localisation_coeffs_x.pkl', 'wb') as file:
-        pickle.dump(poptx, file)
-    with open(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/snr_localisation_coeffs_y.pkl', 'wb') as file:
-        pickle.dump(popty, file)
+    # with open(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/snr_localisation_coeffs_x.pkl', 'wb') as file:
+    #     pickle.dump(poptx, file)
+    # with open(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/snr_localisation_coeffs_y.pkl', 'wb') as file:
+    #     pickle.dump(popty, file)
     print('    SNR to localisation accuracy model generated')
 
+    if return_models:
+        return get_snr_to_localisation_func(path,sector,cam,ccd,cut)
 
-def get_snr_to_localisation_func(path,sector,cam,ccd,cut,n=8):
+
+def get_snr_to_localisation_func(path,sector,cam,ccd,cut,n=8,xy=True):
 
     import pickle
 
-    with open(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/snr_localisation_coeffs.pkl', 'rb') as file:
-        popt = pickle.load(file)
+    if xy:
+        poptx = np.load(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/snr_localisation_coeffs_x.npy')
+        popty = np.load(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/snr_localisation_coeffs_y.npy')
 
-    def func(snr):
-        return model(snr, *popt) 
+        def func_x(snr):
+            return model(snr, *poptx) 
+        def func_y(snr):
+            return model(snr, *popty) 
+        
+        return func_x,func_y
 
-    return func
+    else:
+        with open(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/snr_localisation_coeffs.pkl', 'rb') as file:
+            popt = pickle.load(file)
+        
+        def func(snr):
+            return model(snr, *popt)
+
+        return func
 
 def get_wcs_uncertainty(path,sector,cam,ccd,cut,n=8):
 
