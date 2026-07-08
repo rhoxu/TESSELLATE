@@ -6,7 +6,9 @@ The calibration writes one psf_calibration_zp.csv per cut
 zp_ab, e_zp_ab, zp_scatter, n_stars.  This module collects them and plots:
 
   collect_zeropoints() : gather all per-cut zeropoints into one table.
-  zp_ccd_map()         : median ZP per (cam, ccd) -- focal-plane map for a sector.
+  zp_focal_plane()     : ZP laid out in the physical TESS focal-plane geometry
+                         (4 cameras stacked, each a 2x2 CCD block, correct
+                         orientations) -- median per CCD or the full per-cut image.
   zp_cut_map()         : per-cut ZP map within one CCD (spatial across the cut grid).
   zp_vs_time()         : ZP vs sector (sectors are time-ordered) per cam/ccd.
 """
@@ -66,30 +68,95 @@ def zp_summary(df, value='zp_ab'):
     return out
 
 
-def zp_ccd_map(df, sector=None, value='zp_ab', savepath=None):
+# Physical TESS focal-plane layout, taken from tessellate's own transient-search
+# code (tesstransient.py, "as given by manual" -- the TESS Instrument Handbook).
+#
+#   ccdArray[camIndex] : 2x2 of CCD numbers, indexed [i=row][j=col] with j=0 left
+#     (+x to the right).  The top-row CCDs (i=0) are rotated 180 deg (invert).
+#     Camera positions 0,1 share one arrangement; positions 2,3 the (flipped) other.
+#   camera order along the strip: [1,2,3,4] (south, dec<0) or [4,3,2,1] (north).
+_CCD_ARRAY = [[[4, 3], [1, 2]], [[4, 3], [1, 2]],
+              [[2, 1], [3, 4]], [[2, 1], [3, 4]]]
+_INVERT_TOP_ROW = True   # i=0 CCDs are 180-deg rotated relative to the mosaic
+
+
+def _cam_order(north):
+    return [4, 3, 2, 1] if north else [1, 2, 3, 4]
+
+
+def _ccd_subgrid(sub, value, n, per_cut, invert):
+    """(block x block) array for one CCD, origin lower; rotated 180 if inverted."""
+    block = n if per_cut else 1
+    g = np.full((block, block), np.nan)
+    if per_cut:
+        for _, r in sub.iterrows():
+            k = int(r['cut']) - 1            # cut 1..n^2, row-major (row 0 = low y)
+            g[k // n, k % n] = r[value]
+    elif len(sub):
+        g[0, 0] = np.median(sub[value])
+    if invert:
+        g = np.rot90(g, 2)                   # 180 deg for the flipped CCDs
+    return g
+
+
+def zp_focal_plane(df, sector=None, value='zp_ab', per_cut=False, north=None,
+                   savepath=None):
     """
-    Focal-plane map: median `value` per (cam, ccd) for a sector (4 cams x 4 ccds).
+    Focal-plane map of `value` in the physical TESS geometry: the four cameras
+    stacked along the 96-deg strip (camera 1 at the bottom), each a 2x2 CCD block,
+    with CCDs placed and oriented per the TESS Instrument Handbook layout (the
+    top-row CCDs are 180-deg rotated).
+
+    per_cut=False : one median value per CCD.
+    per_cut=True  : fill each CCD with its n x n per-cut grid (intra-CCD structure),
+                    rotating the inverted CCDs so the whole image is contiguous.
+    north : hemisphere/camera order; if None, inferred from the sign of the median
+        dec if a 'dec' column exists, else south ([1,2,3,4]).
     """
     d = df if sector is None else df[df['sector'] == sector]
-    grid = np.full((4, 4), np.nan)
-    for cam in range(1, 5):
-        for ccd in range(1, 5):
-            v = d[(d['cam'] == cam) & (d['ccd'] == ccd)][value]
-            if len(v):
-                grid[cam - 1, ccd - 1] = np.median(v)
+    if north is None:
+        north = ('dec' in d and len(d) and np.nanmedian(d['dec']) > 0)
+    cam_order = _cam_order(north)
 
-    fig, ax = plt.subplots(figsize=(5.5, 5))
-    im = ax.imshow(grid, origin='upper', cmap='viridis', aspect='auto')
-    for i in range(4):
-        for j in range(4):
-            if np.isfinite(grid[i, j]):
-                ax.text(j, i, f'{grid[i, j]:.3f}', ha='center', va='center',
-                        color='w', fontsize=9)
-    ax.set_xticks(range(4)); ax.set_xticklabels([f'CCD{c}' for c in range(1, 5)])
-    ax.set_yticks(range(4)); ax.set_yticklabels([f'Cam{c}' for c in range(1, 5)])
-    ax.set_title(f'Median {value}'
-                 + (f' — Sector {sector}' if sector is not None else ''))
-    plt.colorbar(im, ax=ax, label=value)
+    n = int(d['n'].iloc[0]) if per_cut and len(d) else 1
+    block = n if per_cut else 1
+    grid = np.full((4 * 2 * block, 2 * block), np.nan)   # 4 cams x 2 CCD-rows, 2 CCD-cols
+
+    for cidx, cam in enumerate(cam_order):
+        for i in range(2):                    # in-camera CCD row (0 = top)
+            for j in range(2):                # in-camera CCD col (0 = left)
+                ccd = _CCD_ARRAY[cidx][i][j]
+                sub = d[(d['cam'] == cam) & (d['ccd'] == ccd)]
+                invert = _INVERT_TOP_ROW and (i == 0)
+                g = _ccd_subgrid(sub, value, n, per_cut, invert)
+                # camera cidx occupies vertical band [cidx*2, cidx*2+2) CCD-rows;
+                # within it i=0 is the TOP row -> higher y (origin lower).
+                r0 = (cidx * 2 + (1 - i)) * block
+                c0 = j * block
+                grid[r0:r0 + block, c0:c0 + block] = g
+
+    fig, ax = plt.subplots(figsize=(3.2, 1.4 * len(cam_order)))
+    im = ax.imshow(grid, origin='lower', cmap='viridis', aspect='equal')
+
+    for cidx, cam in enumerate(cam_order):
+        yb = cidx * 2 * block
+        if cidx:
+            ax.axhline(yb - 0.5, color='w', lw=2)      # camera boundary
+        ax.text(-0.6 * block, yb + block - 0.5, f'Cam {cam}',
+                rotation=90, ha='right', va='center', fontsize=9)
+        if not per_cut:
+            for i in range(2):
+                for j in range(2):
+                    ccd = _CCD_ARRAY[cidx][i][j]
+                    r = (cidx * 2 + (1 - i))
+                    if np.isfinite(grid[r, j]):
+                        ax.text(j, r, f'CCD{ccd}\n{grid[r, j]:.3f}', ha='center',
+                                va='center', color='w', fontsize=7)
+    ax.set_xticks([]); ax.set_yticks([])
+    ax.set_title(f'{value}'
+                 + (f' — S{sector}' if sector is not None else '')
+                 + (' (per cut)' if per_cut else ''), fontsize=9)
+    plt.colorbar(im, ax=ax, label=value, fraction=0.08, pad=0.02)
     fig.tight_layout()
     if savepath:
         fig.savefig(savepath, bbox_inches='tight')
