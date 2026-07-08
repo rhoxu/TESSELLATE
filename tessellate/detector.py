@@ -717,7 +717,7 @@ def _Lightcurve_event_checker(lc_sig,triggers,siglim=3,maxsep=5):
     return new_start,new_end,n_detections,sorted(triggers)
 
 
-def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size=5):
+def _Fit_psf(flux, event, prf, frames, uncertainty_funcs, big_size=15, small_size=5):
     """
     Generate an cutout around an event and fit PSF. 
     Chooses the frame based on the highest SNR between stack through event and individual frames.
@@ -827,14 +827,16 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, big_size=15, small_size
         stacked_psf_fit = 1
 
     # --- PSF fit --- #
-    unc = uncertainty_func(snr)
+    unc_x = uncertainty_funcs[0](snr)
+    unc_y = uncertainty_funcs[1](snr)
 
     fitter = PSF_Fitter(small_size, prf)
     fitter.fit_psf(centred_flux, limx=0.5, limy=0.5)
 
     event['xcentroid_psf'] = fitter.source_x + brightest_x
     event['ycentroid_psf'] = fitter.source_y + brightest_y
-    event['centroid_err_psf'] = unc
+    event['xcentroid_err_psf'] = unc_x
+    event['ycentroid_err_psf'] = unc_y
     event['snr_psf'] = snr
 
     r = np.corrcoef(centred_flux.flatten(), fitter.psf.flatten())[0, 1]
@@ -936,11 +938,13 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
         if event['psf_like']>0.5:
             event['xcentroid'] = event['xcentroid_psf']
             event['ycentroid'] = event['ycentroid_psf']
-            event['centroid_err'] = event['centroid_err_psf']
+            event['xcentroid_err'] = event['xcentroid_err_psf']
+            event['ycentroid_err'] = event['ycentroid_err_psf']
         else:
             event['xcentroid'] = event['xcentroid_det']
             event['ycentroid'] = event['ycentroid_det']
-            event['centroid_err'] = 0.5
+            event['xcentroid_err'] = 0.5
+            event['ycentroid_err'] = 0.5
 
         event['xint'] = RoundToInt(event['xcentroid'])
         event['yint'] = RoundToInt(event['ycentroid'])
@@ -1575,8 +1579,8 @@ class Detector():
             events['xcentroid_err'] = 0.5
             events['ycentroid_err'] = 0.5
         else:
-            events['xcentroid_err'] = np.sqrt(events['centroid_err']**2 + wcs_unc[0]**2)
-            events['ycentroid_err'] = np.sqrt(events['centroid_err']**2 + wcs_unc[1]**2)
+            events['xcentroid_err'] = np.sqrt(events['xcentroid_err']**2 + wcs_unc[0]**2)
+            events['ycentroid_err'] = np.sqrt(events['ycentroid_err']**2 + wcs_unc[1]**2)
 
         # -- Remove all events with single frame durations -- #
         # fake_events = events[(events.frame_duration==1)&(events.frame_bin==1)].copy()
@@ -1688,12 +1692,13 @@ class Detector():
                     valid_rp = inside.dropna(subset=['RPmag'])
                     valid_g = inside.dropna(subset=['Gmag'])
                     if len(valid_rp) > 0:
-                        best = valid_rp.loc[valid_rp.RPmag.idxmin()]
+                        best_idx = valid_rp.RPmag.idxmin()
                     elif len(valid_g) > 0:
-                        best = valid_g.loc[valid_g.Gmag.idxmin()]
+                        best_idx = valid_g.Gmag.idxmin()
                     else:
-                        best = inside.iloc[0]
-                    events.loc[i, 'gaia_id'] = int(best.Source)
+                        best_idx = inside.index[0]
+
+                    events.loc[i, 'gaia_id'] = gaia.at[best_idx, 'Source'] 
         
         # -- Cross matches location to variable catalog -- #
         variables = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/variable_catalog.csv')
@@ -1955,7 +1960,8 @@ class Detector():
             'xcentroid_err','ycentroid_err',
             'xint', 'yint','xccd', 'yccd',
             'xcentroid_det', 'ycentroid_det', 
-            'xcentroid_psf', 'ycentroid_psf','centroid_err_psf',
+            'xcentroid_psf', 'ycentroid_psf',
+            'xcentroid_err_psf','ycentroid_err_psf',
 
             # Astrometry
             'ra', 'dec','ra_err','dec_err',
