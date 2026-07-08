@@ -241,52 +241,78 @@ def simulate_cut_psf_fitting(path,sector,cam,ccd,cut,n=8,nfits=1000,nMedians=20,
 
     fits = Parallel(n_jobs=-1)(delayed(gen_and_fit_source)(snrs[i],shifts[i],image_size,prf) for i in tqdm(range(nfits),desc='    Fitting injected sources'))
 
+    # fits = np.array(fits)
+    # diffs = np.sqrt((fits[:,0]-shifts[:,0])**2 + (fits[:,1]-shifts[:,1])**2)
+
+    # edges = np.logspace(np.log10(snrs.min()), np.log10(snrs.max()), nMedians + 1)
+    # centers = np.sqrt(edges[:-1] * edges[1:])
+
+    # medians = np.array([
+    #     np.median(diffs[(snrs >= edges[i]) & (snrs < edges[i+1])])
+    #     for i in range(nMedians)
+    # ])
+
+    # # Add 68th percentile for 1σ containment radius
+    # r68 = np.array([
+    #     np.percentile(diffs[(snrs >= edges[i]) & (snrs < edges[i+1])], 68)
+    #     for i in range(nMedians)
+    # ])
+
+    # # -- fit median -- #
+    # p0 = [np.max(medians), 0.5, np.min(medians)]
+    # popt, _ = curve_fit(model, centers, medians, p0=p0, maxfev=10000)
+
+    # snr_space = np.logspace(0,2,1000)
+    # med_fit = model(snr_space,popt[0],popt[1],popt[2])
+
+    # # -- fit r68 -- #
+    # p0 = [np.max(r68), 0.5, np.min(r68)]
+    # popt, _ = curve_fit(model, centers, r68, p0=p0, maxfev=10000)
+
     fits = np.array(fits)
-    diffs = np.sqrt((fits[:,0]-shifts[:,0])**2 + (fits[:,1]-shifts[:,1])**2)
+    dx = fits[:,0] - shifts[:,0]
+    dy = fits[:,1] - shifts[:,1]
 
     edges = np.logspace(np.log10(snrs.min()), np.log10(snrs.max()), nMedians + 1)
     centers = np.sqrt(edges[:-1] * edges[1:])
 
-    medians = np.array([
-        np.median(diffs[(snrs >= edges[i]) & (snrs < edges[i+1])])
+    # per-axis 68th percentiles, computed separately - matches get_wcs_uncertainty's approach
+    x68 = np.array([
+        np.percentile(np.abs(dx[(snrs >= edges[i]) & (snrs < edges[i+1])]), 68)
+        for i in range(nMedians)
+    ])
+    y68 = np.array([
+        np.percentile(np.abs(dy[(snrs >= edges[i]) & (snrs < edges[i+1])]), 68)
         for i in range(nMedians)
     ])
 
-    # Add 68th percentile for 1σ containment radius
-    r68 = np.array([
-        np.percentile(diffs[(snrs >= edges[i]) & (snrs < edges[i+1])], 68)
-        for i in range(nMedians)
-    ])
+    # fit each separately vs SNR
+    p0x = [np.max(x68), 0.5, np.min(x68)]
+    poptx, _ = curve_fit(model, centers, x68, p0=p0x, maxfev=10000)
 
-    # -- fit median -- #
-    p0 = [np.max(medians), 0.5, np.min(medians)]
-    popt, _ = curve_fit(model, centers, medians, p0=p0, maxfev=10000)
-
-    snr_space = np.logspace(0,2,1000)
-    med_fit = model(snr_space,popt[0],popt[1],popt[2])
-
-    # -- fit r68 -- #
-    p0 = [np.max(r68), 0.5, np.min(r68)]
-    popt, _ = curve_fit(model, centers, r68, p0=p0, maxfev=10000)
+    p0y = [np.max(y68), 0.5, np.min(y68)]
+    popty, _ = curve_fit(model, centers, y68, p0=p0y, maxfev=10000)
 
     
-    if plot:
-        snr_space = np.logspace(0,2,1000)
-        r68_fit = model(snr_space,popt[0],popt[1],popt[2])
+    # if plot:
+    #     snr_space = np.logspace(0,2,1000)
+    #     r68_fit = model(snr_space,popt[0],popt[1],popt[2])
 
-        plt.figure()
-        plt.scatter(snrs,diffs,s=1)
-        plt.plot(centers,medians,'x',c='r')
-        plt.plot(centers,r68,'x',c='green')
+    #     plt.figure()
+    #     plt.scatter(snrs,diffs,s=1)
+    #     plt.plot(centers,medians,'x',c='r')
+    #     plt.plot(centers,r68,'x',c='green')
 
-        plt.plot(snr_space,med_fit,c='r',alpha=0.8)
-        plt.plot(snr_space,r68_fit,c='g',alpha=0.8)
+    #     plt.plot(snr_space,med_fit,c='r',alpha=0.8)
+    #     plt.plot(snr_space,r68_fit,c='g',alpha=0.8)
 
-        plt.xscale('log')
+    #     plt.xscale('log')
 
 
-    with open(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/snr_localisation_coeffs.pkl', 'wb') as file:
-        pickle.dump(popt, file)
+    with open(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/snr_localisation_coeffs_x.pkl', 'wb') as file:
+        pickle.dump(poptx, file)
+    with open(f'{path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{int(n**2)}/snr_localisation_coeffs_y.pkl', 'wb') as file:
+        pickle.dump(popty, file)
     print('    SNR to localisation accuracy model generated')
 
 
