@@ -19,6 +19,29 @@ import re
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+# Render with LaTeX + a serif font.
+_TEX_RC = {'text.usetex': True, 'font.family': 'serif'}
+
+
+def _tex(s):
+    """Escape a plain string so it is safe inside a usetex label."""
+    return str(s).replace('\\', r'\textbackslash{}').replace('_', r'\_')
+
+
+# Pretty math labels for the calibration columns (AB etc. as subscripts).
+_VALUE_LABELS = {
+    'zp_ab': r'$\mathrm{zp}_{\mathrm{AB}}$',
+    'e_zp_ab': r'$\sigma_{\mathrm{zp,\,AB}}$',
+    'zp_scatter': r'zp scatter',
+    'n_stars': r'$N_{\mathrm{stars}}$',
+}
+
+
+def _value_label(value):
+    """Nicely typeset a value/column name; fall back to escaping underscores."""
+    return _VALUE_LABELS.get(value, _tex(value))
 
 _ZP_RE = re.compile(r'Sector(\d+)/Cam(\d+)/Ccd(\d+)/Cut(\d+)of(\d+)/'
                     r'calibration/psf_calibration_zp\.csv$')
@@ -135,32 +158,46 @@ def zp_focal_plane(df, sector=None, value='zp_ab', per_cut=False, north=None,
                 c0 = j * block
                 grid[r0:r0 + block, c0:c0 + block] = g
 
-    fig, ax = plt.subplots(figsize=(3.2, 1.4 * len(cam_order)))
-    im = ax.imshow(grid, origin='lower', cmap='viridis', aspect='equal')
+    with plt.rc_context(_TEX_RC):
+        fig, ax = plt.subplots(figsize=(3.2, 1.4 * len(cam_order)))
+        im = ax.imshow(grid, origin='lower', cmap='cividis', aspect='equal')
 
-    for cidx, cam in enumerate(cam_order):
-        yb = cidx * 2 * block
-        if cidx:
-            ax.axhline(yb - 0.5, color='w', lw=2)      # camera boundary
-        ax.text(-0.6 * block, yb + block - 0.5, f'Cam {cam}',
-                rotation=90, ha='right', va='center', fontsize=9)
-        if not per_cut:
-            for i in range(2):
-                for j in range(2):
-                    ccd = _CCD_ARRAY[cidx][i][j]
-                    r = (cidx * 2 + (1 - i))
-                    if np.isfinite(grid[r, j]):
-                        ax.text(j, r, f'CCD{ccd}\n{grid[r, j]:.3f}', ha='center',
-                                va='center', color='w', fontsize=7)
-    ax.set_xticks([]); ax.set_yticks([])
-    ax.set_title(f'{value}'
-                 + (f' — S{sector}' if sector is not None else '')
-                 + (' (per cut)' if per_cut else ''), fontsize=9)
-    plt.colorbar(im, ax=ax, label=value, fraction=0.08, pad=0.02)
-    fig.tight_layout()
-    if savepath:
-        fig.savefig(savepath, bbox_inches='tight')
-        print(f'Saved: {savepath}')
+        for cidx, cam in enumerate(cam_order):
+            yb = cidx * 2 * block
+            if cidx:
+                ax.axhline(yb - 0.5, color='w', lw=2)      # camera boundary
+            ax.text(-0.6 * block, yb + block - 0.5, f'Cam {cam}',
+                    rotation=90, ha='right', va='center', fontsize=9)
+            if not per_cut:
+                for i in range(2):
+                    for j in range(2):
+                        ccd = _CCD_ARRAY[cidx][i][j]
+                        r = (cidx * 2 + (1 - i))
+                        if np.isfinite(grid[r, j]):
+                            label = f'CCD{ccd}\n{grid[r, j]:.3f}'
+                            # usetex + path_effects strokes don't compose in
+                            # this mpl version, so fake the outline with
+                            # offset black copies behind the white text.
+                            d = 0.018
+                            for dx, dy in [(-d, -d), (-d, d), (d, -d), (d, d),
+                                           (-d, 0), (d, 0), (0, -d), (0, d)]:
+                                ax.text(j + dx, r + dy, label, ha='center',
+                                        va='center', color='k',
+                                        fontsize=7, fontweight='bold')
+                            ax.text(j, r, label, ha='center', va='center',
+                                    color='w', fontsize=7, fontweight='bold')
+        ax.set_xticks([]); ax.set_yticks([])
+        title = (_value_label(value)
+                 + (f' -- S{sector}' if sector is not None else '')
+                 + (' (per cut)' if per_cut else ''))
+        ax.set_title(title, fontsize=9)
+        # colorbar the same height as the image axes
+        cax = make_axes_locatable(ax).append_axes('right', size='5%', pad=0.05)
+        fig.colorbar(im, cax=cax, label=_value_label(value))
+        fig.tight_layout()
+        if savepath:
+            fig.savefig(savepath, bbox_inches='tight')
+            print(f'Saved: {savepath}')
     return fig, ax
 
 
@@ -179,7 +216,7 @@ def zp_cut_map(df, sector, cam, ccd, value='zp_ab', savepath=None):
         grid[k // n, k % n] = r[value]
 
     fig, ax = plt.subplots(figsize=(5.5, 5))
-    im = ax.imshow(grid, origin='lower', cmap='viridis', aspect='auto')
+    im = ax.imshow(grid, origin='lower', cmap='cividis', aspect='auto')
     ax.set_xlabel('cut column'); ax.set_ylabel('cut row')
     ax.set_title(f'{value} across cuts — S{sector} Cam{cam} Ccd{ccd}')
     plt.colorbar(im, ax=ax, label=value)
