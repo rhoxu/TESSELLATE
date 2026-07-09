@@ -51,6 +51,16 @@ warnings.filterwarnings('ignore')
 # Gaia Rp Vega-to-AB offset (Casagrande & VandenBerg 2018, MNRAS 479, L102)
 GAIA_RP_AB_OFFSET = 0.152
 
+
+def _zp_to_scale(zp):
+    """AB zeropoint (mag, a log quantity) -> linear flux-scale factor."""
+    return 10 ** (0.4 * np.asarray(zp, dtype=float))
+
+
+def _scale_to_zp(f):
+    """Linear flux-scale factor -> AB zeropoint (mag)."""
+    return 2.5 * np.log10(f)
+
 TESS_PIX_SCALE = 21.0  # arcsec/pixel
 GAIA_PATH_DEFAULT = '/fred/oz335/GAIAdata/full_gaia_cat.csv'
 PRF_PATH_DEFAULT = '/fred/oz335/_local_TESS_PRFs'
@@ -793,7 +803,11 @@ def run_calibration(image, wcs, sector, cam, ccd,
 
     clip_mask = _sigma_clip_mask(df.zp_ab.values[finite], nsigma=3)
     zp_vals_clipped = df.zp_ab.values[finite][clip_mask]
-    zp_ab = float(np.mean(zp_vals_clipped))
+    # zp_ab is a log (magnitude) quantity -- a flux ratio in disguise -- so the
+    # combine must happen in linear flux space, not by averaging magnitudes
+    # directly (that gives the geometric, not arithmetic, mean of the flux
+    # scale and is biased relative to it).
+    zp_ab = float(_scale_to_zp(np.mean(_zp_to_scale(zp_vals_clipped))))
     zp_err = float(np.std(zp_vals_clipped))
 
     print(f'\nStage 1 Zeropoint (AB): {zp_ab:.4f} +/- {zp_err:.4f} mag  '
@@ -1336,6 +1350,13 @@ def _binned_zeropoint(zp_vals, rp_ab, bin_width=0.5, min_bin_n=5):
     Returns (zp_ab, zp_err, zp_scatter, bins) where bins is a list of dicts
     (rp_centre, median, scatter, n).  Falls back to a global median/MAD if fewer
     than two usable bins.
+
+    zp is a log (magnitude) quantity, so every centre/combine below (the
+    per-bin median, the global fallback, and the final inverse-variance
+    combine across bins) is done in linear flux space via
+    _zp_to_scale/_scale_to_zp and converted back -- not a raw median/weighted
+    mean of the magnitudes.  Only the scatter (a *width*, not a location) is
+    reported in magnitude units, per the usual photometric convention.
     """
     zp = np.asarray(zp_vals, dtype=float)
     rp = np.asarray(rp_ab, dtype=float)
@@ -1343,7 +1364,7 @@ def _binned_zeropoint(zp_vals, rp_ab, bin_width=0.5, min_bin_n=5):
     zp, rp = zp[ok], rp[ok]
 
     def _global():
-        med = float(np.median(zp))
+        med = float(_scale_to_zp(np.median(_zp_to_scale(zp))))
         s = float(1.4826 * np.median(np.abs(zp - med)))
         se = s / np.sqrt(max(len(zp), 1))
         return med, (se if se > 0 else s), s, []
@@ -1362,7 +1383,7 @@ def _binned_zeropoint(zp_vals, rp_ab, bin_width=0.5, min_bin_n=5):
         if n < min_bin_n:
             continue
         v = zp[sel]
-        med = float(np.median(v))
+        med = float(_scale_to_zp(np.median(_zp_to_scale(v))))
         s = float(1.4826 * np.median(np.abs(v - med)))
         if not (s > 0):
             s = float(np.std(v))
@@ -1379,7 +1400,7 @@ def _binned_zeropoint(zp_vals, rp_ab, bin_width=0.5, min_bin_n=5):
     ses = np.array([b['se'] for b in bins])
     scat = np.array([b['scatter'] for b in bins])
     w = 1.0 / ses**2
-    zp_ab = float(np.sum(w * meds) / np.sum(w))
+    zp_ab = float(_scale_to_zp(np.sum(w * _zp_to_scale(meds)) / np.sum(w)))
     zp_err = float(np.sqrt(1.0 / np.sum(w)))
     # Core width: inverse-variance-weighted mean of the per-bin robust scatter
     zp_scatter = float(np.sum(w * scat) / np.sum(w))
