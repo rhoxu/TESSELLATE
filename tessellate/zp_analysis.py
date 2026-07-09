@@ -8,9 +8,18 @@ zp_ab, e_zp_ab, zp_scatter, n_stars.  This module collects them and plots:
   collect_zeropoints() : gather all per-cut zeropoints into one table.
   zp_focal_plane()     : ZP laid out in the physical TESS focal-plane geometry
                          (4 cameras stacked, each a 2x2 CCD block, correct
-                         orientations) -- median per CCD or the full per-cut image.
-  zp_cut_map()         : per-cut ZP map within one CCD (spatial across the cut grid).
+                         orientations) -- combined value per CCD or the full
+                         per-cut image; pass sector=None (default) or a list
+                         of sectors to stack multiple sectors together.
+  zp_cut_map()         : per-cut ZP map within one CCD (spatial across the cut
+                         grid); also stackable over a list of sectors.
   zp_vs_time()         : ZP vs sector (sectors are time-ordered) per cam/ccd.
+
+Zeropoints are a *log* (magnitude) quantity -- a flux ratio in disguise -- so
+combining several independent estimates (stacking sectors, multiple cuts in
+one CCD, etc.) must not median/average the magnitudes directly: that biases
+the result relative to the true combine in linear flux space. See
+_combine_value / _LOG_VALUE_COLUMNS.
 """
 
 import os
@@ -42,6 +51,43 @@ _VALUE_LABELS = {
 def _value_label(value):
     """Nicely typeset a value/column name; fall back to escaping underscores."""
     return _VALUE_LABELS.get(value, _tex(value))
+
+
+# Columns that are magnitudes on a *log* scale (a multiplicative flux ratio in
+# disguise).  Combining several independent estimates of one of these -- e.g.
+# stacking sectors, or several cuts in one CCD -- must not average/median the
+# magnitudes directly: log-space is nonlinear, so a combine there is biased
+# relative to the true (linear-flux-space) combine, especially for anything
+# weighted.  Convert to a linear flux-scale factor, combine, convert back.
+_LOG_VALUE_COLUMNS = {'zp_ab'}
+
+
+def _zp_to_scale(zp):
+    """AB zeropoint (mag) -> linear flux-scale factor (flux = counts * this)."""
+    return 10 ** (0.4 * np.asarray(zp, dtype=float))
+
+
+def _scale_to_zp(f):
+    """Linear flux-scale factor -> AB zeropoint (mag)."""
+    return 2.5 * np.log10(f)
+
+
+def _combine_value(vals, value):
+    """
+    Robust central value of `vals` for stacking (across sectors, cuts, ...).
+
+    For log-scale columns (zp_ab) the median is taken in linear flux space
+    and converted back, not on the magnitudes directly -- see
+    _LOG_VALUE_COLUMNS.  Everything else (already-linear quantities, or
+    magnitude *differences* like e_zp_ab/zp_scatter) is medianed as-is.
+    """
+    v = np.asarray(vals, dtype=float)
+    v = v[np.isfinite(v)]
+    if len(v) == 0:
+        return np.nan
+    if value in _LOG_VALUE_COLUMNS:
+        return float(_scale_to_zp(np.median(_zp_to_scale(v))))
+    return float(np.median(v))
 
 _ZP_RE = re.compile(r'Sector(\d+)/Cam(\d+)/Ccd(\d+)/Cut(\d+)of(\d+)/'
                     r'calibration/psf_calibration_zp\.csv$')
@@ -83,10 +129,10 @@ def collect_zeropoints(data_path='/fred/oz335/TESSdata', sectors=None):
 
 
 def zp_summary(df, value='zp_ab'):
-    """Per (sector, cam, ccd) median / robust-scatter / count of `value`."""
+    """Per (sector, cam, ccd) robust-combined median / scatter / count of `value`."""
     g = df.groupby(['sector', 'cam', 'ccd'])[value]
-    out = g.agg(median='median',
-                mad=lambda x: 1.4826 * np.median(np.abs(x - np.median(x))),
+    out = g.agg(median=lambda x: _combine_value(x.values, value),
+                mad=lambda x: 1.4826 * np.nanmedian(np.abs(x - np.nanmedian(x))),
                 n='count').reset_index()
     return out
 
@@ -108,15 +154,24 @@ def _cam_order(north):
 
 
 def _ccd_subgrid(sub, value, n, per_cut, invert):
-    """(block x block) array for one CCD, origin lower; rotated 180 if inverted."""
+    """
+    (block x block) array for one CCD, origin lower; rotated 180 if inverted.
+
+    Combines with `_combine_value`, not a raw median: `sub` may hold several
+    rows per cell (multiple sectors stacked onto the same cut/CCD), and for a
+    log-scale column like zp_ab those must be combined in linear flux space.
+    """
     block = n if per_cut else 1
     g = np.full((block, block), np.nan)
     if per_cut:
+        buckets = {}
         for _, r in sub.iterrows():
             k = int(r['cut']) - 1            # cut 1..n^2, row-major (row 0 = low y)
-            g[k // n, k % n] = r[value]
+            buckets.setdefault(k, []).append(r[value])
+        for k, vals in buckets.items():
+            g[k // n, k % n] = _combine_value(vals, value)
     elif len(sub):
-        g[0, 0] = np.median(sub[value])
+        g[0, 0] = _combine_value(sub[value].values, value)
     if invert:
         g = np.rot90(g, 2)                   # 180 deg for the flipped CCDs
     return g
@@ -130,13 +185,24 @@ def zp_focal_plane(df, sector=None, value='zp_ab', per_cut=False, north=None,
     with CCDs placed and oriented per the TESS Instrument Handbook layout (the
     top-row CCDs are 180-deg rotated).
 
-    per_cut=False : one median value per CCD.
+    per_cut=False : one combined value per CCD.
     per_cut=True  : fill each CCD with its n x n per-cut grid (intra-CCD structure),
                     rotating the inverted CCDs so the whole image is contiguous.
+    sector : None stacks every sector present in `df`; an int selects one;
+        an iterable of ints stacks that subset.  Stacking combines multiple
+        sectors landing on the same CCD/cut with `_combine_value` -- for a
+        log-scale column (zp_ab) that means the median in linear flux space,
+        not a direct median of the magnitudes.
     north : hemisphere/camera order; if None, inferred from the sign of the median
         dec if a 'dec' column exists, else south ([1,2,3,4]).
     """
-    d = df if sector is None else df[df['sector'] == sector]
+    if sector is None:
+        d = df
+    elif np.isscalar(sector):
+        d = df[df['sector'] == sector]
+    else:
+        d = df[df['sector'].isin(list(sector))]
+    sectors_used = sorted(d['sector'].unique().tolist()) if len(d) else []
     if north is None:
         north = ('dec' in d and len(d) and np.nanmedian(d['dec']) > 0)
     cam_order = _cam_order(north)
@@ -178,18 +244,25 @@ def zp_focal_plane(df, sector=None, value='zp_ab', per_cut=False, north=None,
                             # usetex + path_effects strokes don't compose in
                             # this mpl version, so fake the outline with
                             # offset black copies behind the white text.
-                            d = 0.018
-                            for dx, dy in [(-d, -d), (-d, d), (d, -d), (d, d),
-                                           (-d, 0), (d, 0), (0, -d), (0, d)]:
+                            off = 0.018
+                            for dx, dy in [(-off, -off), (-off, off),
+                                           (off, -off), (off, off),
+                                           (-off, 0), (off, 0),
+                                           (0, -off), (0, off)]:
                                 ax.text(j + dx, r + dy, label, ha='center',
                                         va='center', color='k',
                                         fontsize=7, fontweight='bold')
                             ax.text(j, r, label, ha='center', va='center',
                                     color='w', fontsize=7, fontweight='bold')
         ax.set_xticks([]); ax.set_yticks([])
-        title = (_value_label(value)
-                 + (f' -- S{sector}' if sector is not None else '')
-                 + (' (per cut)' if per_cut else ''))
+        if len(sectors_used) == 1:
+            sec_label = f' -- S{sectors_used[0]}'
+        elif len(sectors_used) > 1:
+            sec_label = f' -- stack of {len(sectors_used)} sectors ' \
+                        f'(S{sectors_used[0]}--S{sectors_used[-1]})'
+        else:
+            sec_label = ''
+        title = _value_label(value) + sec_label + (' (per cut)' if per_cut else '')
         ax.set_title(title, fontsize=9)
         # colorbar the same height as the image axes
         cax = make_axes_locatable(ax).append_axes('right', size='5%', pad=0.05)
@@ -205,25 +278,47 @@ def zp_cut_map(df, sector, cam, ccd, value='zp_ab', savepath=None):
     """
     Per-cut ZP map within one CCD: an n x n grid over the cut positions, showing
     spatial ZP variation across a single CCD.
+
+    sector : an int selects one sector; an iterable of ints (or None, for
+        every sector present) stacks that subset -- multiple sectors landing
+        on the same cut are combined with `_combine_value` (linear flux
+        space for a log-scale column such as zp_ab, not a raw median of the
+        magnitudes).
     """
-    d = df[(df['sector'] == sector) & (df['cam'] == cam) & (df['ccd'] == ccd)]
+    if sector is None:
+        d = df[(df['cam'] == cam) & (df['ccd'] == ccd)]
+    elif np.isscalar(sector):
+        d = df[(df['sector'] == sector) & (df['cam'] == cam) & (df['ccd'] == ccd)]
+    else:
+        d = df[df['sector'].isin(list(sector)) & (df['cam'] == cam) & (df['ccd'] == ccd)]
     if len(d) == 0:
         raise ValueError('No cuts for that sector/cam/ccd.')
+    sectors_used = sorted(d['sector'].unique().tolist())
     n = int(d['n'].iloc[0])
     grid = np.full((n, n), np.nan)
+    buckets = {}
     for _, r in d.iterrows():
         k = int(r['cut']) - 1                 # cut index 1..n^2, row-major
-        grid[k // n, k % n] = r[value]
+        buckets.setdefault(k, []).append(r[value])
+    for k, vals in buckets.items():
+        grid[k // n, k % n] = _combine_value(vals, value)
 
-    fig, ax = plt.subplots(figsize=(5.5, 5))
-    im = ax.imshow(grid, origin='lower', cmap='cividis', aspect='auto')
-    ax.set_xlabel('cut column'); ax.set_ylabel('cut row')
-    ax.set_title(f'{value} across cuts — S{sector} Cam{cam} Ccd{ccd}')
-    plt.colorbar(im, ax=ax, label=value)
-    fig.tight_layout()
-    if savepath:
-        fig.savefig(savepath, bbox_inches='tight')
-        print(f'Saved: {savepath}')
+    with plt.rc_context(_TEX_RC):
+        fig, ax = plt.subplots(figsize=(5.5, 5))
+        im = ax.imshow(grid, origin='lower', cmap='cividis', aspect='auto')
+        ax.set_xlabel('cut column'); ax.set_ylabel('cut row')
+        if len(sectors_used) == 1:
+            sec_label = f'S{sectors_used[0]}'
+        else:
+            sec_label = f'stack of {len(sectors_used)} sectors ' \
+                        f'(S{sectors_used[0]}--S{sectors_used[-1]})'
+        ax.set_title(f'{_value_label(value)} across cuts -- {sec_label} '
+                     f'Cam{cam} Ccd{ccd}')
+        fig.colorbar(im, ax=ax, label=_value_label(value))
+        fig.tight_layout()
+        if savepath:
+            fig.savefig(savepath, bbox_inches='tight')
+            print(f'Saved: {savepath}')
     return fig, ax
 
 
@@ -233,24 +328,26 @@ def zp_vs_time(df, value='zp_ab', per_ccd=True, savepath=None):
     (cam, ccd) of the per-sector median; otherwise the overall per-sector median
     with the cut-to-cut scatter as error bars.
     """
-    fig, ax = plt.subplots(figsize=(8, 5))
-    if per_ccd:
-        for (cam, ccd), sub in df.groupby(['cam', 'ccd']):
-            s = sub.groupby('sector')[value].median()
-            ax.plot(s.index, s.values, '-o', ms=3, lw=0.8, alpha=0.6,
-                    label=f'C{cam}c{ccd}')
-        ax.legend(fontsize=6, ncol=4, loc='best')
-    else:
-        s = df.groupby('sector')[value]
-        med = s.median()
-        scat = s.agg(lambda x: 1.4826 * np.median(np.abs(x - np.median(x))))
-        ax.errorbar(med.index, med.values, yerr=scat.values, fmt='-o',
-                    capsize=3, color='k')
-    ax.set_xlabel('Sector (time-ordered)')
-    ax.set_ylabel(value)
-    ax.set_title(f'{value} across sectors')
-    fig.tight_layout()
-    if savepath:
-        fig.savefig(savepath, bbox_inches='tight')
-        print(f'Saved: {savepath}')
+    with plt.rc_context(_TEX_RC):
+        fig, ax = plt.subplots(figsize=(8, 5))
+        if per_ccd:
+            for (cam, ccd), sub in df.groupby(['cam', 'ccd']):
+                s = sub.groupby('sector')[value].agg(
+                    lambda x: _combine_value(x.values, value))
+                ax.plot(s.index, s.values, '-o', ms=3, lw=0.8, alpha=0.6,
+                        label=f'C{cam}c{ccd}')
+            ax.legend(fontsize=6, ncol=4, loc='best')
+        else:
+            s = df.groupby('sector')[value]
+            med = s.agg(lambda x: _combine_value(x.values, value))
+            scat = s.agg(lambda x: 1.4826 * np.nanmedian(np.abs(x - np.nanmedian(x))))
+            ax.errorbar(med.index, med.values, yerr=scat.values, fmt='-o',
+                        capsize=3, color='k')
+        ax.set_xlabel('Sector (time-ordered)')
+        ax.set_ylabel(_value_label(value))
+        ax.set_title(f'{_value_label(value)} across sectors')
+        fig.tight_layout()
+        if savepath:
+            fig.savefig(savepath, bbox_inches='tight')
+            print(f'Saved: {savepath}')
     return fig, ax
