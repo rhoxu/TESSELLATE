@@ -1534,7 +1534,7 @@ class Detector():
             prf = TESS_PRF(self.cam,self.ccd,self.sector,column,row,localdatadir=f'{self.prf_path}/Sectors4+')
         
         # -- Retrieve cut localisation quality -- #
-        snr_to_localisation = get_snr_to_localisation_func(self.data_path,self.sector,self.cam,self.ccd,self.cut,self.n)
+        snr_to_localisation = get_snr_to_localisation_func(self.prf_path,self.sector,self.cam,self.ccd,self.cut,self.n)
 
         # -- Iterate over frame bins -- #
         frame_bins = np.unique(self.sources.frame_bin)
