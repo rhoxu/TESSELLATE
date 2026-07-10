@@ -1579,8 +1579,8 @@ class Detector():
             events['xcentroid_err'] = 0.5
             events['ycentroid_err'] = 0.5
         else:
-            events['xcentroid_err'] = np.sqrt(events['xcentroid_err']**2 + wcs_unc[0]**2)
-            events['ycentroid_err'] = np.sqrt(events['ycentroid_err']**2 + wcs_unc[1]**2)
+            events['xcentroid_err'] = np.sqrt(events['xcentroid_err']**2 + wcs_unc[0]**2) * 1.136
+            events['ycentroid_err'] = np.sqrt(events['ycentroid_err']**2 + wcs_unc[1]**2) * 1.136
 
         # -- Remove all events with single frame durations -- #
         # fake_events = events[(events.frame_duration==1)&(events.frame_bin==1)].copy()
@@ -1619,8 +1619,8 @@ class Detector():
         
         events['ra_err'] = np.sqrt((dra_dx * events['xcentroid_err'])**2 + (dra_dy * events['ycentroid_err'])**2)
         events['dec_err'] = np.sqrt((ddec_dx * events['xcentroid_err'])**2 + (ddec_dy * events['ycentroid_err'])**2)
-        
-        events['dec_err'] = np.abs(events['ra_err'] * np.cos(np.radians(events['dec'])))   # account for cos(dec) factor in RA
+
+        events['ra_err'] = np.abs(events['ra_err'] * np.cos(np.radians(events['dec'])))   # account for cos(dec) factor in RA
 
         coords = SkyCoord(ra=events['ra'].values*u.degree,dec=events['dec'].values*u.degree)
         events['gal_l'] = coords.galactic.l.value
@@ -1686,19 +1686,64 @@ class Detector():
         events['gaia_id'] = '-'
         for i,event in events.iterrows():
             if event.classification not in ['Asteroid','CosmicRay','Junk']:
-                inside = gaia[(abs(gaia.ra-event.ra) < sigma*event.ra_err)&
-                            (abs(gaia.dec-event.dec) < sigma*event.dec_err)]
-                if len(inside) > 0:
-                    valid_rp = inside.dropna(subset=['RPmag'])
-                    valid_g = inside.dropna(subset=['Gmag'])
-                    if len(valid_rp) > 0:
-                        best_idx = valid_rp.RPmag.idxmin()
-                    elif len(valid_g) > 0:
-                        best_idx = valid_g.Gmag.idxmin()
-                    else:
-                        best_idx = inside.index[0]
 
-                    events.loc[i, 'gaia_id'] = gaia.at[best_idx, 'Source'] 
+                # --- RA wraparound-safe box pre-filter ---
+                dra_raw = gaia.ra - event.ra
+                dra_wrapped = (dra_raw + 180) % 360 - 180
+
+                box_mask = (
+                    (np.abs(dra_wrapped * np.cos(np.radians(event.dec))) < 3 * event.ra_err) &
+                    (np.abs(gaia.dec - event.dec) < 3 * event.dec_err)
+                )
+
+                if box_mask.any():
+                    
+                    sub_dra_wrapped = dra_wrapped[box_mask]
+                    sub_source = gaia.Source[box_mask].values
+                    sub_rpmag = gaia.RPmag[box_mask].values
+                    sub_gmag = gaia.Gmag[box_mask].values
+                    sub_dec = gaia.dec[box_mask].values
+
+                    dra_arcsec = sub_dra_wrapped * np.cos(np.radians(event.dec)) * 3600
+                    ddec_arcsec = (sub_dec - event.dec) * 3600
+
+                    ra_err_arcsec = event.ra_err * 3600
+                    dec_err_arcsec = event.dec_err * 3600
+
+                    mahalanobis = np.sqrt((dra_arcsec / ra_err_arcsec)**2 + (ddec_arcsec / dec_err_arcsec)**2)
+                    rad_mask = mahalanobis <= 3
+
+                    if rad_mask.any():
+
+                        cand_source = sub_source[rad_mask]
+                        cand_rpmag = sub_rpmag[rad_mask]
+                        cand_gmag = sub_gmag[rad_mask]
+
+                        valid_rp = ~np.isnan(cand_rpmag)
+                        valid_g = ~np.isnan(cand_gmag)
+
+                        if valid_rp.any():
+                            best_idx = np.nanargmin(np.where(valid_rp, cand_rpmag, np.inf))
+                        elif valid_g.any():
+                            best_idx = np.nanargmin(np.where(valid_g, cand_gmag, np.inf))
+                        else:
+                            best_idx = 0
+
+                        events.loc[i,'gaia_id'] = str(cand_source[best_idx])
+
+                                                    # inside = gaia[(abs(gaia.ra-event.ra) < sigma*event.ra_err)&
+                                                    #             (abs(gaia.dec-event.dec) < sigma*event.dec_err)]
+                                                    # if len(inside) > 0:
+                                                    #     valid_rp = inside.dropna(subset=['RPmag'])
+                                                    #     valid_g = inside.dropna(subset=['Gmag'])
+                                                    #     if len(valid_rp) > 0:
+                                                    #         best_idx = valid_rp.RPmag.idxmin()
+                                                    #     elif len(valid_g) > 0:
+                                                    #         best_idx = valid_g.Gmag.idxmin()
+                                                    #     else:
+                                                    #         best_idx = inside.index[0]
+
+                                                    #     events.loc[i, 'gaia_id'] = gaia.at[best_idx, 'Source'] 
         
         # -- Cross matches location to variable catalog -- #
         variables = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/variable_catalog.csv')
