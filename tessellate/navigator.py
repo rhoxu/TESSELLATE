@@ -502,7 +502,7 @@ class Navigator():
         return path
 
     def event_lc(self,objid,eventid,cut=None,frame_buffer=10,plot=True,frame_bin=None,
-                 method='aperture',units='counts',stamp_size=9,savedir=None):
+                 method='aperture',units='counts',stamp_size=9,savedir=None,calc_error=True):
         """
         Extract a light curve for a desired event (objid/eventid pair).
 
@@ -570,24 +570,27 @@ class Navigator():
 
             t,f = Generate_LC(time,flux,x,y,window_start,window_end,radius=1.5)
 
-            # Background-limited aperture error (3x3 box on the difference frames)
-            buf = 1
-            fl_win = flux[window_start:window_end+1]
-            med = np.nanmedian(fl_win, axis=(1,2), keepdims=True)
-            sig = 1.4826 * np.nanmedian(np.abs(fl_win - med), axis=(1,2))
-            ferr = np.sqrt((2*buf+1)**2) * sig
+            ferr = np.zeros_like(f)
+            if calc_error:
 
-            if units.lower() not in ('count','counts'):
-                from .psf_flux_calibration import aperture_correction, _convert_flux_units
-                cc = self._cut_corner(cut)
-                xs = float(event.get('xcentroid_psf', x))
-                ys = float(event.get('ycentroid_psf', y))
-                frac = aperture_correction(self.sector, self.cam, self.ccd,
-                                        cc[0]+xs, cc[1]+ys,
-                                        xs-np.round(xs), ys-np.round(ys), radius=1.5)
-                zp_eff = zp + 2.5*np.log10(frac)   # aperture loss folded into the ZP
-                print(f'Aperture correction: {frac:.3f} of PRF flux (ZP {zp:.3f} -> {zp_eff:.3f})')
-                f, ferr, _ = _convert_flux_units(f, ferr, units, zp_eff)
+                # Background-limited aperture error (3x3 box on the difference frames)
+                buf = 1
+                fl_win = flux[window_start:window_end+1]
+                med = np.nanmedian(fl_win, axis=(1,2), keepdims=True)
+                sig = 1.4826 * np.nanmedian(np.abs(fl_win - med), axis=(1,2))
+                ferr = np.sqrt((2*buf+1)**2) * sig
+
+                if units.lower() not in ('count','counts'):
+                    from .psf_flux_calibration import aperture_correction, _convert_flux_units
+                    cc = self._cut_corner(cut)
+                    xs = float(event.get('xcentroid_psf', x))
+                    ys = float(event.get('ycentroid_psf', y))
+                    frac = aperture_correction(self.sector, self.cam, self.ccd,
+                                            cc[0]+xs, cc[1]+ys,
+                                            xs-np.round(xs), ys-np.round(ys), radius=1.5)
+                    zp_eff = zp + 2.5*np.log10(frac)   # aperture loss folded into the ZP
+                    print(f'Aperture correction: {frac:.3f} of PRF flux (ZP {zp:.3f} -> {zp_eff:.3f})')
+                    f, ferr, _ = _convert_flux_units(f, ferr, units, zp_eff)
 
         if plot:
             cadence = np.median(np.diff(time))
