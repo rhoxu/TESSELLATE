@@ -245,11 +245,11 @@ class Tessellate():
         if reduce:
             reduce = self.reduce()     # returns reduction slurm job ids for use in transient search
 
-        if search:
-            self.transient_search(reduction_status=reduce)
-
         if calibrate:
-            self.calibrate()
+            self.calibrate(reduction_status=reduce)
+
+        if search:
+            self.transient_search(calibrating=calibrate)
         
         if plot:
             self.transient_plot(searching=search)
@@ -2179,11 +2179,48 @@ python {script_py}'
         print('\n')
         return job_id
 
-    def calibrate(self, overwrite=True):
+    # def calibrate(self, overwrite=True):
+    #     """
+    #     Flux Calibrate!  Derives a Gaia Rp AB zeropoint for each cut using
+    #     PSF photometry on the reference image.
+    #     """
+
+    #     _Save_space(f'{self.working_path}/calibration_scripts')
+    #     _Save_space(f'{self.job_output_path}/tessellate_calibration_logs')
+
+    #     if overwrite and (self.overwrite is not None):
+    #         if (self.overwrite == 'all') or ('calibrate' in self.overwrite):
+    #             delete_files('calibrations', self.data_path, self.sector,
+    #                          self.n, self.cam, self.ccd, self.cuts, part=self.part)
+
+    #     for cam in self.cam:
+    #         for ccd in self.ccd:
+    #             print(_Print_buff(60, f'Calibrating Cut(s) for Sector{self.sector} Cam{cam} Ccd{ccd}'))
+    #             print('\n')
+    #             for cut in self.cuts:
+    #                 cut_folder = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+    #                 ref_check = f'{cut_folder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Ref.npy'
+    #                 if not os.path.exists(ref_check):
+    #                     print(f'No reference image found for Cut {cut} - skipping (run reduce first).')
+    #                     print('\n')
+    #                     continue
+
+    #                 cal_dir = f'{cut_folder}/calibration'
+    #                 cal_done = (os.path.exists(f'{cal_dir}/calibrated.txt') and
+    #                             os.path.exists(f'{cal_dir}/psf_calibration_zp.csv'))
+    #                 if cal_done:
+    #                     print(f'Cam {cam} CCD {ccd} Cut {cut} already calibrated!')
+    #                     print('\n')
+    #                 else:
+    #                     self._cut_calibrate(cam=cam, ccd=ccd, cut=cut)
+
+    def calibrate(self, reduction_status, overwrite=True):
         """
         Flux Calibrate!  Derives a Gaia Rp AB zeropoint for each cut using
         PSF photometry on the reference image.
         """
+
+        from datetime import timedelta
 
         _Save_space(f'{self.working_path}/calibration_scripts')
         _Save_space(f'{self.job_output_path}/tessellate_calibration_logs')
@@ -2191,28 +2228,84 @@ python {script_py}'
         if overwrite and (self.overwrite is not None):
             if (self.overwrite == 'all') or ('calibrate' in self.overwrite):
                 delete_files('calibrations', self.data_path, self.sector,
-                             self.n, self.cam, self.ccd, self.cuts, part=self.part)
+                            self.n, self.cam, self.ccd, self.cuts, part=self.part)
 
+        calibrating_status = {}
         for cam in self.cam:
             for ccd in self.ccd:
                 print(_Print_buff(60, f'Calibrating Cut(s) for Sector{self.sector} Cam{cam} Ccd{ccd}'))
                 print('\n')
                 for cut in self.cuts:
                     cut_folder = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                    ref_check = f'{cut_folder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Ref.npy'
-                    if not os.path.exists(ref_check):
-                        print(f'No reference image found for Cut {cut} - skipping (run reduce first).')
-                        print('\n')
-                        continue
-
                     cal_dir = f'{cut_folder}/calibration'
                     cal_done = (os.path.exists(f'{cal_dir}/calibrated.txt') and
                                 os.path.exists(f'{cal_dir}/psf_calibration_zp.csv'))
+
                     if cal_done:
-                        print(f'Cam {cam} CCD {ccd} Cut {cut} already calibrated!')
-                        print('\n')
+                        calibrating_status[(cam,ccd,cut)] = 'COMPLETED'
+                    elif reduction_status == False:
+                        ref_check = f'{cut_folder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Ref.npy'
+                        if not os.path.exists(ref_check):
+                            e = f'No Reduced File Detected for Calibration of Cam {cam} Ccd {ccd} Cut {cut}!\n'
+                            raise ValueError(e)
+                        else:
+                            calibrating_status[(cam,ccd,cut)] = 'INCOMPLETE'
                     else:
-                        self._cut_calibrate(cam=cam, ccd=ccd, cut=cut)
+                        calibrating_status[(cam,ccd,cut)] = 'INCOMPLETE'
+
+        i = 0
+        while len(calibrating_status.keys()) > 0:
+
+            for key in list(calibrating_status.keys()):
+                cam,ccd,cut = key
+                if calibrating_status[key] == 'COMPLETED':
+                    print(f'Cam {cam} CCD {ccd} Cut {cut} already calibrated!')
+                    print('\n')
+                    del(calibrating_status[key])
+
+                elif reduction_status == False or reduction_status[key]['status'] == 'COMPLETED':
+                    self._cut_calibrate(cam=cam,ccd=ccd,cut=cut)
+                    del(calibrating_status[key])
+
+                else:
+                    job_id = reduction_status[key]['job_id']
+                    job_status = _Check_job_status(job_id)
+                    if job_status == 'FAILED':
+                        print(f'Reduction Failed for Cam {cam} CCD {ccd} Cut {cut}')
+                        print('\n')
+                        del(calibrating_status[key])
+                    elif job_status == 'TIMEOUT':
+                        parts = list(map(int, reduction_status[key]['job_time'].split(':')))
+                        if len(parts) == 3:
+                            h, m, s = parts
+                        else:
+                            h = 0
+                            m, s = parts
+
+                        td = timedelta(hours=h, minutes=m, seconds=s)
+                        td += timedelta(minutes=30) # add 30 minutes to the job time
+                        total = int(td.total_seconds())
+                        h = total // 3600
+                        m = (total % 3600) // 60
+                        s = total % 60
+                        result = f"{h}:{m:02}:{s:02}"
+
+                        print(f'Restarting Reducing for Cam {cam} CCD {ccd} Cut {cut} with new time limit of {result}')
+                        job_id = self._cut_reduce(cam=cam,ccd=ccd,cut=cut,time=result)
+                        reduction_status[key]['job_id'] = job_id
+                        reduction_status[key]['job_time'] = result
+
+                    elif job_status == 'COMPLETED':
+                        reduction_status[key]['status'] = job_status
+
+                    elif job_status not in ['RUNNING','PENDING','COMPLETING','CONFIGURING']:
+                        e = f'Job {job_id} for reduction of Cam {cam} CCD {ccd} Cut {cut} has unexpected status: {job_status}\n'
+                        raise ValueError(e)
+
+            if reduction_status != False and len(calibrating_status.keys()) > 0:
+                print('Waiting for Reductions' + i*'.', end='\r')
+                sleep(600)
+                i += 1
 
     def _cut_transient_search(self,cam,ccd,cut):
 
@@ -2267,199 +2360,170 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
 
         print('\n')
 
-    def transient_search(self,reduction_status,overwrite=True):
+    def transient_search(self,calibrating,overwrite=True):
         """
         Transient Search!
         """
 
-        from datetime import timedelta
-
         _Save_space(f'{self.working_path}/detection_scripts')
-
-        # # -- Delete old scripts -- #
-        # os.system(f'rm -f {self.working_path}/detection_scripts/S{self.sector}C*')
 
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('search' in self.overwrite):
                 delete_files('search',self.data_path,self.sector,self.n,self.cam,self.ccd,self.cuts,part=self.part)
 
-        cutting_status = {}
         for cam in self.cam:
             for ccd in self.ccd:
                 print(_Print_buff(60,f'Searching Cut(s) for Sector{self.sector} Cam{cam} Ccd{ccd}'))
                 print('\n')
                 for cut in self.cuts:
+
                     if self.part:
                         save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
                         save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
                         if (os.path.exists(f'{save_path1}/detected_objects.csv')) & (os.path.exists(f'{save_path2}/detected_objects.csv')):
-                            cutting_status[(cam,ccd,cut)] = 'COMPLETED'
+                            print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
+                            print('\n')
                         elif (os.path.exists(f'{save_path1}/reduced.txt')) & (os.path.exists(f'{save_path2}/reduced.txt')):
-                            cutting_status[(cam,ccd,cut)] = 'INCOMPLETE'
+                            self._cut_transient_search(cam,ccd,cut)
                         elif not os.path.exists(f'{save_path1}/reduced.txt'):
-                            e = f'No Reduced File Detected for Search of Cut {cut} Part 1!\n'
-                            raise ValueError(e)
+                            if calibrating:
+                                print(f'No Reduction Files Detected for Search of Cut {cut} Part 1! Skipping!')
+                                print('\n')
+                            else:
+                                e = f'No Reduced File Detected for Search of Cut {cut} Part 1!\n'
+                                raise ValueError(e)
                         else:
-                            e = f'No Reduced File Detected for Search of Cut {cut} Part 2!\n'
-                            raise ValueError(e)
+                            if calibrating:
+                                print(f'No Reduction Files Detected for Search of Cut {cut} Part 2! Skipping!')
+                                print('\n')
+                            else:
+                                e = f'No Reduced File Detected for Search of Cut {cut} Part 2!\n'
+                                raise ValueError(e)
                     else:
                         save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
                         if os.path.exists(f'{save_path}/detected_objects.csv'):
-                            cutting_status[(cam,ccd,cut)] = 'COMPLETED'               
-                        elif os.path.exists(f'{save_path}/reduced.txt'):
-                            cutting_status[(cam,ccd,cut)] = 'INCOMPLETE'
-                        elif reduction_status == False:
-                            e = f'No Reduced File Detected for Search of Cam {cam} Ccd {ccd} Cut {cut}!\n'
-                            raise ValueError(e)
+                            print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
+                            print('\n')
+                        elif not os.path.exists(f'{save_path}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Ref.npy'):
+                            if calibrating:
+                                print(f'No Reduction Files Detected for Search of Cam {cam} Ccd {ccd} Cut {cut}! Skipping!')
+                                print('\n')
+                            else:
+                                e = f'No Reduction Files Detected for Search of Cam {cam} Ccd {ccd} Cut {cut}!\n'
+                                raise ValueError(e)
                         else:
-                            cutting_status[(cam,ccd,cut)] = 'INCOMPLETE'
+                            self._cut_transient_search(cam,ccd,cut)
 
-        i = 0 
-        while len(cutting_status.keys()) > 0:
+        
 
-            for key in list(cutting_status.keys()):
-                cam,ccd,cut = key
-                if cutting_status[key] == 'COMPLETED':
-                    print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
-                    print('\n')
-                    del(cutting_status[key])
 
-                elif reduction_status == False or reduction_status[key]['status'] == 'COMPLETED':
-                    self._cut_transient_search(cam,ccd,cut)
-                    del(cutting_status[key])
-                    # if reduction_status != False:
-                    #     del(reduction_status[key])
+    # def transient_search(self,reduction_status,overwrite=True):
+    #     """
+    #     Transient Search!
+    #     """
 
-                else:
-                    job_id = reduction_status[key]['job_id']
-                    job_status = _Check_job_status(job_id)
-                    if job_status == 'FAILED':
-                        print(f'Reduction Failed for Cam {cam} CCD {ccd} Cut {cut}')
-                        print('\n')
-                        del(cutting_status[key])
-                    elif job_status == 'TIMEOUT':
-                        parts = list(map(int, reduction_status[key]['job_time'].split(':')))
-                        if len(parts) == 3:
-                            h, m, s = parts
-                        else:
-                            h = 0
-                            m, s = parts
+    #     from datetime import timedelta
+
+    #     _Save_space(f'{self.working_path}/detection_scripts')
+
+    #     # # -- Delete old scripts -- #
+    #     # os.system(f'rm -f {self.working_path}/detection_scripts/S{self.sector}C*')
+
+    #     if overwrite & (self.overwrite is not None):
+    #         if (self.overwrite == 'all') | ('search' in self.overwrite):
+    #             delete_files('search',self.data_path,self.sector,self.n,self.cam,self.ccd,self.cuts,part=self.part)
+
+    #     cutting_status = {}
+    #     for cam in self.cam:
+    #         for ccd in self.ccd:
+    #             print(_Print_buff(60,f'Searching Cut(s) for Sector{self.sector} Cam{cam} Ccd{ccd}'))
+    #             print('\n')
+    #             for cut in self.cuts:
+    #                 if self.part:
+    #                     save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
+    #                     save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
+    #                     if (os.path.exists(f'{save_path1}/detected_objects.csv')) & (os.path.exists(f'{save_path2}/detected_objects.csv')):
+    #                         cutting_status[(cam,ccd,cut)] = 'COMPLETED'
+    #                     elif (os.path.exists(f'{save_path1}/reduced.txt')) & (os.path.exists(f'{save_path2}/reduced.txt')):
+    #                         cutting_status[(cam,ccd,cut)] = 'INCOMPLETE'
+    #                     elif not os.path.exists(f'{save_path1}/reduced.txt'):
+    #                         e = f'No Reduced File Detected for Search of Cut {cut} Part 1!\n'
+    #                         raise ValueError(e)
+    #                     else:
+    #                         e = f'No Reduced File Detected for Search of Cut {cut} Part 2!\n'
+    #                         raise ValueError(e)
+    #                 else:
+    #                     save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+    #                     if os.path.exists(f'{save_path}/detected_objects.csv'):
+    #                         cutting_status[(cam,ccd,cut)] = 'COMPLETED'               
+    #                     elif os.path.exists(f'{save_path}/reduced.txt'):
+    #                         cutting_status[(cam,ccd,cut)] = 'INCOMPLETE'
+    #                     elif reduction_status == False:
+    #                         e = f'No Reduced File Detected for Search of Cam {cam} Ccd {ccd} Cut {cut}!\n'
+    #                         raise ValueError(e)
+    #                     else:
+    #                         cutting_status[(cam,ccd,cut)] = 'INCOMPLETE'
+
+    #     i = 0 
+    #     while len(cutting_status.keys()) > 0:
+
+    #         for key in list(cutting_status.keys()):
+    #             cam,ccd,cut = key
+    #             if cutting_status[key] == 'COMPLETED':
+    #                 print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
+    #                 print('\n')
+    #                 del(cutting_status[key])
+
+    #             elif reduction_status == False or reduction_status[key]['status'] == 'COMPLETED':
+    #                 self._cut_transient_search(cam,ccd,cut)
+    #                 del(cutting_status[key])
+    #                 # if reduction_status != False:
+    #                 #     del(reduction_status[key])
+
+    #             else:
+    #                 job_id = reduction_status[key]['job_id']
+    #                 job_status = _Check_job_status(job_id)
+    #                 if job_status == 'FAILED':
+    #                     print(f'Reduction Failed for Cam {cam} CCD {ccd} Cut {cut}')
+    #                     print('\n')
+    #                     del(cutting_status[key])
+    #                 elif job_status == 'TIMEOUT':
+    #                     parts = list(map(int, reduction_status[key]['job_time'].split(':')))
+    #                     if len(parts) == 3:
+    #                         h, m, s = parts
+    #                     else:
+    #                         h = 0
+    #                         m, s = parts
                         
-                        td = timedelta(hours=h, minutes=m, seconds=s)
-                        td += timedelta(minutes=30) # add 30 minutes to the job time
-                        total = int(td.total_seconds())
-                        h = total // 3600
-                        m = (total % 3600) // 60
-                        s = total % 60
-                        result = f"{h}:{m:02}:{s:02}"
+    #                     td = timedelta(hours=h, minutes=m, seconds=s)
+    #                     td += timedelta(minutes=30) # add 30 minutes to the job time
+    #                     total = int(td.total_seconds())
+    #                     h = total // 3600
+    #                     m = (total % 3600) // 60
+    #                     s = total % 60
+    #                     result = f"{h}:{m:02}:{s:02}"
 
-                        print(f'Restarting Reducing for Cam {cam} CCD {ccd} Cut {cut} with new time limit of {result}')
-                        job_id = self._cut_reduce(cam=cam,ccd=ccd,cut=cut,time=result)
-                        reduction_status[key]['job_id'] = job_id
-                        reduction_status[key]['job_time'] = result
+    #                     print(f'Restarting Reducing for Cam {cam} CCD {ccd} Cut {cut} with new time limit of {result}')
+    #                     job_id = self._cut_reduce(cam=cam,ccd=ccd,cut=cut,time=result)
+    #                     reduction_status[key]['job_id'] = job_id
+    #                     reduction_status[key]['job_time'] = result
 
-                    elif job_status == 'COMPLETED':
-                        reduction_status[key]['status'] = job_status
+    #                 elif job_status == 'COMPLETED':
+    #                     reduction_status[key]['status'] = job_status
 
-                    elif job_status not in ['RUNNING','PENDING','COMPLETING','CONFIGURING']:
-                        e = f'Job {job_id} for reduction of Cam {cam} CCD {ccd} Cut {cut} has unexpected status: {job_status}\n'
-                        raise ValueError(e)
+    #                 elif job_status not in ['RUNNING','PENDING','COMPLETING','CONFIGURING']:
+    #                     e = f'Job {job_id} for reduction of Cam {cam} CCD {ccd} Cut {cut} has unexpected status: {job_status}\n'
+    #                     raise ValueError(e)
 
-            if reduction_status != False and len(cutting_status.keys()) > 0: 
-                print('Waiting for Reductions' + i*'.', end='\r')
-                sleep(600)
-                i += 1
+            # if reduction_status != False and len(cutting_status.keys()) > 0: 
+            #     print('Waiting for Reductions' + i*'.', end='\r')
+            #     sleep(600)
+            #     i += 1
     
         
         
             
 
-
-
-
-        # for cam in self.cam:
-        #     for ccd in self.ccd:
-        #         print(_Print_buff(60,f'Transient Search for Sector{self.sector} Cam{cam} Ccd{ccd}'))
-        #         print('\n')
-        #         if reduction_jobs == False:
-        #             for cut in self.cuts:
-        #                 if self.part:
-        #                     save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
-        #                     save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
-        #                     if (os.path.exists(f'{save_path1}/detected_objects.csv')) & (os.path.exists(f'{save_path2}/detected_objects.csv')):
-        #                         print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
-        #                         print('\n')
-        #                     elif (os.path.exists(f'{save_path1}/reduced.txt')) & (os.path.exists(f'{save_path2}/reduced.txt')):
-        #                         self._cut_transient_search(cam,ccd,cut)
-        #                     elif not os.path.exists(f'{save_path1}/reduced.txt'):
-        #                         e = f'No Reduced File Detected for Search of Cut {cut} Part 1!\n'
-        #                         raise ValueError(e)
-        #                     else:
-        #                         e = f'No Reduced File Detected for Search of Cut {cut} Part 2!\n'
-        #                         raise ValueError(e)
-        #                 else:
-        #                     save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-        #                     if os.path.exists(f'{save_path}/detected_objects.csv'):
-        #                         print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
-        #                         print('\n')
-        #                     elif os.path.exists(f'{save_path}/reduced.txt'):
-        #                         self._cut_transient_search(cam,ccd,cut)
-        #                     else:
-        #                         e = f'No Reduced File Detected for Search of Cut {cut}!\n'
-        #                         raise ValueError(e)
-                            
-        #         else:
-        #             completed = []
-        #             failed = []
-        #             message = 'Waiting for Reductions'
-
-        #             tStart = t()
-
-
-
-                    # l = self.reduce_time.split(':')
-                    # seconds = 1 * int(l[-1]) + 60 * int(l[-2])
-                    # if len(l) == 3:
-                    #     seconds += 3600 * int(l[-3])
-                    # else:
-                    #     l.insert(0,0)
-
-                    # if (len(self.cam)>1) | (len(self.ccd)>1): 
-                    #     seconds = 42300
-
-                    # i = 0
-                    # while len(completed) < len(self.cuts):
-                    #     if t()-tStart > seconds + 600:
-                    #         print('Restarting Reducing')
-                    #         print('\n')
-                    #         self.reduce_time = f'{int(l[0])+1}:{l[1]}:{l[2]}'
-                    #         self.reduce(overwrite=False)
-                    #         tStart = t()
-                    #     else:
-                    #         if i > 0:
-                    #             print(message, end='\r')
-                    #             sleep(120)
-                    #         for cut in self.cuts:
-                    #             if cut not in completed:
-                    #                 if self.part:
-                    #                     save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
-                    #                     save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
-                    #                     if (os.path.exists(f'{save_path1}/detected_events.csv')) & (os.path.exists(f'{save_path2}/detected_events.csv')):
-                    #                         print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
-                    #                         print('\n')
-                    #                     elif (os.path.exists(f'{save_path1}/reduced.txt')) & (os.path.exists(f'{save_path2}/reduced.txt')):
-                    #                         self._cut_transient_search(cam,ccd,cut)
-                    #                         completed.append(cut)
-                    #                 else:
-                    #                     save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-                    #                     if os.path.exists(f'{save_path}/detected_events.csv'):
-                    #                         completed.append(cut)
-                    #                         print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
-                    #                         print('\n')
-                    #                     elif os.path.exists(f'{save_path}/reduced.txt'):
-                    #                         self._cut_transient_search(cam,ccd,cut)
-                    #                         completed.append(cut)
-                    #         i+=1
 
 
     def _cut_transient_plot(self,cam,ccd,cut):
