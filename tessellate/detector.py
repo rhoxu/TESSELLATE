@@ -826,7 +826,7 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_funcs, exposure_time, big_siz
     stacked_snr = stacked_flux_sum / stacked_ap_err
 
     # --- Choose best image or stacked through event --- #
-    if np.max(snrs) > stacked_snr:
+    if np.max(snrs) >= stacked_snr:
         idx = int(np.argmax(snrs))
         centred_flux = cuts[idx][
             half_big-half_small:half_big+half_small+1,
@@ -837,7 +837,7 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_funcs, exposure_time, big_siz
     else:
         centred_flux = stacked_small
         snr = stacked_snr
-        stacked_psf_fit = 1 if len(snrs) > 1 else 0
+        stacked_psf_fit = 1 
 
     # --- PSF fit --- #
     unc_x = uncertainty_funcs[0](snr)
