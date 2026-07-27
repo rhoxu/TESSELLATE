@@ -353,10 +353,7 @@ def get_snr_to_localisation_func(path,sector,cam,ccd,cut,n=8,xy=True):
     import pickle
 
     if xy:
-        if sector < 4:
-            path = f'{path}/Sectors1_2_3'
-        else:
-            path = f'{path}/Sectors4+'
+
         poptx = np.load(f'{path}/cam{cam}_ccd{ccd}/snr_to_localisation/cut{cut}of{int(n**2)}_coeffs_x.npy')
         popty = np.load(f'{path}/cam{cam}_ccd{ccd}/snr_to_localisation/cut{cut}of{int(n**2)}_coeffs_y.npy')
 

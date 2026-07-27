@@ -1534,10 +1534,7 @@ class Detector():
         cutCornerPx, cutCentrePx, _, _ = dp.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
         column = cutCentrePx[self.cut-1][0]
         row = cutCentrePx[self.cut-1][1]
-        if self.sector < 4:
-            prf = TESS_PRF(self.cam,self.ccd,self.sector,column,row,localdatadir=f'{self.prf_path}/Sectors1_2_3')
-        else:
-            prf = TESS_PRF(self.cam,self.ccd,self.sector,column,row,localdatadir=f'{self.prf_path}/Sectors4+')
+        prf = TESS_PRF(self.cam,self.ccd,self.sector,column,row,localdatadir=self.prf_path)
         
         # -- Retrieve cut localisation quality -- #
         snr_to_localisation = get_snr_to_localisation_func(self.prf_path,self.sector,self.cam,self.ccd,self.cut,self.n)
@@ -2202,7 +2199,11 @@ class Detector():
 
         # -- Check if using starfinder and/or sourcedetect for detection -- #
         self.mode = mode
-        self.prf_path = prf_path
+
+        if self.sector < 4:
+            self.prf_path = f'{prf_path}/Sectors1_2_3'
+        else:
+            self.prf_path = f'{prf_path}/Sectors4+'
         
         # -- Gather time/flux data for the cut -- #
         print('-------Preloading sources / events-------',flush=True)
