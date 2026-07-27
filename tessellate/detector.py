@@ -809,13 +809,21 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_funcs, exposure_time, big_siz
     valid = stacked_big[~np.isnan(stacked_big)]
     _, _, noise = sigma_clipped_stats(valid, sigma=3)
 
+    stacked_small = stacked_big[
+        half_big-half_small:half_big+half_small+1,
+        half_big-half_small:half_big+half_small+1,
+    ]
+
     stacked_core = stacked_big[
         half_big-half_core:half_big+half_core+1,
         half_big-half_core:half_big+half_core+1,
     ]
 
-    stacked_flux_sum = np.nansum(stacked_core)
-    stacked_snr = stacked_flux_sum / (9 * noise)
+    stacked_flux_sum = np.nansum(stacked_core)      # Estimate the snr from core
+    background_term = npix * noise**2
+    poisson_term = stacked_flux_sum / exposure_time   # flux_sum in e-/s, exptime_s the effective exposure time
+    stacked_ap_err = np.sqrt(background_term + poisson_term)
+    stacked_snr = stacked_flux_sum / stacked_ap_err
 
     # --- Choose best image or stacked through event --- #
     if np.max(snrs) > stacked_snr:
@@ -827,7 +835,7 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_funcs, exposure_time, big_siz
         snr = snrs[idx]
         stacked_psf_fit = 0
     else:
-        centred_flux = stacked_core
+        centred_flux = stacked_small
         snr = stacked_snr
         stacked_psf_fit = 1
 
