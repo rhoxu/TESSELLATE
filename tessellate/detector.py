@@ -717,7 +717,7 @@ def _Lightcurve_event_checker(lc_sig,triggers,siglim=3,maxsep=5):
     return new_start,new_end,n_detections,sorted(triggers)
 
 
-def _Fit_psf(flux, event, prf, frames, uncertainty_funcs, big_size=15, small_size=5):
+def _Fit_psf(flux, event, prf, frames, uncertainty_funcs, exposure_time, big_size=15, small_size=5,core_size=3):
     """
     Generate an cutout around an event and fit PSF. 
     Chooses the frame based on the highest SNR between stack through event and individual frames.
@@ -732,6 +732,7 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_funcs, big_size=15, small_siz
 
     half_big = big_size // 2
     half_small = small_size // 2
+    half_core = core_size // 2
 
     h, w = flux.shape[1], flux.shape[2]
 
@@ -785,12 +786,16 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_funcs, big_size=15, small_siz
         _, _, noise = sigma_clipped_stats(valid, sigma=3)
 
         core = cut[                         
-            half_big-half_small:half_big+half_small+1,      # 3x3 aperture around core
-            half_big-half_small:half_big+half_small+1,
+            half_big-half_core:half_big+half_core+1,      # core_size x core_size aperture around core
+            half_big-half_core:half_big+half_core+1,
         ]
 
         flux_sum = np.nansum(core)      # Estimate the snr from core
-        snr = flux_sum / (9 * noise)
+        npix = core_size ** 2            # NOTE: core_size here should be the side length (3), not sqrt(npix)
+        background_term = npix * noise**2
+        poisson_term = flux_sum / exposure_time   # flux_sum in e-/s, exptime_s the effective exposure time
+        ap_err = np.sqrt(background_term + poisson_term)
+        snr = flux_sum / ap_err
 
         cuts.append(cut)
         snrs.append(snr)
@@ -805,8 +810,8 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_funcs, big_size=15, small_siz
     _, _, noise = sigma_clipped_stats(valid, sigma=3)
 
     stacked_core = stacked_big[
-        half_big-half_small:half_big+half_small+1,
-        half_big-half_small:half_big+half_small+1,
+        half_big-half_core:half_big+half_core+1,
+        half_big-half_core:half_big+half_core+1,
     ]
 
     stacked_flux_sum = np.nansum(stacked_core)
@@ -851,7 +856,7 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_funcs, big_size=15, small_siz
 
 
 def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
-                    snr_to_localisation_func,nan_frames,
+                    exposure_time,snr_to_localisation_func,nan_frames,
                     frame_buffer,event_time_buffer,calc_time_window):
     """
     Groups sources for given objid into temporally separated events.
@@ -932,7 +937,7 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
         event['ycentroid_det'] = weighted_eventsources.iloc[0]['ycentroid']
 
         # -- Fit PSF -- #
-        event = _Fit_psf(flux,event,prf,frames,snr_to_localisation_func)
+        event = _Fit_psf(flux,event,prf,frames,snr_to_localisation_func,exposure_time)
         
         # -- If event is quite PSF-like, centroid likely good -- #
         if event['psf_like']>0.5:
@@ -1521,6 +1526,7 @@ class Detector():
         from .localisation import get_snr_to_localisation_func, get_wcs_uncertainty
         from .tools import Frame_Bin
         from PRF import TESS_PRF
+        from astropy.io import fits
         
     
         # -- Generate PRF -- #
@@ -1535,6 +1541,7 @@ class Detector():
         
         # -- Retrieve cut localisation quality -- #
         snr_to_localisation = get_snr_to_localisation_func(self.prf_path,self.sector,self.cam,self.ccd,self.cut,self.n)
+        exposure_time = fits.open(f'{self.path}/wcs/ref/corrected.fits')[1].header['EXPOSURE'] * 86400  # in seconds
 
         # -- Iterate over frame bins -- #
         frame_bins = np.unique(self.sources.frame_bin)
@@ -1551,14 +1558,14 @@ class Detector():
             if self.cpu > 1:
                 length = np.arange(0,len(objids)).astype(int)
                 bin_events = Parallel(n_jobs=self.cpu)(delayed(_Isolate_events)(objids[i],time,flux,sources,
-                                                                    self.sector,self.cam,self.ccd,self.cut,prf,snr_to_localisation,nan_frames,
+                                                                    self.sector,self.cam,self.ccd,self.cut,prf,exposure_time,snr_to_localisation,nan_frames,
                                                                     frame_buffer,event_time_buffer,calc_time_window) for i in tqdm(length,desc=f'Isolating Bin {frame_bin} Events'))
             else:            
                 bin_events = []
                 for objid in objids:
                     e = _Isolate_events(objid,time,flux,sources,self.sector,self.cam,
-                                        self.ccd,self.cut,prf,snr_to_localisation,nan_frames,frame_buffer=frame_buffer,
-                                        buffer=event_time_buffer,calc_time_window=calc_time_window)
+                                        self.ccd,self.cut,prf,exposure_time,snr_to_localisation,nan_frames,
+                                        frame_buffer=frame_buffer,buffer=event_time_buffer,calc_time_window=calc_time_window)
                     bin_events += [e]
             
             # -- Extract light curve properties -- #
@@ -2211,11 +2218,11 @@ class Detector():
             self.find_sources(time_bins)
             print('\n')
 
-        if not os.path.exists(f'{self.path}/Cut{cut}of{self.n**2}/snr_localisation_coeffs.pkl'):
+        if not os.path.exists(f'{self.prf_path}/cam{self.cam}_ccd{self.ccd}/snr_to_localisation/cut{cut}of{int(self.n**2)}_coeffs_y.npy'):
             from .localisation import simulate_cut_psf_fitting
 
             print('-------Simulating PSF fit accuracy (see progress in errors log file)-------',flush=True)
-            simulate_cut_psf_fitting(self.data_path,self.sector,self.cam,self.ccd,cut,n=self.n,nfits=10000,nMedians=10)
+            simulate_cut_psf_fitting(self.data_path,self.sector,self.cam,self.ccd,cut,n=self.n,nfits=100000,nMedians=10)
             print('\n')
 
         # -- self.events contains all individual events, grouped by time and space -- #  
