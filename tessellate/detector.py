@@ -837,7 +837,7 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_funcs, exposure_time, big_siz
     else:
         centred_flux = stacked_small
         snr = stacked_snr
-        stacked_psf_fit = 1
+        stacked_psf_fit = 1 if len(snrs) > 1 else 0
 
     # --- PSF fit --- #
     unc_x = uncertainty_funcs[0](snr)
