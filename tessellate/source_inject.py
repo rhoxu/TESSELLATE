@@ -514,7 +514,7 @@ class SourceInjector():
                     # 'negative' events use the same unsigned EMG shape, just flipped
                     sign = -1.0 if source.event_type == 'negative' else 1.0
 
-                frames = np.arange(source.frame_start,source.frame_end+1)
+                frames = np.arange(source.frame_start,source.frame_end)
                 ref_idx = np.argmax(np.abs(flux))
                 max_frame = frames[ref_idx]
                 injections.iloc[i, injections.columns.get_loc('frame_max')] = max_frame
