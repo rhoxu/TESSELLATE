@@ -556,16 +556,15 @@ class SourceInjector():
                 flux *= peak_flux
                 lcs.append(np.array([frames,flux]))
 
-                lc = []
+                image = prf.locate(2 + (source.xcentroid - RoundToInt(source.xcentroid)),
+                                    2 + (source.ycentroid - RoundToInt(source.ycentroid)),
+                                    (5, 5))
+                
                 for j, f in enumerate(flux):
 
-                    image = prf.locate(2 + (source.xcentroid - RoundToInt(source.xcentroid)),
-                                        2 + (source.ycentroid - RoundToInt(source.ycentroid)),
-                                        (5, 5))
+                    image_frame = image.copy() * f / np.nansum(image[1:4, 1:4])
 
-                    image *= f / np.nansum(image[1:4, 1:4])
-
-                    raw_cube[frames[j], yint-2:yint+3, xint-2:xint+3] += image
+                    raw_cube[frames[j], yint-2:yint+3, xint-2:xint+3] += image_frame
 
             return raw_cube,injections,lcs
 
