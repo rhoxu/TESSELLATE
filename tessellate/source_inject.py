@@ -633,9 +633,11 @@ class SourceInjector():
 
             shifted_cube = self.apply_shifts(f'{directory}/{base_name}',rawcube)
 
+            lcs_arr = np.array(lcs, dtype=object)
+
             os.makedirs(f'{directory}/source_injection',exist_ok=True)
             np.save(f'{directory}/source_injection/{base_name}_Raw.npy',shifted_cube)
-            np.savez(f'{directory}/source_injection/lightcurves.npz', lcs=lcs)
+            np.savez(f'{directory}/source_injection/lightcurves.npz', lcs=lcs_arr)
             os.system(f'cp {directory}/{base_name}_Times.npy {directory}/source_injection/{base_name}_Times.npy')
             os.system(f'cp {directory}/{base_name}_OrbitRefs.npz {directory}/source_injection/{base_name}_OrbitRefs.npz')
             injections.to_csv(f'{directory}/injected_events.csv',index=False)
