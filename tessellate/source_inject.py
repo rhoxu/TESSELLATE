@@ -633,7 +633,9 @@ class SourceInjector():
 
             shifted_cube = self.apply_shifts(f'{directory}/{base_name}',rawcube)
 
-            lcs_arr = np.array(lcs, dtype=object)
+            lcs_arr = np.empty(len(lcs), dtype=object)
+            for i, lc in enumerate(lcs):
+                lcs_arr[i] = lc
 
             os.makedirs(f'{directory}/source_injection',exist_ok=True)
             np.save(f'{directory}/source_injection/{base_name}_Raw.npy',shifted_cube)
