@@ -642,7 +642,7 @@ class SourceInjector():
             np.savez(f'{directory}/source_injection/lightcurves.npz', lcs=lcs_arr)
             os.system(f'cp {directory}/{base_name}_Times.npy {directory}/source_injection/{base_name}_Times.npy')
             os.system(f'cp {directory}/{base_name}_OrbitRefs.npz {directory}/source_injection/{base_name}_OrbitRefs.npz')
-            injections.to_csv(f'{directory}/injected_events.csv',index=False)
+            injections.to_csv(f'{directory}/source_injection/injected_events.csv',index=False)
 
             run = Tessellate(data_path=self.data_path,working_path=self.working_path,job_output_path=self.job_output_path,
                                 sector=self.sector,cam=self.cam,ccd=self.ccd,n=self.n,cuts=cut,
