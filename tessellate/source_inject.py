@@ -588,10 +588,10 @@ class SourceInjector():
             duty_frac_range=(0.05, 0.95), duty_frac_skew=(1.0, 1.0),
             stamp_radius_px=3, max_frame_fill_frac=0.25,
             overlap_dist_px=5, max_attempts_per_event=200,
-            type_probs=(0.7, 0.15, 0.15),
+            type_probs=(0.6, 0.2, 0.2),
             K_negative_range=(-0.2, 0.2),
             period_range_min=(20, None), period_mode_min=240.0,
-            period_concentration=6.0):
+            period_concentration=3.0):
 
         
 
