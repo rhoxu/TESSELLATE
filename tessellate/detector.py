@@ -1171,7 +1171,7 @@ def _Crossbin_group_worker(asteroid_group_id, group_events):
 class Detector():
 
     def __init__(self,sector,cam,ccd,data_path='/fred/oz335/TESSdata',n=8,
-                 match_variables=True,mode='both',part=None,cpu=multiprocessing.cpu_count()):
+                 match_variables=True,mode='both',part=None,injection=False,cpu=multiprocessing.cpu_count()):
         
         """
         Tessellate Detection Class.
@@ -1197,6 +1197,8 @@ class Detector():
         self.cut = None
         self.bkg = None
 
+        self._inj_path = 'source_injection' if injection else '.'
+
         if part is None:
             self.path = f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}'
         elif part == 1:
@@ -1219,7 +1221,7 @@ class Detector():
         import os
 
         self.objects = None
-        path = f'{self.path}/Cut{cut}of{self.n**2}'
+        path = f'{self.path}/Cut{cut}of{self.n**2}/{self._inj_path}'
 
         if os.path.exists(f'{path}/detected_sources.csv'):
             self.sources = pd.read_csv(f'{path}/detected_sources.csv')    # raw detection results
@@ -1245,7 +1247,7 @@ class Detector():
             ts = clock()
             print(f'Loading Cut {cut} Data...',end='\r',flush=True)
 
-        base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'
+        base = f'{self.path}/Cut{cut}of{self.n**2}/{self._inj_path}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'
 
         if flux:
             self.flux = np.load(base + '_ReducedFlux.npy')
@@ -1391,7 +1393,7 @@ class Detector():
         # from .catalog_queries import match_result_to_cat #,find_variables, gaia_stars,
         from .tools import pandas_weighted_avg,Frame_Bin
         
-        save_folder = f'{self.path}/Cut{self.cut}of{self.n**2}'
+        save_folder = f'{self.path}/Cut{self.cut}of{self.n**2}/{self._inj_path}'
 
         # -- Access information about the cut with respect to the original ccd -- #        
         processor = DataProcessor(sector=self.sector,data_path=self.data_path,verbose=2)
@@ -1516,7 +1518,7 @@ class Detector():
 
         self.sources = sources
 
-        self.sources.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_sources.csv',index=False)
+        self.sources.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/{self._inj_path}/detected_sources.csv',index=False)
 
 
 
@@ -2118,7 +2120,7 @@ class Detector():
         self._order_events_columns()  
 
         # -- Save out results to csv file -- #
-        self.events.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_events.csv',index=False)
+        self.events.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/{self._inj_path}/detected_events.csv',index=False)
         
 
 
@@ -2196,7 +2198,7 @@ class Detector():
 
         self.objects = objects
 
-        self.objects.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/detected_objects.csv',index=False)
+        self.objects.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/{self._inj_path}/detected_objects.csv',index=False)
         
         
     # ------------------------------ Main search function ------------------------------ #

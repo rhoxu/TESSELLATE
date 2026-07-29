@@ -30,8 +30,9 @@ class Tessellate():
                  calibrate_time=None,calibrate_cpu=None,calibrate_mem=None,
                  search_time=None,search_cpu=None,search_mem=None,detect_mode='both',time_bins=None,
                  plot_time=None,plot_cpu=None,plot_mem=None,
-                 download=None,make_cube=None,fix_wcs=None,make_cuts=None,reduce=None,calibrate=None,search=None,
-                 plot=None,delete=None,overwrite=None,reset_logs=None,
+                 download=None,make_cube=None,fix_wcs=None,make_cuts=None,
+                 reduce=None,calibrate=None,search=None,plot=None,delete=None,
+                 injection=False,overwrite=None,reset_logs=None,use_suggestions=False,
                  go=True):
         
         """
@@ -142,6 +143,9 @@ class Tessellate():
         self.cut_mem = cut_mem
         self.cut_cpu = cut_cpu
 
+        self.injection = injection
+        self._inj_dir = 'source_injection' if injection else '.'
+
         self.reduce_time = reduce_time
         self.reduce_cpu = reduce_cpu
         self.reduce_mem = reduce_mem
@@ -165,9 +169,11 @@ class Tessellate():
 
         # -- Allows for no actual initialisation (TessTransient) -- #
         if go:
-            self.run_tessellate(download,make_cube,fix_wcs,make_cuts,reduce,calibrate,search,plot,delete,overwrite,reset_logs,save_config)
+            self.run_tessellate(download,make_cube,fix_wcs,make_cuts,reduce,calibrate,search,plot,delete,
+                                overwrite,reset_logs,save_config,use_suggestions)
 
-    def run_tessellate(self,download,make_cube,fix_wcs,make_cuts,reduce,calibrate,search,plot,delete,overwrite,reset_logs,save_config):
+    def run_tessellate(self,download,make_cube,fix_wcs,make_cuts,reduce,calibrate,search,plot,delete,
+                       overwrite,reset_logs,save_config,use_suggestions):
 
         # -- Initialise and check for previous config file -- #
         load_prev = self._initialise()
@@ -192,28 +198,28 @@ class Tessellate():
                 self._download_properties()
 
             if make_cube:
-                self._cube_properties(suggestions[0])
+                self._cube_properties(suggestions[0],use_suggestions)
                 _Save_space(f'{self.job_output_path}/tessellate_cubing_logs')
 
             if make_cuts:
-                self._cut_properties(suggestions[1])
+                self._cut_properties(suggestions[1],use_suggestions)
                 _Save_space(f'{self.job_output_path}/tessellate_cutting_logs')
 
             if reduce:
-                self._reduce_properties(make_cuts,suggestions[2])
+                self._reduce_properties(make_cuts,suggestions[2],use_suggestions)
                 _Save_space(f'{self.job_output_path}/tessellate_reduction_logs')
 
             if calibrate:
-                self._calibrate_properties(reduce, suggestions[5])
+                self._calibrate_properties(reduce, suggestions[5],use_suggestions)
                 _Save_space(f'{self.job_output_path}/tessellate_calibration_logs')
 
             if search:
                 cutting_reducing = make_cuts | reduce
-                self._search_properties(cutting_reducing,suggestions[3])
+                self._search_properties(cutting_reducing,suggestions[3],use_suggestions)
                 _Save_space(f'{self.job_output_path}/tessellate_search_logs')
 
             if plot:
-                self._plotting_properties(search,suggestions[4])
+                self._plotting_properties(search,suggestions[4],use_suggestions)
                 _Save_space(f'{self.job_output_path}/tessellate_plotting_logs')
 
             if save_config:
@@ -835,41 +841,47 @@ class Tessellate():
         
         print('\n')
     
-    def _cube_properties(self,suggestions):
+    def _cube_properties(self,suggestions,use_suggestions):
         """
         Confirm cube generation process properties.
         """
 
         if self.cube_time is None:
-            cube_time = input(f"   - Cube Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
-            done = False
-            while not done:
-                if ':' in cube_time:
-                    self.cube_time = cube_time
-                    done = True
-                else:
-                    cube_time = input(f"      Invalid format! Cube Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
+            if use_suggestions:
+                self.cube_time = suggestions[0]
+            else:
+                cube_time = input(f"   - Cube Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
+                done = False
+                while not done:
+                    if ':' in cube_time:
+                        self.cube_time = cube_time
+                        done = True
+                    else:
+                        cube_time = input(f"      Invalid format! Cube Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
         else:
             print(f'   - Cube Batch Time = {self.cube_time}')
 
         
         if self.cube_mem is None:
-            cube_mem = input(f"   - Cube Mem/CPU ({suggestions[1]} suggested) = ")
-            done = False
-            while not done:
-                try: 
-                    cube_mem = int(cube_mem)
-                    if 0<cube_mem < 500:
-                        self.cube_mem = cube_mem
-                        done=True
-                    else:
-                        cube_mem = input(f"      Invalid format! Cube Mem/CPU ({suggestions[1]} suggested) = ")
-                except:
-                    if cube_mem[-1].lower() == 'g':
-                        self.cube_mem = cube_mem[:-1]
-                        done = True
-                    else:
-                        cube_mem = input(f"      Invalid format! Cube Mem/CPU ({suggestions[1]} suggested) = ")
+            if use_suggestions:
+                self.cube_mem = int(suggestions[1][:-1])
+            else:
+                cube_mem = input(f"   - Cube Mem/CPU ({suggestions[1]} suggested) = ")
+                done = False
+                while not done:
+                    try: 
+                        cube_mem = int(cube_mem)
+                        if 0<cube_mem < 500:
+                            self.cube_mem = cube_mem
+                            done=True
+                        else:
+                            cube_mem = input(f"      Invalid format! Cube Mem/CPU ({suggestions[1]} suggested) = ")
+                    except:
+                        if cube_mem[-1].lower() == 'g':
+                            self.cube_mem = cube_mem[:-1]
+                            done = True
+                        else:
+                            cube_mem = input(f"      Invalid format! Cube Mem/CPU ({suggestions[1]} suggested) = ")
 
         elif 0 < self.cube_mem < 500:
             print(f'   - Cube Mem/CPU = {self.cube_mem}G')
@@ -901,7 +913,7 @@ class Tessellate():
 
         print('\n')
 
-    def _cut_properties(self,suggestions):
+    def _cut_properties(self,suggestions,use_suggestions):
         """
         Confirm cut generation process properties.
         """
@@ -953,34 +965,40 @@ class Tessellate():
         print('\n')
 
         if self.cut_time is None:
-            cut_time = input(f"   - Cut Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
-            done = False
-            while not done:
-                if ':' in cut_time:
-                    self.cut_time = cut_time
-                    done = True
-                else:
-                    cut_time = input(f"      Invalid format! Cut Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
+            if use_suggestions:
+                self.cut_time = suggestions[0]
+            else:
+                cut_time = input(f"   - Cut Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
+                done = False
+                while not done:
+                    if ':' in cut_time:
+                        self.cut_time = cut_time
+                        done = True
+                    else:
+                        cut_time = input(f"      Invalid format! Cut Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
         else:
             print(f'   - Cut Batch Time = {self.cut_time}')
         
         if self.cut_mem is None:
-            cut_mem = input(f"   - Cut Mem/CPU ({suggestions[1]} suggested) = ")
-            done = False
-            while not done:
-                try: 
-                    cut_mem = int(cut_mem)
-                    if 0<cut_mem < 500:
-                        self.cut_mem = cut_mem
-                        done=True
-                    else:
-                        cut_mem = input(f"      Invalid format! Cut Mem/CPU ({suggestions[1]} suggested) = ")
-                except:
-                    if cut_mem[-1].lower() == 'g':
-                        self.cut_mem = cut_mem[:-1]
-                        done = True
-                    else:
-                        cut_mem = input(f"      Invalid format! Cut Mem/CPU ({suggestions[1]} suggested) = ")
+            if use_suggestions:
+                self.cut_mem = int(suggestions[1][:-1])
+            else:
+                cut_mem = input(f"   - Cut Mem/CPU ({suggestions[1]} suggested) = ")
+                done = False
+                while not done:
+                    try: 
+                        cut_mem = int(cut_mem)
+                        if 0<cut_mem < 500:
+                            self.cut_mem = cut_mem
+                            done=True
+                        else:
+                            cut_mem = input(f"      Invalid format! Cut Mem/CPU ({suggestions[1]} suggested) = ")
+                    except:
+                        if cut_mem[-1].lower() == 'g':
+                            self.cut_mem = cut_mem[:-1]
+                            done = True
+                        else:
+                            cut_mem = input(f"      Invalid format! Cut Mem/CPU ({suggestions[1]} suggested) = ")
 
         elif 0 < self.cut_mem < 500:
             print(f'   - Cut Mem/CPU = {self.cut_mem}G')
@@ -1012,7 +1030,7 @@ class Tessellate():
 
         print('\n')
 
-    def _reduce_properties(self,cutting,suggestions):
+    def _reduce_properties(self,cutting,suggestions,use_suggestions):
         """
         Confirm reduction process properties.
         """
@@ -1065,31 +1083,37 @@ class Tessellate():
             print('\n')
 
         if self.reduce_time is None:
-            reduce_time = input(f"   - Reduce Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
-            done = False
-            while not done:
-                if ':' in reduce_time:
-                    self.reduce_time = reduce_time
-                    done = True
-                else:
-                    reduce_time = input(f"      Invalid format! Reduce Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
+            if use_suggestions:
+                self.reduce_time = suggestions[0]
+            else:
+                reduce_time = input(f"   - Reduce Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
+                done = False
+                while not done:
+                    if ':' in reduce_time:
+                        self.reduce_time = reduce_time
+                        done = True
+                    else:
+                        reduce_time = input(f"      Invalid format! Reduce Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
         else:
             print(f'   - Reduce Batch Time = {self.reduce_time}')
 
         
         if self.reduce_cpu is None:
-            reduce_cpu = input(f"   - Reduce Num CPUs [1-32] ({suggestions[1]} suggested) = ")
-            done = False
-            while not done:
-                try:
-                    reduce_cpu = int(reduce_cpu)
-                    if 0 < reduce_cpu < 33:
-                        self.reduce_cpu = reduce_cpu
-                        done = True
-                    else:
+            if use_suggestions:
+                self.reduce_cpu = int(suggestions[1])
+            else:
+                reduce_cpu = input(f"   - Reduce Num CPUs [1-32] ({suggestions[1]} suggested) = ")
+                done = False
+                while not done:
+                    try:
+                        reduce_cpu = int(reduce_cpu)
+                        if 0 < reduce_cpu < 33:
+                            self.reduce_cpu = reduce_cpu
+                            done = True
+                        else:
+                            reduce_cpu = input(f"      Invalid format! Reduce Num CPUs [1-32] ({suggestions[1]} suggested) = ")
+                    except:
                         reduce_cpu = input(f"      Invalid format! Reduce Num CPUs [1-32] ({suggestions[1]} suggested) = ")
-                except:
-                    reduce_cpu = input(f"      Invalid format! Reduce Num CPUs [1-32] ({suggestions[1]} suggested) = ")
         elif 0 < self.reduce_cpu < 33:
             print(f'   - Reduce Num CPUs = {self.reduce_cpu}')
         else:
@@ -1124,7 +1148,7 @@ class Tessellate():
             raise ValueError(e)
         print('\n')
     
-    def _calibrate_properties(self, reducing, suggestions=None):
+    def _calibrate_properties(self, reducing, suggestions, use_suggestions):
         """
         Confirm flux calibration process properties.
         """
@@ -1178,30 +1202,36 @@ class Tessellate():
             print('\n')
 
         if self.calibrate_time is None:
-            calibrate_time = input(f"   - Calibrate Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
-            done = False
-            while not done:
-                if ':' in calibrate_time:
-                    self.calibrate_time = calibrate_time
-                    done = True
-                else:
-                    calibrate_time = input(f"      Invalid format! Calibrate Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
+            if use_suggestions:
+                self.calibrate_time = suggestions[0]
+            else:
+                calibrate_time = input(f"   - Calibrate Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
+                done = False
+                while not done:
+                    if ':' in calibrate_time:
+                        self.calibrate_time = calibrate_time
+                        done = True
+                    else:
+                        calibrate_time = input(f"      Invalid format! Calibrate Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
         else:
             print(f'   - Calibrate Batch Time = {self.calibrate_time}')
 
         if self.calibrate_cpu is None:
-            calibrate_cpu = input(f"   - Calibrate Num CPUs [1-32] ({suggestions[1]} suggested) = ")
-            done = False
-            while not done:
-                try:
-                    calibrate_cpu = int(calibrate_cpu)
-                    if 0 < calibrate_cpu < 33:
-                        self.calibrate_cpu = calibrate_cpu
-                        done = True
-                    else:
+            if use_suggestions:
+                self.calibrate_cpu = int(suggestions[1])
+            else:
+                calibrate_cpu = input(f"   - Calibrate Num CPUs [1-32] ({suggestions[1]} suggested) = ")
+                done = False
+                while not done:
+                    try:
+                        calibrate_cpu = int(calibrate_cpu)
+                        if 0 < calibrate_cpu < 33:
+                            self.calibrate_cpu = calibrate_cpu
+                            done = True
+                        else:
+                            calibrate_cpu = input(f"      Invalid format! Calibrate Num CPUs [1-32] ({suggestions[1]} suggested) = ")
+                    except:
                         calibrate_cpu = input(f"      Invalid format! Calibrate Num CPUs [1-32] ({suggestions[1]} suggested) = ")
-                except:
-                    calibrate_cpu = input(f"      Invalid format! Calibrate Num CPUs [1-32] ({suggestions[1]} suggested) = ")
         else:
             print(f'   - Calibrate Num CPUs = {self.calibrate_cpu}')
 
@@ -1213,7 +1243,7 @@ class Tessellate():
 
         print('\n')
 
-    def _search_properties(self,cutting_reducing,suggestions):
+    def _search_properties(self,cutting_reducing,suggestions,use_suggestions):
         """
         Confirm transient search process properties.
         """
@@ -1266,31 +1296,37 @@ class Tessellate():
             print('\n')
 
         if self.search_time is None:
-            search_time = input(f"   - Search Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
-            done = False
-            while not done:
-                if ':' in search_time:
-                    self.search_time = search_time
-                    done = True
-                else:
-                    search_time = input(f"      Invalid format! Search Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
+            if use_suggestions:
+                self.search_time = suggestions[0]
+            else:
+                search_time = input(f"   - Search Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
+                done = False
+                while not done:
+                    if ':' in search_time:
+                        self.search_time = search_time
+                        done = True
+                    else:
+                        search_time = input(f"      Invalid format! Search Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
         else:
             print(f'   - Search Batch Time = {self.search_time}')
 
 
         if self.search_cpu is None:
-            search_cpu = input(f"   - Search Num CPUs [1-32] ({suggestions[1]} suggested) = ")
-            done = False
-            while not done:
-                try:
-                    search_cpu = int(search_cpu)
-                    if 0 < search_cpu < 33:
-                        self.search_cpu = search_cpu
-                        done = True
-                    else:
+            if use_suggestions:
+                self.search_cpu = int(suggestions[1])
+            else:
+                search_cpu = input(f"   - Search Num CPUs [1-32] ({suggestions[1]} suggested) = ")
+                done = False
+                while not done:
+                    try:
+                        search_cpu = int(search_cpu)
+                        if 0 < search_cpu < 33:
+                            self.search_cpu = search_cpu
+                            done = True
+                        else:
+                            search_cpu = input(f"      Invalid format! Search Num CPUs [1-32] ({suggestions[1]} suggested) = ")
+                    except:
                         search_cpu = input(f"      Invalid format! Search Num CPUs [1-32] ({suggestions[1]} suggested) = ")
-                except:
-                    search_cpu = input(f"      Invalid format! Search Num CPUs [1-32] ({suggestions[1]} suggested) = ")
         elif 0 < self.search_cpu < 33:
             print(f'   - Search Num CPUs = {self.search_cpu}')
         else:
@@ -1326,19 +1362,22 @@ class Tessellate():
 
         pattern = r'^\d+(\.\d+)?(sec|min|hr|day)s?$'
         if self.time_bins is None:
-            time_bins = input(f"   - Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = ")
-            done = False
-            while not done:
-                if ',' in time_bins:
-                    time_bins = time_bins.split(',')
-                else:
-                    time_bins = [time_bins]
+            if use_suggestions:
+                self.time_bins = suggestions[3]
+            else:
+                time_bins = input(f"   - Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = ")
+                done = False
+                while not done:
+                    if ',' in time_bins:
+                        time_bins = time_bins.split(',')
+                    else:
+                        time_bins = [time_bins]
 
-                if all(re.match(pattern, t) for t in time_bins):
-                    self.time_bins = time_bins
-                    done = True
-                else:
-                    time_bins = input(f"      Invalid format! Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = ")
+                    if all(re.match(pattern, t) for t in time_bins):
+                        self.time_bins = time_bins
+                        done = True
+                    else:
+                        time_bins = input(f"      Invalid format! Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = ")
         
         else:
             if type(self.time_bins) == str:
@@ -1358,7 +1397,7 @@ class Tessellate():
 
         print('\n')
     
-    def _plotting_properties(self,searching,suggestions):
+    def _plotting_properties(self,searching,suggestions,use_suggestions):
         """
         Confirm transient search process properties.
         """
@@ -1413,30 +1452,36 @@ class Tessellate():
 
 
         if self.plot_time is None:
-            plot_time = input(f"   - Plotting Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
-            done = False
-            while not done:
-                if ':' in plot_time:
-                    self.plot_time = plot_time
-                    done = True
-                else:
-                    plot_time = input(f"      Invalid format! Plotting Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
+            if use_suggestions:
+                self.plot_time = suggestions[0]
+            else:
+                plot_time = input(f"   - Plotting Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
+                done = False
+                while not done:
+                    if ':' in plot_time:
+                        self.plot_time = plot_time
+                        done = True
+                    else:
+                        plot_time = input(f"      Invalid format! Plotting Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
         else:
             print(f'   - Plotting Batch Time = {self.plot_time}')
 
         if self.plot_cpu is None:
-            plot_cpu = input(f"   - Plotting Num CPUs [1-32] ({suggestions[1]} suggested) = ")
-            done = False
-            while not done:
-                try:
-                    plot_cpu = int(plot_cpu)
-                    if 0 < plot_cpu < 33:
-                        self.plot_cpu = plot_cpu
-                        done = True
-                    else:
+            if use_suggestions:
+                self.plot_cpu = int(suggestions[1])
+            else:
+                plot_cpu = input(f"   - Plotting Num CPUs [1-32] ({suggestions[1]} suggested) = ")
+                done = False
+                while not done:
+                    try:
+                        plot_cpu = int(plot_cpu)
+                        if 0 < plot_cpu < 33:
+                            self.plot_cpu = plot_cpu
+                            done = True
+                        else:
+                            plot_cpu = input(f"      Invalid format! Plotting Num CPUs [1-32] ({suggestions[1]} suggested) = ")
+                    except:
                         plot_cpu = input(f"      Invalid format! Plotting Num CPUs [1-32] ({suggestions[1]} suggested) = ")
-                except:
-                    plot_cpu = input(f"      Invalid format! Plotting Num CPUs [1-32] ({suggestions[1]} suggested) = ")
         elif 0 < self.plot_cpu < 33:
             print(f'   - Plotting Num CPUs = {self.plot_cpu}')
         else:
@@ -1974,10 +2019,10 @@ import os\n\
 \n\
 part={self.part}\n\
 processor = DataProcessor(sector={self.sector},data_path='{self.data_path}',verbose=2)\n\
-processor.reduce(cam={cam},ccd={ccd},n={self.n},cut={cut},part=part)\n\
+processor.reduce(cam={cam},ccd={ccd},n={self.n},cut={cut},part=part,injection={self.injection})\n\
 if not part:\n\
-    if os.path.exists('{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Shifts.npy'):\n\
-        with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reduced.txt', 'w') as file:\n\
+    if os.path.exists('{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/{self._inj_dir}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Shifts.npy'):\n\
+        with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/{self._inj_dir}/reduced.txt', 'w') as file:\n\
             file.write('Reduced!')"   
             # file.write('Reduced with TESSreduce version {tr.__version__}.')"
         with open(f"{self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
@@ -2051,8 +2096,8 @@ python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                             e = f'No Source Catalogue Detected for Reduction of Cut {cut} Part 2!\n'
                             raise ValueError(e)
                         
-                        reduced_check1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}/reduced.txt'
-                        reduced_check2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/reduced.txt'
+                        reduced_check1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}/{self._inj_dir}/reduced.txt'
+                        reduced_check2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/{self._inj_dir}/reduced.txt'
                         if (os.path.exists(reduced_check1))&(os.path.exists(reduced_check2)):
                             print(f'Cam {cam} CCD {ccd} Cut {cut} already reduced!')
                             print('\n')
@@ -2069,7 +2114,7 @@ python {self.working_path}/reduction_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                             e = f'No Source Catalogue Detected for Reduction of Cut {cut}!\n'
                             raise ValueError(e)
                     
-                        reduced_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/reduced.txt'
+                        reduced_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/{self._inj_dir}/reduced.txt'
                         if os.path.exists(reduced_check):
                             print(f'Cam {cam} CCD {ccd} Cut {cut} already reduced!')
                             print('\n')
@@ -2318,16 +2363,16 @@ import os\n\
 part = {self.part}\n\
 \n\
 if part:\n\
-    path1 = '{self.data_path}/{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}/detected_events.csv'\n\
-    path2 = '{self.data_path}/{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/detected_events.csv'\n\
+    path1 = '{self.data_path}/{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}/{self._inj_dir}/detected_events.csv'\n\
+    path2 = '{self.data_path}/{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/{self._inj_dir}/detected_events.csv'\n\
     if not os.path.exists(path1):\n\
-        detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},part=1)\n\
+        detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},injection={self.injection},part=1)\n\
         detector.transient_search(cut={cut},mode='{self.detect_mode}',time_bins={self.time_bins})\n\
     if not os.path.exists(path2):\n\
-        detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},part=2)\n\
+        detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},injection={self.injection},part=2)\n\
         detector.transient_search(cut={cut},mode='{self.detect_mode}',time_bins={self.time_bins})\n\
 else:\n\
-    detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n})\n\
+    detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},injection={self.injection})\n\
     detector.transient_search(cut={cut},mode='{self.detect_mode}',time_bins={self.time_bins})"   
                     
         with open(f"{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
@@ -2378,8 +2423,8 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                 for cut in self.cuts:
 
                     if self.part:
-                        save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
-                        save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
+                        save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}/{self._inj_dir}'
+                        save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/{self._inj_dir}'
                         if (os.path.exists(f'{save_path1}/detected_objects.csv')) & (os.path.exists(f'{save_path2}/detected_objects.csv')):
                             print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
                             print('\n')
@@ -2400,7 +2445,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                                 e = f'No Reduced File Detected for Search of Cut {cut} Part 2!\n'
                                 raise ValueError(e)
                     else:
-                        save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
+                        save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/{self._inj_dir}'
                         if os.path.exists(f'{save_path}/detected_objects.csv'):
                             print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
                             print('\n')

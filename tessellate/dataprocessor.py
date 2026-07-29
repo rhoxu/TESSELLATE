@@ -510,7 +510,7 @@ class DataProcessor():
                     file.write(f'Reduced with TESSreduce version {tr.__version__}.')
 
 
-    def reduce(self,cam,ccd,n,cut,part=False):
+    def reduce(self,cam,ccd,n,cut,part=False,injection=False):
         """
         Reduces a cut on a ccd using TESSreduce. bkg correlation 
         correction and final calibration are disabled due to time constraints.
@@ -535,13 +535,24 @@ class DataProcessor():
         import tessreduce as tr
         
         filepath = f'{self.path}/Cam{cam}/Ccd{ccd}'
+        injection_dir = 'source_injection' if injection else '.'
 
         if part:
             self._reduce_part_cuts(cam,ccd,n,cut,filepath)
         else:
-            cutFolder = f'{filepath}/Cut{cut}of{n**2}'
-            cutName = f'sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}.fits'
-            cutPath = f'{cutFolder}/{cutName}'
+            cutFolder = f'{filepath}/Cut{cut}of{n**2}/{injection_dir}'
+            cutBase = f'sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}' 
+
+            if injection:
+                cutPath = None
+                fluxPath = f'{cutFolder}/{cutBase}_Raw.npy'
+                timePath = f'{cutFolder}/{cutBase}_Times.npy'
+                refPath = f'{cutFolder}/{cutBase}_OrbitRefs.npz'
+            else:
+                cutPath = f'{cutFolder}/{cutBase}.fits'
+                fluxPath = None
+                timePath = None
+                refPath = None
 
             cut_corners,_,_,_ = self.find_cuts(cam,ccd,n,plot=False)
 
@@ -560,13 +571,12 @@ class DataProcessor():
                 
 
 
-
-
             # -- Defining so can be deleted if failed -- #
             tessreduce = 0
 
             # -- reduce -- #
-            tessreduce = tr.tessreduce(tpf=cutPath,sector=self.sector,reduce=True,corr_correction=True,
+            tessreduce = tr.tessreduce(tpf=cutPath,flux=fluxPath,time=timePath,ref=refPath,
+                                       sector=self.sector,reduce=True,corr_correction=True,
                                         calibrate=False,catalogue_path=f'{cutFolder}/local_gaia_cat.csv',col_offset=int(cut_corners[cut-1][0]),#-44,
                                         prf_path='/fred/oz335/_local_TESS_PRFs',vector_path='/fred/oz335/_local_TESS_vectors',
                                         ref_ind=ref_ind,quality_bitmask='hard',shift_method='sep_core',smooth_motion=False,
