@@ -540,14 +540,14 @@ class DataProcessor():
         if part:
             self._reduce_part_cuts(cam,ccd,n,cut,filepath)
         else:
-            cutFolder = f'{filepath}/Cut{cut}of{n**2}/{injection_dir}'
+            cutFolder = f'{filepath}/Cut{cut}of{n**2}'
             cutBase = f'sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}' 
 
             if injection:
                 cutPath = None
-                fluxPath = f'{cutFolder}/{cutBase}_Raw.npy'
-                timePath = f'{cutFolder}/{cutBase}_Times.npy'
-                refPath = f'{cutFolder}/{cutBase}_OrbitRefs.npz'
+                fluxPath = f'{cutFolder}/source_injection/{cutBase}_Raw.npy'
+                timePath = f'{cutFolder}/source_injection/{cutBase}_Times.npy'
+                refPath = f'{cutFolder}/source_injection/{cutBase}_OrbitRefs.npz'
             else:
                 cutPath = f'{cutFolder}/{cutBase}.fits'
                 fluxPath = None
@@ -575,12 +575,20 @@ class DataProcessor():
             tessreduce = 0
 
             # -- reduce -- #
-            tessreduce = tr.tessreduce(tpf=cutPath,flux=fluxPath,time=timePath,ref=refPath,
-                                       sector=self.sector,reduce=True,corr_correction=True,
+            tessreduce = tr.tessreduce(tpf=cutPath,
+                                        sector=self.sector,reduce=True,corr_correction=True,
                                         calibrate=False,catalogue_path=f'{cutFolder}/local_gaia_cat.csv',col_offset=int(cut_corners[cut-1][0]),#-44,
                                         prf_path='/fred/oz335/_local_TESS_PRFs',vector_path='/fred/oz335/_local_TESS_vectors',
                                         ref_ind=ref_ind,quality_bitmask='hard',shift_method='sep_core',smooth_motion=False,
                                         orbit_ref=True,create_lc=False,timing=True,backend='multiprocessing',verbose=2)
+
+            # # -- reduce -- #
+            # tessreduce = tr.tessreduce(tpf=cutPath,flux=fluxPath,time=timePath,ref=refPath,
+            #                            sector=self.sector,reduce=True,corr_correction=True,
+            #                             calibrate=False,catalogue_path=f'{cutFolder}/local_gaia_cat.csv',col_offset=int(cut_corners[cut-1][0]),#-44,
+            #                             prf_path='/fred/oz335/_local_TESS_PRFs',vector_path='/fred/oz335/_local_TESS_vectors',
+            #                             ref_ind=ref_ind,quality_bitmask='hard',shift_method='sep_core',smooth_motion=False,
+            #                             orbit_ref=True,create_lc=False,timing=True,backend='multiprocessing',verbose=2)
             
             if self.verbose > 0:
                 print(f'--Reduction Complete (Time: {((t()-ts)/60):.2f} mins)--')
