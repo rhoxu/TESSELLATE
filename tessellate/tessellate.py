@@ -240,10 +240,10 @@ class Tessellate():
             self.download()
 
         if make_cube:
-            self.make_cube()
+            make_cube = self.make_cube()
 
         if fix_wcs:
-            self.fix_wcs(cubing=make_cube)
+            self.fix_wcs(cube_status=make_cube)
         
         if make_cuts:
             self.make_cuts()
@@ -1680,17 +1680,189 @@ class Tessellate():
                     # print(f'Sector {self.sector} Cam {cam} Ccd {ccd} Download Complete ({((t()-tDownload)/60):.2f} mins).')
                     print('\n')
 
+#     def make_cube(self,overwrite=True):
+#         """
+#         Make Cube! 
+
+#         Process : Generates a python script for generating cube, then generates and submits a slurm script to call the python script.
+#         """
+
+#         _Save_space(f'{self.working_path}/cubing_scripts')
+
+#         # # -- Delete old scripts -- #
+#         # os.system(f'rm -f {self.working_path}/cubing_scripts/S{self.sector}C*')
+
+#         if overwrite & (self.overwrite is not None):
+#             if (self.overwrite == 'all') | ('cube' in self.overwrite):
+#                 delete_files('cubes',self.data_path,self.sector,self.n,self.cam,self.ccd,part=self.part)
+
+#         for cam in self.cam:
+#             for ccd in self.ccd: 
+#                 print(_Print_buff(60,f'Making Cube for Sector{self.sector} Cam{cam} Ccd{ccd}'))
+#                 print('\n')
+
+#                 # -- Generate Cube Path -- #
+#                 cube_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt'
+#                 if os.path.exists(cube_check):
+#                     print(f'Cam {cam} CCD {ccd} cube already exists!')
+#                     print('\n')
+#                 else:
+
+#                     # -- Create python file for cubing-- # 
+#                     print(f'Creating Cubing Python File for Sector{self.sector} Cam{cam}Ccd{ccd}')
+#                     python_text = f"\
+# from tessellate import DataProcessor\n\
+# \n\
+# processor = DataProcessor(sector={self.sector},data_path='{self.data_path}',verbose=2)\n\
+# processor.make_cube(cam={cam},ccd={ccd},part={self.part})\n\
+# with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', 'w') as file:\n\
+#     file.write('Cubed!')"   
+                
+#                     with open(f"{self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py", "w") as python_file:
+#                         python_file.write(python_text)
+
+#                     # -- Create bash file to submit job -- #
+#                     #print('Creating Cubing Batch File')
+#                     batch_text = f'\
+# #!/bin/bash\n\
+# #\n\
+# #SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cubing\n\
+# #SBATCH --output={self.job_output_path}/tessellate_cubing_logs/%A_%x_job_output.txt\n\
+# #SBATCH --error={self.job_output_path}/tessellate_cubing_logs/%A_%x_errors.txt\n\
+# #\n\
+# #SBATCH --ntasks=1\n\
+# #SBATCH --time={self.cube_time}\n\
+# #SBATCH --cpus-per-task={self.cube_cpu}\n\
+# #SBATCH --mem-per-cpu={self.cube_mem}G\n\
+# #SBATCH --account=oz335\n\
+# \n\
+# PYTHONUNBUFFERED=1\n\
+# source {VENV_PATH}/bin/activate\n\
+# python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py'
+#                     with open(f"{self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh", "w") as batch_file:
+#                         batch_file.write(batch_text)
+
+#                     # -- Submit job -- #
+#                     #print('Submitting Cubing Batch File')
+#                     os.system(f'sbatch {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh')
+#                     print('\n')
+
+#     def fix_wcs(self,cubing):
+#         """
+#         Calls the WCSfixer class to find the best reference image, PSF fit stars, and update WCS information.
+#         """
+
+#         from .WCSfixer import TessFixer
+
+#         tf = TessFixer(sector=self.sector,data_path=self.data_path)
+#         for cam in self.cam:
+#             for ccd in self.ccd: 
+#                 print(_Print_buff(60,f'Running WCSfixer for Sector{self.sector} Cam{cam} Ccd{ccd}'))
+#                 print('\n')
+
+#                 cube_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt'
+#                 if not os.path.exists(cube_check):
+#                     if not cubing:
+#                         e = 'No Cube File Detected to Cut!\n'
+#                         raise ValueError(e)
+#                     else:
+#                         tStart = t()
+#                         l = self.cube_time.split(':')
+#                         seconds = 1 * int(l[-1]) + 60 * int(l[-2])
+#                         if len(l) == 3:
+#                             seconds += 3600 * int(l[-3])
+
+#                         if (len(self.cam)>1) | (len(self.ccd)>1): 
+#                             seconds = 42300
+
+#                         go = False
+#                         message = 'Waiting for Cube'
+#                         i = 0
+#                         while not go:
+#                             if t()-tStart > seconds + 3600:
+#                                 print('Restarting Cubing')
+#                                 print('\n')
+#                                 self.make_cube(overwrite=False)
+#                                 tStart = t()
+#                             else:
+#                                 if i > 0:
+#                                     print(message, end='\r')
+#                                     sleep(120)
+#                                 if os.path.exists(cube_check):
+#                                     go = True
+#                                     print('\n')
+#                                 else:
+#                                     message += '.'
+#                                     i += 1
+
+#                 # -- Generate Cube Path -- #
+#                 wcs_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/wcs/ref/polyfit_coeffs.txt'
+#                 if os.path.exists(wcs_check):
+#                     print(f'Cam {cam} CCD {ccd} wcs already fixed!')
+#                 else:
+#                     tf.run(cam,ccd)
+#                 print('\n')
+
+    def _cam_ccd_cube(self, cam, ccd, time=None):
+            """
+            Generates a python script for generating a single cube, then generates and
+            submits a slurm script to call it. Returns the submitted job_id.
+            """
+
+            if time is None:
+                time = self.cube_time
+
+            # -- Create python file for cubing-- #
+            print(f'Creating Cubing Python File for Sector{self.sector} Cam{cam}Ccd{ccd}')
+            python_text = f"\
+from tessellate import DataProcessor\n\
+\n\
+processor = DataProcessor(sector={self.sector},data_path='{self.data_path}',verbose=2)\n\
+processor.make_cube(cam={cam},ccd={ccd},part={self.part})\n\
+with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', 'w') as file:\n\
+    file.write('Cubed!')"
+
+            with open(f"{self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py", "w") as python_file:
+                python_file.write(python_text)
+
+            # -- Create bash file to submit job -- #
+            batch_text = f'\
+#!/bin/bash\n\
+#\n\
+#SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cubing\n\
+#SBATCH --output={self.job_output_path}/tessellate_cubing_logs/%A_%x_job_output.txt\n\
+#SBATCH --error={self.job_output_path}/tessellate_cubing_logs/%A_%x_errors.txt\n\
+#\n\
+#SBATCH --ntasks=1\n\
+#SBATCH --time={time}\n\
+#SBATCH --cpus-per-task={self.cube_cpu}\n\
+#SBATCH --mem-per-cpu={self.cube_mem}G\n\
+#SBATCH --account=oz335\n\
+\n\
+PYTHONUNBUFFERED=1\n\
+source {VENV_PATH}/bin/activate\n\
+python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py'
+            
+            with open(f"{self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh", "w") as batch_file:
+                batch_file.write(batch_text)
+
+            # -- Submit job -- #
+            submission = os.popen(f'sbatch {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh').read()
+            job_id = submission.strip().split()[-1]
+            print('\n')
+            return job_id
+
     def make_cube(self,overwrite=True):
         """
-        Make Cube! 
+        Make Cube!
 
         Process : Generates a python script for generating cube, then generates and submits a slurm script to call the python script.
+        Returns a cube_status dict keyed by (cam,ccd), matching the structure produced by reduce().
         """
 
         _Save_space(f'{self.working_path}/cubing_scripts')
 
-        # # -- Delete old scripts -- #
-        # os.system(f'rm -f {self.working_path}/cubing_scripts/S{self.sector}C*')
+        cube_status = {}
 
         if overwrite & (self.overwrite is not None):
             if (self.overwrite == 'all') | ('cube' in self.overwrite):
@@ -1701,107 +1873,126 @@ class Tessellate():
                 print(_Print_buff(60,f'Making Cube for Sector{self.sector} Cam{cam} Ccd{ccd}'))
                 print('\n')
 
+                cube_status[(cam,ccd)] = {'status': None, 'job_id': None, 'job_time': None}
+
                 # -- Generate Cube Path -- #
                 cube_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt'
                 if os.path.exists(cube_check):
                     print(f'Cam {cam} CCD {ccd} cube already exists!')
                     print('\n')
+                    cube_status[(cam,ccd)]['status'] = 'COMPLETED'
                 else:
+                    job_id = self._cam_ccd_cube(cam,ccd)
+                    cube_status[(cam,ccd)]['status'] = 'INCOMPLETE'
+                    cube_status[(cam,ccd)]['job_id'] = job_id
+                    cube_status[(cam,ccd)]['job_time'] = self.cube_time
 
-                    # -- Create python file for cubing-- # 
-                    print(f'Creating Cubing Python File for Sector{self.sector} Cam{cam}Ccd{ccd}')
-                    python_text = f"\
-from tessellate import DataProcessor\n\
-\n\
-processor = DataProcessor(sector={self.sector},data_path='{self.data_path}',verbose=2)\n\
-processor.make_cube(cam={cam},ccd={ccd},part={self.part})\n\
-with open(f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt', 'w') as file:\n\
-    file.write('Cubed!')"   
-                
-                    with open(f"{self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py", "w") as python_file:
-                        python_file.write(python_text)
+        return cube_status
 
-                    # -- Create bash file to submit job -- #
-                    #print('Creating Cubing Batch File')
-                    batch_text = f'\
-#!/bin/bash\n\
-#\n\
-#SBATCH --job-name=TESS_S{self.sector}_Cam{cam}_Ccd{ccd}_Cubing\n\
-#SBATCH --output={self.job_output_path}/tessellate_cubing_logs/%A_%x_job_output.txt\n\
-#SBATCH --error={self.job_output_path}/tessellate_cubing_logs/%A_%x_errors.txt\n\
-#\n\
-#SBATCH --ntasks=1\n\
-#SBATCH --time={self.cube_time}\n\
-#SBATCH --cpus-per-task={self.cube_cpu}\n\
-#SBATCH --mem-per-cpu={self.cube_mem}G\n\
-#SBATCH --account=oz335\n\
-\n\
-PYTHONUNBUFFERED=1\n\
-source {VENV_PATH}/bin/activate\n\
-python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py'
-                    with open(f"{self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh", "w") as batch_file:
-                        batch_file.write(batch_text)
-
-                    # -- Submit job -- #
-                    #print('Submitting Cubing Batch File')
-                    os.system(f'sbatch {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.sh')
-                    print('\n')
-
-    def fix_wcs(self,cubing):
+    def fix_wcs(self,cube_status):
         """
         Calls the WCSfixer class to find the best reference image, PSF fit stars, and update WCS information.
+
+        cube_status : either
+            - False : cubing is not currently running. If a cube already exists for a given
+                      cam/ccd, proceed; otherwise raise an error.
+            - dict  : as returned by make_cube(), keyed by (cam,ccd) with 'status'/'job_id'/
+                      'job_time'. fix_wcs waits on incomplete cubing jobs (restarting on
+                      timeout), and runs the WCS fix for each cam/ccd as soon as its cube
+                      is ready, rather than waiting for all cubes to finish first.
         """
 
+        from datetime import timedelta
         from .WCSfixer import TessFixer
 
         tf = TessFixer(sector=self.sector,data_path=self.data_path)
-        for cam in self.cam:
-            for ccd in self.ccd: 
-                print(_Print_buff(60,f'Running WCSfixer for Sector{self.sector} Cam{cam} Ccd{ccd}'))
-                print('\n')
 
-                cube_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt'
-                if not os.path.exists(cube_check):
-                    if not cubing:
+        def _run_wcs_fix(cam,ccd):
+            print(_Print_buff(60,f'Running WCSfixer for Sector{self.sector} Cam{cam} Ccd{ccd}'))
+            print('\n')
+
+            wcs_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/wcs/ref/polyfit_coeffs.txt'
+            if os.path.exists(wcs_check):
+                print(f'Cam {cam} CCD {ccd} wcs already fixed!')
+            else:
+                tf.run(cam,ccd)
+            print('\n')
+
+        if cube_status is False:
+            # ---- no cubing job running: cube must already exist ----
+            for cam in self.cam:
+                for ccd in self.ccd:
+                    cube_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt'
+                    if not os.path.exists(cube_check):
                         e = 'No Cube File Detected to Cut!\n'
                         raise ValueError(e)
-                    else:
-                        tStart = t()
-                        l = self.cube_time.split(':')
-                        seconds = 1 * int(l[-1]) + 60 * int(l[-2])
-                        if len(l) == 3:
-                            seconds += 3600 * int(l[-3])
+                    _run_wcs_fix(cam,ccd)
+            return
 
-                        if (len(self.cam)>1) | (len(self.ccd)>1): 
-                            seconds = 42300
-
-                        go = False
-                        message = 'Waiting for Cube'
-                        i = 0
-                        while not go:
-                            if t()-tStart > seconds + 3600:
-                                print('Restarting Cubing')
-                                print('\n')
-                                self.make_cube(overwrite=False)
-                                tStart = t()
-                            else:
-                                if i > 0:
-                                    print(message, end='\r')
-                                    sleep(120)
-                                if os.path.exists(cube_check):
-                                    go = True
-                                    print('\n')
-                                else:
-                                    message += '.'
-                                    i += 1
-
-                # -- Generate Cube Path -- #
-                wcs_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/wcs/ref/polyfit_coeffs.txt'
-                if os.path.exists(wcs_check):
-                    print(f'Cam {cam} CCD {ccd} wcs already fixed!')
+        # ---- cube_status is a dict: interleave waiting with WCS fixing ----
+        waiting_status = {}
+        for cam in self.cam:
+            for ccd in self.ccd:
+                cube_check = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/cubed.txt'
+                if os.path.exists(cube_check):
+                    waiting_status[(cam,ccd)] = 'COMPLETED'
                 else:
-                    tf.run(cam,ccd)
-                print('\n')
+                    waiting_status[(cam,ccd)] = 'INCOMPLETE'
+
+        i = 0
+        while len(waiting_status.keys()) > 0:
+
+            for key in list(waiting_status.keys()):
+                cam, ccd = key
+                if waiting_status[key] == 'COMPLETED':
+                    _run_wcs_fix(cam,ccd)
+                    del(waiting_status[key])
+
+                elif cube_status[key]['status'] == 'COMPLETED':
+                    _run_wcs_fix(cam,ccd)
+                    del(waiting_status[key])
+
+                else:
+                    job_id = cube_status[key]['job_id']
+                    job_status = _Check_job_status(job_id)
+                    # if job_status == 'FAILED':
+                    #     print(f'Cubing Failed for Cam {cam} CCD {ccd}')
+                    #     print('\n')
+                    #     del(waiting_status[key])
+                    if job_status == 'TIMEOUT':
+                        parts = list(map(int, cube_status[key]['job_time'].split(':')))
+                        if len(parts) == 3:
+                            h, m, s = parts
+                        else:
+                            h = 0
+                            m, s = parts
+
+                        td = timedelta(hours=h, minutes=m, seconds=s)
+                        td += timedelta(minutes=30)
+                        total = int(td.total_seconds())
+                        h = total // 3600
+                        m = (total % 3600) // 60
+                        s = total % 60
+                        result = f"{h}:{m:02}:{s:02}"
+
+                        print(f'Restarting Cubing for Cam {cam} CCD {ccd} with new time limit of {result}')
+                        job_id = self._cam_ccd_cube(cam,ccd,time=result)
+                        cube_status[key]['job_id'] = job_id
+                        cube_status[key]['job_time'] = result
+
+                    elif job_status == 'COMPLETED':
+                        cube_status[key]['status'] = job_status
+                        _run_wcs_fix(cam,ccd)
+                        del(waiting_status[key])
+
+                    elif job_status not in ['RUNNING','PENDING','COMPLETING','CONFIGURING']:
+                        e = f'Job {job_id} for cubing of Cam {cam} CCD {ccd} has unexpected status: {job_status}\n'
+                        raise ValueError(e)
+
+            if len(waiting_status.keys()) > 0:
+                print('Waiting for Cubes' + i*'.', end='\r')
+                sleep(600)
+                i += 1
                     
 
     def _get_catalogues(self,cam,ccd,base_path):
