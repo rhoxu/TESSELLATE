@@ -533,6 +533,7 @@ class DataProcessor():
         """
 
         import tessreduce as tr
+        from .localisation import CutWCS
         
         filepath = f'{self.path}/Cam{cam}/Ccd{ccd}'
         injection_dir = 'source_injection' if injection else '.'
@@ -545,14 +546,16 @@ class DataProcessor():
 
             if injection:
                 cutPath = None
-                fluxPath = f'{cutFolder}/source_injection/{cutBase}_Raw.npy'
-                timePath = f'{cutFolder}/source_injection/{cutBase}_Times.npy'
-                refPath = f'{cutFolder}/source_injection/{cutBase}_OrbitRefs.npz'
+                fluxPath = f'{cutFolder}/source_injection/{cutBase}_RawFlux.npy'
+                timePath = f'{cutFolder}/{cutBase}_Times.npy'
+                shiftPath = f'{cutFolder}/{cutBase}_Shifts.npy'
+                wcs = CutWCS(self.data_path,self.sector,cam,ccd,cut,n)
             else:
                 cutPath = f'{cutFolder}/{cutBase}.fits'
                 fluxPath = None
                 timePath = None
-                refPath = None
+                shiftPath = None
+                wcs = None
 
             cut_corners,_,_,_ = self.find_cuts(cam,ccd,n,plot=False)
 
@@ -575,8 +578,9 @@ class DataProcessor():
             tessreduce = 0
 
             # -- reduce -- #
-            tessreduce = tr.tessreduce(tpf=cutPath,
-                                        sector=self.sector,reduce=True,corr_correction=True,
+            tessreduce = tr.tessreduce(tpf=cutPath,sector=self.sector,camera=cam,ccd=ccd,
+                                       flux=fluxPath,mjd=timePath,shifts=shiftPath,wcs=wcs,
+                                        reduce=True,corr_correction=True,
                                         calibrate=False,catalogue_path=f'{cutFolder}/local_gaia_cat.csv',col_offset=int(cut_corners[cut-1][0]),#-44,
                                         prf_path='/fred/oz335/_local_TESS_PRFs',vector_path='/fred/oz335/_local_TESS_vectors',
                                         ref_ind=ref_ind,quality_bitmask='hard',shift_method='sep_core',smooth_motion=False,

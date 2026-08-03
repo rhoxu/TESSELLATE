@@ -568,11 +568,9 @@ class SourceInjector():
 
             return raw_cube,injections,lcs
 
-    def apply_shifts(self,path,cube):
+    def apply_shifts(self,shifts,cube):
 
-        print('    applying shifts')
-
-        shifts = np.load(f'{path}_Shifts.npy')
+        print('    applying shifts')        
 
         result = Parallel(n_jobs=self.num_cores)(
 					delayed(_Shift_One)(cube[i], -1*shifts[i])
@@ -626,22 +624,21 @@ class SourceInjector():
             orbit_refs = np.load(f'{directory}/{base_name}_OrbitRefs.npz')
             orbit_refs = {int(k): orbit_refs[k] for k in orbit_refs.files}
             ref = np.load(f'{directory}/{base_name}_Ref.npy')
+            shifts = np.load(f'{directory}/{base_name}_Shifts.npy')
 
             rawcube[orbit_segments==1] += orbit_refs[1]
             rawcube[orbit_segments==2] += orbit_refs[2]
             rawcube += ref
 
-            shifted_cube = self.apply_shifts(f'{directory}/{base_name}',rawcube)
+            shifted_cube = self.apply_shifts(shifts,rawcube)
 
             lcs_arr = np.empty(len(lcs), dtype=object)
             for i, lc in enumerate(lcs):
                 lcs_arr[i] = lc
 
             os.makedirs(f'{directory}/source_injection',exist_ok=True)
-            np.save(f'{directory}/source_injection/{base_name}_Raw.npy',shifted_cube)
+            np.save(f'{directory}/source_injection/{base_name}_RawFlux.npy',shifted_cube)
             np.savez(f'{directory}/source_injection/lightcurves.npz', lcs=lcs_arr)
-            os.system(f'cp {directory}/{base_name}_Times.npy {directory}/source_injection/{base_name}_Times.npy')
-            os.system(f'cp {directory}/{base_name}_OrbitRefs.npz {directory}/source_injection/{base_name}_OrbitRefs.npz')
             injections.to_csv(f'{directory}/source_injection/injected_events.csv',index=False)
 
             run = Tessellate(data_path=self.data_path,working_path=self.working_path,job_output_path=self.job_output_path,
