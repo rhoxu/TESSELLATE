@@ -546,12 +546,14 @@ class DataProcessor():
 
             if injection:
                 cutPath = None
-                flux = np.load(f'{cutFolder}/source_injection/{cutBase}_RawFlux.npy')
+                save_path = f'{cutFolder}/{injection_dir}/{cutBase}'
+                flux = np.load(f'{save_path}_RawFlux.npy')
                 mjd = np.load(f'{cutFolder}/{cutBase}_Times.npy')
                 shifts = np.load(f'{cutFolder}/{cutBase}_Shifts.npy')
                 wcs = CutWCS(self.data_path,self.sector,cam,ccd,cut,n)
             else:
                 cutPath = f'{cutFolder}/{cutBase}.fits'
+                save_path = f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}'
                 flux = None
                 mjd = None
                 shifts = None
@@ -599,15 +601,15 @@ class DataProcessor():
                 print('\n')
             #tw = t()   # write timeStart
             
-            # -- Saves information out as Numpy Arrays -- #
-            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Times.npy',tessreduce.tpf.time.mjd)
-            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_ReducedFlux.npy',tessreduce.flux.astype(np.float32))
-            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Background.npy',tessreduce.bkg)
-            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Ref.npy',tessreduce.ref)
-            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Mask.npy',tessreduce.mask)
-            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_Shifts.npy',tessreduce.shift)
-            np.save(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_OrbitSegments.npy',tessreduce.orbit_segments)
-            np.savez(f'{cutFolder}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{n**2}_OrbitRefs.npz',
+            # -- Saves information out as Numpy Arrays -- #            
+            np.save(f'{save_path}_Times.npy',tessreduce.mjd)
+            np.save(f'{save_path}_ReducedFlux.npy',tessreduce.flux.astype(np.float32))
+            np.save(f'{save_path}_Background.npy',tessreduce.bkg)
+            np.save(f'{save_path}_Ref.npy',tessreduce.ref)
+            np.save(f'{save_path}_Mask.npy',tessreduce.mask)
+            np.save(f'{save_path}_Shifts.npy',tessreduce.shift)
+            np.save(f'{save_path}_OrbitSegments.npy',tessreduce.orbit_segments)
+            np.savez(f'{save_path}_OrbitRefs.npz',
                      **{str(k): v for k, v in tessreduce.orbit_refs.items()})
 
             del (tessreduce)
