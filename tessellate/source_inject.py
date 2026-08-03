@@ -496,7 +496,7 @@ class SourceInjector():
             injections['frame_max'] = 0
             cadence_min = np.nanmedian(np.diff(self.nav.time)) * 1440
             lcs = []
-            for i in tqdm(range(n_events),desc='    injecting events into cube'):
+            for i in tqdm(range(n_events),desc='    injecting events into cube', position=0, leave=True,dynamic_ncols=False,ascii=True):
                 source = injections.iloc[i]
 
                 if source.event_type == 'sinusoid':
@@ -574,7 +574,7 @@ class SourceInjector():
 
         result = Parallel(n_jobs=self.num_cores)(
 					delayed(_Shift_One)(cube[i], -1*shifts[i])
-					for i in tqdm(range(len(cube))))
+					for i in tqdm(range(len(cube)), position=0, leave=True,dynamic_ncols=False,ascii=True))
 
         return np.array(result)
 
