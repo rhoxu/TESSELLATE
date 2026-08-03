@@ -546,15 +546,15 @@ class DataProcessor():
 
             if injection:
                 cutPath = None
-                fluxPath = f'{cutFolder}/source_injection/{cutBase}_RawFlux.npy'
-                timePath = f'{cutFolder}/{cutBase}_Times.npy'
-                shiftPath = f'{cutFolder}/{cutBase}_Shifts.npy'
+                flux = np.load(f'{cutFolder}/source_injection/{cutBase}_RawFlux.npy')
+                mjd = np.load(f'{cutFolder}/{cutBase}_Times.npy')
+                shifts = np.load(f'{cutFolder}/{cutBase}_Shifts.npy')
                 wcs = CutWCS(self.data_path,self.sector,cam,ccd,cut,n)
             else:
                 cutPath = f'{cutFolder}/{cutBase}.fits'
-                fluxPath = None
-                timePath = None
-                shiftPath = None
+                flux = None
+                mjd = None
+                shifts = None
                 wcs = None
 
             cut_corners,_,_,_ = self.find_cuts(cam,ccd,n,plot=False)
@@ -579,7 +579,7 @@ class DataProcessor():
 
             # -- reduce -- #
             tessreduce = tr.tessreduce(tpf=cutPath,sector=self.sector,camera=cam,ccd=ccd,
-                                       flux=fluxPath,mjd=timePath,shifts=shiftPath,wcs=wcs,
+                                       flux=flux,mjd=mjd,shifts=shifts,wcs=wcs,
                                         reduce=True,corr_correction=True,
                                         calibrate=False,catalogue_path=f'{cutFolder}/local_gaia_cat.csv',col_offset=int(cut_corners[cut-1][0]),#-44,
                                         prf_path='/fred/oz335/_local_TESS_PRFs',vector_path='/fred/oz335/_local_TESS_vectors',
