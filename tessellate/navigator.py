@@ -66,7 +66,7 @@ def _bazin_fit_worker(stamp_cube, sub_time, x_sub, y_sub, ccd_x, ccd_y,
 
 class Navigator():
 
-    def __init__(self,sector,cam,ccd,data_path='/fred/oz335/TESSdata',n=8):
+    def __init__(self,sector,cam,ccd,data_path='/fred/oz335/TESSdata',n=8,injection=False):
 
         self.sector = sector
         self.cam = cam
@@ -75,6 +75,7 @@ class Navigator():
         self.n = n
 
         self.path = f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}'
+        self._inj_path = f'source_injection' if injection else ''
 
         self.cut = None
 
@@ -103,7 +104,7 @@ class Navigator():
         from .localisation import CutWCS
         import ast
 
-        path = f'{self.path}/Cut{cut}of{self.n**2}'
+        path = f'{self.path}/Cut{cut}of{self.n**2}/{self._inj_path}'
 
         if sources:
             try:
@@ -130,6 +131,13 @@ class Navigator():
                 self.objects = None
         
         self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
+
+        if self._inj_path == 'source_injection':
+            try:
+                self.injections = pd.read_csv(f'{path}/injected_events.csv')    # temporally and spatially located with same object id
+            except:
+                print('No injected events file found')
+                self.injections = None
         
     def gather_data(self,cut,flux=True,time=True,ref=False,mask=False,bkg=False,verbose=True):
         """
@@ -142,7 +150,7 @@ class Navigator():
             ts = clock()
             print(f'Loading Cut {cut} Data...',end='\r')
 
-        base = f'{self.path}/Cut{cut}of{self.n**2}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'
+        base = f'{self.path}/Cut{cut}of{self.n**2}/{self._inj_path}/sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'
 
         if flux:
             self.flux = np.load(base + '_ReducedFlux.npy')
