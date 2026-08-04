@@ -578,7 +578,7 @@ class SourceInjector():
 
         return np.array(result)
 
-    def run(self,cut,n_events,
+    def run(self,cut,n_events,overwrite=False,
             min_sep=5,edge_buffer=5,grid_step=1,big_size=15,small_size=5,
             duration_range_min=(10, 1440), duration_skew=(1.0, 2.5),
             K_range=(-1, 1), K_skew=(1.0, 1.0), p_negative_K=0.05,
@@ -602,44 +602,54 @@ class SourceInjector():
 
         for cut in cuts: 
 
-            print(f'Cut {cut}')           
-
-            rawcube,injections,lcs = self.inject_sources(cut,n_events,
-                       min_sep,edge_buffer,grid_step,big_size,small_size,
-                       duration_range_min, duration_skew,
-                        K_range, K_skew, p_negative_K,
-                        duty_frac_range, duty_frac_skew,
-                        stamp_radius_px, max_frame_fill_frac,
-                        overlap_dist_px, max_attempts_per_event,
-                        type_probs=type_probs,
-                        K_negative_range=K_negative_range,
-                        period_range_min=period_range_min,
-                        period_mode_min=period_mode_min,
-                        period_concentration=period_concentration)
+            print(f'Cut {cut}')     
 
             directory = f'{self.path}/Cut{cut}of{self.n**2}'
-            base_name = f'sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'
+            base_name = f'sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'      
 
-            orbit_segments = np.load(f'{directory}/{base_name}_OrbitSegments.npy')
-            orbit_refs = np.load(f'{directory}/{base_name}_OrbitRefs.npz')
-            orbit_refs = {int(k): orbit_refs[k] for k in orbit_refs.files}
-            ref = np.load(f'{directory}/{base_name}_Ref.npy')
-            shifts = np.load(f'{directory}/{base_name}_Shifts.npy')
+            go = False
+            if not os.path.exists(f'{directory}/source_injection/{base_name}_RawFlux.npy'): 
+                go = True
+            elif overwrite:
+                os.system(f'rm {directory}/source_injection/{base_name}_RawFlux.npy')
+                os.system(f'rm {directory}/source_injection/injected_events.csv')
+                os.system(f'rm {directory}/source_injection/lightcurves.npz')
+                go = True
 
-            rawcube[orbit_segments==1] += orbit_refs[1]
-            rawcube[orbit_segments==2] += orbit_refs[2]
-            rawcube += ref
+            if go:
+                rawcube,injections,lcs = self.inject_sources(cut,n_events,
+                        min_sep,edge_buffer,grid_step,big_size,small_size,
+                        duration_range_min, duration_skew,
+                            K_range, K_skew, p_negative_K,
+                            duty_frac_range, duty_frac_skew,
+                            stamp_radius_px, max_frame_fill_frac,
+                            overlap_dist_px, max_attempts_per_event,
+                            type_probs=type_probs,
+                            K_negative_range=K_negative_range,
+                            period_range_min=period_range_min,
+                            period_mode_min=period_mode_min,
+                            period_concentration=period_concentration)
 
-            shifted_cube = self.apply_shifts(shifts,rawcube)
+                orbit_segments = np.load(f'{directory}/{base_name}_OrbitSegments.npy')
+                orbit_refs = np.load(f'{directory}/{base_name}_OrbitRefs.npz')
+                orbit_refs = {int(k): orbit_refs[k] for k in orbit_refs.files}
+                ref = np.load(f'{directory}/{base_name}_Ref.npy')
+                shifts = np.load(f'{directory}/{base_name}_Shifts.npy')
 
-            lcs_arr = np.empty(len(lcs), dtype=object)
-            for i, lc in enumerate(lcs):
-                lcs_arr[i] = lc
+                rawcube[orbit_segments==1] += orbit_refs[1]
+                rawcube[orbit_segments==2] += orbit_refs[2]
+                rawcube += ref
 
-            os.makedirs(f'{directory}/source_injection',exist_ok=True)
-            np.save(f'{directory}/source_injection/{base_name}_RawFlux.npy',shifted_cube)
-            np.savez(f'{directory}/source_injection/lightcurves.npz', lcs=lcs_arr)
-            injections.to_csv(f'{directory}/source_injection/injected_events.csv',index=False)
+                shifted_cube = self.apply_shifts(shifts,rawcube)
+
+                lcs_arr = np.empty(len(lcs), dtype=object)
+                for i, lc in enumerate(lcs):
+                    lcs_arr[i] = lc
+
+                os.makedirs(f'{directory}/source_injection',exist_ok=True)
+                np.savez(f'{directory}/source_injection/lightcurves.npz', lcs=lcs_arr)
+                injections.to_csv(f'{directory}/source_injection/injected_events.csv',index=False)
+                np.save(f'{directory}/source_injection/{base_name}_RawFlux.npy',shifted_cube)
 
             run = Tessellate(data_path=self.data_path,working_path=self.working_path,job_output_path=self.job_output_path,
                                 sector=self.sector,cam=self.cam,ccd=self.ccd,n=self.n,cuts=cut,

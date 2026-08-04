@@ -850,6 +850,7 @@ class Tessellate():
         if self.cube_time is None:
             if use_suggestions:
                 self.cube_time = suggestions[0]
+                print(f'   - Cube Batch Time = {self.cube_time}')
             else:
                 cube_time = input(f"   - Cube Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
                 done = False
@@ -866,6 +867,7 @@ class Tessellate():
         if self.cube_mem is None:
             if use_suggestions:
                 self.cube_mem = int(suggestions[1][:-1])
+                print(f'   - Cube Mem/CPU = {self.cube_mem}G')
             else:
                 cube_mem = input(f"   - Cube Mem/CPU ({suggestions[1]} suggested) = ")
                 done = False
@@ -968,6 +970,7 @@ class Tessellate():
         if self.cut_time is None:
             if use_suggestions:
                 self.cut_time = suggestions[0]
+                print(f'   - Cut Batch Time = {self.cut_time}')
             else:
                 cut_time = input(f"   - Cut Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
                 done = False
@@ -983,6 +986,7 @@ class Tessellate():
         if self.cut_mem is None:
             if use_suggestions:
                 self.cut_mem = int(suggestions[1][:-1])
+                print(f'   - Cut Mem/CPU = {self.cut_mem}G')
             else:
                 cut_mem = input(f"   - Cut Mem/CPU ({suggestions[1]} suggested) = ")
                 done = False
@@ -1086,6 +1090,7 @@ class Tessellate():
         if self.reduce_time is None:
             if use_suggestions:
                 self.reduce_time = suggestions[0]
+                print(f'   - Reduce Batch Time = {self.reduce_time}')
             else:
                 reduce_time = input(f"   - Reduce Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
                 done = False
@@ -1102,6 +1107,7 @@ class Tessellate():
         if self.reduce_cpu is None:
             if use_suggestions:
                 self.reduce_cpu = int(suggestions[1])
+                print(f'   - Reduce Num CPUs = {self.reduce_cpu}')
             else:
                 reduce_cpu = input(f"   - Reduce Num CPUs [1-32] ({suggestions[1]} suggested) = ")
                 done = False
@@ -1205,6 +1211,7 @@ class Tessellate():
         if self.calibrate_time is None:
             if use_suggestions:
                 self.calibrate_time = suggestions[0]
+                print(f'   - Calibrate Batch Time = {self.calibrate_time}')
             else:
                 calibrate_time = input(f"   - Calibrate Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
                 done = False
@@ -1220,6 +1227,7 @@ class Tessellate():
         if self.calibrate_cpu is None:
             if use_suggestions:
                 self.calibrate_cpu = int(suggestions[1])
+                print(f'   - Calibrate Num CPUs = {self.calibrate_cpu}')
             else:
                 calibrate_cpu = input(f"   - Calibrate Num CPUs [1-32] ({suggestions[1]} suggested) = ")
                 done = False
@@ -1299,6 +1307,7 @@ class Tessellate():
         if self.search_time is None:
             if use_suggestions:
                 self.search_time = suggestions[0]
+                print(f'   - Search Batch Time = {self.search_time}')
             else:
                 search_time = input(f"   - Search Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
                 done = False
@@ -1315,6 +1324,7 @@ class Tessellate():
         if self.search_cpu is None:
             if use_suggestions:
                 self.search_cpu = int(suggestions[1])
+                print(f'   - Search Num CPUs = {self.search_cpu}')
             else:
                 search_cpu = input(f"   - Search Num CPUs [1-32] ({suggestions[1]} suggested) = ")
                 done = False
@@ -1364,7 +1374,8 @@ class Tessellate():
         pattern = r'^\d+(\.\d+)?(sec|min|hr|day)s?$'
         if self.time_bins is None:
             if use_suggestions:
-                self.time_bins = suggestions[3]
+                self.time_bins = suggestions[3].split(',')
+                print(f'   - Search Time Bin = {self.time_bins}')
             else:
                 time_bins = input(f"   - Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = ")
                 done = False
@@ -1455,6 +1466,7 @@ class Tessellate():
         if self.plot_time is None:
             if use_suggestions:
                 self.plot_time = suggestions[0]
+                print(f'   - Plotting Batch Time = {self.plot_time}')
             else:
                 plot_time = input(f"   - Plotting Batch Time ['h:mm:ss'] ({suggestions[0]} suggested) = ")
                 done = False
@@ -1470,6 +1482,7 @@ class Tessellate():
         if self.plot_cpu is None:
             if use_suggestions:
                 self.plot_cpu = int(suggestions[1])
+                print(f'   - Plotting Num CPUs = {self.plot_cpu}')
             else:
                 plot_cpu = input(f"   - Plotting Num CPUs [1-32] ({suggestions[1]} suggested) = ")
                 done = False
@@ -1985,7 +1998,7 @@ python {self.working_path}/cubing_scripts/S{self.sector}C{cam}C{ccd}_script.py'
                         _run_wcs_fix(cam,ccd)
                         del(waiting_status[key])
 
-                    elif job_status not in ['RUNNING','PENDING','COMPLETING','CONFIGURING']:
+                    elif job_status not in ['RUNNING','PENDING','COMPLETING','CONFIGURING','SUSPENDED']:
                         e = f'Job {job_id} for cubing of Cam {cam} CCD {ccd} has unexpected status: {job_status}\n'
                         raise ValueError(e)
 
@@ -2535,7 +2548,7 @@ python {script_py}'
                     elif job_status == 'COMPLETED':
                         reduction_status[key]['status'] = job_status
 
-                    elif job_status not in ['RUNNING','PENDING','COMPLETING','CONFIGURING']:
+                    elif job_status not in ['RUNNING','PENDING','COMPLETING','CONFIGURING','SUSPENDED']:
                         e = f'Job {job_id} for reduction of Cam {cam} CCD {ccd} Cut {cut} has unexpected status: {job_status}\n'
                         raise ValueError(e)
 
@@ -2723,7 +2736,7 @@ python {self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_sc
                     elif job_status == 'COMPLETED':
                         reduction_status[key]['status'] = job_status
 
-                    elif job_status not in ['RUNNING','PENDING','COMPLETING','CONFIGURING']:
+                    elif job_status not in ['RUNNING','PENDING','COMPLETING','CONFIGURING','SUSPENDED']:
                         e = f'Job {job_id} for reduction of Cam {cam} CCD {ccd} Cut {cut} has unexpected status: {job_status}\n'
                         raise ValueError(e)
 
