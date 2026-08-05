@@ -690,96 +690,411 @@ class SourceInjector():
 
 
 
-    def match_results_to_injections(self,centroid_match_radius=1):
+    def match_results_to_injections(self,centroid_match_radius=1.0, min_temporal_iou=0.0, spatial_weight=0.5,
+                                    overlap_weight=2.0,duration_weight=0.5,peak_weight=0.1):
 
-        self.injections['ev_match'] = '-'
-        self.injections['detected'] = 'n'
+        non_vars = self.injections[self.injections.event_type != 'sinusoid']
 
-        for i, ev in self.injections.iterrows():
-            if ev.event_type != 'sinusoid':     # cant deal with variables just yet
+        # Output columns
+        non_vars["detected"] = "n"
+        non_vars["ev_match"] = "-"
+        non_vars["centroid_sep"] = np.nan
+        non_vars["temporal_iou"] = np.nan
+        non_vars["duration_ratio"] = np.nan
+        non_vars["peak_offset_min"] = np.nan
+        non_vars["snr_detected"] = np.nan
+        non_vars["snr_ratio"] = np.nan
+        non_vars["match_score"] = np.nan
 
-                start = int(ev.frame_start)
-                end = int(ev.frame_end)
+        events_all = self.nav.events.copy()
+        frame_bins = np.sort(events_all.frame_bin.dropna().unique())
 
-                # check for detection in isolated single frames
-                mask = (
-                    (self.nav.isolated.frame >= start)
-                    & (self.nav.isolated.frame <= end)   # or < end if you want exclusive, but be explicit
-                    & (abs(self.nav.isolated.xcentroid - ev.xcentroid)<centroid_match_radius)
-                    & (abs(self.nav.isolated.ycentroid - ev.ycentroid)<centroid_match_radius)
+        for inj_idx, inj in non_vars.iterrows():
+
+
+            inj_start = float(inj.mjd_start)
+            inj_end = float(inj.mjd_end)
+            inj_duration = max(inj_end - inj_start, np.finfo(float).eps)
+
+            event_found = False
+
+            # --  Search event catalogues from lowest to highest frame_bin -- #
+            for frame_bin in frame_bins:
+
+                bin_events = events_all[
+                    events_all.frame_bin == frame_bin
+                ].copy()
+
+                # Spatial pre-selection
+                bin_events["centroid_sep"] = np.hypot(
+                    bin_events.xcentroid - inj.xcentroid,
+                    bin_events.ycentroid - inj.ycentroid,
                 )
 
-                isolated_sources = self.nav.isolated[mask]
-                if len(isolated_sources) > 0:
-                    self.injections.loc[i, 'detected'] = 'iso'
+                candidates = bin_events[bin_events.centroid_sep <= centroid_match_radius].copy()
+                if len(candidates) == 0:
+                    continue
 
-                mask = (
-                        (self.nav.events.frame_bin == 1)
-                        & (self.nav.events.frame_max >= start)
-                        & (self.nav.events.frame_max <= end)   # or < end if you want exclusive, but be explicit
-                        & (abs(self.nav.events.xcentroid - ev.xcentroid)<centroid_match_radius)
-                        & (abs(self.nav.events.ycentroid - ev.ycentroid)<centroid_match_radius)
+                # Temporal overlap using MJD values
+                candidates["intersection"] = np.maximum(
+                    0.0,
+                    np.minimum(candidates.mjd_end, inj_end)
+                    - np.maximum(candidates.mjd_start, inj_start),
+                )
+
+                candidates = candidates[candidates.intersection > 0].copy()
+                if len(candidates) == 0:
+                    continue
+
+                candidates["union"] = (
+                    np.maximum(candidates.mjd_end, inj_end)
+                    - np.minimum(candidates.mjd_start, inj_start)
+                )
+
+                candidates["temporal_iou"] = candidates.intersection / candidates.union
+
+                candidates = candidates[candidates.temporal_iou >= min_temporal_iou].copy()
+                if len(candidates) == 0:
+                    continue
+
+                candidates["det_duration"] = (
+                    candidates.mjd_end - candidates.mjd_start
+                ).clip(lower=np.finfo(float).eps)
+
+                candidates["overlap_frac_inj"] = candidates.intersection / inj_duration
+                candidates["overlap_frac_det"] = candidates.intersection / candidates.det_duration
+
+                candidates["duration_ratio"] = np.maximum(
+                    candidates.det_duration,
+                    inj_duration,
+                ) / np.minimum(
+                    candidates.det_duration,
+                    inj_duration,
+                )
+
+                candidates["peak_offset_min"] = np.abs(candidates.mjd_max - inj.mjd_max) * 1440.0
+            
+                # Normalise peak offset by injected duration so long events are
+                # not unfairly penalised.
+                inj_duration_min = max(inj_duration * 1440.0, 1.0)
+
+                candidates["match_score"] = (
+                    spatial_weight * candidates.centroid_sep
+                    + overlap_weight * (1.0 - candidates.temporal_iou)
+                    + duration_weight * np.abs(
+                        np.log(candidates.duration_ratio)
                     )
+                    + peak_weight * (
+                        candidates.peak_offset_min / inj_duration_min
+                    )
+                )
 
-                events = self.nav.events[mask]
-                if len(events) > 0:
-                    if len(events) == 1:
-                        loc = 0
-                    else:
-                        duration_diffs = np.fmax(events.frame_duration, ev.frame_duration) / np.fmin(events.frame_duration, ev.frame_duration)
-                        loc = np.argmin(duration_diffs)
+                best_idx = candidates.match_score.idxmin()
+                best = candidates.loc[best_idx]
 
-                    self.injections.loc[i, 'ev_match'] = f"{events.iloc[loc].objid}_{events.iloc[loc].eventid}"
-                    self.injections.loc[i, 'detected'] = 'y'
+                detected_label = "y" if int(frame_bin) == 1 else str(int(frame_bin))
 
-                else:
-                    if len(isolated_sources) == 0:
-                        found = False
-                        frame_bins = np.unique(self.nav.events.frame_bin)
-                        frame_bins = frame_bins[frame_bins>1]
-                        i = 0
-                        while not found:
-                            frame_bin = frame_bins[i]
-                            mask = (
-                                (self.nav.events.frame_bin == frame_bin)
-                                & (self.nav.events.frame_max * frame_bin >= start)
-                                & (self.nav.events.frame_max * frame_bin <= end)   # or < end if you want exclusive, but be explicit
-                                & (abs(self.nav.events.xcentroid - ev.xcentroid)<centroid_match_radius)
-                                & (abs(self.nav.events.ycentroid - ev.ycentroid)<centroid_match_radius)
-                            )
+                non_vars.loc[inj_idx, "detected"] = detected_label
+                non_vars.loc[inj_idx, "ev_match"] = f"{best.objid}_{best.eventid}"
+                non_vars.loc[inj_idx, "match_frame_bin"] = frame_bin
+                non_vars.loc[inj_idx, "centroid_sep"] = best.centroid_sep
+                non_vars.loc[inj_idx, "temporal_iou"] = best.temporal_iou
+                non_vars.loc[inj_idx, "duration_ratio"] = best.duration_ratio
+                non_vars.loc[inj_idx, "peak_offset_min"] = best.peak_offset_min
+                non_vars.loc[inj_idx, "snr_detected"] = best.lc_sig_max
+                non_vars.loc[inj_idx, "snr_ratio"] = best.lc_sig_max / inj.snr
+                non_vars.loc[inj_idx, "match_score"] = best.match_score
 
-                            events = self.events[mask]
-                            if len(events) > 0:
-                                found = True
-                                if len(events) == 1:
-                                    loc = 0
-                                else:
-                                    duration_diffs = np.fmax(events.frame_duration*frame_bin, ev.frame_duration) / np.fmin(events.frame_duration*frame_bin, ev.frame_duration)
-                                    loc = np.argmin(duration_diffs)
+                event_found = True
+                break
 
-                                self.injections.loc[i, 'ev_match'] = f"{events.iloc[loc].objid}_{events.iloc[loc].eventid}"
-                                self.injections.loc[i, 'detected'] = str(frame_bin)
+            if event_found:
+                continue
+
+            # -- No event found: check isolated single-frame detections -- #
+            isolated = self.nav.isolated.copy()
+
+            isolated["centroid_sep"] = np.hypot(
+                isolated.xcentroid - inj.xcentroid,
+                isolated.ycentroid - inj.ycentroid,
+            )
+
+            # Injection frame_end is assumed exclusive.
+            iso_candidates = isolated[
+                (isolated.frame >= int(inj.frame_start))
+                & (isolated.frame < int(inj.frame_end))
+                & (isolated.centroid_sep <= centroid_match_radius)
+            ].copy()
+
+            if len(iso_candidates) == 0:
+                continue
+
+            self.injections.loc[inj_idx, "detected"] = "iso"
+
+        return self.injections
 
 
-    def match_vars_to_injections(self,min_samples_per_cycle=3):
+    # def match_vars_to_injections(self,centroid_match_radius=1.0,extremum_window_frac=0.25,min_samples_per_extremum=1):
 
-        sin_mask = self.injections.event_type == 'sinusoid'
+    #     vars = self.injections[self.injections.event_type == 'sinusoid']
 
-        for i in self.injections.index[sin_mask]:
-            ev = self.injections.loc[i]
+    #     # Output columns
+    #     columns = {
+    #         "detected" : "n",
+    #         "obj_match": np.nan,
+    #         "centroid_sep": np.nan,
+    #         "n_object_events": 0,
+    #         "n_expected_extrema": 0,
+    #         "n_detected_extrema": 0,
+    #         "var_completeness": np.nan,
+    #         "var_purity": np.nan,
+    #         "var_phase_rms": np.nan,
+    #     }
 
-            t = self.nav.time[ev.frame_start:ev.frame_end]
-            elapsed_min = (t - ev.mjd_start) * 1440.0
+    #     for column, default in columns.items():
+    #         vars[column] = default
 
-            half_period_min = ev.period_min / 2.0
-            phase_offset_min = (ev.phase / (2 * np.pi)) * ev.period_min
+    #     nav_time = np.asarray(self.nav.time)
 
-            extremum_idx = np.floor((elapsed_min + phase_offset_min) / half_period_min).astype(int)
+    #     objects = self.nav.objects[self.nav.objects.frame_bin == 1].copy()
 
-            counts = np.bincount(extremum_idx - extremum_idx.min())
-            min_samples_per_cycle = min(min_samples_per_cycle,np.nanmax(counts))
+    #     for inj_idx,inj in vars.iterrows():
 
-            n_visible = np.sum(counts >= min_samples_per_cycle)
+    #         object_sep = np.hypot(objects.xcentroid - inj.xcentroid,
+    #                               objects.ycentroid - inj.ycentroid)
+
+    #         nearby = objects[object_sep <= centroid_match_radius].copy()
+
+    #         if len(nearby) == 0:
+    #             continue
+
+    #         nearby["centroid_sep"] = object_sep[object_sep <= centroid_match_radius]
+
+    #         best_object = nearby.loc[nearby.centroid_sep.idxmin()]
+
+    #         events = self.nav.events[self.nav.events.objid == best_object.objid].copy()
+
+    #         self.injections.loc[inj_idx, "obj_match"] = best_object.objid
+    #         self.injections.loc[inj_idx, "centroid_sep"] = best_object.centroid_sep
+    #         self.injections.loc[inj_idx, "n_object_events"] = len(events)
+
+    #         period_days = inj.period_min / 1440.0
+    #         half_period_days = period_days / 2.0
+
+    #         start = float(inj.mjd_start)
+    #         end = float(inj.mjd_end)
+
+    #         first_extremum_offset = (
+    #             (np.pi / 2.0 - inj.phase)
+    #             / (2.0 * np.pi)
+    #             * period_days
+    #         )
+
+    #         # Shift the first extremum forward until it lies within the
+    #         # injection interval.
+    #         k_start = int(
+    #             np.ceil(
+    #                 (start - (start + first_extremum_offset))
+    #                 / half_period_days
+    #             )
+    #         )
+
+    #         first_extremum = (
+    #             start
+    #             + first_extremum_offset
+    #             + k_start * half_period_days
+    #         )
+
+    #         if first_extremum > end:
+    #             self.injections.loc[inj_idx, "detected"] = "n"
+    #             continue
+
+    #         n_extrema = (
+    #             int(np.floor((end - first_extremum) / half_period_days))
+    #             + 1
+    #         )
+
+    #         extrema_times = (
+    #             first_extremum
+    #             + np.arange(n_extrema) * half_period_days
+    #         )
+
+    #         # Window half-width around each expected extremum.
+    #         extremum_half_width = (
+    #             extremum_window_frac * half_period_days
+    #         )
+
+    #         extrema_window_start = (
+    #             extrema_times - extremum_half_width
+    #         )
+
+    #         extrema_window_end = (
+    #             extrema_times + extremum_half_width
+    #         )
+
+    #         # --------------------------------------------------------------
+    #         # Remove extrema that are too poorly sampled
+    #         # --------------------------------------------------------------
+    #         if min_samples_per_extremum > 1:
+
+    #             sample_counts = np.array([
+    #                 np.sum(
+    #                     (nav_time >= window_start)
+    #                     & (nav_time <= window_end)
+    #                 )
+    #                 for window_start, window_end in zip(
+    #                     extrema_window_start,
+    #                     extrema_window_end,
+    #                 )
+    #             ])
+
+    #             sampled = (
+    #                 sample_counts >= min_samples_per_extremum
+    #             )
+
+    #             extrema_times = extrema_times[sampled]
+    #             extrema_window_start = extrema_window_start[sampled]
+    #             extrema_window_end = extrema_window_end[sampled]
+
+    #         n_expected = len(extrema_times)
+
+    #         self.injections.loc[
+    #             inj_idx,
+    #             "n_expected_extrema",
+    #         ] = n_expected
+
+    #         if n_expected == 0:
+    #             self.injections.loc[inj_idx, "detected"] = "n"
+    #             continue
+
+    #         if len(events) == 0:
+    #             self.injections.loc[inj_idx, "detected"] = "n"
+    #             self.injections.loc[inj_idx, "n_detected_extrema"] = 0
+    #             self.injections.loc[inj_idx, "n_matched_events"] = 0
+    #             self.injections.loc[inj_idx, "n_spurious_events"] = 0
+    #             self.injections.loc[inj_idx, "var_completeness"] = 0.0
+    #             self.injections.loc[inj_idx, "var_purity"] = np.nan
+    #             continue
+
+    #         # --------------------------------------------------------------
+    #         # Determine which events overlap which extremum windows
+    #         # --------------------------------------------------------------
+    #         event_start = events.mjd_start.to_numpy()
+    #         event_end = events.mjd_end.to_numpy()
+
+    #         overlap_matrix = (
+    #             event_start[:, None] < extrema_window_end[None, :]
+    #         ) & (
+    #             event_end[:, None] > extrema_window_start[None, :]
+    #         )
+
+    #         # An extremum is detected if any event overlaps its window.
+    #         detected_extrema = np.any(overlap_matrix, axis=0)
+
+    #         # An event is considered matched if it overlaps at least one
+    #         # expected extremum window.
+    #         matched_events = np.any(overlap_matrix, axis=1)
+
+    #         n_detected = int(np.sum(detected_extrema))
+    #         n_matched_events = int(np.sum(matched_events))
+    #         n_spurious_events = int(len(events) - n_matched_events)
+
+    #         completeness = n_detected / n_expected
+    #         purity = n_matched_events / len(events)
+
+    #         self.injections.loc[
+    #             inj_idx,
+    #             "n_detected_extrema",
+    #         ] = n_detected
+
+    #         self.injections.loc[
+    #             inj_idx,
+    #             "n_matched_events",
+    #         ] = n_matched_events
+
+    #         self.injections.loc[
+    #             inj_idx,
+    #             "n_spurious_events",
+    #         ] = n_spurious_events
+
+    #         self.injections.loc[
+    #             inj_idx,
+    #             "var_completeness",
+    #         ] = completeness
+
+    #         self.injections.loc[
+    #             inj_idx,
+    #             "var_purity",
+    #         ] = purity
+
+    #         # --------------------------------------------------------------
+    #         # Phase RMS
+    #         #
+    #         # For each matched event, compare its peak time with the nearest
+    #         # expected extremum. Returned as a fraction of half a cycle.
+    #         # --------------------------------------------------------------
+    #         matched = events.loc[matched_events]
+
+    #         if len(matched) > 0:
+
+    #             peak_times = matched.mjd_max.to_numpy()
+
+    #             nearest_extremum_offsets = np.min(
+    #                 np.abs(
+    #                     peak_times[:, None]
+    #                     - extrema_times[None, :]
+    #                 ),
+    #                 axis=1,
+    #             )
+
+    #             phase_offsets = (
+    #                 nearest_extremum_offsets
+    #                 / half_period_days
+    #             )
+
+    #             phase_rms = np.sqrt(
+    #                 np.mean(phase_offsets ** 2)
+    #             )
+
+    #             self.injections.loc[
+    #                 inj_idx,
+    #                 "var_phase_rms",
+    #             ] = phase_rms
+
+    #         # --------------------------------------------------------------
+    #         # Largest run of consecutive missed extrema
+    #         # --------------------------------------------------------------
+    #         missed = ~detected_extrema
+
+    #         largest_gap = 0
+    #         current_gap = 0
+
+    #         for is_missed in missed:
+    #             if is_missed:
+    #                 current_gap += 1
+    #                 largest_gap = max(largest_gap, current_gap)
+    #             else:
+    #                 current_gap = 0
+
+    #         self.injections.loc[
+    #             inj_idx,
+    #             "largest_extrema_gap",
+    #         ] = largest_gap
+
+    #         self.injections.loc[
+    #             inj_idx,
+    #             "largest_extrema_gap_min",
+    #         ] = (
+    #             largest_gap
+    #             * half_period_days
+    #             * 1440.0
+    #         )
+
+    #         self.injections.loc[inj_idx, "detected"] = (
+    #             "y" if n_detected > 0 else "n"
+    #         )
+
+    #     return self.injections
 
 
         
@@ -794,5 +1109,5 @@ class SourceInjector():
 
         self.injections = pd.read_csv(f'{directory}/source_injection/injected_events.csv')
 
-        self.match_results_to_injections()
-        self.match_vars_to_injections()
+        self.transients = self.match_results_to_injections()
+        # self.match_vars_to_injections()
