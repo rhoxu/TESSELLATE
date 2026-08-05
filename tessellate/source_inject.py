@@ -10,144 +10,140 @@ from tqdm import tqdm
 import multiprocessing
 from joblib import Parallel, delayed
 
-from .tessellate import Tessellate
-from .dataprocessor import DataProcessor
-from .navigator import Navigator
-from .tools import RoundToInt, _Print_buff
+from tessellate.tessellate import Tessellate
+from tessellate.dataprocessor import DataProcessor
+from tessellate.navigator import Navigator
+from tessellate.tools import RoundToInt, _Print_buff
 
-def Flare_Shape(K, duty_frac=0.3, n_fine=2000, threshold=0.05, margin=0.05):
+def _emg_placement(K_internal, duty_frac, threshold=0.05, margin=0.05, n_fine=5000):
     """
-    Generates a flare/variable-peak shape on a fixed normalized domain tau in [0, 1],
-    scaled so that the region above `threshold` * peak occupies `duty_frac` of [0,1],
-    and positioned so that region sits inside [0,1] with a small margin.
+    Finds (loc, scale) so that the EMG shape's above-`threshold` region sits
+    at tau in [margin, margin + target_width] on the normalized [0,1] domain,
+    where target_width = duty_frac * (1 - 2*margin).
 
-    K: shape parameter (tau/sigma of the EMG) - controls Gaussian -> FRED -> reverse-skew
-    K -> 0 : symmetric Gaussian
-    K large : sharp rise, exponential decay (FRED-like)
-    duty_frac: target fraction of the [0,1] domain spent above `threshold` of peak flux
-    n_fine: number of points on the fine tau grid
-    threshold: fractional peak level used to define the "duty" width (e.g. 0.05 = 5%)
-    margin: fractional buffer (in tau) left before the rise edge and after the decay edge
-
-    Returns:
-        tau_grid: array in [0, 1]
-        flux_norm: shape normalized to peak = 1, with duty width above `threshold`
-                approximately equal to duty_frac * 1.0
+    Only used to calibrate the shape's placement once per event - the fine
+    grid here is on an abstract, resolution-independent tau axis and has
+    nothing to do with real cadence/gaps, so it can't reintroduce the old bug.
     """
-    K = max(K, 1e-6)
-
-    # evaluate shape at a reference scale=1 to measure how wide the
-    # above-threshold region is per unit sigma, then rescale sigma to hit duty_frac
-    ref_tau = np.linspace(-5, 5 + 10 * K, 5000)  # generous range to capture tail at K up to ~10
-    ref_flux = exponnorm.pdf(ref_tau, K=K, loc=0, scale=1)
+    ref_tau = np.linspace(-5, 5 + 10 * K_internal, n_fine)
+    ref_flux = exponnorm.pdf(ref_tau, K=K_internal, loc=0, scale=1)
     ref_flux /= ref_flux.max()
 
     above = ref_flux >= threshold
     if not above.any():
         raise ValueError("threshold too high for given K - no region above it")
     ref_width = ref_tau[above].max() - ref_tau[above].min()
-    ref_left = ref_tau[above].min()  # offset of rise-crossing relative to loc, at scale=1
+    ref_left = ref_tau[above].min()
 
-    # available room for the duty region, leaving margin on both sides
     target_width = duty_frac * (1 - 2 * margin)
-    sigma = target_width / ref_width
+    scale = target_width / ref_width
+    loc = margin - ref_left * scale
+    return loc, scale, target_width
 
-    # place loc so the rise-crossing sits right at tau = margin
-    loc = margin - ref_left * sigma
 
+def _emg_bin_flux(edges_lo, edges_hi, K_internal, loc, scale, mirror):
+    """
+    Exact analytic integral of the (possibly mirrored) EMG pdf over each
+    [edges_lo, edges_hi] bin, via the exponnorm CDF. Works for arbitrarily
+    irregular bin spacing - no interpolation, no fine grid needed here.
+    """
+    if mirror:
+        # mirrored shape g(tau) = f(1-tau); integral over [a,b] of g
+        # = integral over [1-b,1-a] of f = F(1-a) - F(1-b)
+        cdf_lo = exponnorm.cdf(1 - edges_lo, K=K_internal, loc=loc, scale=scale)
+        cdf_hi = exponnorm.cdf(1 - edges_hi, K=K_internal, loc=loc, scale=scale)
+        return cdf_lo - cdf_hi
+    else:
+        cdf_lo = exponnorm.cdf(edges_lo, K=K_internal, loc=loc, scale=scale)
+        cdf_hi = exponnorm.cdf(edges_hi, K=K_internal, loc=loc, scale=scale)
+        return cdf_hi - cdf_lo
+
+
+def Flare_Shape(K, duty_frac=0.3, n_fine=2000, threshold=0.05, margin=0.05):
+    """
+    Kept for previewing/plotting a shape on a regular tau grid - no longer
+    used internally by Gen_Event (which evaluates the exact analytic CDF
+    directly at real timestamps instead).
+    """
+    K = max(K, 1e-6)
+    loc, scale, _ = _emg_placement(K, duty_frac, threshold, margin, n_fine)
     tau_grid = np.linspace(0, 1, n_fine)
-    raw = exponnorm.pdf(tau_grid, K=K, loc=loc, scale=sigma)
+    raw = exponnorm.pdf(tau_grid, K=K, loc=loc, scale=scale)
     flux_norm = raw / raw.max()
     return tau_grid, flux_norm
 
-
-def Gen_Event(K, cadence_min, event_time_min, duty_frac=0.6, n_fine=2000,threshold=0.05, margin=0.05):
+def Gen_Event(K, cadence_min, time_days, event_time_min, duty_frac=0.6,
+              threshold=0.05, margin=0.05, n_fine=5000):
     """
-    Builds a flare/variable-peak light curve sampled onto TESS cadence,
-    such that the region above `threshold` of peak flux spans exactly
-    `event_time_s` in real time.
+    Evaluates the flare/dip shape exactly (analytic EMG CDF) at the actual
+    observation times - no fine grid, no interpolation, no assumption of
+    regular spacing.
 
-    K: shape control in [-1, 1]
-    K =  0 : symmetric Gaussian
-    K =  1 : fully right-skewed / FRED (sharp rise, slow exponential decay)
-    K = -1 : fully left-skewed (slow rise, sharp decay)
-    intermediate values interpolate smoothly between these
-    duty_frac: fraction of the normalized [0,1] domain the above-threshold
-            region occupies (controls how much padding surrounds it)
-    n_fine: fine-grid resolution for the normalized shape
-    threshold: fractional peak level defining the event duration (e.g. 0.05)
-    margin: fractional buffer left before/after the above-threshold region
+    K: shape in [-1, 1]
+    cadence_min: nominal exposure duration of one frame, minutes (bin width)
+    time_days: actual MJD timestamps to generate flux for. These should
+               already be just the "active" (above-threshold) window - e.g.
+               self.nav.time[frame_start:frame_end] as chosen by the
+               gap-aware scheduler below.
+    event_time_min: the INTENDED active-region duration in minutes (what
+               draw_duration_days() drew) - NOT the padded window, and NOT
+               shortened by any gap truncation. This must match what was
+               used at scheduling time so the shape placement agrees.
+    duty_frac, threshold, margin: must match scheduling-time values.
 
     Returns:
-        t_cadence: cadence bin centers, seconds, relative to event start (t=0 at window start)
-        flux_cadence: flux integrated onto each cadence bin, normalized to peak = 1
+        flux: array, same length as time_days, peak abs deviation = 1
     """
     K = np.clip(K, -1, 1)
-    K_max = 8.0  # internal EMG shape-parameter ceiling; large K ~ fully FRED
+    K_max = 8.0
     K_internal = abs(K) * K_max
+    mirror = K < 0
 
-    tau_grid, flux_norm = Flare_Shape(
-        K_internal, duty_frac=duty_frac, n_fine=n_fine,
-        threshold=threshold, margin=margin
-    )
+    loc, scale, target_width = _emg_placement(K_internal, duty_frac, threshold, margin, n_fine)
+    total_window_min = event_time_min / duty_frac
+    tau_lo = margin if not mirror else 1 - (margin + target_width)
 
-    if K < 0:
-        # mirror for left-skew (slow rise, fast decay)
-        tau_grid = 1 - tau_grid[::-1]
-        flux_norm = flux_norm[::-1]
+    t_min = (time_days - time_days[0]) * 1440.0
+    tau = tau_lo + t_min / total_window_min
+    half_w_tau = (cadence_min / 2.0) / total_window_min
 
-    # total real-time span of the full [0,1] window, given that duty_frac
-    # of it should correspond to event_time_s
-    total_window_s = event_time_min / duty_frac
-    t_fine = tau_grid * total_window_s
+    flux = _emg_bin_flux(tau - half_w_tau, tau + half_w_tau, K_internal, loc, scale, mirror)
 
-    # bin onto TESS cadence across the full window
-    n_cadences = int(np.ceil(total_window_s / cadence_min)) + 1
-    cadence_edges = np.arange(n_cadences + 1) * cadence_min
-
-    cum = np.concatenate([[0], np.cumsum(0.5 * (flux_norm[1:] + flux_norm[:-1]) * np.diff(t_fine))])
-    cum_at_edges = np.interp(cadence_edges, t_fine, cum)
-    flux_cadence = np.diff(cum_at_edges)
-
-    t_cadence = 0.5 * (cadence_edges[:-1] + cadence_edges[1:])
-    return t_cadence, flux_cadence
+    peak = np.max(np.abs(flux))
+    if peak > 0:
+        flux = flux / peak
+    return flux
 
 
-def Gen_Sinusoid(period_min, cadence_min, event_time_min, phase=0.0, n_fine=2000):
+def Gen_Sinusoid(time_days, period_min, cadence_min, phase=0.0):
     """
-    Builds a sinusoidal-oscillation light curve sampled onto TESS cadence.
-    Runs continuously for the full window with hard edges - no fade-in/out.
+    Evaluates the sinusoid's cadence-integrated flux exactly (closed-form
+    integral of sin) at the actual observation times. Handles any gaps for
+    free - missing frames are simply absent from time_days, not extrapolated
+    across.
 
-    period_min: oscillation period, minutes
-    cadence_min: TESS cadence, minutes
-    event_time_min: total duration the oscillation is present, minutes
-    phase: starting phase, radians
-    n_fine: minimum fine-grid resolution (auto-bumped for short periods)
+    time_days: actual MJD timestamps to generate flux for (can span the
+               full baseline, gaps and all).
+    period_min: oscillation period, minutes.
+    cadence_min: nominal exposure duration of one frame, minutes (bin width -
+                 NOT inferred from spacing between frames; a gap means
+                 missing frames, not a wider exposure).
+    phase: starting phase (radians), referenced to time_days[0].
 
     Returns:
-        t_cadence: cadence bin centers, minutes, relative to window start
-        flux_cadence: oscillation binned onto cadence, normalized so the
-                      peak absolute deviation = 1 (i.e. runs roughly -1..1)
+        flux: array, same length as time_days, peak abs deviation = 1
     """
-    n_fine = max(n_fine, int(20 * event_time_min / max(period_min, cadence_min)))
-    t_fine = np.linspace(0, event_time_min, n_fine)
-
+    t_min = (time_days - time_days[0]) * 1440.0
     omega = 2 * np.pi / period_min
-    osc = np.sin(omega * t_fine + phase)
+    half_w = cadence_min / 2.0
 
-    n_cadences = int(np.ceil(event_time_min / cadence_min)) + 1
-    cadence_edges = np.arange(n_cadences + 1) * cadence_min
+    antideriv = lambda t: -np.cos(omega * t + phase) / omega
+    flux = antideriv(t_min + half_w) - antideriv(t_min - half_w)
 
-    cum = np.concatenate([[0], np.cumsum(0.5 * (osc[1:] + osc[:-1]) * np.diff(t_fine))])
-    cum_at_edges = np.interp(cadence_edges, t_fine, cum)
-    flux_cadence = np.diff(cum_at_edges)
-
-    peak = np.max(np.abs(flux_cadence))
+    peak = np.max(np.abs(flux))
     if peak > 0:
-        flux_cadence = flux_cadence / peak
-
-    t_cadence = 0.5 * (cadence_edges[:-1] + cadence_edges[1:])
-    return t_cadence, flux_cadence
+        flux = flux / peak
+    return flux
 
 def _Shift_One(frame, s):
 	if np.nansum(abs(frame)) > 0:
@@ -215,358 +211,395 @@ class SourceInjector():
         valid_sites = candidates[dist >= min_sep].astype(int)
         return valid_sites
 
+    def _frame_window_with_gap_cutoff(self, frame_start, max_duration_days, cadence_min, gap_factor=10.0):
+        """
+        Walks forward from frame_start through the real self.nav.time array
+        and returns frame_end (exclusive) such that:
+          - elapsed real time from frame_start doesn't exceed max_duration_days
+          - no gap between consecutive included frames exceeds
+            gap_factor * cadence_min
+        i.e. the window is cut short - not padded or rejected - the moment
+        it runs into a big gap or the end of the baseline.
+        """
+        time = self.nav.time
+        n_frames = len(time)
+        if frame_start >= n_frames - 1:
+            return min(frame_start + 1, n_frames)
 
-    def schedule_injections(self,valid_sites, n_events,
-                                duration_range_min=(10, 1440), duration_skew=(1.0, 2.5),
-                                K_range=(-1, 1), K_skew=(1.0, 1.0), p_negative_K=0.05,
-                                duty_frac_range=(0.05, 0.95), duty_frac_skew=(1.0, 1.0),
-                                stamp_radius_px=3, max_frame_fill_frac=0.25,
-                                overlap_dist_px=5, max_attempts_per_event=200, rng=None,
-                                type_probs=(0.7, 0.15, 0.15),
-                                K_negative_range=(-0.2, 0.2),
-                                period_range_min=(20, None), period_mode_min=120.0,
-                                period_concentration=6.0):
-            """
-            Randomly schedules n_events injections across space and time, allowing
-            overlap (spatial and/or temporal) but capping how much of any single
-            frame's pixel area is occupied by injected sources at once. Flags events
-            within `overlap_dist_px` of another event during an overlapping time
-            window. Assigns a uniform random sub-pixel offset within the chosen pixel.
+        gap_thresh_days = gap_factor * (cadence_min / 1440.0)
+        t0 = time[frame_start]
 
-            Each event is one of three types, drawn according to `type_probs`
-            (probabilities for 'flare', 'negative', 'sinusoid' respectively - must
-            sum to 1):
-                'flare'    : the existing EMG flare/variable-peak shape (positive-going)
-                'negative' : a dip - same EMG machinery, but K is drawn from the
-                            narrow `K_negative_range` (near-Gaussian) and the
-                            injected flux is negative-going
-                'sinusoid' : a continuous oscillation, always spanning the FULL
-                            TESS temporal baseline (mjd_start/mjd_end = the first/
-                            last available timestamps) with hard edges, at a
-                            period drawn skewed toward a couple hours but ranging
-                            from `period_range_min[0]` up to (potentially) well
-                            beyond the baseline length itself
+        frame_end = frame_start + 1
+        while frame_end < n_frames:
+            if time[frame_end] - time[frame_end - 1] > gap_thresh_days:
+                break
+            if time[frame_end] - t0 > max_duration_days:
+                break
+            frame_end += 1
+        return frame_end
 
-            Duration, K, and duty_frac are each drawn via a Beta(a, b) distribution
-            over their respective ranges (Beta(1,1) = uniform), letting you bias
-            toward particular regimes by default. Period is drawn via a Beta(a, b)
-            parameterized directly by a target mode (`period_mode_min`) and a
-            concentration (`period_concentration`), rather than raw (a, b), since
-            the period range spans orders of magnitude (20 min to the full
-            multi-week baseline) and a fixed (a, b) tuned for a narrow range
-            wouldn't reliably land the peak near a couple hours once the range
-            changes with the sector's baseline length.
 
-            valid_sites: array (n_sites, 2), (x, y) candidate positions
-            n_events: number of events to schedule
-            duration_range_min: (min, max) event duration IN MINUTES - used for
-                        'flare'/'negative' events only; sinusoids ignore this and
-                        always span the full baseline
-            duration_skew: (a, b) Beta params on normalized log-duration axis;
-                        a < b biases toward shorter events
-            K_range: (min, max) shape parameter range, used for 'flare' events
-            K_skew: (a, b) Beta params on the positive-K portion, normalized to
-                    [0,1] then mapped to [0, K_range[1]]; a > b biases toward high K
-            p_negative_K: probability a 'flare' event is drawn from the negative K
-                        range (i.e. left-skewed shape - NOT the 'negative' type)
-            duty_frac_range: (min, max) allowed duty_frac, used for 'flare'/'negative'
-            duty_frac_skew: (a, b) Beta params on normalized duty_frac axis;
-                            (1,1) = uniform
-            stamp_radius_px: approximate PSF footprint radius (pixels)
-            max_frame_fill_frac: max fraction of a frame's pixels occupied at once
-            overlap_dist_px: distance (pixels) defining spatial overlap flag
-            max_attempts_per_event: retries per event before giving up
-            rng: np.random.Generator, or None to create a default one
-            type_probs: (p_flare, p_negative, p_sinusoid), must sum to 1
-            K_negative_range: (min, max) K range for 'negative' events - kept
-                            narrow/near-zero so dips are close to Gaussian
-            period_range_min: (min, max) oscillation period IN MINUTES, used for
-                        'sinusoid' events. If max is None, it's auto-set to 2x
-                        the sector's temporal baseline (in minutes), so some
-                        periods extend past the full baseline.
-            period_mode_min: the period (minutes) the distribution peaks at -
-                        default 120 (2 hr). Must lie within period_range_min.
-            period_concentration: >2, controls how peaked the distribution is
-                        around period_mode_min. Larger = tighter clustering
-                        around the mode; near 2 = closer to uniform-in-log.
+    def schedule_injections(self, valid_sites, n_events,
+                        duration_range_min=(10, 1440), duration_skew=(1.0, 2.5),
+                        K_range=(-1, 1), K_skew=(1.0, 1.0), p_negative_K=0.05,
+                        duty_frac_range=(0.05, 0.95), duty_frac_skew=(1.0, 1.0),
+                        stamp_area=25, max_frame_fill_frac=0.25,
+                        overlap_dist_px=5, max_attempts_per_event=200, rng=None,
+                        type_probs=(0.7, 0.2, 0.10),
+                        K_negative_range=(-0.2, 0.2),
+                        period_range_min=(20, None), period_mode_min=120.0,
+                        period_concentration=6.0,
+                        gap_factor=10.0):
+        """
+        Randomly schedules n_events injections across space and time, allowing
+        overlap (spatial and/or temporal) but capping how much of any single
+        frame's pixel area is occupied by injected sources at once. Flags events
+        within `overlap_dist_px` of another event during an overlapping time
+        window. Assigns a uniform random sub-pixel offset within the chosen pixel.
 
-            Returns:
-                schedule_df: DataFrame with columns:
-                    eventid, event_type, xcentroid, ycentroid, snr, K, duty_frac,
-                    period_min, phase, frame_start, frame_end, frame_duration,
-                    mjd_start, mjd_end, mjd_duration, overlap
-            """
+        Each event is one of three types, drawn according to `type_probs`
+        (probabilities for 'flare', 'negative', 'sinusoid' respectively - must
+        sum to 1):
+            'flare'    : the existing EMG flare/variable-peak shape (positive-going)
+            'negative' : a dip - same EMG machinery, but K is drawn from the
+                        narrow `K_negative_range` (near-Gaussian) and the
+                        injected flux is negative-going
+            'sinusoid' : a continuous oscillation, always spanning the FULL
+                        TESS temporal baseline (mjd_start/mjd_end = the first/
+                        last available timestamps) with hard edges, at a
+                        period drawn skewed toward a couple hours but ranging
+                        from `period_range_min[0]` up to (potentially) well
+                        beyond the baseline length itself
 
-            print('    generating injection properties')
+        Duration, K, and duty_frac are each drawn via a Beta(a, b) distribution
+        over their respective ranges (Beta(1,1) = uniform), letting you bias
+        toward particular regimes by default. Period is drawn via a Beta(a, b)
+        parameterized directly by a target mode (`period_mode_min`) and a
+        concentration (`period_concentration`), rather than raw (a, b), since
+        the period range spans orders of magnitude (20 min to the full
+        multi-week baseline) and a fixed (a, b) tuned for a narrow range
+        wouldn't reliably land the peak near a couple hours once the range
+        changes with the sector's baseline length.
 
-            if rng is None:
-                rng = np.random.default_rng()
+        valid_sites: array (n_sites, 2), (x, y) candidate positions
+        n_events: number of events to schedule
+        duration_range_min: (min, max) event duration IN MINUTES - used for
+                    'flare'/'negative' events only; sinusoids ignore this and
+                    always span the full baseline
+        duration_skew: (a, b) Beta params on normalized log-duration axis;
+                    a < b biases toward shorter events
+        K_range: (min, max) shape parameter range, used for 'flare' events
+        K_skew: (a, b) Beta params on the positive-K portion, normalized to
+                [0,1] then mapped to [0, K_range[1]]; a > b biases toward high K
+        p_negative_K: probability a 'flare' event is drawn from the negative K
+                    range (i.e. left-skewed shape - NOT the 'negative' type)
+        duty_frac_range: (min, max) allowed duty_frac, used for 'flare'/'negative'
+        duty_frac_skew: (a, b) Beta params on normalized duty_frac axis;
+                        (1,1) = uniform
+        stamp_area: approximate PSF footprint (pixels)
+        max_frame_fill_frac: max fraction of a frame's pixels occupied at once
+        overlap_dist_px: distance (pixels) defining spatial overlap flag
+        max_attempts_per_event: retries per event before giving up
+        rng: np.random.Generator, or None to create a default one
+        type_probs: (p_flare, p_negative, p_sinusoid), must sum to 1
+        K_negative_range: (min, max) K range for 'negative' events - kept
+                        narrow/near-zero so dips are close to Gaussian
+        period_range_min: (min, max) oscillation period IN MINUTES, used for
+                    'sinusoid' events. If max is None, it's auto-set to 2x
+                    the sector's temporal baseline (in minutes), so some
+                    periods extend past the full baseline.
+        period_mode_min: the period (minutes) the distribution peaks at -
+                    default 120 (2 hr). Must lie within period_range_min.
+        period_concentration: >2, controls how peaked the distribution is
+                    around period_mode_min. Larger = tighter clustering
+                    around the mode; near 2 = closer to uniform-in-log.
 
-            assert abs(sum(type_probs) - 1.0) < 1e-6, "type_probs must sum to 1"
+        Returns:
+            schedule_df: DataFrame with columns:
+                eventid, event_type, xcentroid, ycentroid, snr, K, duty_frac,
+                period_min, phase, frame_start, frame_end, frame_duration,
+                mjd_start, mjd_end, mjd_duration, overlap
+        """
 
-            n_frames, ny, nx = self.nav.flux.shape
-            frame_area = ny * nx
-            stamp_area = np.pi * stamp_radius_px ** 2
-            max_occupied_px = max_frame_fill_frac * frame_area
+        print('    generating injection properties')
 
-            min_to_day = 1 / 1440.0
-            log_dur_min = np.log10(duration_range_min[0] * min_to_day)
-            log_dur_max = np.log10(duration_range_min[1] * min_to_day)
+        if rng is None:
+            rng = np.random.default_rng()
 
-            t_min, t_max = self.nav.time.min(), self.nav.time.max()
-            baseline_days = t_max - t_min
-            baseline_min = baseline_days * 1440.0
+        assert abs(sum(type_probs) - 1.0) < 1e-6, "type_probs must sum to 1"
 
-            period_lo, period_hi = period_range_min
-            if period_hi is None:
-                period_hi = baseline_min * 2.0  # allow periods well past the baseline
-            log_per_min = np.log10(period_lo)
-            log_per_max = np.log10(period_hi)
+        n_frames, ny, nx = self.nav.flux.shape
+        frame_area = valid_sites.shape[0]
+        max_occupied_px = max_frame_fill_frac * frame_area
 
-            log_mode = np.log10(period_mode_min)
-            assert log_per_min <= log_mode <= log_per_max, \
-                "period_mode_min must lie within period_range_min"
-            u_mode = (log_mode - log_per_min) / (log_per_max - log_per_min)
+        min_to_day = 1 / 1440.0
+        log_dur_min = np.log10(duration_range_min[0] * min_to_day)
+        log_dur_max = np.log10(duration_range_min[1] * min_to_day)
 
-            k = max(period_concentration, 2.0001)  # keep a,b > 1 so mode formula holds
-            a_per = 1 + u_mode * (k - 2)
-            b_per = 1 + (1 - u_mode) * (k - 2)
+        t_min, t_max = self.nav.time.min(), self.nav.time.max()
+        baseline_days = t_max - t_min
+        baseline_min = baseline_days * 1440.0
+        cadence_min = np.nanmedian(np.diff(self.nav.time)) * 1440
 
-            occupancy = np.zeros(n_frames)
+        period_lo, period_hi = period_range_min
+        if period_hi is None:
+            period_hi = baseline_min * 2.0  # allow periods well past the baseline
+        log_per_min = np.log10(period_lo)
+        log_per_max = np.log10(period_hi)
 
-            def draw_event_type():
-                return rng.choice(['flare', 'negative', 'sinusoid'], p=type_probs)
+        log_mode = np.log10(period_mode_min)
+        assert log_per_min <= log_mode <= log_per_max, \
+            "period_mode_min must lie within period_range_min"
+        u_mode = (log_mode - log_per_min) / (log_per_max - log_per_min)
 
-            def draw_duration_days():
-                u = rng.beta(duration_skew[0], duration_skew[1])
-                log_dur = log_dur_min + u * (log_dur_max - log_dur_min)
-                return 10 ** log_dur
+        k = max(period_concentration, 2.0001)  # keep a,b > 1 so mode formula holds
+        a_per = 1 + u_mode * (k - 2)
+        b_per = 1 + (1 - u_mode) * (k - 2)
 
-            def draw_K(event_type):
-                if event_type == 'negative':
-                    return rng.uniform(K_negative_range[0], K_negative_range[1])
-                if rng.uniform() < p_negative_K:
-                    return rng.uniform(K_range[0], 0)
-                u = rng.beta(K_skew[0], K_skew[1])
-                return u * K_range[1]
+        occupancy = np.zeros(n_frames)
 
-            def draw_duty_frac():
-                u = rng.beta(duty_frac_skew[0], duty_frac_skew[1])
-                return duty_frac_range[0] + u * (duty_frac_range[1] - duty_frac_range[0])
+        def draw_event_type():
+            return rng.choice(['flare', 'negative', 'sinusoid'], p=type_probs)
 
-            def draw_period_min():
-                u = rng.beta(a_per, b_per)
-                log_per = log_per_min + u * (log_per_max - log_per_min)
-                return 10 ** log_per
+        def draw_duration_days():
+            u = rng.beta(duration_skew[0], duration_skew[1])
+            log_dur = log_dur_min + u * (log_dur_max - log_dur_min)
+            return 10 ** log_dur
 
-            def draw_snr():
-                if rng.random() < 0.60:          # 75% of draws concentrated in 3-10
-                    return rng.uniform(1,10)
-                else:                             # 25% draws from full range (covers tails)
-                    return 10**(rng.uniform(1, 2))
+        def draw_K(event_type):
+            if event_type == 'negative':
+                return rng.uniform(K_negative_range[0], K_negative_range[1])
+            if rng.uniform() < p_negative_K:
+                return rng.uniform(K_range[0], 0)
+            u = rng.beta(K_skew[0], K_skew[1])
+            return u * K_range[1]
 
-            rows = []
-            for eventid in range(n_events):
-                placed = False
-                event_type = draw_event_type()
-                for _attempt in range(max_attempts_per_event):
-                    site = valid_sites[rng.integers(0, len(valid_sites))]
-                    xfrac, yfrac = rng.uniform(0, 1, size=2)
-                    xcentroid = site[0] + xfrac
-                    ycentroid = site[1] + yfrac
+        def draw_duty_frac():
+            u = rng.beta(duty_frac_skew[0], duty_frac_skew[1])
+            return duty_frac_range[0] + u * (duty_frac_range[1] - duty_frac_range[0])
 
-                    K = np.nan
-                    duty_frac = np.nan
-                    period_min = np.nan
-                    phase = np.nan
+        def draw_period_min():
+            u = rng.beta(a_per, b_per)
+            log_per = log_per_min + u * (log_per_max - log_per_min)
+            return 10 ** log_per
 
-                    if event_type == 'sinusoid':
-                        period_min = draw_period_min()
-                        phase = rng.uniform(0, 2 * np.pi)
-                        mjd_start = t_min
-                        mjd_end = t_max
-                    else:
-                        event_time_days = draw_duration_days()
-                        K = draw_K(event_type)
-                        duty_frac = draw_duty_frac()
-                        full_window_days = event_time_days / duty_frac
+        def draw_snr():
+            if rng.random() < 0.60:          # 75% of draws concentrated in 3-10
+                return rng.uniform(1,10)
+            else:                             # 25% draws from full range (covers tails)
+                return 10**(rng.uniform(1, 2))
+        
+        rows = []
+        eventid = 0 
+        while eventid < n_events:
+            placed = False
+            event_type = draw_event_type()
+            for _attempt in range(max_attempts_per_event):
+                site = valid_sites[rng.integers(0, len(valid_sites))]
+                xfrac, yfrac = rng.uniform(0, 1, size=2)
+                xcentroid = site[0] + xfrac
+                ycentroid = site[1] + yfrac
 
-                        latest_start = t_max - full_window_days
-                        if latest_start <= t_min:
-                            continue
-                        mjd_start = t_min + rng.uniform(0, 1) * (latest_start - t_min)
-                        mjd_end = mjd_start + full_window_days
+                K = np.nan
+                duty_frac = np.nan
+                period_min = np.nan
+                phase = np.nan
+                event_time_min = np.nan
 
-                    frame_start = int(np.searchsorted(self.nav.time, mjd_start, side='left'))
-                    frame_end = int(np.searchsorted(self.nav.time, mjd_end, side='right'))
-                    frame_end = min(frame_end, n_frames)
+                if event_type == 'sinusoid':
+                    period_min = draw_period_min()
+                    phase = rng.uniform(0, 2 * np.pi)
+                    frame_start, frame_end = 0, n_frames
+                    mjd_start, mjd_end = t_min, t_max
+                else:
+                    event_time_days = draw_duration_days()
+                    K = draw_K(event_type)
+                    duty_frac = draw_duty_frac()
+                    event_time_min = event_time_days * 1440.0
 
-                    if frame_end <= frame_start:
+                    mjd_start_raw = t_min + rng.uniform(0, 1) * (t_max - t_min)
+                    frame_start = int(np.searchsorted(self.nav.time, mjd_start_raw, side='left'))
+                    if frame_start >= n_frames:
                         continue
 
-                    projected = occupancy[frame_start:frame_end] + stamp_area
-                    if np.any(projected > max_occupied_px):
+                    frame_end = self._frame_window_with_gap_cutoff(
+                        frame_start, event_time_days, cadence_min, gap_factor=gap_factor
+                    )
+
+                    mjd_start = self.nav.time[frame_start]
+                    mjd_end = self.nav.time[frame_end - 1]
+
+                projected = occupancy[frame_start:frame_end] + stamp_area
+                if np.any(projected > max_occupied_px):
+                    continue
+
+                occupancy[frame_start:frame_end] += stamp_area
+                snr = draw_snr()
+
+                conflict = False
+                for r in rows:
+                    time_overlap = (
+                        frame_start < r['frame_end']
+                        and frame_end > r['frame_start']
+                    )
+
+                    if not time_overlap:
                         continue
 
-                    occupancy[frame_start:frame_end] += stamp_area
-                    snr = draw_snr()
+                    dist = np.hypot(
+                        xcentroid - r['xcentroid'],
+                        ycentroid - r['ycentroid']
+                    )
 
-                    overlap = False
-                    for r in rows:
-                        time_overlap = (frame_start < r['frame_end']) and (frame_end > r['frame_start'])
-                        if not time_overlap:
-                            continue
-                        dist = np.hypot(xcentroid - r['xcentroid'], ycentroid - r['ycentroid'])
-                        if dist <= overlap_dist_px:
-                            overlap = True
-                            r['overlap'] = True
+                    if dist <= overlap_dist_px:
+                        conflict = True
+                        break
 
-                    rows.append({
-                        'event_type': event_type,
-                        'xcentroid': xcentroid,
-                        'ycentroid': ycentroid,
-                        'snr' : snr,
-                        'K': K,
-                        'duty_frac': duty_frac,
-                        'period_min': period_min,
-                        'phase': phase,
-                        'frame_start': frame_start,
-                        'frame_end': frame_end,
-                        'frame_duration': frame_end - frame_start,
-                        'mjd_start': mjd_start,
-                        'mjd_end': mjd_end,
-                        'mjd_duration': mjd_end - mjd_start,
-                        'overlap': overlap,
-                    })
-                    placed = True
-                    break
+                if conflict:
+                    continue 
 
-                if not placed:
-                    print(f"Warning: event {eventid} ({event_type}) could not be placed within "
-                        f"{max_attempts_per_event} attempts under the fill-fraction cap")
+                rows.append({
+                    'event_type': event_type,
+                    'xcentroid': xcentroid,
+                    'ycentroid': ycentroid,
+                    'snr': snr,
+                    'K': K,
+                    'duty_frac': duty_frac,
+                    'period_min': period_min,
+                    'phase': phase,
+                    'event_time_min': event_time_min,   # NEW: intended active duration (flare/negative only)
+                    'frame_start': frame_start,
+                    'frame_end': frame_end,
+                    'frame_duration': frame_end - frame_start,
+                    'mjd_start': mjd_start,              # now the ACTUAL timestamp of frame_start
+                    'mjd_end': mjd_end,                  # now the ACTUAL timestamp of frame_end-1
+                    'mjd_duration': mjd_end - mjd_start,  # now the ACTUAL injected span
+                })
+                placed = True
+                eventid += 1
+                break
 
-            schedule_df = pd.DataFrame(rows)
-            return schedule_df
+            if not placed:
+                print(f"Warning: event {eventid} ({event_type}) could not be placed within "
+                    f"{max_attempts_per_event} attempts under the fill-fraction cap")
 
+        schedule_df = pd.DataFrame(rows)
+        return schedule_df
 
     def inject_sources(self,cut,n_events,
-                        min_sep=5,edge_buffer=5,grid_step=1,big_size=15,small_size=5,
-                        duration_range_min=(10, 1440), duration_skew=(1.0, 2.5),
-                            K_range=(-1, 1), K_skew=(1.0, 1.0), p_negative_K=0.05,
-                            duty_frac_range=(0.05, 0.95), duty_frac_skew=(1.0, 1.0),
-                            stamp_radius_px=3, max_frame_fill_frac=0.25,
-                            overlap_dist_px=5, max_attempts_per_event=200,
-                            type_probs=(0.6, 0.2, 0.2),
-                            K_negative_range=(-0.2, 0.2),
-                            period_range_min=(20, None), period_mode_min=240.0,
-                            period_concentration=3.0):
+                    min_sep=5,edge_buffer=5,grid_step=1,big_size=15,small_size=5,
+                    duration_range_min=(10, 1440), duration_skew=(1.0, 2.5),
+                        K_range=(-1, 1), K_skew=(1.0, 1.0), p_negative_K=0.05,
+                        duty_frac_range=(0.05, 0.95), duty_frac_skew=(1.0, 1.0),
+                        stamp_area=5, max_frame_fill_frac=0.25,
+                        overlap_dist_px=5, max_attempts_per_event=200,
+                        type_probs=(0.6, 0.2, 0.2),
+                        K_negative_range=(-0.2, 0.2),
+                        period_range_min=(20, None), period_mode_min=240.0,
+                        period_concentration=3.0):
 
 
-            from PRF import TESS_PRF
+        from PRF import TESS_PRF
+            
+        self.nav.gather_data(cut=cut,flux=True,time=True,bkg=True,verbose=False)
+        self.nav.gather_results(cut=cut,sources=False,events=True,objects=True)
+        raw_cube = self.nav.flux #+ self.nav.bkg
+
+        # -- Generate PRF -- #
+        dp = DataProcessor(self.sector,data_path=self.data_path)
+        cutCornerPx, cutCentrePx, _, _ = dp.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
+        column = cutCentrePx[cut-1][0]
+        row = cutCentrePx[cut-1][1]
+        if self.sector < 4:
+            prf = TESS_PRF(self.cam,self.ccd,self.sector,column,row,localdatadir=f'{self.prf_path}/Sectors1_2_3')
+        else:
+            prf = TESS_PRF(self.cam,self.ccd,self.sector,column,row,localdatadir=f'{self.prf_path}/Sectors4+')
                 
-            self.nav.gather_data(cut=cut,flux=True,time=True,bkg=True,verbose=False)
-            self.nav.gather_results(cut=cut,sources=False,events=True,objects=True)
-            raw_cube = self.nav.flux #+ self.nav.bkg
 
-            # -- Generate PRF -- #
-            dp = DataProcessor(self.sector,data_path=self.data_path)
-            cutCornerPx, cutCentrePx, _, _ = dp.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
-            column = cutCentrePx[cut-1][0]
-            row = cutCentrePx[cut-1][1]
-            if self.sector < 4:
-                prf = TESS_PRF(self.cam,self.ccd,self.sector,column,row,localdatadir=f'{self.prf_path}/Sectors1_2_3')
+        valid_sites = self._find_injection_sites(min_sep,edge_buffer,grid_step)
+
+        injections = self.schedule_injections(valid_sites,n_events,
+                                                duration_range_min,duration_skew,
+                                                K_range, K_skew, p_negative_K,
+                                                duty_frac_range, duty_frac_skew,
+                                                stamp_area, max_frame_fill_frac,
+                                                overlap_dist_px, max_attempts_per_event,
+                                                type_probs=type_probs,
+                                                K_negative_range=K_negative_range,
+                                                period_range_min=period_range_min,
+                                                period_mode_min=period_mode_min,
+                                                period_concentration=period_concentration)
+
+        injections['frame_max'] = 0
+        cadence_min = np.nanmedian(np.diff(self.nav.time)) * 1440
+        lcs = []
+        for i in tqdm(range(n_events), desc='    injecting events into cube', position=0, leave=True, dynamic_ncols=False, ascii=True):
+            source = injections.iloc[i]
+
+            time_days = self.nav.time[source.frame_start:source.frame_end]
+            if len(time_days) == 0:
+                continue
+
+            if source.event_type == 'sinusoid':
+                flux = Gen_Sinusoid(time_days, source.period_min, cadence_min, phase=source.phase)
+                sign = 1.0
             else:
-                prf = TESS_PRF(self.cam,self.ccd,self.sector,column,row,localdatadir=f'{self.prf_path}/Sectors4+')
-                    
+                flux = Gen_Event(source.K, cadence_min, time_days, source.event_time_min, source.duty_frac)
+                sign = -1.0 if source.event_type == 'negative' else 1.0
 
-            valid_sites = self._find_injection_sites(min_sep,edge_buffer,grid_step)
-
-            injections = self.schedule_injections(valid_sites,n_events,
-                                                    duration_range_min,duration_skew,
-                                                    K_range, K_skew, p_negative_K,
-                                                    duty_frac_range, duty_frac_skew,
-                                                    stamp_radius_px, max_frame_fill_frac,
-                                                    overlap_dist_px, max_attempts_per_event,
-                                                    type_probs=type_probs,
-                                                    K_negative_range=K_negative_range,
-                                                    period_range_min=period_range_min,
-                                                    period_mode_min=period_mode_min,
-                                                    period_concentration=period_concentration)
-
-            injections['frame_max'] = 0
-            cadence_min = np.nanmedian(np.diff(self.nav.time)) * 1440
-            lcs = []
-            for i in tqdm(range(n_events),desc='    injecting events into cube', position=0, leave=True,dynamic_ncols=False,ascii=True):
-                source = injections.iloc[i]
-
-                if source.event_type == 'sinusoid':
-                    t, flux = Gen_Sinusoid(source.period_min, cadence_min, source.mjd_duration*1440,
-                                            phase=source.phase)
-                    # keep in time order (not brightest-first) - a continuous
-                    # oscillation shouldn't have its middle cycles cherry-picked out
-                    flux = flux[:source.frame_duration]
-                    sign = 1.0
-                else:
-                    t,flux = Gen_Event(source.K, cadence_min, source.mjd_duration*1440, source.duty_frac)
-                    idx = np.sort(np.argsort(flux)[::-1][:source.frame_duration])
-                    flux = flux[idx]
-                    flux /= flux[np.argmax(flux)]
-                    # 'negative' events use the same unsigned EMG shape, just flipped
-                    sign = -1.0 if source.event_type == 'negative' else 1.0
-
-                frames = np.arange(source.frame_start,source.frame_end)
-                ref_idx = np.argmax(np.abs(flux))
-                max_frame = frames[ref_idx]
-                injections.iloc[i, injections.columns.get_loc('frame_max')] = max_frame
-                
-                xint = RoundToInt(source.xcentroid)
-                yint = RoundToInt(source.ycentroid)
-
-                half_big = big_size // 2
-                h, w = self.nav.flux.shape[1], self.nav.flux.shape[2]
-
-                y1 = yint - half_big        # Desired bounds in full image
-                y2 = yint + half_big + 1
-                x1 = xint - half_big
-                x2 = xint + half_big + 1
+            frames = np.arange(source.frame_start, source.frame_end)
+            ref_idx = np.argmax(np.abs(flux))
+            max_frame = frames[ref_idx]
+            injections.iloc[i, injections.columns.get_loc('frame_max')] = max_frame
             
-                yy1, yy2 = max(0, y1), min(h, y2)   # Clip to image bounds
-                xx1, xx2 = max(0, x1), min(w, x2)
-            
-                cut = np.full((big_size, big_size), np.nan, dtype=np.float32)   # Create NaN-padded cut
+            xint = RoundToInt(source.xcentroid)
+            yint = RoundToInt(source.ycentroid)
+
+            half_big = big_size // 2
+            h, w = self.nav.flux.shape[1], self.nav.flux.shape[2]
+
+            y1 = yint - half_big        # Desired bounds in full image
+            y2 = yint + half_big + 1
+            x1 = xint - half_big
+            x2 = xint + half_big + 1
         
-                cy1 = yy1 - y1
-                cy2 = cy1 + (yy2 - yy1)
-                cx1 = xx1 - x1
-                cx2 = cx1 + (xx2 - xx1)
+            yy1, yy2 = max(0, y1), min(h, y2)   # Clip to image bounds
+            xx1, xx2 = max(0, x1), min(w, x2)
         
-                cut[cy1:cy2, cx1:cx2] = self.nav.flux[max_frame, yy1:yy2, xx1:xx2] 
+            cut = np.full((big_size, big_size), np.nan, dtype=np.float32)   # Create NaN-padded cut
+    
+            cy1 = yy1 - y1
+            cy2 = cy1 + (yy2 - yy1)
+            cx1 = xx1 - x1
+            cx2 = cx1 + (xx2 - xx1)
+    
+            cut[cy1:cy2, cx1:cx2] = self.nav.flux[max_frame, yy1:yy2, xx1:xx2] 
+        
+            valid = cut[~np.isnan(cut)]     # Compute noise only on valid pixels
+            if valid.size == 0:
+                continue
+            _, _, noise = sigma_clipped_stats(valid, sigma=3)
+
+            npix = 9
+            b = -source.snr**2 / 600
+            c = -source.snr**2 * npix * noise**2
+            peak_flux = (-b + np.sqrt(b**2 - 4*c)) / 2
+            peak_flux *= sign
+
+            flux *= peak_flux
+            lcs.append(np.array([frames,flux]))
+
+            image = prf.locate(2 + (source.xcentroid - RoundToInt(source.xcentroid)),
+                                2 + (source.ycentroid - RoundToInt(source.ycentroid)),
+                                (5, 5))
             
-                valid = cut[~np.isnan(cut)]     # Compute noise only on valid pixels
-                if valid.size == 0:
-                    continue
-                _, _, noise = sigma_clipped_stats(valid, sigma=3)
+            for j, f in enumerate(flux):
 
-                npix = 9
-                b = -source.snr**2 / 600
-                c = -source.snr**2 * npix * noise**2
-                peak_flux = (-b + np.sqrt(b**2 - 4*c)) / 2
-                peak_flux *= sign
+                image_frame = image.copy() * f / np.nansum(image[1:4, 1:4])
 
-                flux *= peak_flux
-                lcs.append(np.array([frames,flux]))
+                raw_cube[frames[j], yint-2:yint+3, xint-2:xint+3] += image_frame
 
-                image = prf.locate(2 + (source.xcentroid - RoundToInt(source.xcentroid)),
-                                    2 + (source.ycentroid - RoundToInt(source.ycentroid)),
-                                    (5, 5))
-                
-                for j, f in enumerate(flux):
-
-                    image_frame = image.copy() * f / np.nansum(image[1:4, 1:4])
-
-                    raw_cube[frames[j], yint-2:yint+3, xint-2:xint+3] += image_frame
-
-            return raw_cube,injections,lcs
+        return raw_cube,injections,lcs
 
     def apply_shifts(self,shifts,cube):
 
@@ -583,7 +616,7 @@ class SourceInjector():
             duration_range_min=(10, 1440), duration_skew=(1.0, 2.5),
             K_range=(-1, 1), K_skew=(1.0, 1.0), p_negative_K=0.05,
             duty_frac_range=(0.05, 0.95), duty_frac_skew=(1.0, 1.0),
-            stamp_radius_px=3, max_frame_fill_frac=0.25,
+            stamp_area=25, max_frame_fill_frac=0.25,
             overlap_dist_px=5, max_attempts_per_event=200,
             type_probs=(0.6, 0.2, 0.2),
             K_negative_range=(-0.2, 0.2),
@@ -611,9 +644,7 @@ class SourceInjector():
             if not os.path.exists(f'{directory}/source_injection/{base_name}_RawFlux.npy'): 
                 go = True
             elif overwrite:
-                os.system(f'rm {directory}/source_injection/{base_name}_RawFlux.npy')
-                os.system(f'rm {directory}/source_injection/injected_events.csv')
-                os.system(f'rm {directory}/source_injection/lightcurves.npz')
+                os.system(f'rm -r {directory}/source_injection')
                 go = True
 
             if go:
@@ -622,7 +653,7 @@ class SourceInjector():
                         duration_range_min, duration_skew,
                             K_range, K_skew, p_negative_K,
                             duty_frac_range, duty_frac_skew,
-                            stamp_radius_px, max_frame_fill_frac,
+                            stamp_area, max_frame_fill_frac,
                             overlap_dist_px, max_attempts_per_event,
                             type_probs=type_probs,
                             K_negative_range=K_negative_range,
@@ -656,3 +687,112 @@ class SourceInjector():
                                 download=False,make_cube=False,fix_wcs=False,make_cuts=False,calibrate=False,
                                 reduce=True,search=True,injection=True,plot=False,delete=False,
                                 reset_logs=False,overwrite=False,ask_config=False,save_config=False,use_suggestions=True)
+
+
+
+    def match_results_to_injections(self,centroid_match_radius=1):
+
+        self.injections['ev_match'] = '-'
+        self.injections['detected'] = 'n'
+
+        for i, ev in self.injections.iterrows():
+            if ev.event_type != 'sinusoid':     # cant deal with variables just yet
+
+                start = int(ev.frame_start)
+                end = int(ev.frame_end)
+
+                # check for detection in isolated single frames
+                mask = (
+                    (self.nav.isolated.frame >= start)
+                    & (self.nav.isolated.frame <= end)   # or < end if you want exclusive, but be explicit
+                    & (abs(self.nav.isolated.xcentroid - ev.xcentroid)<centroid_match_radius)
+                    & (abs(self.nav.isolated.ycentroid - ev.ycentroid)<centroid_match_radius)
+                )
+
+                isolated_sources = self.nav.isolated[mask]
+                if len(isolated_sources) > 0:
+                    self.injections.loc[i, 'detected'] = 'iso'
+
+                mask = (
+                        (self.nav.events.frame_bin == 1)
+                        & (self.nav.events.frame_max >= start)
+                        & (self.nav.events.frame_max <= end)   # or < end if you want exclusive, but be explicit
+                        & (abs(self.nav.events.xcentroid - ev.xcentroid)<centroid_match_radius)
+                        & (abs(self.nav.events.ycentroid - ev.ycentroid)<centroid_match_radius)
+                    )
+
+                events = self.nav.events[mask]
+                if len(events) > 0:
+                    if len(events) == 1:
+                        loc = 0
+                    else:
+                        duration_diffs = np.fmax(events.frame_duration, ev.frame_duration) / np.fmin(events.frame_duration, ev.frame_duration)
+                        loc = np.argmin(duration_diffs)
+
+                    self.injections.loc[i, 'ev_match'] = f"{events.iloc[loc].objid}_{events.iloc[loc].eventid}"
+                    self.injections.loc[i, 'detected'] = 'y'
+
+                else:
+                    if len(isolated_sources) == 0:
+                        found = False
+                        frame_bins = np.unique(self.nav.events.frame_bin)
+                        frame_bins = frame_bins[frame_bins>1]
+                        i = 0
+                        while not found:
+                            frame_bin = frame_bins[i]
+                            mask = (
+                                (self.nav.events.frame_bin == frame_bin)
+                                & (self.nav.events.frame_max * frame_bin >= start)
+                                & (self.nav.events.frame_max * frame_bin <= end)   # or < end if you want exclusive, but be explicit
+                                & (abs(self.nav.events.xcentroid - ev.xcentroid)<centroid_match_radius)
+                                & (abs(self.nav.events.ycentroid - ev.ycentroid)<centroid_match_radius)
+                            )
+
+                            events = self.events[mask]
+                            if len(events) > 0:
+                                found = True
+                                if len(events) == 1:
+                                    loc = 0
+                                else:
+                                    duration_diffs = np.fmax(events.frame_duration*frame_bin, ev.frame_duration) / np.fmin(events.frame_duration*frame_bin, ev.frame_duration)
+                                    loc = np.argmin(duration_diffs)
+
+                                self.injections.loc[i, 'ev_match'] = f"{events.iloc[loc].objid}_{events.iloc[loc].eventid}"
+                                self.injections.loc[i, 'detected'] = str(frame_bin)
+
+
+    def match_vars_to_injections(self,min_samples_per_cycle=3):
+
+        sin_mask = self.injections.event_type == 'sinusoid'
+
+        for i in self.injections.index[sin_mask]:
+            ev = self.injections.loc[i]
+
+            t = self.nav.time[ev.frame_start:ev.frame_end]
+            elapsed_min = (t - ev.mjd_start) * 1440.0
+
+            half_period_min = ev.period_min / 2.0
+            phase_offset_min = (ev.phase / (2 * np.pi)) * ev.period_min
+
+            extremum_idx = np.floor((elapsed_min + phase_offset_min) / half_period_min).astype(int)
+
+            counts = np.bincount(extremum_idx - extremum_idx.min())
+            min_samples_per_cycle = min(min_samples_per_cycle,np.nanmax(counts))
+
+            n_visible = np.sum(counts >= min_samples_per_cycle)
+
+
+        
+
+    def gather_results(self,cut):
+
+        self.nav = Navigator(self.sector,self.cam,self.ccd,self.data_path,self.n,injection=True)
+        self.nav.gather_data(cut=cut)
+        self.nav.gather_results(cut=cut,isolated=True)
+
+        directory = f'{self.path}/Cut{cut}of{self.n**2}'
+
+        self.injections = pd.read_csv(f'{directory}/source_injection/injected_events.csv')
+
+        self.match_results_to_injections()
+        self.match_vars_to_injections()
