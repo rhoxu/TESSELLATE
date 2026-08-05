@@ -96,7 +96,7 @@ class Navigator():
 
     # ----------------------------- Gathering data products ----------------------------- #
  
-    def gather_results(self,cut,sources=True,events=True,objects=True):
+    def gather_results(self,cut,sources=True,events=True,objects=True,isolated=False):
         """
         Gather detection csvs.
         """
@@ -132,13 +132,13 @@ class Navigator():
         
         self.wcs = CutWCS(self.data_path,self.sector,self.cam,self.ccd,cut=cut,n=self.n)
 
-        if self._inj_path == 'source_injection':
+        if isolated: 
             try:
-                self.injections = pd.read_csv(f'{path}/injected_events.csv')    # temporally and spatially located with same object id
+                self.isolated = pd.read_csv(f'{path}/single_isolated_detections.csv')    # raw detection results
             except:
-                print('No injected events file found')
-                self.injections = None
-        
+                print('No detected isolated sources file found')
+                self.isoalted = None
+
     def gather_data(self,cut,flux=True,time=True,ref=False,mask=False,bkg=False,verbose=True):
         """
         Gather reduced data.
