@@ -551,6 +551,7 @@ class SourceInjector():
             ref_idx = np.argmax(np.abs(flux))
             max_frame = frames[ref_idx]
             injections.iloc[i, injections.columns.get_loc('frame_max')] = max_frame
+            injections.iloc[i, injections.columns.get_loc('mjd_max')] = self.nav.time[max_frame]
             
             xint = RoundToInt(source.xcentroid)
             yint = RoundToInt(source.ycentroid)
@@ -831,7 +832,7 @@ class SourceInjector():
 
             self.injections.loc[inj_idx, "detected"] = "iso"
 
-        return self.injections
+        return non_vars
 
 
     # def match_vars_to_injections(self,centroid_match_radius=1.0,extremum_window_frac=0.25,min_samples_per_extremum=1):
@@ -1108,6 +1109,7 @@ class SourceInjector():
         directory = f'{self.path}/Cut{cut}of{self.n**2}'
 
         self.injections = pd.read_csv(f'{directory}/source_injection/injected_events.csv')
+        self.injections['mjd_max'] = self.nav.time[self.injections['frame_max'].values]
 
         self.transients = self.match_results_to_injections()
         # self.match_vars_to_injections()
