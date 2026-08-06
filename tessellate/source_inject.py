@@ -160,6 +160,8 @@ class SourceInjector():
         self.ccd = ccd
         self.n = n
 
+        self.cut = None
+
         self.job_output_path = job_output_path
         self.working_path = working_path
         self.data_path = data_path
@@ -600,6 +602,8 @@ class SourceInjector():
 
                 raw_cube[frames[j], yint-2:yint+3, xint-2:xint+3] += image_frame
 
+        injections.reset_index(names='injid',inplace=True)
+
         return raw_cube,injections,lcs
 
     def apply_shifts(self,shifts,cube):
@@ -691,7 +695,7 @@ class SourceInjector():
 
 
 
-    def match_results_to_injections(self,centroid_match_radius=1.0, min_temporal_iou=0.0, spatial_weight=0.5,
+    def match_results_to_transients(self,centroid_match_radius=1.0, min_temporal_iou=0.0, spatial_weight=0.5,
                                     overlap_weight=2.0,duration_weight=0.5,peak_weight=0.1):
 
         non_vars = self.injections[self.injections.event_type != 'sinusoid']
@@ -1102,17 +1106,67 @@ class SourceInjector():
     def gather_results(self,cut,centroid_match_radius=1.0, min_temporal_iou=0.0, spatial_weight=0.5,
                                     overlap_weight=2.0,duration_weight=0.5,peak_weight=0.1):
 
-        self.nav = Navigator(self.sector,self.cam,self.ccd,self.data_path,self.n,injection=True)
-        self.nav.gather_data(cut=cut)
-        self.nav.gather_results(cut=cut,isolated=True)
+        if cut != self.cut:
+            self.nav = Navigator(self.sector,self.cam,self.ccd,self.data_path,self.n,injection=True)
+            self.nav.gather_data(cut=cut)
+            self.nav.gather_results(cut=cut,isolated=True)
+            self.cut = cut
 
         directory = f'{self.path}/Cut{cut}of{self.n**2}'
 
         self.injections = pd.read_csv(f'{directory}/source_injection/injected_events.csv')
-        self.injections['mjd_max'] = self.nav.time[self.injections['frame_max'].values]
 
-        self.transients = self.match_results_to_injections(centroid_match_radius, 
+        # TEMPORARY #
+        self.injections['mjd_max'] = self.nav.time[self.injections['frame_max'].values]
+        self.injections.reset_index(names='injid',inplace=True)
+        # TEMPORARY #
+
+        self.transients = self.match_results_to_transients(centroid_match_radius, 
                                                            min_temporal_iou, spatial_weight,
                                                            overlap_weight,duration_weight,
                                                            peak_weight)
         # self.match_vars_to_injections()
+
+    def plot_lc(self,injid,cut=None,frame_buffer=10):
+
+        if cut is None:
+            cut == self.cut
+        if cut is None:
+            print('No cut specificed!')
+            return
+
+        inj = self.injections[self.injections.injid==injid].iloc[0]
+        lc = np.load(f'{self.path}/Cut{cut}of{self.n**2}/source_injection/lightcurves.npz',allow_pickle=True)['lcs'][injid]
+
+        
+
+        plt.figure()
+        plt.plot(self.nav.time[lc[0]],lc[1],'d-',c='r',label='Injected Flux')
+
+        if inj.ev_match == '-':
+            xint = RoundToInt(inj.xcentroid)
+            yint = RoundToInt(inj.ycentroid)
+        else:
+            objid,eventid = np.array(inj.ev_match.split('_')).astype(int)
+            match_ev = self.nav.events[(self.nav.objid==objid)&(self.nav.eventid==eventid)].iloc[0]
+            
+            cadence = np.nanmedian(np.diff(self.nav.time)) * match_ev.frame_bin
+            xint = int(match_ev.xint)
+            yint = int(match_ev.yint)
+            plt.axvspan(match_ev.mjd_start-cadence/2, match_ev.mjd_end+cadence/2, color='C1', alpha=0.4)
+
+        cube_lc = np.nansum(self.nav.flux[:,yint-1:yint+2,xint-1:xint+2],axis=(1,2))
+
+        plt.figure()
+        plt.plot(self.nav.time,cube_lc,'x-',c='k',label='Cube Flux')
+        plt.plot(self.nav.time[lc[0]],lc[1],'d-',c='r',label='Injected Flux')
+        plt.xlim(self.nav.time[lc[0][0]-frame_buffer],self.nav.time[lc[0][-1]+frame_buffer])
+        plt.legend()
+        plt.xlabel('Time [MJD]')
+        plt.ylabel('TESS Counts')
+
+        
+
+
+
+
