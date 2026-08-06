@@ -797,7 +797,6 @@ class SourceInjector():
 
                 non_vars.loc[inj_idx, "detected"] = detected_label
                 non_vars.loc[inj_idx, "ev_match"] = f"{best.objid}_{best.eventid}"
-                non_vars.loc[inj_idx, "match_frame_bin"] = frame_bin
                 non_vars.loc[inj_idx, "centroid_sep"] = best.centroid_sep
                 non_vars.loc[inj_idx, "temporal_iou"] = best.temporal_iou
                 non_vars.loc[inj_idx, "duration_ratio"] = best.duration_ratio
@@ -1100,7 +1099,8 @@ class SourceInjector():
 
         
 
-    def gather_results(self,cut):
+    def gather_results(self,cut,centroid_match_radius=1.0, min_temporal_iou=0.0, spatial_weight=0.5,
+                                    overlap_weight=2.0,duration_weight=0.5,peak_weight=0.1):
 
         self.nav = Navigator(self.sector,self.cam,self.ccd,self.data_path,self.n,injection=True)
         self.nav.gather_data(cut=cut)
@@ -1111,5 +1111,8 @@ class SourceInjector():
         self.injections = pd.read_csv(f'{directory}/source_injection/injected_events.csv')
         self.injections['mjd_max'] = self.nav.time[self.injections['frame_max'].values]
 
-        self.transients = self.match_results_to_injections()
+        self.transients = self.match_results_to_injections(centroid_match_radius, 
+                                                           min_temporal_iou, spatial_weight,
+                                                           overlap_weight,duration_weight,
+                                                           peak_weight)
         # self.match_vars_to_injections()
