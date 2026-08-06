@@ -534,6 +534,7 @@ class SourceInjector():
                                                 period_concentration=period_concentration)
 
         injections['frame_max'] = 0
+        injections['mjd_max'] = 0
         cadence_min = np.nanmedian(np.diff(self.nav.time)) * 1440
         lcs = []
         for i in tqdm(range(n_events), desc='    injecting events into cube', position=0, leave=True, dynamic_ncols=False, ascii=True):
