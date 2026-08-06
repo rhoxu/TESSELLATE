@@ -829,7 +829,7 @@ class SourceInjector():
             if len(iso_candidates) == 0:
                 continue
 
-            self.injections.loc[inj_idx, "detected"] = "iso"
+            non_vars.loc[inj_idx, "detected"] = "iso"
 
         return non_vars
 
