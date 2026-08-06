@@ -9,6 +9,7 @@ import os
 from tqdm import tqdm
 import multiprocessing
 from joblib import Parallel, delayed
+import seaborn as sns
 
 from tessellate.tessellate import Tessellate
 from tessellate.dataprocessor import DataProcessor
@@ -808,6 +809,8 @@ class SourceInjector():
                 non_vars.loc[inj_idx, "snr_detected"] = best.lc_sig_max
                 non_vars.loc[inj_idx, "snr_ratio"] = best.lc_sig_max / inj.snr
                 non_vars.loc[inj_idx, "match_score"] = best.match_score
+                non_vars.loc[inj_idx,"z_xcentroid"] = (best.xcentroid-inj.xcentroid) / best.xcentroid_err
+                non_vars.loc[inj_idx,"z_ycentroid"] = (best.xcentroid-inj.xcentroid) / best.xcentroid_err
 
                 event_found = True
                 break
@@ -826,7 +829,7 @@ class SourceInjector():
             # Injection frame_end is assumed exclusive.
             iso_candidates = isolated[
                 (isolated.frame >= int(inj.frame_start))
-                & (isolated.frame < int(inj.frame_end))
+                & (isolated.frame <= int(inj.frame_end))
                 & (isolated.centroid_sep <= centroid_match_radius)
             ].copy()
 
@@ -1130,25 +1133,22 @@ class SourceInjector():
     def plot_lc(self,injid,cut=None,frame_buffer=10):
 
         if cut is None:
-            cut == self.cut
+            cut = self.cut
         if cut is None:
-            print('No cut specificed!')
-            return
+            raise ValueError('Please specify a cut!')
 
-        inj = self.injections[self.injections.injid==injid].iloc[0]
+        inj = self.transients[self.transients.injid==injid].iloc[0]
         lc = np.load(f'{self.path}/Cut{cut}of{self.n**2}/source_injection/lightcurves.npz',allow_pickle=True)['lcs'][injid]
 
-        
-
         plt.figure()
-        plt.plot(self.nav.time[lc[0]],lc[1],'d-',c='r',label='Injected Flux')
+        plt.plot(self.nav.time[lc[0].astype(int)],lc[1],'d-',c='r',label='Injected Flux')
 
         if inj.ev_match == '-':
             xint = RoundToInt(inj.xcentroid)
             yint = RoundToInt(inj.ycentroid)
         else:
             objid,eventid = np.array(inj.ev_match.split('_')).astype(int)
-            match_ev = self.nav.events[(self.nav.objid==objid)&(self.nav.eventid==eventid)].iloc[0]
+            match_ev = self.nav.events[(self.nav.events.objid==objid)&(self.nav.events.eventid==eventid)].iloc[0]
             
             cadence = np.nanmedian(np.diff(self.nav.time)) * match_ev.frame_bin
             xint = int(match_ev.xint)
@@ -1157,16 +1157,114 @@ class SourceInjector():
 
         cube_lc = np.nansum(self.nav.flux[:,yint-1:yint+2,xint-1:xint+2],axis=(1,2))
 
-        plt.figure()
         plt.plot(self.nav.time,cube_lc,'x-',c='k',label='Cube Flux')
-        plt.plot(self.nav.time[lc[0]],lc[1],'d-',c='r',label='Injected Flux')
-        plt.xlim(self.nav.time[lc[0][0]-frame_buffer],self.nav.time[lc[0][-1]+frame_buffer])
+
+        xmin = self.nav.time[(lc[0][0]-frame_buffer).astype(int)]
+        xmax = self.nav.time[(lc[0][-1]+frame_buffer).astype(int)]
+
+        visible = (self.nav.time >= xmin) & (self.nav.time <= xmax)
+        y_visible = cube_lc[visible]
+        padding = 0.05 * (np.nanmax(y_visible) - np.nanmin(y_visible))
+
+        plt.xlim(xmin,xmax)
+        plt.ylim(np.nanmin(y_visible) - padding,np.nanmax(y_visible) + padding)
+
         plt.legend()
         plt.xlabel('Time [MJD]')
         plt.ylabel('TESS Counts')
 
+    def plot_frames(self,injid,cut=None,
+                    sources=False,isolated=False,events=True,
+                     frame_buffer=2,image_size=11,vmin=10,vmax=90,
+                     plot=True,frame_bin=None,return_plot=False):
+        """
+        Extract cutout images for chosen event.
+        """
+
+        import matplotlib.gridspec as gridspec
+
+        # -- Gather data -- #
+        if cut is None:
+            cut = self.cut
+        if cut is None:
+            raise ValueError('Please specify a cut!')
+
+        # -- Isolate event -- #
+        inj = self.transients[self.transients.injid==injid].iloc[0]
+
+        # -- Define cutout -- #
+        xint = RoundToInt(inj.xcentroid)
+        yint = RoundToInt(inj.ycentroid)
+        brightest_frame = RoundToInt(inj.frame_max)
+        xmin = max(xint-image_size//2,0)
+        xmax = min(xint+image_size//2,self.nav.flux.shape[1])
+        ymin = max(yint-image_size//2,0)
+        ymax = min(yint+image_size//2,self.nav.flux.shape[1])
+
+        brightest_im = self.nav.flux[brightest_frame,ymin:ymax+1,xmin:xmax+1]
+
+        vmax = np.percentile(brightest_im[image_size//2-1:image_size//2+2, image_size//2-1:image_size//2+2], vmax)
+        vmin = np.percentile(brightest_im[image_size//2-1:image_size//2+2, image_size//2-1:image_size//2+2], vmin)
+
+        frames = np.arange(brightest_frame-2, brightest_frame+3).astype(int)
+
+        fig = plt.figure(figsize=(15, 3))
+        gs = gridspec.GridSpec(1, 6, width_ratios=[1, 1, 1, 1, 1, 0.05], wspace=0.35)
+        ax = [fig.add_subplot(gs[i]) for i in range(5)]
+        cax = fig.add_subplot(gs[5])
+
+        for i,frame in enumerate(frames):
+            im = ax[i].imshow(self.nav.flux[frame], origin='lower', cmap='gray', vmax=vmax, vmin=vmin)
+            ax[i].axis('off')
+
+            if sources:
+                frame_sources = self.nav.sources[(self.nav.sources.frame_bin==1) & (self.nav.sources.frame==frame)]
+                ax[i].scatter(frame_sources.xcentroid,frame_sources.ycentroid,c='orange',s=3,label='Sources')
+
+            if isolated:
+                frame_isosources = self.nav.isolated[self.nav.isolated.frame==frame]
+                ax[i].scatter(frame_isosources.xcentroid,frame_isosources.ycentroid,c='r',s=3,label='Iso Sources')
+
+            if events:
+                frame_events = self.nav.events[(self.nav.events.frame_bin==1) 
+                                               & (self.nav.events.frame_start <= frame)
+                                               & (self.nav.events.frame_end >= frame)]
+                ax[i].scatter(frame_events.xcentroid,frame_events.ycentroid,c='green',s=3,label='Events')
+
+            ax[i].set_xlim(xint-image_size//2,xint+image_size//2)
+            ax[i].set_ylim(yint-image_size//2,yint+image_size//2)
+
+            if i == 0:
+                ax[i].legend()
+
+            if i == 2:
+                ax[i].set_title(f'Brightest Frame ({frame})')
+            else:
+                ax[i].set_title(f'Frame {frame}')
+
+        fig.colorbar(im, cax=cax, label='TESS Counts')
+
+        # Snap colorbar to exactly match ax[4]'s height and sit close beside it
+        fig.canvas.draw()
+        pos = ax[4].get_position()
+        cax.set_position([pos.x1 + 0.01, pos.y0, 0.01, pos.height])
+
+        # if not plot:
+        #     plt.close()
+        
+        # if return_plot:
+        #     return images,fig
+        # else:
+        #     return images
         
 
+    def column_comparison(self,columns,log_columns=[]):
 
+        plot_df = self.transients[columns].copy()
+        for c in log_columns:
+            plot_df[f'log_{c}'] = np.log10(plot_df[c])  # rename or relabel axes after
+            plot_df.drop(columns=c,inplace=True)
+
+        sns.pairplot(plot_df, corner=True, diag_kind="kde")
 
 
