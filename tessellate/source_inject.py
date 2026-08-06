@@ -810,7 +810,7 @@ class SourceInjector():
                 non_vars.loc[inj_idx, "snr_ratio"] = best.lc_sig_max / inj.snr
                 non_vars.loc[inj_idx, "match_score"] = best.match_score
                 non_vars.loc[inj_idx,"z_xcentroid"] = (best.xcentroid-inj.xcentroid) / best.xcentroid_err
-                non_vars.loc[inj_idx,"z_ycentroid"] = (best.xcentroid-inj.xcentroid) / best.xcentroid_err
+                non_vars.loc[inj_idx,"z_ycentroid"] = (best.ycentroid-inj.ycentroid) / best.ycentroid_err
 
                 event_found = True
                 break
@@ -1130,6 +1130,36 @@ class SourceInjector():
                                                            peak_weight)
         # self.match_vars_to_injections()
 
+    def filter_transients(self,cut=None,min_frame_duration=None,max_frame_duration=None,
+                          min_snr=None,max_snr=None,min_K=None,max_K=None,event_type=None,detected=None):
+
+        if cut is None:
+            cut = self.cut
+        if cut is None:
+            raise ValueError('Please specify a cut!') 
+
+        transients = self.transients.copy()
+
+        if event_type is not None:
+            transients = transients[transients.event_type == event_type]
+        if detected is not None:
+            transients = transients[transients.detected == detected]     
+        if min_frame_duration is not None:
+            transients = transients[transients.frame_duration >= min_frame_duration]
+        if max_frame_duration is not None:
+            transients = transients[transients.frame_duration <= max_frame_duration]
+        if min_snr is not None:
+            transients = transients[transients.snr >= min_snr]
+        if max_snr is not None:
+            transients = transients[transients.snr <= max_snr]
+        if min_K is not None:
+            transients = transients[transients.K <= min_K]
+        if max_K is not None:
+            transients = transients[transients.K <= max_K]
+
+        return transients
+            
+
     def plot_lc(self,injid,cut=None,frame_buffer=10):
 
         if cut is None:
@@ -1175,8 +1205,7 @@ class SourceInjector():
 
     def plot_frames(self,injid,cut=None,
                     sources=False,isolated=False,events=True,
-                     frame_buffer=2,image_size=11,vmin=10,vmax=90,
-                     plot=True,frame_bin=None,return_plot=False):
+                    image_size=11,vmin=10,vmax=90):
         """
         Extract cutout images for chosen event.
         """
@@ -1258,7 +1287,13 @@ class SourceInjector():
         #     return images
         
 
-    def column_comparison(self,columns,log_columns=[]):
+    def compare_columns(self,columns,cut=None,log_columns=[]):
+
+        # -- Gather data -- #
+        if cut is None:
+            cut = self.cut
+        if cut is None:
+            raise ValueError('Please specify a cut!')
 
         plot_df = self.transients[columns].copy()
         for c in log_columns:
