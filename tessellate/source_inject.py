@@ -1121,8 +1121,11 @@ class SourceInjector():
         self.injections = pd.read_csv(f'{directory}/source_injection/injected_events.csv')
 
         # TEMPORARY #
-        self.injections['mjd_max'] = self.nav.time[self.injections['frame_max'].values]
-        self.injections.reset_index(names='injid',inplace=True)
+        try:
+            self.injections['mjd_max'] = self.nav.time[self.injections['frame_max'].values]
+            self.injections.reset_index(names='injid',inplace=True)
+        except:
+            pass
         # TEMPORARY #
 
         self.transients = self.match_results_to_transients(centroid_match_radius, 
