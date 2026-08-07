@@ -489,9 +489,9 @@ class SourceInjector():
         schedule_df = pd.DataFrame(rows)
         return schedule_df
 
-    def inject_sources(self,cut,n_events,
-                    min_sep=5,edge_buffer=5,grid_step=1,big_size=15,small_size=5,
-                    duration_range_min=(10, 1440), duration_skew=(1.0, 2.5),
+    def inject_sources(self,cut,raw_cube,n_events,
+                        min_sep=5,edge_buffer=5,grid_step=1,big_size=15,small_size=5,
+                        duration_range_min=(10, 1440), duration_skew=(1.0, 2.5),
                         K_range=(-1, 1), K_skew=(1.0, 1.0), p_negative_K=0.05,
                         duty_frac_range=(0.05, 0.95), duty_frac_skew=(1.0, 1.0),
                         stamp_area=5, max_frame_fill_frac=0.25,
@@ -503,14 +503,11 @@ class SourceInjector():
 
 
         from PRF import TESS_PRF
-            
-        self.nav.gather_data(cut=cut,flux=True,time=True,bkg=True,verbose=False)
-        self.nav.gather_results(cut=cut,sources=False,events=True,objects=True)
-        raw_cube = self.nav.flux #+ self.nav.bkg
+
 
         # -- Generate PRF -- #
         dp = DataProcessor(self.sector,data_path=self.data_path)
-        cutCornerPx, cutCentrePx, _, _ = dp.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
+        _, cutCentrePx, _, _ = dp.find_cuts(cam=self.cam,ccd=self.ccd,n=self.n,plot=False)
         column = cutCentrePx[cut-1][0]
         row = cutCentrePx[cut-1][1]
         if self.sector < 4:
@@ -618,6 +615,26 @@ class SourceInjector():
 
         return np.array(result)
 
+    def load_raw_cube(self,cut):
+
+        directory = f'{self.path}/Cut{cut}of{self.n**2}'
+        base_name = f'sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'  
+
+        if os.path.exists(f'{directory}/{base_name}.fits'):
+            print('Loading raw lightkurve TPF')
+            import lightkurve as lk
+            tpf = lk.TessTargetPixelFile(f'{directory}/{base_name}.fits',quality_bitmask='hard')
+            raw_cube = tpf.flux.value
+            processed = False
+
+        else:
+            print('Loading reduced data')
+            self.nav.gather_data(cut=cut,flux=True,time=True,bkg=True,verbose=False)
+            raw_cube = self.nav.flux
+            processed = True
+
+        return raw_cube,processed
+
     def run(self,cut,n_events,overwrite=False,
             min_sep=5,edge_buffer=5,grid_step=1,big_size=15,small_size=5,
             duration_range_min=(10, 1440), duration_skew=(1.0, 2.5),
@@ -630,43 +647,38 @@ class SourceInjector():
             period_range_min=(20, None), period_mode_min=240.0,
             period_concentration=3.0):
 
-        
 
-        if cut == 'all':
-            cuts = np.arange(1,self.n**2+1).astype(int)
-        else:
-            cuts = [cut]
-
-        _Print_buff(60,f'Running Source Injection for Sector{self.sector} Cam{self.cam} Ccd{self.ccd}')
+        _Print_buff(60,f'Running Source Injection for Sector{self.sector} Cam{self.cam} Ccd{self.ccd} Cut {cut}')
         print('\n')
 
-        for cut in cuts: 
+        directory = f'{self.path}/Cut{cut}of{self.n**2}'
+        base_name = f'sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'      
 
-            print(f'Cut {cut}')     
+        self.nav.gather_results(cut=cut,sources=False,events=True,objects=True)
+        raw_cube,processed = self.load_raw_cube(cut)
 
-            directory = f'{self.path}/Cut{cut}of{self.n**2}'
-            base_name = f'sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'      
+        inject = False
+        if not os.path.exists(f'{directory}/source_injection/{base_name}_RawFlux.npy'): 
+            inject = True
+        elif overwrite:
+            os.system(f'rm -r {directory}/source_injection')
+            inject = True
 
-            go = False
-            if not os.path.exists(f'{directory}/source_injection/{base_name}_RawFlux.npy'): 
-                go = True
-            elif overwrite:
-                os.system(f'rm -r {directory}/source_injection')
-                go = True
-
-            if go:
-                rawcube,injections,lcs = self.inject_sources(cut,n_events,
+        if inject:
+            raw_cube,injections,lcs = self.inject_sources(cut,raw_cube,n_events,
                         min_sep,edge_buffer,grid_step,big_size,small_size,
                         duration_range_min, duration_skew,
-                            K_range, K_skew, p_negative_K,
-                            duty_frac_range, duty_frac_skew,
-                            stamp_area, max_frame_fill_frac,
-                            overlap_dist_px, max_attempts_per_event,
-                            type_probs=type_probs,
-                            K_negative_range=K_negative_range,
-                            period_range_min=period_range_min,
-                            period_mode_min=period_mode_min,
-                            period_concentration=period_concentration)
+                        K_range, K_skew, p_negative_K,
+                        duty_frac_range, duty_frac_skew,
+                        stamp_area, max_frame_fill_frac,
+                        overlap_dist_px, max_attempts_per_event,
+                        type_probs=type_probs,
+                        K_negative_range=K_negative_range,
+                        period_range_min=period_range_min,
+                        period_mode_min=period_mode_min,
+                        period_concentration=period_concentration)
+
+            if processed:
 
                 orbit_segments = np.load(f'{directory}/{base_name}_OrbitSegments.npy')
                 orbit_refs = np.load(f'{directory}/{base_name}_OrbitRefs.npz')
@@ -674,26 +686,26 @@ class SourceInjector():
                 ref = np.load(f'{directory}/{base_name}_Ref.npy')
                 shifts = np.load(f'{directory}/{base_name}_Shifts.npy')
 
-                rawcube[orbit_segments==1] += orbit_refs[1]
-                rawcube[orbit_segments==2] += orbit_refs[2]
-                rawcube += ref
+                raw_cube[orbit_segments==1] += orbit_refs[1]
+                raw_cube[orbit_segments==2] += orbit_refs[2]
+                raw_cube += ref
 
-                shifted_cube = self.apply_shifts(shifts,rawcube)
+                raw_cube = self.apply_shifts(shifts,raw_cube)
 
-                lcs_arr = np.empty(len(lcs), dtype=object)
-                for i, lc in enumerate(lcs):
-                    lcs_arr[i] = lc
+            lcs_arr = np.empty(len(lcs), dtype=object)
+            for i, lc in enumerate(lcs):
+                lcs_arr[i] = lc
 
-                os.makedirs(f'{directory}/source_injection',exist_ok=True)
-                np.savez(f'{directory}/source_injection/lightcurves.npz', lcs=lcs_arr)
-                injections.to_csv(f'{directory}/source_injection/injected_events.csv',index=False)
-                np.save(f'{directory}/source_injection/{base_name}_RawFlux.npy',shifted_cube)
+            os.makedirs(f'{directory}/source_injection',exist_ok=True)
+            np.savez(f'{directory}/source_injection/lightcurves.npz', lcs=lcs_arr)
+            injections.to_csv(f'{directory}/source_injection/injected_events.csv',index=False)
+            np.save(f'{directory}/source_injection/{base_name}_RawFlux.npy',raw_cube)
 
-            run = Tessellate(data_path=self.data_path,working_path=self.working_path,job_output_path=self.job_output_path,
-                                sector=self.sector,cam=self.cam,ccd=self.ccd,n=self.n,cuts=cut,
-                                download=False,make_cube=False,fix_wcs=False,make_cuts=False,calibrate=False,
-                                reduce=True,search=True,injection=True,plot=False,delete=False,
-                                reset_logs=False,overwrite=False,ask_config=False,save_config=False,use_suggestions=True)
+        run = Tessellate(data_path=self.data_path,working_path=self.working_path,job_output_path=self.job_output_path,
+                            sector=self.sector,cam=self.cam,ccd=self.ccd,n=self.n,cuts=cut,
+                            download=False,make_cube=False,fix_wcs=False,make_cuts=False,calibrate=False,
+                            reduce=True,search=True,injection=True,plot=False,delete=False,
+                            reset_logs=False,overwrite=False,ask_config=False,save_config=False,use_suggestions=True)
 
 
 
