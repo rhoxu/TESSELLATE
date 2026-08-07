@@ -628,8 +628,6 @@ class SourceInjector():
             processed = False
 
         else:
-            print('Loading reduced data')
-            self.nav.gather_data(cut=cut,flux=True,time=True,bkg=True,verbose=False)
             raw_cube = self.nav.flux
             processed = True
 
@@ -655,6 +653,7 @@ class SourceInjector():
         base_name = f'sector{self.sector}_cam{self.cam}_ccd{self.ccd}_cut{cut}_of{self.n**2}'      
 
         self.nav.gather_results(cut=cut,sources=False,events=True,objects=True)
+        self.nav.gather_data(cut=cut,flux=True,time=True,bkg=True,verbose=False)
         raw_cube,processed = self.load_raw_cube(cut)
 
         inject = False
