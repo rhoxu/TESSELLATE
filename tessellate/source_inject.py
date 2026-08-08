@@ -663,7 +663,7 @@ class SourceInjector():
 
             self.nav.gather_results(cut=cut,sources=False,events=True,objects=True)
             self.nav.gather_data(cut=cut,flux=True,time=True,bkg=True,verbose=False)
-            raw_cube,processed = self.load_raw_cube(cut)
+            raw_cube,processed = self.load_raw_cube(cut) 
 
             raw_cube,injections,lcs = self.inject_sources(cut,raw_cube,n_events,
                         min_sep,edge_buffer,grid_step,big_size,small_size,
