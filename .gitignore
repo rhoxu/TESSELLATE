@@ -130,3 +130,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# development work (scripts, data, notebooks, scratch): local only, never in the package repo
+development/
