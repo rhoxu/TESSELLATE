@@ -133,3 +133,6 @@ dmypy.json
 
 # development work (scripts, data, notebooks, scratch): local only, never in the package repo
 development/
+
+# instructions Claude Code reads at the start of each session; local only
+/CLAUDE.md

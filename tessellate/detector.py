@@ -7,9 +7,14 @@ import warnings
 warnings.filterwarnings("ignore")
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
 
-from .tools import RoundToInt, load_table, table_exists
+from .tools import RoundToInt, load_table, save_table, table_exists
 
-GLOBAL_PSF_Y_OFFSET = 0.0226
+from .localisation import CROSSMATCH_NSIGMA, ISOLATION_PX    # crossmatch radius (in 1-sigma centroid_err); isolation radius (px)
+
+# Detector.transient_search(redo=...): the first stage to repeat even though its output exists (later stages follow)
+REDO_STAGES = (None, 'events', 'compile', 'classify', 'crossmatch')
+NO_CROSSMATCH_CLASSES = ('Asteroid', 'CosmicRay', 'Junk')   # not crossmatched with Gaia / variables
+NOT_CHECKED = '.'        # gaia_id / nearest_gaia_id / var_type of those events (vs '-' = checked, no match)
 
 # ----------------------------------------------------------------------------------------------------------------------------- #
 # ----------------------------------------------------------------------------------------------------------------------------- # 
@@ -655,6 +660,11 @@ def _Lightcurve_significance(time,flux,frame_start,frame_end,pos,flux_sign,
     # same exclusion of THIS event's frames, but ignoring event_mask entirely
     ind_abs = ((frames > window_start) & (frames < buffer_start)) | ((frames < window_end) & (frames > buffer_end))
 
+    # the object's other events can fill the whole window (busy / variable stars): then measure against the
+    # unmasked window rather than giving no significance
+    if ind.sum() < 2:
+        ind = ind_abs
+
     t_window = t[ind]
     lc_window = lc[ind]
     
@@ -930,27 +940,29 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, exposure_time, big_size
         snr = snrs[idx]
         stacked_psf_fit = 0
 
-    if snr < 0:
+    if not snr > 0:
         xcentroid = np.nan
         ycentroid = np.nan
-        xcentroid_err_psf = np.nan
-        ycentroid_err_psf = np.nan
+        centroid_err_psf = np.nan
         psf_like = 0
         psf_diff = np.nan
         stacked_psf_fit = 0
+        psf_pinned = 0
     else:
 
         # --- PSF fit --- #
-        unc_x = uncertainty_func(snr,95,'x')  # use the 95% confidence interval as the metric of interest
-        unc_y = uncertainty_func(snr,95,'y')  
-
+        lim = 0.5
         fitter = PSF_Fitter(small_size, prf)
-        fitter.fit_psf(centred_flux, limx=0.5, limy=0.5)
+        fitter.fit_psf(centred_flux, limx=lim, limy=lim)
 
-        xcentroid = fitter.source_x + brightest_x
-        ycentroid = fitter.source_y + brightest_y - GLOBAL_PSF_Y_OFFSET
-        xcentroid_err_psf = unc_x
-        ycentroid_err_psf = unc_y
+        xcentroid = fitter.source_x + brightest_x      # raw fit; the radial shift is removed from xcentroid/ycentroid later
+        ycentroid = fitter.source_y + brightest_y
+
+        # The fit stopped at the edge of its +-0.5 px box around the brightest pixel: usually the image isn't a clean
+        # point source there and the position isn't trustworthy (refitting further out doesn't land closer to Gaia
+        # stars). A clean source sitting right on a pixel edge also flags (~3%), with a good position.
+        psf_pinned = int(max(abs(fitter.source_x), abs(fitter.source_y)) > lim - 0.001)
+        centroid_err_psf = float(uncertainty_func(snr))   # 1 sigma per axis, pixels
 
         psf_like = np.corrcoef(centred_flux.flatten(), fitter.psf.flatten())[0, 1]
 
@@ -960,14 +972,38 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, exposure_time, big_size
     event['xcentroid_psf'] = xcentroid
     event['ycentroid_psf'] = ycentroid
     event['snr_psf'] = snr
-    event['xcentroid_err_psf'] = xcentroid_err_psf
-    event['ycentroid_err_psf'] = ycentroid_err_psf
+    event['centroid_err_psf'] = centroid_err_psf
     event['psf_like'] = psf_like
     event['psf_diff'] = psf_diff
     event['psf_stacked'] = stacked_psf_fit
+    event['psf_pinned'] = psf_pinned
+    # Distance (px) of the PSF fit from the detection centroid. Large when something else in the stack (e.g. a poor
+    # subtraction residual) took the brightest-pixel choice -- the fit can then settle off the source without pinning
+    event['psf_det_sep'] = np.hypot(xcentroid - event['xcentroid_det'], ycentroid - event['ycentroid_det'])
 
     return event
 
+
+
+def _add_psf_flags(events):
+    """
+    psf_pinned / psf_det_sep for an event table made before _Fit_psf set them, from the stored fit: a fit pinned at
+    its +-0.5 px bound sits within 0.001 px of a half-integer (brightest pixel + 0.5), exactly what _Fit_psf flags.
+    Leaves existing columns alone. (Outputs from before the radial branch stored ycentroid_psf - 0.0226, so their y
+    test can miss; those need the localisation update anyway.)
+    """
+    if {'xcentroid_psf', 'ycentroid_psf', 'xcentroid_det', 'ycentroid_det'} - set(events.columns):
+        return events
+    events = events.copy()
+    x, y = (pd.to_numeric(events[c], errors='coerce') for c in ('xcentroid_psf', 'ycentroid_psf'))
+    if 'psf_pinned' not in events:
+        def half(v):
+            return np.abs(np.abs(v - np.round(v)) - 0.5) <= 0.001
+        events['psf_pinned'] = (half(x) | half(y)).astype(int)
+    if 'psf_det_sep' not in events:
+        events['psf_det_sep'] = np.hypot(x - pd.to_numeric(events['xcentroid_det'], errors='coerce'),
+                                         y - pd.to_numeric(events['ycentroid_det'], errors='coerce'))
+    return events
 
 
 def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
@@ -1058,17 +1094,15 @@ def _Isolate_events(objid,time,flux,sources,sector,cam,ccd,cut,prf,
         # -- Fit PSF -- #
         event = _Fit_psf(flux,event,prf,frames,snr_to_localisation_func,exposure_time,psf_stacked=psf_stacked)
         
-        # -- If event is quite PSF-like, centroid likely good -- #
+        # -- If event is quite PSF-like, centroid likely good; otherwise no calibrated error (and no star crossmatch) -- #
         if event['psf_like']>0.5:
             event['xcentroid'] = event['xcentroid_psf']
             event['ycentroid'] = event['ycentroid_psf']
-            event['xcentroid_err'] = event['xcentroid_err_psf']
-            event['ycentroid_err'] = event['ycentroid_err_psf']
+            event['centroid_err'] = event['centroid_err_psf']
         else:
             event['xcentroid'] = event['xcentroid_det']
             event['ycentroid'] = event['ycentroid_det']
-            event['xcentroid_err'] = 0.5
-            event['ycentroid_err'] = 0.5
+            event['centroid_err'] = np.nan
 
         event['xint'] = RoundToInt(event['xcentroid'])
         event['yint'] = RoundToInt(event['ycentroid'])
@@ -1308,6 +1342,7 @@ class Detector():
         self.cut = None
         self.bkg = None
 
+        self.injection = injection
         self._inj_path = injection_dir if injection else '.'
 
         if part is None:
@@ -1526,7 +1561,7 @@ class Detector():
         
         # -- Save out single detections which are isolated in space in time, probably noise, maybe cool -- #
         if isolate_single_detections:
-            single_isolated_detections.to_csv(f'{save_folder}/single_isolated_detections.csv',index=False)
+            save_table(single_isolated_detections,f'{save_folder}/single_isolated_detections.csv')
         
         results['frame_bin'] = frame_bin
 
@@ -1629,7 +1664,7 @@ class Detector():
 
         self.sources = sources
 
-        self.sources.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/{self._inj_path}/detected_sources.csv',index=False)
+        save_table(self.sources,f'{self.path}/Cut{self.cut}of{self.n**2}/{self._inj_path}/detected_sources.csv')
 
 
 
@@ -1644,7 +1679,7 @@ class Detector():
         from joblib import Parallel, delayed 
         from tqdm import tqdm
         from .dataprocessor import DataProcessor
-        from .localisation import get_snr_to_localisation_func #, get_wcs_uncertainty
+        from .localisation import get_snr_to_localisation_func, radial_shift #, get_wcs_uncertainty
         from .tools import Frame_Bin
         from PRF import TESS_PRF
         from astropy.io import fits
@@ -1699,6 +1734,16 @@ class Detector():
         events['xccd'] = RoundToInt(events['xint'] + cutCornerPx[self.cut-1][0])
         events['yccd'] = RoundToInt(events['yint'] + cutCornerPx[self.cut-1][1])
 
+        # -- Remove the radial shift of PSF-fit positions toward the optical axis (real sky only: injections are
+        #    injected and fitted with the same PRF). xcentroid_psf/ycentroid_psf and xint/yint/xccd/yccd keep the
+        #    fitted image position; xcentroid/ycentroid (-> ra/dec) are corrected. -- #
+        if not self.injection:
+            psf = (events['psf_like'] > 0.5).to_numpy()
+            if psf.any():
+                sx, sy = radial_shift(events.loc[psf, 'xccd'], events.loc[psf, 'yccd'], self.cam, self.ccd)
+                events.loc[psf, 'xcentroid'] = events.loc[psf, 'xcentroid'] - sx
+                events.loc[psf, 'ycentroid'] = events.loc[psf, 'ycentroid'] - sy
+
         # -- Pull the uncertainty on WCS and combine with PSF fit centroid error -- #
         # wcs_unc = get_wcs_uncertainty(self.data_path,self.sector,self.cam,self.ccd,self.cut,self.n)
         # if np.isnan(wcs_unc).any():
@@ -1730,6 +1775,14 @@ class Detector():
 
         events = deepcopy(self.events)
 
+        # -- centroid_err from the current localisation model (so a recompile picks up a model change) -- #
+        if 'snr_psf' in events and 'centroid_err' in events:
+            from .localisation import localisation_sigma
+            snr = pd.to_numeric(events['snr_psf'], errors='coerce')
+            redo = np.isfinite(events['centroid_err']) & (snr > 0)
+            events.loc[redo, 'centroid_err'] = localisation_sigma(snr[redo])
+            events.loc[redo, 'centroid_err_psf'] = events.loc[redo, 'centroid_err']
+
         events['ra'],events['dec'] = self.wcs.all_pix2world(events['xcentroid'],events['ycentroid'],0)
 
         delta = 0.1
@@ -1743,8 +1796,9 @@ class Detector():
         dra_dy = (ra_py - events['ra']) / delta
         ddec_dy = (dec_py - events['dec']) / delta
         
-        events['ra_err'] = np.sqrt((dra_dx * events['xcentroid_err'])**2 + (dra_dy * events['ycentroid_err'])**2)
-        events['dec_err'] = np.sqrt((ddec_dx * events['xcentroid_err'])**2 + (ddec_dy * events['ycentroid_err'])**2)
+        # centroid_err is 1 sigma in both x and y, so these are 1 sigma too (NaN if the event isn't PSF-like)
+        events['ra_err'] = np.sqrt(dra_dx**2 + dra_dy**2) * events['centroid_err']
+        events['dec_err'] = np.sqrt(ddec_dx**2 + ddec_dy**2) * events['centroid_err']
 
         events['ra_err'] = np.abs(events['ra_err'] * np.cos(np.radians(events['dec'])))   # account for cos(dec) factor in RA
 
@@ -1878,9 +1932,31 @@ class Detector():
         flux-weighted detection is far more likely to be dominated by a brighter
         star's position even if a fainter star is marginally closer.
 
-        gaia_id and nearest_gaia_id are guaranteed to match whenever gaia_id is
-        set, since both are derived from the same single best-scoring candidate.
+        A match (Gaia star or catalogued variable) is within CROSSMATCH_NSIGMA
+        times the event's 1-sigma ra_err / dec_err. gaia_id is the best-scoring
+        star (effective distance) among the stars inside that region, so a
+        brighter star just outside it can't block one inside. nearest_gaia_* is
+        the matched star if there is one, otherwise the best-scoring star in the
+        whole box; gaia_id and nearest_gaia_id always agree when gaia_id is set.
+
+        How trustworthy the match is (both refer to the nearest_gaia_* star, i.e. the match if there is one):
+          gaia_n_3sig  number of Gaia stars inside the match region (CROSSMATCH_NSIGMA sigma), a plain count
+                       (0 = no match; more than 1 = several candidates)
+          gaia_dmag    G of the brightest OTHER Gaia star within ISOLATION_PX px of the event minus G of this star
+                       (inf if there is none): small = a blend TESS can't separate, the flare could be on either
+          gaia_n_local number of Gaia stars (any G; the catalogue reaches G ~ 21) within ISOLATION_PX px of the
+                       event, matched or not: the local crowding
+
+        Runs after the classification (ML, or the rules for injections). Events classified Asteroid / CosmicRay /
+        Junk (NO_CROSSMATCH_CLASSES) are not crossmatched: gaia_id, nearest_gaia_id and var_type = '.'.
+        Events without a calibrated centroid_err (not PSF-like) aren't either: gaia_id '-', nearest_gaia_* empty.
+        Cuts localised before centroid_err existed keep the crossmatch they already have (their errors are on
+        another scale; redo='events' brings them up to date).
         """
+
+        if 'centroid_err' not in self.events:
+            print('   No centroid_err (older localisation): kept the existing Gaia / variable crossmatch',flush=True)
+            return
 
         events = deepcopy(self.events)
 
@@ -1889,6 +1965,9 @@ class Detector():
         events['nearest_gaia_id'] = '-'
         events['nearest_gaia_dx'] = np.nan   # pixels
         events['nearest_gaia_dy'] = np.nan   # pixels
+        events['gaia_n_3sig'] = np.nan
+        events['gaia_dmag'] = np.nan
+        events['gaia_n_local'] = np.nan
 
         box_deg = nearest_search_box_arcsec / 3600.0
 
@@ -1897,8 +1976,14 @@ class Detector():
         gaia_rpmag_all = gaia.RPmag.values
         gaia_gmag_all = gaia.Gmag.values
 
+        # Flare / Variable / Unsure events (or untagged, for the rules) with a calibrated position (PSF-like)
+        skipped = events.classification.isin(NO_CROSSMATCH_CLASSES)
+        crossmatch = np.isfinite(events.centroid_err) & ~skipped
+        events['var_type'] = '-'
+        events.loc[skipped, ['gaia_id', 'nearest_gaia_id', 'var_type']] = NOT_CHECKED
+
         for i, event in events.iterrows():
-            if event.classification not in ['Asteroid', 'CosmicRay', 'Junk']:
+            if crossmatch[i]:
 
                 dra_raw = gaia.ra - event.ra
                 dra_wrapped = (dra_raw + 180) % 360 - 180
@@ -1907,6 +1992,7 @@ class Detector():
                     (np.abs(dra_wrapped * np.cos(np.radians(event.dec))) < box_deg) &
                     (np.abs(gaia.dec - event.dec) < box_deg)
                 ).values
+                events.loc[i, ['gaia_n_3sig', 'gaia_n_local']] = 0
 
                 if diag_box_mask.any():
                     diag_source = gaia_source_all[diag_box_mask]
@@ -1920,6 +2006,7 @@ class Detector():
                     dx_pix = diag_gaia_x - event_x
                     dy_pix = diag_gaia_y - event_y
                     sep_pix = np.sqrt(dx_pix**2 + dy_pix**2)
+                    events.loc[i, 'gaia_n_local'] = int(np.sum(sep_pix <= ISOLATION_PX))
 
                     # brightness-weighted "effective distance": brighter (lower mag)
                     # stars get an effective distance reduction, so they can win over
@@ -1931,40 +2018,45 @@ class Detector():
                     mag_rel = mag - np.nanmin(mag)
 
                     effective_dist = sep_pix + mag_weight * mag_rel
-                    best_idx = np.argmin(effective_dist)
 
-                    nearest_id = str(diag_source[best_idx])
-                    nearest_dx = float(dx_pix[best_idx])
-                    nearest_dy = float(dy_pix[best_idx])
+                    # on-sky offset of every candidate, in units of the event's 1-sigma errors
+                    cand_ra = gaia.ra.values[diag_box_mask]
+                    cand_dec = gaia.dec.values[diag_box_mask]
+                    dra_arcsec = ((cand_ra - event.ra + 180) % 360 - 180) * np.cos(np.radians(event.dec)) * 3600
+                    ddec_arcsec = (cand_dec - event.dec) * 3600
+                    mahalanobis = np.sqrt((dra_arcsec / (event.ra_err * 3600))**2 +
+                                          (ddec_arcsec / (event.dec_err * 3600))**2)
 
-                    events.loc[i, 'nearest_gaia_id'] = nearest_id
-                    events.loc[i, 'nearest_gaia_dx'] = nearest_dx
-                    events.loc[i, 'nearest_gaia_dy'] = nearest_dy
+                    # the match: the best-scoring star inside the region; none inside -> no match, and
+                    # nearest_gaia_* is the best-scoring star in the whole box
+                    inside = mahalanobis <= CROSSMATCH_NSIGMA
+                    if inside.any():
+                        best_idx = np.flatnonzero(inside)[np.argmin(effective_dist[inside])]
+                        events.loc[i, 'gaia_id'] = str(diag_source[best_idx])
+                    else:
+                        best_idx = np.argmin(effective_dist)
 
-                    # gaia_id is set to this SAME best-scoring candidate, only if it
-                    # falls within the event's error ellipse
-                    ra_err_arcsec = event.ra_err * 3600
-                    dec_err_arcsec = event.dec_err * 3600
+                    events.loc[i, 'nearest_gaia_id'] = str(diag_source[best_idx])
+                    events.loc[i, 'nearest_gaia_dx'] = float(dx_pix[best_idx])
+                    events.loc[i, 'nearest_gaia_dy'] = float(dy_pix[best_idx])
 
-                    nearest_ra = gaia.ra.values[diag_box_mask][best_idx]
-                    nearest_dec = gaia.dec.values[diag_box_mask][best_idx]
-
-                    dra_arcsec = ((nearest_ra - event.ra + 180) % 360 - 180) * np.cos(np.radians(event.dec)) * 3600
-                    ddec_arcsec = (nearest_dec - event.dec) * 3600
-
-                    mahalanobis = np.sqrt((dra_arcsec / ra_err_arcsec)**2 + (ddec_arcsec / dec_err_arcsec)**2)
-
-                    if mahalanobis <= 1:
-                        events.loc[i, 'gaia_id'] = nearest_id
+                    # -- how trustworthy: candidates inside the region, and isolation of this star -- #
+                    events.loc[i, 'gaia_n_3sig'] = int(inside.sum())
+                    others = (sep_pix <= ISOLATION_PX) & (np.arange(len(sep_pix)) != best_idx) & np.isfinite(diag_gmag)
+                    events.loc[i, 'gaia_dmag'] = (float(np.min(diag_gmag[others]) - diag_gmag[best_idx])
+                                                  if others.any() else np.inf)
 
         # -- Cross matches location to variable catalog -- #
-        variables = pd.read_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/variable_catalog.csv')
+        variables = load_table(f'{self.path}/Cut{self.cut}of{self.n**2}/variable_catalog.csv')
         for i, event in events.iterrows():
-            if event.classification not in ['Asteroid', 'CosmicRay', 'Junk']:
-                inside = variables[(abs(variables.ra - event.ra) < event.ra_err) &
-                                    (abs(variables.dec - event.dec) < event.dec_err)]
-                if len(inside) > 0:
-                    events.loc[i, 'classification'] = inside.iloc[0].Type
+            if crossmatch[i] and len(variables):
+                # same rule as Gaia: on-sky offsets (RA wrapped, x cos dec) within CROSSMATCH_NSIGMA sigma
+                dra = ((variables.ra.values - event.ra + 180) % 360 - 180) * np.cos(np.radians(event.dec)) * 3600
+                ddec = (variables.dec.values - event.dec) * 3600
+                mahalanobis = np.sqrt((dra / (event.ra_err * 3600))**2 + (ddec / (event.dec_err * 3600))**2)
+                j = np.argmin(mahalanobis)
+                if mahalanobis[j] <= CROSSMATCH_NSIGMA:
+                    events.loc[i, 'var_type'] = variables.iloc[j].Type      # catalogue type; classification = the ML class
 
         self.events = events
 
@@ -2289,7 +2381,8 @@ class Detector():
 
             # Centroid Positions
             'xcentroid', 'ycentroid',
-            'xcentroid_err','ycentroid_err',
+            'centroid_err','centroid_err_psf',
+            'xcentroid_err','ycentroid_err',        # older outputs only (kept for navigator's centroid_err fallback)
             'xint', 'yint','xccd', 'yccd',
             'xcentroid_det', 'ycentroid_det', 
             'xcentroid_psf', 'ycentroid_psf',
@@ -2306,21 +2399,24 @@ class Detector():
             'flux_max', 'mag_min','flux_sign',
             'image_sig_max', 'lc_sig_max', 'lc_sig_med','lc_flat',
             'snr_psf',
-
+            
             # Morphology
-            'psf_like', 'psf_diff','psf_stacked','com_motion','gaussian_score',
+            'psf_like', 'psf_diff','psf_stacked','psf_pinned','psf_det_sep','com_motion','gaussian_score',
             'ellipticity','fwhm','neg_extent','bad_frame_flag',
 
-            # # Frequency Domain
-            # 'peak_freq', 'peak_power',
+            # Some Classification
+    
+            # ML Info
+            'p_Flare', 'p_CosmicRay', 'p_Junk', 'p_Asteroid', 'p_Variable',
 
             # Secondary Identification
+            'var_type', 'rule_tag', 'pipe_tag',
             'known_asteroid_designation','known_asteroid_dist_px','known_asteroid_frame',
-            'source_mask', 'gaia_id', 'nearest_gaia_id','nearest_gaia_dx','nearest_gaia_dy',
-            'crossbin_ids','asteroid_id', # 'prob', 'GaaID', 'cf_class', 'cf_prob',
+            'source_mask', 'nearest_gaia_id','nearest_gaia_dx','nearest_gaia_dy',
+            'asteroid_id', 'TSS Catalogue','gaia_id','gaia_n_3sig','gaia_dmag','gaia_n_local',# 'prob', 'GaaID', 'cf_class', 'cf_prob',
             
             # Miscellaneous
-            'n_detections','total_events','frame_bin', 'TSS Catalogue'
+            'crossbin_ids','n_detections','total_events','frame_bin', 
         ]
 
         # Safely apply ordering
@@ -2356,52 +2452,166 @@ class Detector():
             tss_names.append(tss_name)
         self.events['TSS Catalogue'] = tss_names
 
+    def _ml_classify(self):
+        """
+        Replace the rule-based classification with the ML classifier's (tessellate.ml_classifier, ML_VERSION):
+        p_<class> columns, classification = the most likely class or 'Unsure'. The rule verdict (CosmicRay / Junk /
+        Asteroid / '-') is kept as rule_tag. Also upgrades an older detected_events.csv (variable-catalogue types
+        in classification -> var_type). Updates self.events; find_events saves it.
+        """
+        from .ml_classifier import classify_cut, ML_VERSION
 
-    def find_events(self):
-
-        # -- Group these sources into unique objects based on the objid -- #
         ts = clock()
-        self._get_all_independent_events()
-        print(f'   Separated into individual events -- done! ({(clock()-ts):.0f}s)',flush=True)
+        events = _add_psf_flags(self.events.reset_index(drop=True))
+        if 'var_type' not in events:                         # older output: catalogue types sat in classification
+            cls = events['classification'].astype(str)
+            is_var = cls.str.match(r'^(V[A-Z]|RRLyrae)')
+            events['var_type'] = np.where(is_var, cls.replace({'RRLyrae': 'VRRLyr'}), '-')
+            events['classification'] = np.where(is_var, '-', cls)
+        if 'rule_tag' not in events:
+            events['rule_tag'] = events['classification']
+        if 'pipe_tag' not in events:            # older file: only its CosmicRay / Junk tags come from localisation
+            events['pipe_tag'] = np.where(events['rule_tag'].isin(['CosmicRay', 'Junk']), events['rule_tag'], '-')
 
-        # -- Get physical units for events -- #
-        self._events_physical_units()
-        print(f'   Getting time/coords/flux information -- done!',flush=True)
+        res = classify_cut(self.data_path, self.sector, self.cam, self.ccd, self.cut, self.n, events=events,
+                           progress=True, n_jobs=self.cpu)     # capped at ml_classifier.ML_MAX_JOBS
+        res = res.drop_duplicates(['objid', 'eventid'])
+        p_cols = [c for c in res if c.startswith('p_')]
+        events = events.drop(columns=[c for c in p_cols if c in events])
+        events = events.merge(res, on=['objid', 'eventid'], how='left')
+        events['classification'] = events.pop('ml_classification').fillna('Unsure')
 
-        # -- Tag asteroids -- #
-        ts = clock()
-        self._flag_asteroids()
-        print(f'   Checking for asteroids -- done! ({(clock()-ts):.0f}s)',flush=True)
+        self.events = events          # column order is set by _order_events_columns (find_events, before saving)
+        counts = self.events['classification'].value_counts().to_dict()
+        print(f'   ML classification v{ML_VERSION} -- done! ({(clock()-ts):.0f}s) {counts}',flush=True)
 
-        # -- Cross-match against predicted (orbit-propagated) asteroids, if available -- #
-        ts = clock()
-        self._flag_known_asteroids()
-        print(f'   Checking against predicted asteroids -- done! ({(clock()-ts):.0f}s)',flush=True)
 
-        self.events = self.events.drop_duplicates(subset=['frame_bin','xint','yint','frame_max'],keep='first')
+    def _next_event_stage(self):
+        """
+        Where event finding should resume, from what self.events (detected_events.csv) already holds -- each stage
+        saves the file when it finishes:
+          no events                                    -> 'events'
+          localisation only (no TSS names / rule_tag)  -> 'compile'
+          compiled, no ML probabilities                -> 'classify' (also cuts searched before the classifier)
+          classified, not crossmatched                 -> 'crossmatch'
+          classified and crossmatched                  -> None, nothing to do
+        """
+        if self.events is None:
+            return 'events'
+        cols = set(self.events.columns)
+        if not cols & {'TSS Catalogue', 'rule_tag'}:
+            return 'compile'
+        if not self.injection and 'p_Flare' not in cols:
+            return 'classify'
+        if 'gaia_id' not in cols:
+            return 'crossmatch'
+        return None
 
-        # -- Crossmatch with catalogues -- #
-        ts = clock()
-        self._catalogue_crossmatch()
-        print(f'   Crossmatching with Gaia and Variables -- done! ({(clock()-ts):.0f}s)',flush=True)
+    def find_events(self, start=None):
+        """
+        Build detected_events.csv, saving it after each stage so an interrupted run resumes where it stopped.
+        start='events': from the sources -- event isolation and PSF localisation (the slow part); start='compile':
+        from self.events loaded from detected_events.csv, redoing everything after localisation (units, asteroid
+        checks, frame-bin linking); start='classify': the ML classification; start='crossmatch': the Gaia / variable
+        crossmatch of the events worth it (Flare / Variable / Unsure; injections: the rules' untagged events), which
+        needs the classification so comes last. Each stage runs
+        the ones after it. start=None: resume from whatever the file holds (_next_event_stage).
 
-        # -- Crossmatch between different frame_bins -- #
-        ts = clock()
-        print(f'   Crossmatching between time bins',flush=True)
-        self._crossmatch_framebin()
-        print(f'   Crossmatching between time bins -- done! ({(clock()-ts):.0f}s)',flush=True)
+        Every compile step recomputes its columns from the localisation output (positions, errors, frames,
+        fluxes), so it can rerun on its own output. Two exceptions are handled here: the asteroid checks start from
+        the localisation's CosmicRay / Junk tags, kept unchanged in pipe_tag; and the known-asteroid match is
+        merged in, so its columns are dropped first. Asteroid events keep their (stretched) windows.
+        """
 
-        # -- Get TSS Catalogue Names -- #        
-        self._TSS_catalogue_names()
-        print(f'   Getting TSS Catalogue Names -- done!',flush=True)
+        if start is None:
+            start = self._next_event_stage()
+            if start is None:
+                print('   Events already found and classified',flush=True)
+                return
+            print(f'   Resuming event finding from: {start}',flush=True)
+        if start not in ('events', 'compile', 'classify', 'crossmatch'):
+            raise ValueError(f"find_events: start must be None, 'events', 'compile', 'classify' or 'crossmatch', "
+                             f"not {start!r}")
+        save_path = f'{self.path}/Cut{self.cut}of{self.n**2}/{self._inj_path}/detected_events.csv'
 
-        # -- Order nicely -- #
-        self._order_events_columns()  
+        go = False
+        if start == 'events':
+            # -- Group these sources into unique objects based on the objid -- #
+            ts = clock()
+            self._get_all_independent_events()
+            print(f'   Separated into individual events -- done! ({(clock()-ts):.0f}s)',flush=True)
+            self.events['pipe_tag'] = self.events['classification']     # localisation's tags, never changed after
+            save_table(self.events,save_path)                   # checkpoint: localisation done
+            go = True
 
-        # -- Save out results to csv file -- #
-        self.events.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/{self._inj_path}/detected_events.csv',index=False)
-        
+        if start == 'compile' or go:
 
+            events = self.events.reset_index(drop=True)
+
+            if 'pipe_tag' not in events:          # older file: only its CosmicRay / Junk tags come from localisation
+                tag = events['rule_tag'] if 'rule_tag' in events else events['classification']
+                events['pipe_tag'] = np.where(tag.isin(['CosmicRay', 'Junk']), tag, '-')
+            events['classification'] = events['pipe_tag']
+            
+            redone = ['known_asteroid_designation', 'known_asteroid_dist_px', 'known_asteroid_frame', 'asteroid_id',
+                      'rule_tag', 'var_type', 'gaia_id', 'nearest_gaia_id', 'nearest_gaia_dx', 'nearest_gaia_dy',
+                      'gaia_n_3sig', 'gaia_dmag', 'gaia_n_local',
+                      'p_Flare', 'p_CosmicRay', 'p_Junk', 'p_Asteroid', 'p_Variable']
+            
+            self.events = events.drop(columns=[c for c in redone if c in events])
+
+            # -- Get physical units for events -- #
+            self._events_physical_units()
+            print(f'   Getting time/coords/flux information -- done!',flush=True)
+
+            # -- Tag asteroids -- #
+            ts = clock()
+            self._flag_asteroids()
+            print(f'   Checking for asteroids -- done! ({(clock()-ts):.0f}s)',flush=True)
+
+            # -- Cross-match against predicted (orbit-propagated) asteroids, if available -- #
+            ts = clock()
+            self._flag_known_asteroids()
+            print(f'   Checking against predicted asteroids -- done! ({(clock()-ts):.0f}s)',flush=True)
+
+            self.events = self.events.drop_duplicates(subset=['frame_bin','xint','yint','frame_max'],keep='first')
+
+            # -- Crossmatch between different frame_bins -- #
+            ts = clock()
+            print(f'   Crossmatching between time bins',flush=True)
+            self._crossmatch_framebin()
+            print(f'   Crossmatching between time bins -- done! ({(clock()-ts):.0f}s)',flush=True)
+
+            # -- Get TSS Catalogue Names -- #        
+            self._TSS_catalogue_names()
+            print(f'   Getting TSS Catalogue Names -- done!',flush=True)
+
+            # -- Order nicely -- #
+            self.events = _add_psf_flags(self.events)
+            self.events['rule_tag'] = self.events['classification']    # the rules' final verdict (ONLY set here:
+                                                                        # after classifying, classification is ML)
+            self._order_events_columns()
+            save_table(self.events,save_path)                   # checkpoint: compilation done
+            go = True
+
+        if (start == 'classify' or go) and not self.injection:     # injections keep the rules' tags
+
+            # -- Classify with the ML model (on the table in memory) -- #
+            self._ml_classify()
+
+            # -- Order nicely (after the classification, so it also places the ML columns) and save -- #
+            self._order_events_columns()
+            save_table(self.events,save_path)                   # checkpoint: classification done
+            go = True
+
+        if start == 'crossmatch' or go or self.injection:
+
+            # -- Crossmatch with catalogues (only the classes worth it, so after the classification) -- #
+            ts = clock()
+            self._catalogue_crossmatch()
+            print(f'   Crossmatching with Gaia and Variables -- done! ({(clock()-ts):.0f}s)',flush=True)
+            self._order_events_columns()
+            save_table(self.events,save_path)                   # crossmatch done
 
     # ------------------------------ Object finding function ------------------------------ #
 
@@ -2414,11 +2624,12 @@ class Detector():
 
         columns = [
             'frame_bin','objid', 'sector', 'cam', 'ccd', 'cut', 'xcentroid', 'ycentroid', 
-            'ra', 'dec', 'gal_l', 'gal_b', 'xcentroid_err','ycentroid_err','ra_err','dec_err',
+            'ra', 'dec', 'gal_l', 'gal_b', 'centroid_err','ra_err','dec_err',
             'lc_sig_max', 'flux_maxsig', 'frame_maxsig',
             'mjd_maxsig','psf_maxsig','flux_sign', 'n_events',
             'min_eventlength_frame', 'max_eventlength_frame',
-            'min_eventlength_mjd','max_eventlength_mjd','gaia_id','classification','TSS Catalogue',
+            'min_eventlength_mjd','max_eventlength_mjd','gaia_id','gaia_n_3sig','gaia_dmag','gaia_n_local','classification',
+            'var_type','TSS Catalogue',
             'known_asteroid_designation','known_asteroid_dist_px','known_asteroid_frame'
         ]
         objects = pd.DataFrame(columns=columns)
@@ -2438,9 +2649,14 @@ class Detector():
             if classification == 'RRLyrae':
                 classification = 'VRRLyr'
 
+            # catalogue variable type: the most common one among the object's matched events
+            var_types = obj['var_type'][~obj['var_type'].isin(['-', NOT_CHECKED])] if 'var_type' in obj else pd.Series(dtype=object)
+            var_type = var_types.mode()[0] if len(var_types) else '-'
+
             row_data = {
                 'objid': objid,
-                'classification': classification,    
+                'classification': classification,
+                'var_type': var_type,
                 'sector': maxevent['sector'],
                 'cam': maxevent['camera'],
                 'ccd': maxevent['ccd'],
@@ -2451,8 +2667,7 @@ class Detector():
                 'dec': maxevent['dec'],
                 'gal_l': maxevent['gal_l'],
                 'gal_b': maxevent['gal_b'],
-                'xcentroid_err': maxevent['xcentroid_err'],
-                'ycentroid_err': maxevent['ycentroid_err'],
+                'centroid_err': maxevent['centroid_err'],
                 'ra_err': maxevent['ra_err'],
                 'dec_err': maxevent['dec_err'],
                 'image_sig_max': maxevent['image_sig_max'],
@@ -2466,6 +2681,9 @@ class Detector():
                 'min_eventlength_mjd': obj['mjd_duration'].min(),
                 'max_eventlength_mjd': obj['mjd_duration'].max(),
                 'gaia_id' : maxevent['gaia_id'],
+                'gaia_n_3sig' : maxevent.get('gaia_n_3sig'),
+                'gaia_dmag' : maxevent.get('gaia_dmag'),
+                'gaia_n_local' : maxevent.get('gaia_n_local'),
                 'asteroid_id' : asteroid_id,
                 'frame_bin':  maxevent['frame_bin'],
                 'flux_sign': np.sum(obj['flux_sign'].unique()).astype(int),
@@ -2481,14 +2699,29 @@ class Detector():
 
         self.objects = objects
 
-        self.objects.to_csv(f'{self.path}/Cut{self.cut}of{self.n**2}/{self._inj_path}/detected_objects.csv',index=False)
+        save_table(self.objects,f'{self.path}/Cut{self.cut}of{self.n**2}/{self._inj_path}/detected_objects.csv')
         
         
     # ------------------------------ Main search function ------------------------------ #
 
-    def transient_search(self,cut,mode='starfind',prf_path='/fred/oz335/_local_TESS_PRFs',time_bins=['10min'],min_snr=3.0):
+    def transient_search(self,cut,mode='starfind',prf_path='/fred/oz335/_local_TESS_PRFs',time_bins=['10min'],min_snr=3.0,
+                         redo=None):
+        """
+        Find sources, events and objects in a cut. Stages whose output already exists are skipped, unless redo
+        names the first stage to repeat (every later stage repeats too). To redo source detection as well, use
+        tessellate's overwrite of the search, which deletes the search outputs.
+          'events'   - event isolation and PSF localisation (the slow part of event finding)
+          'compile'  - everything after localisation, from the existing detected_events.csv: units, asteroid
+                       checks, frame-bin linking
+          'classify'   - the ML classification
+          'crossmatch' - the Gaia / variable crossmatch (of Flare / Variable / Unsure events) only
+        Objects are always rebuilt.
+        """
 
         import os
+
+        if redo not in REDO_STAGES:
+            raise ValueError(f'redo must be one of {REDO_STAGES}, not {redo!r}')
 
         # -- Check if using starfinder and/or sourcedetect for detection -- #
         self.mode = mode
@@ -2505,24 +2738,31 @@ class Detector():
 
         # -- Preload self.sources and self.events if they're already made, self.objects can't be made otherwise this function wouldn't be called -- #
         self.gather_results(cut=cut)
-        print('\n') 
+        print('\n')
 
         if self.sources is None:
             print('-------Source finding (see progress in errors log file)-------',flush=True)
             self.find_sources(time_bins,min_snr=min_snr)
+            self.events = None                  # events from older sources would be stale
             print('\n')
 
-        if not os.path.exists(f'{self.prf_path}/cam{self.cam}_ccd{self.ccd}/snr_to_localisation/cut{cut}of{int(self.n**2)}_coeffs_y.npy'):
-            from .localisation import simulate_cut_psf_fitting
+        # if not os.path.exists(f'{self.prf_path}/cam{self.cam}_ccd{self.ccd}/snr_to_localisation/cut{cut}of{int(self.n**2)}_coeffs_y.npy'):
+        #     from .localisation import simulate_cut_psf_fitting
 
-            print('-------Simulating PSF fit accuracy (see progress in errors log file)-------',flush=True)
-            simulate_cut_psf_fitting(self.prf_path,self.sector,self.cam,self.ccd,cut,n=self.n,nfits=100000,nMedians=10)
-            print('\n')
+        #     print('-------Simulating PSF fit accuracy (see progress in errors log file)-------',flush=True)
+        #     simulate_cut_psf_fitting(self.prf_path,self.sector,self.cam,self.ccd,cut,n=self.n,nfits=100000,nMedians=10)
+        #     print('\n')
 
-        # -- self.events contains all individual events, grouped by time and space -- #  
-        if self.events is None:
-            print('-------Event finding (see progress in errors log file)-------',flush=True)
-            self.find_events()
+        if self.events is None or redo == 'events':
+            events_start = 'events'                    # nothing to build on, or asked to redo localisation
+        elif redo in ('compile', 'classify', 'crossmatch'):
+            events_start = redo
+        else:
+            events_start = self._next_event_stage()    # resume from what detected_events.csv holds (None = all done)
+
+        if events_start is not None:
+            print(f'-------Event finding from {events_start} (see progress in errors log file)-------',flush=True)
+            self.find_events(start=events_start)
             print('\n')
 
         # -- self.objects contains all individual spatial objects -- #  

@@ -11,7 +11,62 @@ warnings.filterwarnings("ignore")
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
 
 
-from .tools import RoundToInt, Generate_LC, Frame_Bin
+from .tools import RoundToInt, Generate_LC, Frame_Bin, load_table
+from .localisation import CROSSMATCH_NSIGMA
+
+
+def _centroid_err(table):
+    """
+    1-sigma centroid error (pixels) of each row. Outputs from before centroid_err existed have x/ycentroid_err
+    instead (then a match radius); for those this is sqrt((x^2 + y^2) / 2), what the centroid_err filter cut on.
+    """
+    if 'centroid_err' in table:
+        return table['centroid_err']
+    return np.sqrt((table['xcentroid_err']**2 + table['ycentroid_err']**2) / 2)
+
+
+OLD_VARIABLE_TYPES = ['VCR', 'VRRLyr', 'VEB', 'VLPV', 'VST', 'VAGN', 'VRM', 'VMSO', 'RRLyrae']
+
+
+def _class_mask(table, name, negate=False, min_probability=None, max_probability=None):
+    """
+    Rows of `table` that are (or, with negate, are not) class `name`.
+
+    With the ML columns (p_<Class>, from version 2.1.0 / classifier 1.0.0):
+      - no probability limits: by classification (the most likely class, or 'Unsure');
+      - with min/max_probability: by the probability of the condition as written -- p_<Class> for `name`, and
+        1 - p_<Class> for not-`name` (so '!var' with min_probability 0.75 keeps p_Variable <= 0.25). Events without
+        probabilities (no frame-bin-1 sibling) fail any probability limit.
+    Older outputs (rule tags, catalogue types in classification): by classification; 'var' means any catalogue
+    variable type; probability limits raise an error.
+    """
+    key = name.lower()
+    if key in ('var', 'variable'):
+        key = 'variable'
+    p_col = next((c for c in table.columns if c.lower() == f'p_{key}'), None)
+    limits = (min_probability is not None) or (max_probability is not None)
+
+    if p_col is None:
+        if limits:
+            raise ValueError('min_probability / max_probability need the ML probability columns (p_<class>): '
+                             're-run transient_search on this cut with tessellate >= 2.1.0.')
+        names = [v.lower() for v in OLD_VARIABLE_TYPES] + ['variable'] if key == 'variable' else [key]
+        hit = table['classification'].astype(str).str.lower().isin(names)
+        return ~hit if negate else hit
+
+    if not limits:
+        hit = table['classification'].astype(str).str.lower() == key
+        return ~hit if negate else hit
+
+    prob = pd.to_numeric(table[p_col], errors='coerce')
+    if negate:
+        prob = 1 - prob
+    mask = prob.notna()
+    if min_probability is not None:
+        mask &= prob >= min_probability
+    if max_probability is not None:
+        mask &= prob <= max_probability
+    return mask
 
 
 def _bazin_fit_worker(stamp_cube, sub_time, x_sub, y_sub, ccd_x, ccd_y,
@@ -108,14 +163,14 @@ class Navigator():
 
         if sources:
             try:
-                self.sources = pd.read_csv(f'{path}/detected_sources.csv')    # raw detection results
+                self.sources = load_table(f'{path}/detected_sources.csv')    # raw detection results
             except:
                 print('No detected sources file found')
                 self.sources = None
 
         if events:
             try:
-                self.events = pd.read_csv(f'{path}/detected_events.csv')    # temporally located with same object id
+                self.events = load_table(f'{path}/detected_events.csv')    # temporally located with same object id
                 self.events['crossbin_ids'] = self.events['crossbin_ids'].apply(
                     lambda x: ast.literal_eval(x) if isinstance(x, str) else x
                 )
@@ -125,7 +180,7 @@ class Navigator():
 
         if objects: 
             try:
-                self.objects = pd.read_csv(f'{path}/detected_objects.csv')    # temporally and spatially located with same object id
+                self.objects = load_table(f'{path}/detected_objects.csv')    # temporally and spatially located with same object id
             except:
                 print('No detected objects file found')
                 self.objects = None
@@ -134,10 +189,10 @@ class Navigator():
 
         if isolated: 
             try:
-                self.isolated = pd.read_csv(f'{path}/single_isolated_detections.csv')    # raw detection results
+                self.isolated = load_table(f'{path}/single_isolated_detections.csv')    # raw detection results
             except:
                 print('No detected isolated sources file found')
-                self.isoalted = None
+                self.isolated = None
 
     def gather_data(self,cut,flux=True,time=True,ref=False,mask=False,bkg=False,verbose=True):
         """
@@ -196,10 +251,18 @@ class Navigator():
                       min_frame_duration=None,max_frame_duration=None,min_events=None,max_events=None,
                       lc_sig_max=None,lc_sig_med=None,lc_flat=None,image_sig_max=None,psf_like=None,
                       galactic_latitude=None,centroid_err=None,crossbins=True,
-                      boundary_buffer=None,exclude_bad_frames=None):
-         
+                      boundary_buffer=None,exclude_bad_frames=None,
+                      min_probability=None,max_probability=None):
+
         """
         Returns a dataframe of the events in the cut, with options to filter by various parameters.
+
+        classification : 'Flare', 'Variable' (or 'var'), 'Asteroid', 'CosmicRay', 'Junk', 'Unsure'; prefix '!' or '~'
+            for "not". min_probability / max_probability turn it into a cut on the probability of that condition:
+            classification='Flare', min_probability=0.9 keeps p_Flare >= 0.9; classification='!var',
+            min_probability=0.75 keeps p_Variable <= 0.25 (confidently not a variable).
+        asteroidkiller / cosmicraykiller / junkkiller : remove that class; with min/max_probability, the same as
+            classification='!Asteroid' etc. (keep events confidently NOT that class).
         """
 
         # -- Gather data -- #
@@ -218,23 +281,16 @@ class Navigator():
             no_gaia_objids = self.objects.loc[self.objects['gaia_id'] == '-', 'objid']
             events = events[events['objid'].isin(no_gaia_objids)]
         elif starkiller == False:
-            events = deepcopy(self.events.loc[self.events.gaia_id != '-'])
+            events = deepcopy(self.events.loc[~self.events.gaia_id.isin(['-', '.'])])   # matched to a star
         else:
             events = deepcopy(self.events)
 
-        # -- Remove asteroids from the results -- #
-        if asteroidkiller:
-            events = events.loc[~(events.classification == 'Asteroid')]
-            if 'Asteroid' in events.keys():
-                events = events.loc[events.Asteroid == 0]
-
-        # -- Remove Cosmic Rays -- #
-        if cosmicraykiller:
-            events = events.loc[~(events.classification == 'CosmicRay')]
-
-        # -- Remove junk -- #
-        if junkkiller:
-            events = events.loc[~(events.classification == 'Junk')]
+        # -- Remove asteroids, cosmic rays, junk (with probability limits: keep events confidently not that class) -- #
+        for kill, name in [(asteroidkiller, 'Asteroid'), (cosmicraykiller, 'CosmicRay'), (junkkiller, 'Junk')]:
+            if kill:
+                events = events.loc[_class_mask(events, name, True, min_probability, max_probability)]
+        if asteroidkiller and 'Asteroid' in events.keys():
+            events = events.loc[events.Asteroid == 0]
 
         # -- Remove events near strap structures -- #
         if strapkiller:
@@ -305,16 +361,7 @@ class Navigator():
         # -- Filter based on classification -- #
         if classification is not None:
             is_negation = classification.startswith(('!', '~'))
-            classification_stripped = classification.lstrip('!~').lower()
-            if classification_stripped in ['var', 'variable']:
-                classification = classification = ['VCR', 'VRRLyr', 'VEB','VLPV','VST','VAGN','VRM','VMSO','RRLyrae']  
-            else:
-                classification = [classification_stripped]
-
-            if is_negation:
-                events = events[~events.classification.str.lower().isin([classification[i].lower() for i in range(len(classification))])]
-            else:
-                events = events[events.classification.str.lower().isin([classification[i].lower() for i in range(len(classification))])]
+            events = events[_class_mask(events, classification.lstrip('!~'), is_negation, min_probability, max_probability)]
 
         # -- Filter by upper and lower limits on number of detections within each event -- #
         if max_frame_duration is not None or min_frame_duration is not None:
@@ -343,7 +390,7 @@ class Navigator():
         if psf_like is not None:
             events = events.loc[events.psf_like>=psf_like]
         if centroid_err is not None:
-            events = events.loc[(events.xcentroid_err**2 + events.ycentroid_err**2) <= 2 * centroid_err**2]
+            events = events.loc[_centroid_err(events) <= centroid_err]
 
         return events
 
@@ -406,16 +453,7 @@ class Navigator():
         # -- Filter based on classification -- #
         if classification is not None:
             is_negation = classification.startswith(('!', '~'))
-            classification_stripped = classification.lstrip('!~').lower()
-            if classification_stripped in ['var', 'variable']:
-                classification = classification = ['VCR', 'VRRLyr', 'VEB','VLPV','VST','VAGN','VRM','VMSO']  # Replace with variable classes
-            else:
-                classification = [classification_stripped]
-
-            if is_negation:
-                objects = objects[~objects.classification.str.lower().isin([classification[i].lower() for i in range(len(classification))])]
-            else:
-                objects = objects[objects.classification.str.lower().isin([classification[i].lower() for i in range(len(classification))])]
+            objects = objects[_class_mask(objects, classification.lstrip('!~'), is_negation)]
 
         # -- Filter by various parameters -- #
         if frame_bin is not None:
@@ -427,7 +465,7 @@ class Navigator():
         if psf_like is not None:
             objects = objects[objects.psf_maxsig>=psf_like]
         if centroid_err is not None:
-            objects = objects[objects.xcentroid_err**2+objects.ycentroid_err**2 <= 2*centroid_err**2]
+            objects = objects[_centroid_err(objects) <= centroid_err]
         if min_eventlength_frame is not None:
             objects = objects[objects.min_eventlength_frame>=min_eventlength_frame]
         if max_eventlength_frame is not None:
@@ -954,7 +992,7 @@ class Navigator():
         while len(frames) < 5:
             frames = np.append(frames,frames[-1]+frame_interval)
         frames[frames<0] = 0
-        frames[frames>len(time)]=len(time)-1
+        frames[frames>=len(time)]=len(time)-1
         frames = np.unique(frames)
 
         # -- Define cutout -- #
@@ -1212,8 +1250,11 @@ class Navigator():
             
             # error_x_rad = min(sigma*event.xcentroid_err,0.5)
             # error_y_rad = min(sigma*event.ycentroid_err,0.5)
-            error_x_rad = event.xcentroid_err
-            error_y_rad = event.ycentroid_err
+            if 'centroid_err' in event.index:      # draw the Gaia match region
+                error_x_rad = error_y_rad = CROSSMATCH_NSIGMA * event.centroid_err
+            else:
+                error_x_rad = event.xcentroid_err
+                error_y_rad = event.ycentroid_err
             errorX = event.xcentroid + error_x_rad*np.cos(theta)
             errorY = event.ycentroid + error_y_rad*np.sin(theta)
 
@@ -1227,8 +1268,11 @@ class Navigator():
 
             # error_x_rad = min(sigma*obj.xcentroid_err,0.5)
             # error_y_rad = min(sigma*obj.ycentroid_err,0.5)
-            error_x_rad = obj.xcentroid_err
-            error_y_rad = obj.ycentroid_err
+            if 'centroid_err' in obj.index:        # draw the Gaia match region
+                error_x_rad = error_y_rad = CROSSMATCH_NSIGMA * obj.centroid_err
+            else:
+                error_x_rad = obj.xcentroid_err
+                error_y_rad = obj.ycentroid_err
             errorX = obj.xcentroid + error_x_rad*np.cos(theta)
             errorY = obj.ycentroid + error_y_rad*np.sin(theta)
     
@@ -1251,9 +1295,12 @@ class Navigator():
         
         # axes[0].scatter(errorRA,errorDEC, transform=axes[0].get_transform('fk5'),
         #             edgecolors='red',marker='.',s=15,lw=1)
-        ellipse_patch = Polygon(np.column_stack([errorRA, errorDEC]),closed=True,transform=axes[0].get_transform('fk5'),
-                                fill=False, edgecolor='red',linewidth=1.5)
-        axes[0].add_patch(ellipse_patch)
+        # Non-PSF-like events have no calibrated error (centroid_err NaN) and so no match region to draw; an all-NaN
+        # polygon makes astropy's WCSAxes transform fail ("'list' object has no attribute 'T'")
+        if np.all(np.isfinite(errorRA)) and np.all(np.isfinite(errorDEC)):
+            ellipse_patch = Polygon(np.column_stack([errorRA, errorDEC]),closed=True,transform=axes[0].get_transform('fk5'),
+                                    fill=False, edgecolor='red',linewidth=1.5)
+            axes[0].add_patch(ellipse_patch)
 
         legend = axes[0].legend(loc=2,facecolor="black",fontsize=10)
         for text in legend.get_texts():

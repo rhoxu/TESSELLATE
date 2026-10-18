@@ -19,33 +19,94 @@ def save_compact_array(path,arr):
         arr = arr.astype(np.float32)
     np.save(path,arr)
 
+def _table_paths(path):
+    """('.parquet', '.csv') paths for a table. Callers pass the historical '.csv' path."""
+    stem = path[:-4] if path.endswith('.csv') else path[:-8] if path.endswith('.parquet') else path
+    return stem + '.parquet', stem + '.csv'
+
+def _remove_file(path):
+    try:
+        os.remove(path)
+    except FileNotFoundError:          # e.g. another job got there first
+        pass
+
+def _list_cells_to_lists(df):
+    """Parquet gives list columns (e.g. crossbin_ids) back as numpy arrays; make them plain lists again."""
+    for c in df.columns[df.dtypes == object]:
+        first = df[c].dropna()
+        if len(first) and isinstance(first.iloc[0], np.ndarray):
+            df[c] = [list(v) if isinstance(v, np.ndarray) else v for v in df[c]]
+    return df
+
+def _write_parquet(df, parquet_path):
+    """
+    Write df as Parquet, safely: to a temporary file first, then renamed into place, so a job that is killed
+    mid-write (or another job reading at the same time) never sees a half-written table. A text column that also
+    holds numbers (Parquet needs one type per column) is saved as text -- what a CSV round trip gives anyway.
+    """
+    tmp = f'{parquet_path}.tmp{os.getpid()}'
+    try:
+        try:
+            df.to_parquet(tmp, index=False)
+        except Exception:
+            df = df.copy()
+            for c in df.columns[df.dtypes == object]:
+                kinds = {type(v) for v in df[c] if v is not None and not (isinstance(v, float) and np.isnan(v))}
+                if len(kinds) > 1 and not kinds <= {list, np.ndarray}:
+                    df[c] = [v if v is None or (isinstance(v, float) and np.isnan(v)) else str(v) for v in df[c]]
+            df.to_parquet(tmp, index=False)
+        os.replace(tmp, parquet_path)
+    finally:
+        _remove_file(tmp)
+
 def save_table(df,path):
     """
-    Save a DataFrame as Parquet instead of CSV to reduce on-disk size.
+    Save a DataFrame as Parquet (smaller and faster to load than CSV).
     `path` should be the '.csv' path used historically by callers; the file
-    is actually written alongside it with a '.parquet' extension.
+    is actually written alongside it with a '.parquet' extension, and any old
+    CSV of the same table is deleted so the two can never disagree.
     """
-    parquet_path = path[:-4]+'.parquet' if path.endswith('.csv') else path+'.parquet'
-    df.to_parquet(parquet_path,index=False)
+    parquet_path, csv_path = _table_paths(path)
+    _write_parquet(df, parquet_path)
+    _remove_file(csv_path)
 
-def load_table(path):
+def load_table(path, convert=True, columns=None):
     """
     Load a DataFrame saved with save_table. Looks for the Parquet file first,
     falling back to the legacy '.csv' path so pre-existing outputs on disk
     remain readable without needing to be regenerated.
+
+    convert : a legacy CSV is immediately re-saved as Parquet and the CSV deleted
+        (the CSV is only deleted once the Parquet has been written and read back
+        identically; if anything goes wrong the CSV is kept and a warning printed).
+    columns : only these columns (a Parquet file reads just them from disk, which is much faster).
     """
-    parquet_path = path[:-4]+'.parquet' if path.endswith('.csv') else path
+    parquet_path, csv_path = _table_paths(path)
     if os.path.exists(parquet_path):
-        return pd.read_parquet(parquet_path)
-    return pd.read_csv(path)
+        return _list_cells_to_lists(pd.read_parquet(parquet_path, columns=columns))
+
+    df = pd.read_csv(csv_path, low_memory=False)       # low_memory=False: one type per column, as Parquet needs
+    if convert:
+        try:
+            _write_parquet(df, parquet_path)
+            if pd.read_parquet(parquet_path).equals(df):
+                _remove_file(csv_path)
+            else:
+                _remove_file(parquet_path)
+                print(f'load_table: {csv_path} did not convert to Parquet identically; kept the CSV', flush=True)
+        except Exception as e:
+            _remove_file(parquet_path)
+            print(f'load_table: could not convert {csv_path} to Parquet ({type(e).__name__}: {e}); '
+                  'kept the CSV', flush=True)
+    return df if columns is None else df[list(columns)]
 
 def table_exists(path):
     """
     True if a table saved with save_table exists, checking both the
     '.parquet' path and the legacy '.csv' path.
     """
-    parquet_path = path[:-4]+'.parquet' if path.endswith('.csv') else path
-    return os.path.exists(parquet_path) or os.path.exists(path)
+    parquet_path, csv_path = _table_paths(path)
+    return os.path.exists(parquet_path) or os.path.exists(csv_path)
 
 def _Save_space(Save,delete=False):
     """
@@ -248,9 +309,10 @@ def _remove_reductions(data_path,sector,n,cams,ccds,cuts,part):
                             os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Part{i}/Cut{cut}of{n**2}')
                             os.system(f'rm -f *.npy')
                             os.system(f'rm -f reduced.txt')
-                            os.system(f'rm -f detected_events.csv')
-                            os.system(f'rm -f detected_sources.csv')
-                            os.system(f'rm -f detected_objects.csv')
+                            os.system(f'rm -f detected_events.csv detected_events.parquet')
+                            os.system(f'rm -f detected_sources.csv detected_sources.parquet')
+                            os.system(f'rm -f detected_objects.csv detected_objects.parquet')
+                            os.system(f'rm -f single_isolated_detections.csv single_isolated_detections.parquet')
                             os.system('rm -f figs.zip')
                             os.system('rm -f lcs.zip')  
                         except:
@@ -260,9 +322,10 @@ def _remove_reductions(data_path,sector,n,cams,ccds,cuts,part):
                         os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}')
                         os.system(f'rm -f *.npy')
                         os.system(f'rm -f reduced.txt')
-                        os.system(f'rm -f detected_events.csv')
-                        os.system(f'rm -f detected_sources.csv')
-                        os.system(f'rm -f detected_objects.csv')
+                        os.system(f'rm -f detected_events.csv detected_events.parquet')
+                        os.system(f'rm -f detected_sources.csv detected_sources.parquet')
+                        os.system(f'rm -f detected_objects.csv detected_objects.parquet')
+                        os.system(f'rm -f single_isolated_detections.csv single_isolated_detections.parquet')
                         os.system('rm -f figs.zip')
                         os.system('rm -f lcs.zip')  
                     except:
@@ -336,9 +399,10 @@ def _remove_search(data_path,sector,n,cams,ccds,cuts,part):
                     for i in range(1,3):
                         try:
                             os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Part{i}/Cut{cut}of{n**2}')
-                            os.system(f'rm -f detected_events.csv')
-                            os.system(f'rm -f detected_sources.csv')
-                            os.system(f'rm -f detected_objects.csv')
+                            os.system(f'rm -f detected_events.csv detected_events.parquet')
+                            os.system(f'rm -f detected_sources.csv detected_sources.parquet')
+                            os.system(f'rm -f detected_objects.csv detected_objects.parquet')
+                            os.system(f'rm -f single_isolated_detections.csv single_isolated_detections.parquet')
                             os.system('rm -f figs.zip')
                             os.system('rm -f lcs.zip') 
                         except:
@@ -346,9 +410,10 @@ def _remove_search(data_path,sector,n,cams,ccds,cuts,part):
                 else:
                     try:
                         os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}')
-                        os.system(f'rm -f detected_events.csv')
-                        os.system(f'rm -f detected_sources.csv')
-                        os.system(f'rm -f detected_objects.csv')
+                        os.system(f'rm -f detected_events.csv detected_events.parquet')
+                        os.system(f'rm -f detected_sources.csv detected_sources.parquet')
+                        os.system(f'rm -f detected_objects.csv detected_objects.parquet')
+                        os.system(f'rm -f single_isolated_detections.csv single_isolated_detections.parquet')
                         os.system('rm -f figs.zip')
                         os.system('rm -f lcs.zip')  
                     except:
@@ -615,3 +680,261 @@ def Frame_Bin(sector, camera, time, flux=None, frame_bin=1):
     time_a, flux_a = _bin_segment(time[:break_idx], flux[:break_idx])
     time_b, flux_b = _bin_segment(time[break_idx:], flux[break_idx:])
     return np.concatenate([time_a, time_b]), np.concatenate([flux_a, flux_b])
+
+
+
+def _Ask(prompt):
+    """
+    input() for terminals whose Backspace key isn't wired to erase (e.g. over
+    VNC): readline gives it normal line editing, and any backspace/delete
+    characters that still come through are applied rather than kept.
+    """
+    import importlib
+    import re
+    try:
+        importlib.import_module('readline')
+    except ImportError:
+        pass
+
+    text = []
+    for ch in re.sub(r'\x1b\[[0-9;]*[A-Za-z~]', '', input(prompt)):     # drop arrow-key escape codes
+        if ch in '\x08\x7f':
+            if text:
+                text.pop()
+        elif ch.isprintable():
+            text.append(ch)
+    return ''.join(text)
+
+def _screen_size():
+    """(width, height) of the display the windows open on: screeninfo, then tkinter, else 1920 x 1080."""
+    try:
+        from screeninfo import get_monitors
+        m = get_monitors()[0]
+        return m.width, m.height
+    except Exception:
+        pass
+    try:
+        import tkinter
+        root = tkinter.Tk()
+        root.withdraw()
+        size = root.winfo_screenwidth(), root.winfo_screenheight()
+        root.destroy()
+        return size
+    except Exception:
+        return 1920, 1080
+
+
+def manual_sort(events_path, image_dir=None, sort_dir=None, screen_size=None):
+    """
+    Sort events by eye into categories named when it starts (e.g. 'Real' and
+    'Not real'), one keypress per event, in an OpenCV window like
+    development/manual_sort.py.
+
+    events_path : csv of events (sector, camera, ccd, cut, objid, eventid, ...).
+    image_dir : folder searched, subfolders included, for the event images
+        S{sector}C{cam}C{ccd}C{cut}O{objid}E{eventid}.png made by plot_lc
+        (e.g. development/plot_events.py). Default: 'images' next to the csv.
+    sort_dir : where the sorted copies go. Default: 'sort_{csv name}' next to the csv.
+    screen_size : (width, height) of the screen in pixels, if the detected size (printed at the start) is
+        wrong -- e.g. (1680, 1050) for a VNC desktop of that size. Images are shrunk to fit above the
+        controls box.
+
+    Images are copied, not moved, so the same images can be sorted in several
+    ways. Each category gets a folder of images plus an events.csv of their
+    rows -- the layout ml_classifier.load_manual_labels reads. If sort_dir
+    already holds a sort, you're asked whether to continue it, reset it, or
+    start a new one alongside it (sort_dir_2, sort_dir_3, ...).
+
+    Keys: 1-9 sort, Enter skip, Backspace undo, Esc or q quit.
+    """
+
+    import cv2
+    import shutil
+
+    keys = ['sector', 'camera', 'ccd', 'cut', 'objid', 'eventid']
+    base = os.path.dirname(os.path.abspath(events_path))
+    name = os.path.splitext(os.path.basename(events_path))[0]
+    image_dir = os.path.abspath(image_dir or os.path.join(base, 'images'))
+    sort_dir = os.path.abspath(sort_dir or os.path.join(base, f'sort_{name}'))
+
+    events = pd.read_csv(events_path)
+
+    # -- An existing sort: continue it, reset it, or start a new one alongside -- #
+    classes = []
+    if os.path.exists(os.path.join(sort_dir, 'categories.txt')):
+        with open(os.path.join(sort_dir, 'categories.txt')) as f:
+            classes = [line.strip() for line in f if line.strip()]
+        n_sorted = sum(f.endswith('.png') for c in classes if os.path.isdir(os.path.join(sort_dir, c))
+                       for f in os.listdir(os.path.join(sort_dir, c)))
+        print(f'Found a sort in {sort_dir}\n  categories {classes}, {n_sorted} events sorted so far.')
+        answer = ''
+        while answer not in ('c', 'r', 'n'):
+            answer = _Ask('  c = continue it,  r = reset it and start again,  n = start a new sort alongside it: ')
+            answer = answer.strip().lower()
+
+        if answer == 'r':
+            confirm = _Ask(f'  This deletes the {n_sorted} sorted copies in {sort_dir} (your original images '
+                            f'are untouched). Type yes to confirm: ')
+            if confirm.strip().lower() != 'yes':
+                print('Nothing deleted.')
+                return
+            shutil.rmtree(sort_dir)
+            classes = []
+        elif answer == 'n':
+            k = 2
+            while os.path.exists(f'{sort_dir}_{k}'):
+                k += 1
+            sort_dir = f'{sort_dir}_{k}'
+            print(f'  New sort in {sort_dir}')
+            classes = []
+
+    order_file = os.path.join(sort_dir, 'categories.txt')
+    if not classes:
+        print('Enter category names one at a time (up to 9); press Enter on an empty line to finish.')
+        while len(classes) < 9:
+            c = _Ask(f'  Category {len(classes) + 1}: ').strip()
+            if not c:
+                break
+            if c in classes or '/' in c or '\\' in c:
+                print('  Skipped: duplicate name or contains a slash.')
+                continue
+            classes.append(c)
+        if len(classes) < 2:
+            print('Need at least two categories.')
+            return
+        os.makedirs(sort_dir, exist_ok=True)
+        with open(order_file, 'w') as f:
+            f.write('\n'.join(classes) + '\n')
+
+    group_csv = {c: os.path.join(sort_dir, c, 'events.csv') for c in classes}
+    groups = {}
+    for c in classes:
+        os.makedirs(os.path.join(sort_dir, c), exist_ok=True)
+        groups[c] = pd.read_csv(group_csv[c]) if os.path.exists(group_csv[c]) else events.iloc[:0].copy()
+
+    # -- Find each event's image, and what is already sorted -- #
+    image_of = {}
+    for root, _, files in os.walk(image_dir):
+        if os.path.abspath(root).startswith(sort_dir):
+            continue
+        for f in files:
+            if f.endswith('.png'):
+                image_of.setdefault(f, os.path.join(root, f))
+    done = {f for c in classes for f in os.listdir(os.path.join(sort_dir, c)) if f.endswith('.png')}
+
+    names = [f'S{r[0]}C{r[1]}C{r[2]}C{r[3]}O{r[4]}E{r[5]}.png' for r in events[keys].itertuples(index=False)]
+    todo = [(i, n) for i, n in enumerate(names) if n not in done and n in image_of]
+    n_missing = sum(n not in image_of for n in names)
+    print(f'{len(events)} events: {sum(n in done for n in names)} already sorted, {len(todo)} to sort, '
+          f'{n_missing} without an image in {image_dir}')
+    if not todo:
+        return
+
+    # -- Windows -- #
+    screen_w, screen_h = screen_size or _screen_size()
+    print(f'Screen {screen_w} x {screen_h} px' + ('' if screen_size else
+          ' (detected; pass screen_size=(w, h) if the windows don\'t fit)'))
+
+    # Two columns (categories | navigation) so the window stays short enough for a VNC screen
+    col1 = ['  CONTROLS  '] + [f'{k + 1} : {c}' for k, c in enumerate(classes)]
+    col2 = ['  NAVIGATION  ', 'Enter  :  Skip', 'Bkspc  :  Undo', 'Esc/q  :  Quit']
+    font, fscale, thickness, pad = cv2.FONT_HERSHEY_SIMPLEX, 0.65, 1, 14
+    sizes1 = [cv2.getTextSize(line, font, fscale, thickness)[0] for line in col1]
+    sizes2 = [cv2.getTextSize(line, font, fscale, thickness)[0] for line in col2]
+    col1_w = max(w for w, _ in sizes1) + 2 * pad
+    col2_w = max(w for w, _ in sizes2) + 2 * pad
+    row_h = max(h for _, h in sizes1 + sizes2) + pad
+    height = max(len(col1), len(col2)) * row_h + pad
+
+    guide = np.zeros((height, col1_w + col2_w, 3), dtype=np.uint8)
+    guide[:] = (0, 0, 139)
+    cv2.line(guide, (col1_w, 0), (col1_w, height), (80, 80, 80), 1)
+    for x0, lines, sizes in [(pad, col1, sizes1), (col1_w + pad, col2, sizes2)]:
+        y = pad
+        for k, (line, (_, th)) in enumerate(zip(lines, sizes)):
+            colour = (100, 220, 100) if k == 0 else (220, 220, 220)
+            cv2.putText(guide, line, (x0, y + th), font, fscale, colour, thickness)
+            y += th + pad
+    cv2.imshow('Controls', guide)
+    cv2.moveWindow('Controls', 0, max(screen_h - height - 50, 0))
+    cv2.waitKey(1)
+
+    # -- Sorting loop -- #
+    history = []    # (position in todo, category or None if skipped)
+    i = 0
+    stop = False
+    while i < len(todo) and not stop:
+        idx, fname = todo[i]
+        img = cv2.imread(image_of[fname])
+        if img is None:
+            print(f'Could not read {fname}, skipping.')
+            i += 1
+            continue
+        # fit the width and the height left above the controls box (plus room for window title bars)
+        avail_h = screen_h - height - 120
+        scale = min(0.95 * screen_w / img.shape[1], avail_h / img.shape[0], 1.0)
+        if scale < 1:
+            img = cv2.resize(img, (int(img.shape[1] * scale), int(img.shape[0] * scale)),
+                             interpolation=cv2.INTER_AREA)
+        cv2.imshow('Image Sorter', img)
+        cv2.moveWindow('Image Sorter', 0, 0)
+        print(f'[{i + 1}/{len(todo)}] {fname}')
+
+        # wait for a recognised key; anything else is ignored
+        while True:
+            key = cv2.waitKey(0)
+            if key == -1:
+                continue
+            key &= 0xFF
+
+            if key in (27, ord('q')):
+                stop = True
+                break
+
+            if key in (8, 127):
+                if not history:
+                    print('  Nothing to undo.')
+                    continue
+                j, c = history.pop()
+                if c is not None:
+                    prev = todo[j][1]
+                    copied = os.path.join(sort_dir, c, prev)
+                    if os.path.exists(copied):
+                        os.remove(copied)
+                    ev = events.iloc[todo[j][0]]
+                    match = np.all([groups[c][k].to_numpy() == ev[k] for k in keys], axis=0)
+                    groups[c] = groups[c][~match]
+                    groups[c].to_csv(group_csv[c], index=False)
+                    print(f'  Undid {prev} (was {c})')
+                i = j
+                break
+
+            if key == 13:
+                history.append((i, None))
+                print('  Skipped')
+                i += 1
+                break
+
+            if ord('1') <= key < ord('1') + len(classes):
+                c = classes[key - ord('1')]
+                shutil.copy2(image_of[fname], os.path.join(sort_dir, c, fname))
+                groups[c] = pd.concat([groups[c], events.iloc[[idx]]], ignore_index=True)
+                groups[c].to_csv(group_csv[c], index=False)
+                history.append((i, c))
+
+                overlay = img.copy()
+                (tw, th), _ = cv2.getTextSize(c, cv2.FONT_HERSHEY_SIMPLEX, 2, 3)
+                cx, cy = (overlay.shape[1] - tw) // 2, (overlay.shape[0] + th) // 2
+                cv2.rectangle(overlay, (cx - 10, cy - th - 10), (cx + tw + 10, cy + 10), (0, 0, 255), -1)
+                cv2.putText(overlay, c, (cx, cy), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 3)
+                cv2.imshow('Image Sorter', overlay)
+                cv2.waitKey(300)
+                print(f'  -> {c}')
+                i += 1
+                break
+
+    cv2.destroyAllWindows()
+    cv2.waitKey(1)
+    counts = {c: sum(f.endswith('.png') for f in os.listdir(os.path.join(sort_dir, c))) for c in classes}
+    print('Sorted so far: ' + ', '.join(f'{c} {n}' for c, n in counts.items()))
+    print(f'Results in {sort_dir}')

@@ -11,7 +11,7 @@ import numpy as np
 # print(f'Imported easy functions ({ts-t():.0f}s)')
 
 # ts = t()
-from .tools import delete_files, _Print_buff, _Save_space, _Check_job_status, _Submit_sbatch
+from .tools import delete_files, _Print_buff, _Save_space, _Check_job_status, _Submit_sbatch, table_exists
 # print(f'Imported .tools functions ({ts-t():.0f}s)')
 
 class Tessellate():
@@ -29,6 +29,7 @@ class Tessellate():
                  asteroid_lightcurves_time=None,asteroid_lightcurves_cpu=None,asteroid_lightcurves_mem=None,
                  calibrate_time=None,calibrate_cpu=None,calibrate_mem=None,
                  search_time=None,search_cpu=None,search_mem=None,detect_mode='both',search_time_bins=None,search_snr=3.0,
+                 search_redo='ask',
                  plot_time=None,plot_cpu=None,plot_mem=None,
                  download=None,make_cube=None,fix_wcs=None,make_cuts=None,predict_asteroids=None,
                  reduce=None,asteroid_lightcurves=None,calibrate=None,search=None,plot=None,delete=None,
@@ -186,6 +187,8 @@ class Tessellate():
         self.detect_mode = detect_mode
         self.search_time_bins = search_time_bins
         self.search_snr = search_snr
+        self.search_redo = search_redo      # 'ask', or Detector.transient_search's redo: None / 'events' / 'compile' / 'classify' / 'crossmatch'.
+                                            # A one-off choice: never saved in the config file
 
         self.plot_time = plot_time
         self.plot_mem = plot_mem
@@ -209,6 +212,9 @@ class Tessellate():
 
             # -- Load config -- #
             download, make_cube, fix_wcs, make_cuts, predict_asteroids, reduce, asteroid_lightcurves, calibrate, search, plot, delete = self._load_config()
+            if search:
+                self._search_redo_properties()      # a per-run choice, not stored in the config
+                print('\n')
 
         else:
             # -- Confirm Run Properties -- #
@@ -1833,7 +1839,44 @@ class Tessellate():
                 e = f'Invalid Search Time Bins Input of {self.search_time_bins}\n'
                 raise ValueError(e)
 
+        self._search_redo_properties()
+
         print('\n')
+
+    def _search_redo_properties(self):
+        """
+        Default detection skips every stage whose output exists. Otherwise ask which stage to repeat first (the
+        later stages follow): event localisation, event compilation, ML classification, catalogue crossmatch.
+        (Redoing source detection
+        too = overwriting the search, asked separately.)
+        """
+
+        stages = [('events', 'Redo event localisation (event isolation + PSF fits)?'),
+                  ('compile', 'Redo event compilation (asteroid checks, frame-bin links)?'),
+                  ('classify', 'Redo ML classification?'),
+                  ('crossmatch', 'Redo Gaia / variable crossmatch?')]
+
+        def yes_no(question):
+            a = input(f'{question} [y/n] = ')
+            while a not in ('y', 'n'):
+                a = input(f"      Invalid choice! {question.strip().lstrip('- ')} [y/n] = ")
+            return a == 'y'
+
+        if self.search_redo == 'ask':
+            self.search_redo = None
+            if not yes_no('   - Run default detection?'):
+                for i, (stage, question) in enumerate(stages):
+                    if yes_no(f'      - {question}'):
+                        self.search_redo = stage
+                        later = [s for s, _ in stages[i + 1:]]
+                        if later:
+                            print(f'        ({", ".join(later)} will be redone too)')
+                        break
+        elif self.search_redo not in [None] + [s for s, _ in stages]:
+            e = f'Invalid Search Redo Input of {self.search_redo}\n'
+            raise ValueError(e)
+        else:
+            print(f"   - Search Redo = {self.search_redo if self.search_redo else 'default (skip finished stages)'}")
     
     def _plotting_properties(self,searching,suggestions,use_suggestions):
         """
@@ -2504,7 +2547,7 @@ export PYTHONUNBUFFERED=1\n\
                 for cut in self.cuts:
                     if cut not in completed:
                         save_path = f'{base_path}/Cut{cut}of{self.n**2}'
-                        if os.path.exists(f'{save_path}/variable_catalog.csv') & os.path.exists(f'{save_path}/local_gaia_cat.csv'):
+                        if table_exists(f'{save_path}/variable_catalog.csv') & os.path.exists(f'{save_path}/local_gaia_cat.csv'):
                             completed.append(cut)
                         elif os.path.exists(f'{save_path}/cut.txt'):
 
@@ -2542,7 +2585,7 @@ export PYTHONUNBUFFERED=1\n\
                                     #     attempt += 1
 
                             
-                            if os.path.exists(f'{save_path}/variable_catalog.csv'):
+                            if table_exists(f'{save_path}/variable_catalog.csv'):
                                 print('--Variable catalog already made, skipping.')
                             else:
                                 rad2 = rad*21/60**2
@@ -3484,22 +3527,23 @@ export PYTHONUNBUFFERED=1\n\
         print(f'Creating Transient Search File for Sector{self.sector} Cam{cam} Ccd{ccd} Cut{cut}')
         python_text = f"\
 from tessellate import Detector\n\
-import os\n\
+from tessellate.tools import table_exists\n\
 \n\
 part = {self.part}\n\
 \n\
+redo = {self.search_redo!r}\n\
 if part:\n\
     path1 = '{self.data_path}/{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}/{self._inj_dir}/detected_events.csv'\n\
     path2 = '{self.data_path}/{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/{self._inj_dir}/detected_events.csv'\n\
-    if not os.path.exists(path1):\n\
+    if redo is not None or not table_exists(path1):\n\
         detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},injection={self.injection},part=1)\n\
-        detector.transient_search(cut={cut},mode='{self.detect_mode}',time_bins={self.search_time_bins},min_snr={self.search_snr})\n\
-    if not os.path.exists(path2):\n\
+        detector.transient_search(cut={cut},mode='{self.detect_mode}',time_bins={self.search_time_bins},min_snr={self.search_snr},redo=redo)\n\
+    if redo is not None or not table_exists(path2):\n\
         detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},injection={self.injection},part=2)\n\
-        detector.transient_search(cut={cut},mode='{self.detect_mode}',time_bins={self.search_time_bins},min_snr={self.search_snr})\n\
+        detector.transient_search(cut={cut},mode='{self.detect_mode}',time_bins={self.search_time_bins},min_snr={self.search_snr},redo=redo)\n\
 else:\n\
     detector = Detector(sector={self.sector},data_path='{self.data_path}',cam={cam},ccd={ccd},n={self.n},injection={self.injection},injection_dir='{self._inj_dir}')\n\
-    detector.transient_search(cut={cut},mode='{self.detect_mode}',time_bins={self.search_time_bins},min_snr={self.search_snr})"   
+    detector.transient_search(cut={cut},mode='{self.detect_mode}',time_bins={self.search_time_bins},min_snr={self.search_snr},redo=redo)"   
                     
         with open(f"{self.working_path}/detection_scripts/S{self.sector}C{cam}C{ccd}C{cut}_script.py", "w") as python_file:
             python_file.write(python_text)
@@ -3547,11 +3591,11 @@ export PYTHONUNBUFFERED=1\n\
             if self.part:
                 save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}/{self._inj_dir}'
                 save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/{self._inj_dir}'
-                return (os.path.exists(f'{save_path1}/detected_objects.csv') and
-                        os.path.exists(f'{save_path2}/detected_objects.csv'))
+                return (self.search_redo is None and table_exists(f'{save_path1}/detected_objects.csv') and
+                        table_exists(f'{save_path2}/detected_objects.csv'))
             else:
                 save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/{self._inj_dir}'
-                return os.path.exists(f'{save_path}/detected_objects.csv')
+                return self.search_redo is None and table_exists(f'{save_path}/detected_objects.csv')
 
         # ---- default behaviour: no reduction_status given, act immediately ----
         if reduction_status is False:
@@ -3564,7 +3608,7 @@ export PYTHONUNBUFFERED=1\n\
                         if self.part:
                             save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}/{self._inj_dir}'
                             save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}/{self._inj_dir}'
-                            if (os.path.exists(f'{save_path1}/detected_objects.csv')) & (os.path.exists(f'{save_path2}/detected_objects.csv')):
+                            if (self.search_redo is None) & (table_exists(f'{save_path1}/detected_objects.csv')) & (table_exists(f'{save_path2}/detected_objects.csv')):
                                 print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
                                 print('\n')
                             elif (os.path.exists(f'{save_path1}/reduced.txt')) & (os.path.exists(f'{save_path2}/reduced.txt')):
@@ -3585,7 +3629,7 @@ export PYTHONUNBUFFERED=1\n\
                                     raise ValueError(e)
                         else:
                             save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}/{self._inj_dir}'
-                            if os.path.exists(f'{save_path}/detected_objects.csv'):
+                            if self.search_redo is None and table_exists(f'{save_path}/detected_objects.csv'):
                                 print(f'Cam {cam} CCD {ccd} Cut {cut} already searched!')
                                 print('\n')
                             elif not os.path.exists(f'{save_path}/sector{self.sector}_cam{cam}_ccd{ccd}_cut{cut}_of{self.n**2}_Ref.npy'):
@@ -3693,7 +3737,7 @@ export PYTHONUNBUFFERED=1\n\
     #                 if self.part:
     #                     save_path1 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part1/Cut{cut}of{self.n**2}'
     #                     save_path2 = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Part2/Cut{cut}of{self.n**2}'
-    #                     if (os.path.exists(f'{save_path1}/detected_objects.csv')) & (os.path.exists(f'{save_path2}/detected_objects.csv')):
+    #                     if (table_exists(f'{save_path1}/detected_objects.csv')) & (table_exists(f'{save_path2}/detected_objects.csv')):
     #                         cutting_status[(cam,ccd,cut)] = 'COMPLETED'
     #                     elif (os.path.exists(f'{save_path1}/reduced.txt')) & (os.path.exists(f'{save_path2}/reduced.txt')):
     #                         cutting_status[(cam,ccd,cut)] = 'INCOMPLETE'
@@ -3705,7 +3749,7 @@ export PYTHONUNBUFFERED=1\n\
     #                         raise ValueError(e)
     #                 else:
     #                     save_path = f'{self.data_path}/Sector{self.sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{self.n**2}'
-    #                     if os.path.exists(f'{save_path}/detected_objects.csv'):
+    #                     if table_exists(f'{save_path}/detected_objects.csv'):
     #                         cutting_status[(cam,ccd,cut)] = 'COMPLETED'               
     #                     elif os.path.exists(f'{save_path}/reduced.txt'):
     #                         cutting_status[(cam,ccd,cut)] = 'INCOMPLETE'
@@ -3851,9 +3895,9 @@ export PYTHONUNBUFFERED=1\n\
                             if (os.path.exists(f'{save_path1}/lcs.zip')) & (os.path.exists(f'{save_path2}/lcs.zip')):
                                 print(f'Cam {cam} CCD {ccd} Cut {cut} plots already made!')
                                 print('\n')
-                            elif (os.path.exists(f'{save_path1}/detected_objects.csv'))&(os.path.exists(f'{save_path2}/detected_objects.csv')):
+                            elif (table_exists(f'{save_path1}/detected_objects.csv'))&(table_exists(f'{save_path2}/detected_objects.csv')):
                                 self._cut_transient_plot(cam,ccd,cut)
-                            elif not os.path.exists(f'{save_path1}/detected_objects.csv'):
+                            elif not table_exists(f'{save_path1}/detected_objects.csv'):
                                 e = f'No Event File Detected for Plotting of Cut {cut} Part 1!\n'
                                 raise ValueError(e)
                             else:
@@ -3864,7 +3908,7 @@ export PYTHONUNBUFFERED=1\n\
                             if os.path.exists(f'{save_path}/lcs.zip'):
                                 print(f'Cam {cam} CCD {ccd} Cut {cut} plots already made!')
                                 print('\n')
-                            elif os.path.exists(f'{save_path}/detected_objects.csv'):
+                            elif table_exists(f'{save_path}/detected_objects.csv'):
                                 self._cut_transient_plot(cam,ccd,cut)
                             else:
                                 e = f'No Event File Detected for Plotting of Cut {cut}!\n'
@@ -3907,7 +3951,7 @@ export PYTHONUNBUFFERED=1\n\
                                         if (os.path.exists(f'{save_path1}/lcs.zip')) & (os.path.exists(f'{save_path2}/lcs.zip')):
                                             print(f'Cam {cam} CCD {ccd} Cut {cut} plots already made!')
                                             print('\n')
-                                        elif (os.path.exists(f'{save_path1}/detected_events.csv'))&(os.path.exists(f'{save_path2}/detected_events.csv')):
+                                        elif (table_exists(f'{save_path1}/detected_events.csv'))&(table_exists(f'{save_path2}/detected_events.csv')):
                                             self._cut_transient_plot(cam,ccd,cut)
                                             completed.append(cut)
                                     else:
@@ -3916,7 +3960,7 @@ export PYTHONUNBUFFERED=1\n\
                                             completed.append(cut)
                                             print(f'Cam {cam} CCD {ccd} Cut {cut} already plotted!')
                                             print('\n')
-                                        elif os.path.exists(f'{save_path}/detected_events.csv'):
+                                        elif table_exists(f'{save_path}/detected_events.csv'):
                                             self._cut_transient_plot(cam,ccd,cut)
                                             completed.append(cut)
                             i+=1
