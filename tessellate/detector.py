@@ -198,10 +198,7 @@ def _Spatial_group(result,colname='objid',min_samples=1,distance=0.5,njobs=-1):
     pos = np.array([result.xcentroid,result.ycentroid]).T
     cluster = DBSCAN(eps=distance,min_samples=min_samples,n_jobs=njobs).fit(pos)
     labels = cluster.labels_
-    unique_labels = set(labels)
-    for label in unique_labels:
-        result.loc[label == labels,colname] = label + 1
-    result[colname] = result[colname].astype(int)
+    result[colname] = (labels + 1).astype(int)     # one assignment (a loop over labels was groups x events)
     return result
 
 def _Spatio_temporal_group(result,colname='objid',min_samples=1,distance=0.5,frame_gap=5,njobs=-1):
@@ -1283,37 +1280,36 @@ def _Crossbin_group_worker(asteroid_group_id, group_events):
     """
     Process a single asteroid_crossbin_group chunk independently.
     Returns a one-column DataFrame (crossbin_ids) with the same index.
+
+    For each crossbin_group (in label order), events from fine to coarse frame_bin: an event with no ids gets its own
+    index; its ids are then added to every coarser-bin event that overlaps it in time (coarser = in the same
+    crossbin_group, or for an Asteroid anywhere in this asteroid_crossbin_group). Done on numpy arrays (the pandas
+    version spent ~0.4 ms per event on row access); same matches as before.
     """
 
-    group_events = group_events.copy()
-    group_events['crossbin_ids'] = [[] for _ in range(len(group_events))]
+    index = group_events.index.to_numpy()
+    cg = group_events['crossbin_group'].to_numpy()
+    fb = group_events['frame_bin'].to_numpy(float)
+    fs = group_events['frame_start'].to_numpy(float)
+    fe = group_events['frame_end'].to_numpy(float)
+    ast = (group_events['classification'] == 'Asteroid').to_numpy()
+    hi = fe * fb + fb                      # a coarser event j overlaps i if  fs_i fb_i <= fe_j fb_j + fb_j
+    lo = fs * fb - fb                      #                              and fe_i fb_i >= fs_j fb_j - fb_j
+    ids = [None] * len(index)
 
-    for cg in np.unique(group_events['crossbin_group']):
-        group_df = group_events[group_events['crossbin_group'] == cg].sort_values('frame_bin')
+    for g in np.unique(cg):
+        members = np.where(cg == g)[0]
+        members = members[np.argsort(fb[members], kind='stable')]
+        for i in members:
+            if not ids[i]:
+                ids[i] = {index[i]}
+            pool = np.arange(len(index)) if ast[i] else members
+            pool = pool[fb[pool] > fb[i]]
+            hit = pool[(fs[i] * fb[i] <= hi[pool]) & (fe[i] * fb[i] >= lo[pool])]
+            for j in hit:
+                ids[j] = (ids[j] or set()) | ids[i]
 
-        for i, row in group_df.iterrows():
-            if not group_events.at[i, 'crossbin_ids']:
-                group_events.at[i, 'crossbin_ids'] = [i]
-
-            current_ids = group_events.at[i, 'crossbin_ids']
-
-            if row['classification'] == 'Asteroid':
-                coarser = group_events[
-                    (group_events['asteroid_crossbin_group'] == asteroid_group_id) &
-                    (group_events['frame_bin'] > row['frame_bin'])
-                ].sort_values('frame_bin')
-            else:
-                coarser = group_df[group_df['frame_bin'] > row['frame_bin']]
-
-            mask = (
-                (row['frame_start'] * row['frame_bin'] <= coarser['frame_end'] * coarser['frame_bin'] + coarser['frame_bin']) &
-                (row['frame_end'] * row['frame_bin'] >= coarser['frame_start'] * coarser['frame_bin'] - coarser['frame_bin'])
-            )
-            for j in coarser[mask].index:
-                merged = list(set(group_events.at[j, 'crossbin_ids'] + current_ids))
-                group_events.at[j, 'crossbin_ids'] = merged
-
-    return group_events[['crossbin_ids']]
+    return pd.DataFrame({'crossbin_ids': [sorted(int(v) for v in x) if x else [] for x in ids]}, index=group_events.index)
 
 
 class Detector():
@@ -2223,10 +2219,9 @@ class Detector():
 
     def _crossmatch_framebin(self):
         """
-        Crossmatch between time_bins — parallelised over asteroid_crossbin_group.
+        Crossmatch between time_bins, chunk by chunk over asteroid_crossbin_group.
         """
         from collections import Counter
-        from joblib import Parallel, delayed
         from tqdm import tqdm
 
         events = deepcopy(self.events)
@@ -2238,16 +2233,10 @@ class Detector():
         events = _Spatial_group(events, colname='asteroid_crossbin_group', distance=2, min_samples=1)
 
         # -- Split into independent chunks by asteroid_crossbin_group -- #
-        unique_ag = np.unique(events['asteroid_crossbin_group'])
-        chunks = {
-            ag: events[events['asteroid_crossbin_group'] == ag]
-            for ag in unique_ag
-        }
+        chunks = dict(tuple(events.groupby('asteroid_crossbin_group', sort=True)))   # (a mask per group was groups x events)
 
-        results = Parallel(n_jobs=-1)(
-            delayed(_Crossbin_group_worker)(ag, df)
-            for ag, df in tqdm(chunks.items(),desc='Bin crossmatching')
-        )
+        results = [_Crossbin_group_worker(ag, df)     # in this process: on numpy each chunk takes ~ms, less than
+                   for ag, df in tqdm(chunks.items(), desc='Bin crossmatching')]   # shipping it to a worker
 
         # -- Merge crossbin_ids back into events -- #
         # Build the final dict in pure Python first, then assign once
