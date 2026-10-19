@@ -564,7 +564,7 @@ class DataProcessor():
 
         from astropy.io import fits
         from astropy.wcs import WCS
-        from .asteroid_prediction import predict_asteroids_for_footprint, plot_asteroid_trails
+        from .asteroid_prediction import predict_asteroids_for_footprint, plot_asteroid_trails, barycentric_reference_radec
 
         try:
             cutCorners, _, cutCentreCoords, cutSize = self.find_cuts(cam=cam,ccd=ccd,n=n,plot=False,verbose=0)
@@ -611,7 +611,8 @@ class DataProcessor():
                 ephemeris = predict_asteroids_for_footprint(
                     ra_center, dec_center, radius_deg,
                     mjd.min(), mjd.max(), mjd, wcsItem,
-                    data_dir=f'{self.data_path}/mpc', allow_download=False)
+                    data_dir=f'{self.data_path}/mpc', allow_download=False,
+                    bary_ref_radec=barycentric_reference_radec(self.sector, cam, ccd))   # frame times are BJD_TDB
             except RuntimeError as e:
                 print(f'Cannot predict asteroids for Cam {cam} Ccd {ccd} Cut {cut}{part_label}: {e}')
                 continue
@@ -679,7 +680,7 @@ class DataProcessor():
         import pandas as pd
         from astropy.io import fits
         from astropy.wcs import WCS
-        from .asteroid_prediction import predict_asteroids_for_footprint
+        from .asteroid_prediction import predict_asteroids_for_footprint, barycentric_reference_radec
 
         cuts = list(range(1, n**2 + 1)) if cuts is None else list(cuts)
         try:
@@ -730,7 +731,8 @@ class DataProcessor():
                 # allow_download=False: SLURM compute nodes have no internet access (see predict_asteroids)
                 ephemeris = predict_asteroids_for_footprint(
                     ccd_ra, ccd_dec, ccd_radius, mjd.min(), mjd.max(), mjd, wcsItem,
-                    data_dir=f'{self.data_path}/mpc', allow_download=False)
+                    data_dir=f'{self.data_path}/mpc', allow_download=False,
+                    bary_ref_radec=barycentric_reference_radec(self.sector, cam, ccd))   # frame times are BJD_TDB
             except RuntimeError as e:
                 print(f'Cannot predict asteroids for Cam {cam} Ccd {ccd}{part_label}: {e}')
                 continue

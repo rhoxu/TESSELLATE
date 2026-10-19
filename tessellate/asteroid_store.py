@@ -79,6 +79,9 @@ PRECISION = {
         'x': _PIXELS, 'y': _PIXELS, 'edge_px': _PIXELS, 'contaminating_star_dist_px': _PIXELS,
         'ra': ('step', DEGREE_STEP), 'dec': ('step', DEGREE_STEP),
         'mjd': ('step', 2.0 ** -24),                    # 5 ms
+        'mjd_utc': ('step', 2.0 ** -24),                # 5 ms
+        'lt_days': ('step', 2.0 ** -32),                # 20 us (the light time is ~0.005-0.03 d)
+        'tess_x': ('step', 2.0 ** -32), 'tess_y': ('step', 2.0 ** -32), 'tess_z': ('step', 2.0 ** -32),   # 35 m
         'mag_expected': ('step', 2.0 ** -14),           # 6e-5 mag
         'phase_deg': ('step', 2.0 ** -12),              # 2e-4 deg
         'r_au': ('mantissa', 16), 'delta_au': ('mantissa', 16),   # 7.6e-6 relative
@@ -94,9 +97,16 @@ PRECISION = {
     },
 }
 
+_TIME_COLUMNS = ['mjd_utc', 'lt_days', 'tess_x', 'tess_y', 'tess_z']
+
 PHOTOMETRY_SCHEMA = pa.schema([
     ('designation', pa.string()),
-    ('mjd', pa.float64()),
+    ('mjd', pa.float64()),        # the frame's timestamp: TESS BJD_TDB - 2400000.5 (barycentred for the CCD centre)
+    ('mjd_utc', pa.float64()),    # mid-exposure UTC at TESS (MPC ADES obsTime convention)
+    ('lt_days', pa.float32()),    # object -> TESS light time; emission epoch = mjd_utc - lt_days
+    ('tess_x', pa.float32()),     # TESS geocentric ICRF position, au (ADES pos1-3)
+    ('tess_y', pa.float32()),
+    ('tess_z', pa.float32()),
     ('flux', pa.float32()),
     ('e_flux', pa.float32()),
     ('flux_detrended', pa.float32()),
@@ -253,8 +263,11 @@ def photometry_table(psf_df, ephemeris, sector, cam, ccd, cut, part=0, shape=Non
     """One cut's forced photometry (after detrend_pixel_phase and flag_star_contamination) with the
     ephemeris geometry of each measured frame joined on, in the store's photometry schema. shape is
     the cut's (ny, nx), for each point's distance to the cut edge."""
-    geometry = ephemeris[['designation', 'frame', 'ra', 'dec', 'r_helio_au', 'delta_au',
-                          'phase_angle_deg', 'mag_expected']].rename(
+    # frame-time columns from the 2026-10-20 ephemeris (see asteroid_prediction._spacecraft_epoch); NaN for an
+    # ephemeris written before them
+    eph = ephemeris.reindex(columns=list(dict.fromkeys(list(ephemeris.columns) + _TIME_COLUMNS)))
+    geometry = eph[['designation', 'frame', 'ra', 'dec', 'r_helio_au', 'delta_au',
+                    'phase_angle_deg', 'mag_expected'] + _TIME_COLUMNS].rename(
         columns={'r_helio_au': 'r_au', 'phase_angle_deg': 'phase_deg'})
     df = psf_df.merge(geometry, on=['designation', 'frame'], how='left')
     flags = np.zeros(len(df), dtype=np.uint8)

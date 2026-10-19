@@ -1145,7 +1145,63 @@ def expected_apparent_magnitude(H, G, r_helio_au, delta_au, phase_angle_deg):
     return H + 5 * np.log10(r_helio_au * delta_au) - 2.5 * np.log10(phase_term)
 
 
-def _precompute_frame_geometry(frame_mjds, data_dir=None, allow_download=True):
+# ---- frame times (2026-10-20). The cut's frame times (tessreduce's tpf.time.mjd) are TESS's own timestamps:
+# BJD_TDB - 2400000.5, i.e. TDB at the Solar System barycentre, barycentred by the SPOC pipeline for ONE sky direction
+# per CCD (the FFI header's BTC_PIX1/2 reference pixel, the CCD centre; BARYCORR = r_TESS . n_ref / c, e.g. 487.8 s
+# for Sector 29 Cam 1 Ccd 4). Treating them as UTC at the spacecraft (as before) put every prediction ~480-610 s ahead
+# of the observation: asteroids trailed their predicted positions along-track by speed x that time. The epoch at
+# the spacecraft is recovered by undoing exactly that correction.
+def barycentric_reference_radec(sector, cam, ccd):
+    """(ra, dec) deg of the CCD reference pixel the SPOC pipeline barycentred the FFI times for: the centre of the
+    science area (FFI header BTC_PIX1/2 = 1068, 1024 one-based with the 44 leading virtual columns). Taken from the
+    tesswcs CCD solution at the science-area centre; an error of tens of pixels changes the correction by < 3 s."""
+    from tesswcs import WCS
+    w = WCS.from_sector(int(sector), int(cam), int(ccd))
+    c = w.pixel_to_world(1023.5, 1023.5)
+    return float(c.ra.deg), float(c.dec.deg)
+
+
+def _unit_icrf(radec):
+    ra, dec = np.radians(radec[0]), np.radians(radec[1])
+    return np.array([np.cos(dec) * np.cos(ra), np.cos(dec) * np.sin(ra), np.sin(dec)])
+
+
+def _spacecraft_epoch(mjd_frame, ephem, bary_ref_radec, data_dir=None, allow_download=True):
+    """One frame time -> (TDB days from ephem.jd_ref at TESS, TESS barycentric position au, the epoch as UTC MJD at
+    TESS, TESS geocentric ICRF position au). bary_ref_radec None: mjd_frame is taken as UTC at the spacecraft
+    (callers outside the cut pipeline); otherwise as TESS BJD_TDB barycentred for that direction, inverted by
+    iterating t_sc = t_bary - r_TESS(t_sc) . n_ref / c."""
+    import spiceypy as sp
+    from astropy.time import Time
+    jd_ref = ephem.jd_ref
+
+    def at(t_tdb_mjd):
+        get_tess_kernel_for_epoch(t_tdb_mjd, data_dir, allow_download=allow_download)
+        et = (t_tdb_mjd + 2400000.5 - 2451545.0) * 86400.0            # SPICE ET = TDB seconds past J2000
+        off_km, _ = sp.spkpos("-95", et, "J2000", "NONE", "EARTH")
+        T = t_tdb_mjd + 2400000.5 - jd_ref
+        e = ephem.get_particle("Earth", T)
+        geo = np.array(off_km) / AU_KM
+        return T, np.array([e.x, e.y, e.z]) + geo, geo
+
+    if bary_ref_radec is None:
+        t_tdb = Time(mjd_frame, format="mjd", scale="utc").tdb.mjd
+        T, TP, geo = at(t_tdb)
+        return T, TP, float(mjd_frame), geo
+    n = _unit_icrf(bary_ref_radec)
+    t_sc = float(mjd_frame)
+    for _ in range(4):                                  # converges to < 1 us in 2-3 passes
+        T, TP, geo = at(t_sc)
+        t_new = float(mjd_frame) - float(TP @ n) * LIGHT_TIME_AU_DAYS
+        if abs(t_new - t_sc) < 1e-11:
+            t_sc = t_new
+            break
+        t_sc = t_new
+    T, TP, geo = at(t_sc)
+    return T, TP, float(Time(t_sc, format="mjd", scale="tdb").utc.mjd), geo
+
+
+def _precompute_frame_geometry(frame_mjds, data_dir=None, allow_download=True, bary_ref_radec=None):
     """TESS spacecraft barycentric position at each unique frame epoch --
     a pure function of time (spkpos against the epoch alone, plus Earth's
     barycentric position at that same epoch), identical regardless of
@@ -1173,30 +1229,26 @@ def _precompute_frame_geometry(frame_mjds, data_dir=None, allow_download=True):
 
     table = {}
     for mjd in np.unique(np.asarray(frame_mjds)):
-        get_tess_kernel_for_epoch(mjd, data_dir, allow_download=allow_download)
-        t_obs = Time(mjd, format="mjd", scale="utc")
-        t_target_days = t_obs.tdb.jd - jd_ref
-        et = sp.str2et(t_obs.isot)
-        tess_off_km, _ = sp.spkpos("-95", et, "J2000", "NONE", "EARTH")
-        tess_off_au = np.array(tess_off_km) / AU_KM
-        earth_obs = ephem.get_particle("Earth", t_target_days)
-        tess_bary_pos = np.array([earth_obs.x, earth_obs.y, earth_obs.z]) + tess_off_au
-        table[float(mjd)] = (t_target_days, tess_bary_pos)
+        # (TDB days at TESS, TESS barycentric position, UTC MJD at TESS, TESS geocentric position): see _spacecraft_epoch
+        table[float(mjd)] = _spacecraft_epoch(float(mjd), ephem, bary_ref_radec, data_dir, allow_download)
     return table
 
 
 _frame_geometry_cache = None
+_worker_bary_ref = None
 
 
 LT_TOL_DAYS = 1e-10      # light-time convergence (~9 us; the object moves < 1 m in that time)
 LT_MAX_ITER = 6
 DEFAULT_NODE_SPACING_DAYS = 1.0 / 24   # precise nodes ~hourly, spline-interpolated to every frame
 DEFAULT_COARSE_SPACING_DAYS = 0.25     # crossing pre-check before the dense pass
-_EPH_COLUMNS = ["mjd", "ra", "dec", "r_helio_au", "delta_au", "phase_angle_deg"]
+_EPH_COLUMNS = ["mjd", "ra", "dec", "r_helio_au", "delta_au", "phase_angle_deg", "mjd_utc", "lt_days",
+                "tess_x", "tess_y", "tess_z"]
 
 
 def precise_ephemeris(mpcorb_row, frame_mjds, data_dir=None, allow_download=True, frame_geometry=None,
-                      node_spacing_days=None, footprint=None, coarse_spacing_days=DEFAULT_COARSE_SPACING_DAYS):
+                      node_spacing_days=None, footprint=None, coarse_spacing_days=DEFAULT_COARSE_SPACING_DAYS,
+                      bary_ref_radec=None):
     """Full ASSIST-perturbed, light-time corrected TESS-relative RA/Dec for
     one object at every given frame time. Returns a DataFrame with one row
     per frame: mjd, ra, dec.
@@ -1258,20 +1310,15 @@ def precise_ephemeris(mpcorb_row, frame_mjds, data_dir=None, allow_download=True
         return pd.DataFrame(columns=_EPH_COLUMNS)
 
     geometry = frame_geometry if frame_geometry is not None else _frame_geometry_cache
-    T = np.empty(n)          # TDB days from jd_ref
+    T = np.empty(n)          # TDB days from jd_ref, at TESS
     TP = np.empty((n, 3))    # TESS barycentric position, au (exact at every frame)
+    UTC = np.empty(n)        # the epoch as UTC MJD at TESS
+    GEO = np.empty((n, 3))   # TESS geocentric ICRF position, au
     for i, mjd in enumerate(sorted_mjds):
         cached = geometry.get(float(mjd)) if geometry is not None else None
-        if cached is not None:
-            T[i], TP[i] = cached
-        else:
-            get_tess_kernel_for_epoch(mjd, data_dir, allow_download=allow_download)
-            t_obs = Time(mjd, format="mjd", scale="utc")
-            T[i] = t_obs.tdb.jd - jd_ref
-            et = sp.str2et(t_obs.isot)
-            tess_off_km, _ = sp.spkpos("-95", et, "J2000", "NONE", "EARTH")
-            earth_obs = ephem.get_particle("Earth", T[i])
-            TP[i] = np.array([earth_obs.x, earth_obs.y, earth_obs.z]) + np.array(tess_off_km) / AU_KM
+        if cached is None:
+            cached = _spacecraft_epoch(float(mjd), ephem, bary_ref_radec, data_dir, allow_download)
+        T[i], TP[i], UTC[i], GEO[i] = cached
 
     state = {"lt": 0.0}
 
@@ -1346,14 +1393,17 @@ def precise_ephemeris(mpcorb_row, frame_mjds, data_dir=None, allow_download=True
     r_helio = np.linalg.norm(sun_vec, axis=1)
     cos_alpha = np.sum(sun_vec * vec, axis=1) / (r_helio * delta)
     return pd.DataFrame(dict(
-        mjd=sorted_mjds[keep],
+        mjd=sorted_mjds[keep],                  # the frame's own timestamp (TESS BJD_TDB - 2400000.5), the frame key
         ra=np.degrees(np.arctan2(vec[:, 1], vec[:, 0])) % 360,
         dec=np.degrees(np.arcsin(np.clip(vec[:, 2] / delta, -1, 1))),
         r_helio_au=r_helio, delta_au=delta,
-        phase_angle_deg=np.degrees(np.arccos(np.clip(cos_alpha, -1, 1)))))
+        phase_angle_deg=np.degrees(np.arccos(np.clip(cos_alpha, -1, 1))),
+        mjd_utc=UTC[keep],                      # mid-exposure, UTC, at TESS (as the MPC's ADES obsTime)
+        lt_days=delta * LIGHT_TIME_AU_DAYS,     # object -> TESS light time: emission epoch = mjd_utc - lt_days
+        tess_x=GEO[keep, 0], tess_y=GEO[keep, 1], tess_z=GEO[keep, 2]))   # TESS geocentric ICRF, au (ADES pos1-3)
 
 
-def _pool_worker_init(data_dir, frame_geometry=None, wcs=None, footprint=None):
+def _pool_worker_init(data_dir, frame_geometry=None, wcs=None, footprint=None, bary_ref_radec=None):
     """Pre-load the ~1GB ASSIST ephemeris and SPICE leapseconds kernel once
     per worker process, so each of the (many) precise_ephemeris calls a
     worker handles reuses them instead of reloading from disk every time.
@@ -1361,7 +1411,8 @@ def _pool_worker_init(data_dir, frame_geometry=None, wcs=None, footprint=None):
     _precompute_frame_geometry) computed once in the main process, so
     every survivor this worker handles reuses it instead of recomputing
     the same time-only SPICE lookups redundantly."""
-    global _frame_geometry_cache, _worker_wcs, _worker_footprint
+    global _frame_geometry_cache, _worker_wcs, _worker_footprint, _worker_bary_ref
+    _worker_bary_ref = bary_ref_radec
     load_assist_ephem(data_dir)
     furnish_spice_generic(data_dir)
     if frame_geometry is not None:
@@ -1376,7 +1427,8 @@ def _predict_object_worker(row, frame_mjds, data_dir, allow_download, node_spaci
     ra0, dec0, rad0 = _worker_footprint
     eph = precise_ephemeris(row, frame_mjds, data_dir, allow_download=allow_download,
                             node_spacing_days=node_spacing_days,
-                            footprint=_worker_footprint if use_footprint else None)
+                            footprint=_worker_footprint if use_footprint else None,
+                            bary_ref_radec=_worker_bary_ref)
     if len(eph) == 0:
         return eph
     ra, dec = np.radians(eph["ra"].values.astype(float)), np.radians(eph["dec"].values.astype(float))
@@ -1486,7 +1538,7 @@ def predict_asteroids_for_footprint(ra_center_deg, dec_center_deg, radius_deg,
                                        mjd_start, mjd_end, frame_mjds, wcs,
                                        n_coarse_samples=None, faint_limit_mag=20.8,
                                        data_dir=None, plot_path=None, allow_download=True,
-                                       sector_snapshot_path=None, exact_ephemeris=False):
+                                       sector_snapshot_path=None, exact_ephemeris=False, bary_ref_radec=None):
     """Predict every MPCORB-catalogued object crossing a circular footprint
     (ra_center, dec_center, radius) at any point in [mjd_start, mjd_end],
     and build a precise per-frame ephemeris (ra, dec, x, y, flux, mag where
@@ -1508,6 +1560,10 @@ def predict_asteroids_for_footprint(ra_center_deg, dec_center_deg, radius_deg,
     instead, so a missing/uncovered file fails fast with a clear message
     rather than partway through a worker process. Leave True for
     interactive/login-node use, where on-demand downloading is fine.
+
+    bary_ref_radec: (ra, dec) of the direction the frame times were barycentred for
+    (barycentric_reference_radec(sector, cam, ccd) for TESS FFI cuts): frame_mjds are then TESS BJD_TDB and every
+    position is computed at the true epoch at the spacecraft; None treats frame_mjds as UTC at the spacecraft.
 
     sector_snapshot_path: a per-sector re-epoched catalogue from
     build_sector_mpcorb_snapshot, used in place of the raw MPCORB.DAT when given. Use this for
@@ -1536,7 +1592,8 @@ def predict_asteroids_for_footprint(ra_center_deg, dec_center_deg, radius_deg,
     print(f"  Stage 1 (ecliptic reachability): {stage1.sum()} / {len(mpcorb)} survive", flush=True)
     result = _refine_footprint(mpcorb[stage1].reset_index(drop=True), ra_center_deg, dec_center_deg,
                                radius_deg, frame_mjds, wcs, sample_mjds, sample_spacing, coarse_margin,
-                               max_rate, faint_limit_mag, data_dir, allow_download, exact_ephemeris)
+                               max_rate, faint_limit_mag, data_dir, allow_download, exact_ephemeris,
+                               bary_ref_radec=bary_ref_radec)
     if plot_path is not None:
         plot_asteroid_trails(result, plot_path)
     return result
@@ -1544,7 +1601,7 @@ def predict_asteroids_for_footprint(ra_center_deg, dec_center_deg, radius_deg,
 
 def _refine_footprint(stage1b_input, ra_center_deg, dec_center_deg, radius_deg, frame_mjds, wcs,
                       sample_mjds, sample_spacing, coarse_margin, max_motion_deg_per_day,
-                      faint_limit_mag, data_dir, allow_download, exact_ephemeris):
+                      faint_limit_mag, data_dir, allow_download, exact_ephemeris, bary_ref_radec=None):
     """Stage 1b onward for one footprint: brightness, coarse position, frame narrowing, then the
     precise ephemeris pool. exact_ephemeris=True evaluates every narrowed frame exactly (the
     original behaviour); otherwise hourly precise nodes are spline-interpolated per frame after
@@ -1601,7 +1658,7 @@ def _refine_footprint(stage1b_input, ra_center_deg, dec_center_deg, radius_deg, 
         # Shared per-frame TESS/Earth geometry (see _precompute_frame_geometry) -- a pure
         # function of time, identical for every survivor, computed once here instead of
         # redundantly inside precise_ephemeris for each of them.
-        frame_geometry = _precompute_frame_geometry(frame_mjds, data_dir, allow_download)
+        frame_geometry = _precompute_frame_geometry(frame_mjds, data_dir, allow_download, bary_ref_radec)
 
         # ProcessPoolExecutor rejects max_workers=0 -- a cut with zero stage-2 survivors (a real,
         # common case for high-ecliptic-latitude footprints) would otherwise crash here instead
@@ -1609,7 +1666,7 @@ def _refine_footprint(stage1b_input, ra_center_deg, dec_center_deg, radius_deg, 
         n_workers = min(len(survivors), max(1, _available_cpus()))
         footprint = (ra_center_deg, dec_center_deg, radius_deg)
         with ProcessPoolExecutor(max_workers=n_workers, initializer=_pool_worker_init,
-                                  initargs=(data_dir, frame_geometry, wcs, footprint)) as pool:
+                                  initargs=(data_dir, frame_geometry, wcs, footprint, bary_ref_radec)) as pool:
             node = None if exact_ephemeris else DEFAULT_NODE_SPACING_DAYS
             futures = {pool.submit(_predict_object_worker, row, narrowed_frames[k], data_dir,
                                    allow_download, node, not exact_ephemeris): row
