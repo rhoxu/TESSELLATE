@@ -14,6 +14,27 @@ import numpy as np
 from .tools import delete_files, _Print_buff, _Save_space, _Check_job_status, _Submit_sbatch, table_exists
 # print(f'Imported .tools functions ({ts-t():.0f}s)')
 
+
+def _parse_choice(choice, valid):
+    """Cams / CCDs / cuts from an answer or argument: 'all', one value, or a comma list ('1,2' or [1, 2]).
+    Returns a sorted list of ints, or None if anything isn't in valid."""
+    valid = [int(v) for v in valid]
+    if isinstance(choice, str):
+        choice = choice.strip().lower()
+        if choice == 'all':
+            return valid
+        parts = [c.strip() for c in choice.split(',') if c.strip()]
+        if not parts or not all(c.isdigit() for c in parts):
+            return None
+        choice = [int(c) for c in parts]
+    elif isinstance(choice, (int, np.integer)):
+        choice = [int(choice)]
+    try:
+        out = sorted({int(c) for c in choice})
+    except (TypeError, ValueError):
+        return None
+    return out if out and all(c in valid for c in out) else None
+
 class Tessellate():
     """
     Parent Class for Tessellation runs.
@@ -783,55 +804,56 @@ class Tessellate():
 
 
         if self.cam is None:
-            cam = input('   - Cam [1,2,3,4,all] = ')
-            done = False
-            while not done:
-                if cam in ['1','2','3','4']:
-                    self.cam = [int(cam)]
-                    done = True
-                elif cam.lower() == 'all':
-                    self.cam = [1,2,3,4]
-                    done = True
-                elif cam == '34':
-                    self.cam = [3,4]
-                    done = True
-                else:
-                    cam = input('      Invalid choice! Cam [1,2,3,4,all] = ')
-        elif self.cam == 'all':
-            print(f'   - Cam = all')
-            self.cam = [1,2,3,4]
-        elif self.cam in [1,2,3,4]:
-            print(f'   - Cam = {self.cam}')
-            self.cam = [self.cam]
+            cam = input('   - Cam [1,2,3,4,all, or a list e.g. 1,2] = ')
+            while True:
+                self.cam = [3,4] if cam.strip() == '34' else _parse_choice(cam,[1,2,3,4])
+                if self.cam is not None:
+                    break
+                cam = input('      Invalid choice! Cam [1,2,3,4,all, or a list e.g. 1,2] = ')
         else:
-            e = f'Invalid Camera Input of {self.cam}\n'
-            raise ValueError(e)
+            cam = _parse_choice(self.cam,[1,2,3,4])
+            if cam is None:
+                e = f'Invalid Camera Input of {self.cam}\n'
+                raise ValueError(e)
+            print(f'   - Cam = {"all" if cam == [1,2,3,4] else cam}')
+            self.cam = cam
         
 
         if self.ccd is None:
-            ccd = input('   - CCD [1,2,3,4,all] = ')
-            done = False
-            while not done:
-                if ccd in ['1','2','3','4']:
-                    self.ccd = [int(ccd)]
-                    done = True
-                elif ccd.lower() == 'all':
-                    self.ccd = [1,2,3,4]
-                    done = True
-                else:
-                    ccd = input('      Invalid choice! CCD [1,2,3,4,all] = ')
-        elif self.ccd == 'all':
-            print(f'   - CCD = all')
-            self.ccd = [1,2,3,4]
-        elif self.ccd in [1,2,3,4]:
-            print(f'   - CCD = {self.ccd}')
-            self.ccd = [self.ccd]
+            ccd = input('   - CCD [1,2,3,4,all, or a list e.g. 1,2] = ')
+            while True:
+                self.ccd = _parse_choice(ccd,[1,2,3,4])
+                if self.ccd is not None:
+                    break
+                ccd = input('      Invalid choice! CCD [1,2,3,4,all, or a list e.g. 1,2] = ')
         else:
-            e = f'Invalid CCD Input of {self.ccd}\n'
-            raise ValueError(e)
+            ccd = _parse_choice(self.ccd,[1,2,3,4])
+            if ccd is None:
+                e = f'Invalid CCD Input of {self.ccd}\n'
+                raise ValueError(e)
+            print(f'   - CCD = {"all" if ccd == [1,2,3,4] else ccd}')
+            self.ccd = ccd
         
         print('\n')
     
+    def _choose_cuts(self):
+        """self.cuts from the argument or a prompt: 'all', one cut or a comma list (e.g. 1,2); 'all' = range."""
+        all_cuts = range(1,self.n**2+1)
+        if self.cuts is None:
+            cut = input(f'   - Cut [1-{self.n**2},all, or a list e.g. 1,2] = ')
+            while True:
+                cuts = _parse_choice(cut,all_cuts)
+                if cuts is not None:
+                    break
+                cut = input(f'      Invalid choice! Cut [1-{self.n**2},all, or a list e.g. 1,2] = ')
+        else:
+            cuts = _parse_choice(self.cuts,all_cuts)
+            if cuts is None:
+                e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
+                raise ValueError(e)
+            print(f'   - Cut = {"all" if cuts == list(all_cuts) else cuts}')
+        self.cuts = all_cuts if cuts == list(all_cuts) else cuts
+
     def _which_processes(self,download,make_cube,fix_wcs,make_cuts,predict_asteroids,reduce,asteroid_lightcurves,calibrate,search,plot,delete):
 
         if download is None:
@@ -1112,29 +1134,7 @@ class Tessellate():
             raise ValueError(e)
         
         
-        if self.cuts is None:
-            cut = input(f'   - Cut [1-{self.n**2},all] = ')
-            done = False
-            while not done:
-                if cut == 'all':
-                    self.cuts = range(1,self.n**2+1)
-                    done = True
-                elif cut in np.array(range(1,self.n**2+1)).astype(str):
-                    self.cuts = [int(cut)]
-                    done = True
-                else:
-                    cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
-        elif self.cuts == 'all':
-            print(f'   - Cut = all')
-            self.cuts = range(1,self.n**2+1)
-        elif self.cuts in range(1,self.n**2+1):
-            print(f'   - Cut = {self.cuts}')
-            self.cuts = [self.cuts]
-        elif type(self.cuts) == list:
-            print(f'   - Cut = {self.cuts}')
-        else:
-            e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
-            raise ValueError(e)
+        self._choose_cuts()
         
         print('\n')
 
@@ -1245,29 +1245,7 @@ class Tessellate():
                 raise ValueError(e)
 
 
-            if self.cuts is None:
-                cut = input(f'   - Cut [1-{self.n**2},all] = ')
-                done = False
-                while not done:
-                    if cut == 'all':
-                        self.cuts = range(1,self.n**2+1)
-                        done = True
-                    elif cut in np.array(range(1,self.n**2+1)).astype(str):
-                        self.cuts = [int(cut)]
-                        done = True
-                    else:
-                        cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
-            elif self.cuts == 'all':
-                print(f'   - Cut = all')
-                self.cuts = range(1,self.n**2+1)
-            elif self.cuts in range(1,self.n**2+1):
-                print(f'   - Cut = {self.cuts}')
-                self.cuts = [self.cuts]
-            elif type(self.cuts) == list:
-                print(f'   - Cut = {self.cuts}')
-            else:
-                e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
-                raise ValueError(e)
+            self._choose_cuts()
 
             print('\n')
 
@@ -1365,29 +1343,7 @@ class Tessellate():
                 raise ValueError(e)
             
             
-            if self.cuts is None:
-                cut = input(f'   - Cut [1-{self.n**2},all] = ')
-                done = False
-                while not done:
-                    if cut == 'all':
-                        self.cuts = range(1,self.n**2+1)
-                        done = True
-                    elif cut in np.array(range(1,self.n**2+1)).astype(str):
-                        self.cuts = [int(cut)]
-                        done = True
-                    else:
-                        cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
-            elif self.cuts == 'all':
-                print(f'   - Cut = all')
-                self.cuts = range(1,self.n**2+1)
-            elif self.cuts in range(1,self.n**2+1):
-                print(f'   - Cut = {self.cuts}')
-                self.cuts = [self.cuts]  
-            elif type(self.cuts) == list:
-                print(f'   - Cut = {self.cuts}')
-            else:
-                e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
-                raise ValueError(e)
+            self._choose_cuts()
             
             print('\n')
 
@@ -1494,29 +1450,7 @@ class Tessellate():
                 raise ValueError(e)
 
 
-            if self.cuts is None:
-                cut = input(f'   - Cut [1-{self.n**2},all] = ')
-                done = False
-                while not done:
-                    if cut == 'all':
-                        self.cuts = range(1,self.n**2+1)
-                        done = True
-                    elif cut in np.array(range(1,self.n**2+1)).astype(str):
-                        self.cuts = [int(cut)]
-                        done = True
-                    else:
-                        cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
-            elif self.cuts == 'all':
-                print(f'   - Cut = all')
-                self.cuts = range(1,self.n**2+1)
-            elif self.cuts in range(1,self.n**2+1):
-                print(f'   - Cut = {self.cuts}')
-                self.cuts = [self.cuts]
-            elif type(self.cuts) == list:
-                print(f'   - Cut = {self.cuts}')
-            else:
-                e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
-                raise ValueError(e)
+            self._choose_cuts()
 
             print('\n')
 
@@ -1615,29 +1549,7 @@ class Tessellate():
                 e = f"Invalid 'n' value Input of {self.n}\n"
                 raise ValueError(e)
 
-            if self.cuts is None:
-                cut = input(f'   - Cut [1-{self.n**2},all] = ')
-                done = False
-                while not done:
-                    if cut == 'all':
-                        self.cuts = range(1, self.n**2 + 1)
-                        done = True
-                    elif cut in np.array(range(1, self.n**2 + 1)).astype(str):
-                        self.cuts = [int(cut)]
-                        done = True
-                    else:
-                        cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
-            elif self.cuts == 'all':
-                print(f'   - Cut = all')
-                self.cuts = range(1, self.n**2 + 1)
-            elif self.cuts in range(1, self.n**2 + 1):
-                print(f'   - Cut = {self.cuts}')
-                self.cuts = [self.cuts]
-            elif type(self.cuts) == list:
-                print(f'   - Cut = {self.cuts}')
-            else:
-                e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
-                raise ValueError(e)
+            self._choose_cuts()
 
             print('\n')
 
@@ -1711,29 +1623,7 @@ class Tessellate():
                 raise ValueError(e)
             
             
-            if self.cuts is None:
-                cut = input(f'   - Cut [1-{self.n**2},all] = ')
-                done = False
-                while not done:
-                    if cut == 'all':
-                        self.cuts = range(1,self.n**2+1)
-                        done = True
-                    elif cut in np.array(range(1,self.n**2+1)).astype(str):
-                        self.cuts = [int(cut)]
-                        done = True
-                    else:
-                        cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
-            elif self.cuts == 'all':
-                print(f'   - Cut = all')
-                self.cuts = range(1,self.n**2+1)
-            elif self.cuts in range(1,self.n**2+1):
-                print(f'   - Cut = {self.cuts}')
-                self.cuts = [self.cuts]
-            elif type(self.cuts) == list:
-                print(f'   - Cut = {self.cuts}')
-            else:
-                e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
-                raise ValueError(e)
+            self._choose_cuts()
             
             print('\n')
 
@@ -1810,23 +1700,25 @@ class Tessellate():
                 self.search_time_bins = suggestions[3].split(',')
                 print(f'   - Search Time Bin = {self.search_time_bins}')
             else:
-                search_time_bins = input(f"   - Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = ")
+                search_time_bins = input(f"   - Search Time Bins [#sec,#min,#hr,#day, or default] ({suggestions[3]} suggested) = ")
                 done = False
                 while not done:
-                    if ',' in search_time_bins:
-                        search_time_bins = search_time_bins.split(',')
-                    else:
-                        search_time_bins = [search_time_bins]
+                    if search_time_bins.strip().lower() == 'default':
+                        search_time_bins = suggestions[3]
+                        print(f'      Search Time Bins = {search_time_bins}')
+                    search_time_bins = [t.strip() for t in search_time_bins.split(',')]
 
                     if all(re.match(pattern, t) for t in search_time_bins):
                         self.search_time_bins = search_time_bins
                         done = True
                     else:
-                        search_time_bins = input(f"      Invalid format! Search Time Bins [#sec,#min,#hr,#day] ({suggestions[3]} suggested) = ")
+                        search_time_bins = input(f"      Invalid format! Search Time Bins [#sec,#min,#hr,#day, or default] ({suggestions[3]} suggested) = ")
         
         else:
             if type(self.search_time_bins) == str:
-                self.search_time_bins = self.search_time_bins.split(',')
+                if self.search_time_bins.strip().lower() == 'default':
+                    self.search_time_bins = suggestions[3]
+                self.search_time_bins = [t.strip() for t in self.search_time_bins.split(',')]
                 if all(re.match(pattern, t) for t in self.search_time_bins):
                     print(f'   - Search Time Bin = {self.search_time_bins}')
                 else:
@@ -1904,29 +1796,7 @@ class Tessellate():
                 raise ValueError(e)
             
             
-            if self.cuts is None:
-                cut = input(f'   - Cut [1-{self.n**2},all] = ')
-                done = False
-                while not done:
-                    if cut == 'all':
-                        self.cuts = range(1,self.n**2+1)
-                        done = True
-                    elif cut in np.array(range(1,self.n**2+1)).astype(str):
-                        self.cuts = [int(cut)]
-                        done = True
-                    else:
-                        cut = input(f'      Invalid choice! Cut [1-{self.n**2},all] =  ')
-            elif self.cuts == 'all':
-                print(f'   - Cut = all')
-                self.cuts = range(1,self.n**2+1)
-            elif self.cuts in range(1,self.n**2+1):
-                print(f'   - Cut = {self.cuts}')
-                self.cuts = [self.cuts]
-            elif type(self.cuts) == list:
-                print(f'   - Cut = {self.cuts}')
-            else:
-                e = f"Invalid Cut Input of {self.cuts} with 'n' of {self.n}\n"
-                raise ValueError(e)
+            self._choose_cuts()
             
             
             print('\n')
