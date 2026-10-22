@@ -16,6 +16,45 @@ from .wcs_fix import Calculate_WCS,Update_SIP_Header,Final_Shift_Update
 from .fit_stars import Fit_CCD
 
 
+HARD_BITMASK = 7407     # lightkurve's 'hard' quality bitmask, as TESSreduce applies to the cuts
+NOT_REFERENCE_BITS = 16384  # BadCalibrationExclude: kept by the hard bitmask (so still counted in GoodIdx) but never a
+                            # reference -- such FFIs can be blank or lack a celestial WCS (S42 Cam4 Ccd1/2, 2026-10-22)
+
+
+def rank_reference_frames(medians, quality_mask, start_percentile=5, not_reference=None):
+    """
+    Reference frame candidates, best first, as (full index, index among quality-good frames).
+
+    medians: (frames, blocks) median of each block of the CCD in each frame; quality_mask: True = frame passes the
+    hard bitmask; not_reference: optional True = never a candidate (frames flagged NOT_REFERENCE_BITS). Blank frames
+    (a block median <= 0 or not finite: no data, e.g. at orbit edges, where they can carry only flag 16384, which the
+    hard bitmask keeps) are never candidates either -- a median of 0 is the lowest everywhere.
+    A candidate has every block's median within the lowest p% of the usable frames; p starts at start_percentile and
+    rises until frames qualify. Candidates at one p are ordered by the sum of their block medians; further p values
+    add the frames that newly qualify, so a caller can keep asking.
+    The good-frame index is the frame's position among quality-good frames -- what TESSreduce's ref_ind indexes
+    (lightkurve drops flagged frames), and only defined for a quality-good frame, which every candidate is.
+    """
+    medians = np.asarray(medians, float)
+    quality_mask = np.asarray(quality_mask, bool)
+    blank = ~np.isfinite(medians).all(axis=1) | (medians <= 0).any(axis=1)
+    usable = quality_mask & ~blank
+    if not_reference is not None:
+        usable &= ~np.asarray(not_reference, bool)
+    if not usable.any():
+        raise ValueError('No usable reference frame: every frame is flagged or blank')
+    good_frames = np.flatnonzero(quality_mask)
+    score = np.where(usable, np.nansum(medians, axis=1), np.inf)
+    seen = set()
+    for percentile in range(start_percentile, 101):
+        thresholds = np.percentile(medians[usable], percentile, axis=0)
+        valid = np.flatnonzero(usable & (medians <= thresholds).all(axis=1))
+        for idx in valid[np.argsort(score[valid], kind='stable')]:
+            if idx not in seen:
+                seen.add(idx)
+                yield int(idx), int(np.searchsorted(good_frames, idx))
+
+
 class TessFixer():
 
     def __init__(self,sector,data_path='/fred/oz335/TESSdata'):
@@ -26,6 +65,14 @@ class TessFixer():
         self.path = f'{self.data_path}/Sector{self.sector}'
 
     def get_reference(self,cube_path,n_cuts=8):
+        """(full index, index among quality-good frames) of the best reference frame (see reference_candidates)."""
+        return next(self.reference_candidates(cube_path,n_cuts))
+
+    def reference_candidates(self,cube_path,n_cuts=8):
+        """
+        Reference frame candidates for a CCD, best first, as (full index, index among quality-good frames).
+        Medians of the n_cuts x n_cuts blocks of every frame are ranked by rank_reference_frames.
+        """
 
         if not os.path.exists(cube_path):
             e = 'No cube file exists!'
@@ -35,11 +82,9 @@ class TessFixer():
         hdu = fits.open(cube_path)
         cube_data = hdu[1].data  # memmap, no RAM used yet
 
-        HARD_BITMASK = 7407
-        quality_mask = (hdu[2].data['DQUALITY'] & HARD_BITMASK) == 0
-        bad = np.where(~quality_mask)[0]
+        dquality = np.asarray(hdu[2].data['DQUALITY'], int)
+        quality_mask = (dquality & HARD_BITMASK) == 0
 
-        # bad = np.where(hdu[2].data['DQUALITY'] > 0)[0]
         print('loading data',end='\r')
         ts = time()
         flux = np.array(cube_data[:,:,:,0])
@@ -58,32 +103,13 @@ class TessFixer():
         print(f'calculating {n_cuts**2} medians -- done! ({time()-ts:.0f}s)')
 
         medians = np.array(medians).T
+        del flux
 
-        done = False
-        percentile = 5
-        while not done:
-            # -- Find frame where median is always in the lowest 5% -- #
-            thresholds = np.percentile(medians, percentile, axis=0)  
-            below = medians <= thresholds  
-            below[bad] = False
-            valid_mask = below.all(axis=1)  # shape: (3000,)
-            valid_frames = np.where(valid_mask)[0]
-            if len(valid_frames) > 0:
-                candidate_medians = medians[valid_frames]          # (N, 64)
-                score = candidate_medians.sum(axis=1)  # or .mean(axis=1)
-                best_idx = valid_frames[np.argmin(score)]
-
-                good_frames = np.where(quality_mask)[0]
-                best_idx_good = int(np.searchsorted(good_frames, best_idx))
-
-                print(f"Best frame index (all frames): {best_idx}")
-                print(f"Best frame index (good frames only): {best_idx_good}")
-                return best_idx, best_idx_good
-            
-            else:
-                e = f"No frame has median in lowest {percentile}% across entire CCD."
-                percentile += 1
-        
+        for best_idx, best_idx_good in rank_reference_frames(medians, quality_mask,
+                                                             not_reference=(dquality & NOT_REFERENCE_BITS) != 0):
+            print(f"Best frame index (all frames): {best_idx}")
+            print(f"Best frame index (good frames only): {best_idx_good}")
+            yield best_idx, best_idx_good
 
     def load_gaia(self,cam,ccd,image_path,gaia_path='/fred/oz335/GAIAdata/full_gaia_cat.csv'):
 
@@ -166,28 +192,29 @@ class TessFixer():
         if not all:
             if not os.path.exists(f"{ccd_folder}/wcs/ref/corrected.fits"):
 
-                ref_idx_full, ref_idx_good = self.get_reference(f'{ccd_folder}/sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits')
-
-                done = False
-                while not done:
+                # -- Best candidate whose FFI has a celestial WCS. The next candidate is the next-best quiet,
+                # -- quality-good frame (never just the next frame in time, which may be flagged or blank), and
+                # -- both indices come from the candidate itself, so GoodIdx can't drift.
+                cube_path = f'{ccd_folder}/sector{self.sector}_cam{cam}_ccd{ccd}_cube.fits'
+                for ref_idx_full, ref_idx_good in self.reference_candidates(cube_path):
                     if not os.path.exists(f'{ccd_folder}/image_files/'):
                         data_processor.download(cam=cam,ccd=ccd,single=ref_idx_full,number=None)
                         image_path = glob(f'{ccd_folder}/image_files/*.fits')[0]
                     elif len(glob(f'{ccd_folder}/image_files/*.fits')) < 100:
                         os.system(f'rm -r {ccd_folder}/image_files')
                         data_processor.download(cam=cam,ccd=ccd,single=ref_idx_full,number=None)
-                        image_path = glob(f'{ccd_folder}/image_files/*.fits')[0]    
+                        image_path = glob(f'{ccd_folder}/image_files/*.fits')[0]
                     else:
                         image_path = sorted(glob(f'{ccd_folder}/image_files/*.fits'))[ref_idx_full]
 
                     with fits.open(image_path) as f:
                         wcs = WCS(f[1].header)
                     if wcs.is_celestial:
-                        done=True
-                    else:
-                        ref_idx_full += 1
-                        ref_idx_good += 1
-                    
+                        break
+                    print(f'Frame {ref_idx_full} has no celestial WCS, trying the next candidate')
+                else:
+                    raise RuntimeError(f'No reference candidate with a celestial WCS for Cam {cam} Ccd {ccd}')
+
             else:
                 image_path = f'{ccd_folder}/wcs/ref/corrected.fits'
                 with open(f'{ccd_folder}/wcs/ref/reference.txt', 'r') as file:
