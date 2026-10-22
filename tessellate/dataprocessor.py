@@ -884,6 +884,12 @@ class DataProcessor():
                 print('\n')
             #tw = t()   # write timeStart
             
+            # -- Refuse to save an all-NaN reduction (e.g. a NaN reference), so the cut isn't marked reduced -- #
+            bad = [name for name in ('ref','flux','bkg') if not np.isfinite(getattr(tessreduce,name)).any()]
+            if bad:
+                e = f'Reduction of Cam {cam} Ccd {ccd} Cut {cut} failed: {", ".join(bad)} all NaN. Nothing saved.'
+                raise RuntimeError(e)
+
             # -- Saves information out as Numpy Arrays -- #
             np.save(f'{save_path}_Times.npy',tessreduce.mjd)
             np.save(f'{save_path}_ReducedFlux.npy',tessreduce.flux.astype(np.float32))

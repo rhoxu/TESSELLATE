@@ -1,0 +1,25 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "baseline-preview",
+      "url": "http://localhost:8767",
+      "port": 8767
+    },
+    {
+      "name": "font-test",
+      "url": "http://localhost:8771",
+      "port": 8771
+    },
+    {
+      "name": "flare-site",
+      "url": "http://localhost:8765",
+      "port": 8765
+    },
+    {
+      "name": "g2e-site",
+      "url": "http://localhost:8772",
+      "port": 8772
+    }
+  ]
+}
