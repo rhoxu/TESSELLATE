@@ -308,6 +308,7 @@ def _remove_reductions(data_path,sector,n,cams,ccds,cuts,part):
                         try:
                             os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Part{i}/Cut{cut}of{n**2}')
                             os.system(f'rm -f *.npy')
+                            os.system(f'rm -f *_OrbitRefs.npz')
                             os.system(f'rm -f reduced.txt')
                             os.system(f'rm -f detected_events.csv detected_events.parquet')
                             os.system(f'rm -f detected_sources.csv detected_sources.parquet')
@@ -321,6 +322,7 @@ def _remove_reductions(data_path,sector,n,cams,ccds,cuts,part):
                     try:
                         os.chdir(f'{data_path}/Sector{sector}/Cam{cam}/Ccd{ccd}/Cut{cut}of{n**2}')
                         os.system(f'rm -f *.npy')
+                        os.system(f'rm -f *_OrbitRefs.npz')
                         os.system(f'rm -f reduced.txt')
                         os.system(f'rm -f detected_events.csv detected_events.parquet')
                         os.system(f'rm -f detected_sources.csv detected_sources.parquet')
