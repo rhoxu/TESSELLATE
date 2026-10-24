@@ -940,7 +940,14 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, exposure_time, big_size
         snr = snrs[idx]
         stacked_psf_fit = 0
 
-    if not snr > 0:
+    # --- PSF fit --- #
+    lim = 0.5
+    fitter = None
+    if snr > 0:
+        fitter = PSF_Fitter(small_size, prf)
+        fitter.fit_psf(centred_flux, limx=lim, limy=lim)
+
+    if (fitter is None) or (fitter.psf_fit is None):    # no positive SNR, or nothing positive in the centre to fit
         xcentroid = np.nan
         ycentroid = np.nan
         centroid_err_psf = np.nan
@@ -949,12 +956,6 @@ def _Fit_psf(flux, event, prf, frames, uncertainty_func, exposure_time, big_size
         stacked_psf_fit = 0
         psf_pinned = 0
     else:
-
-        # --- PSF fit --- #
-        lim = 0.5
-        fitter = PSF_Fitter(small_size, prf)
-        fitter.fit_psf(centred_flux, limx=lim, limy=lim)
-
         xcentroid = fitter.source_x + brightest_x      # raw fit; the radial shift is removed from xcentroid/ycentroid later
         ycentroid = fitter.source_y + brightest_y
 

@@ -178,6 +178,9 @@ class PSF_Fitter():
         elif self.function == 'weight':
             residual = np.nansum(diff[self.mask]**2 * np.sqrt(image[self.mask]))
 
+        # inf/nan everywhere stops Powell converging (inf - inf = nan) and it crashes on a zero-length step
+        if not np.isfinite(residual):
+            return 1e30
         return residual * 1e6
         
     def fit_psf(self,image,limx=3,limy=3):
@@ -190,8 +193,14 @@ class PSF_Fitter():
         image = deepcopy(image)
 
         image -= np.nanmedian(image)    # ensure background is calibrated ish
-        image /= np.nansum(image[self.mask])    # normalise the image
-        
+        norm = np.nansum(image[self.mask])
+        if not (np.isfinite(norm) and norm > 0):
+            # nothing positive to fit (e.g. a broken reduction whose centre pixels cancel to exactly 0)
+            self.source_x = self.source_y = np.nan
+            self.psf_fit = None
+            return
+        image /= norm    # normalise the image
+
         coeff = [self.source_x,self.source_y]
         lims = [[-limx,limx],[-limy,limy]]
         
