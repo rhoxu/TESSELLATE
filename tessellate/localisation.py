@@ -71,17 +71,33 @@ class CutWCS():
 
         self.corner = cut_corners[self.cut - 1]
 
-    def _get_median_offsets(self):
+    def _get_median_offsets(self,min_sources=20):
 
         sources = pd.read_csv(f'{self.data_path}/Sector{self.sector}/Cam{self.cam}/Ccd{self.ccd}/wcs/ref/ccd_sourcefits.csv')
+        sources = sources.dropna(subset=['xPSF','yPSF','ra','dec'])
         cut_size = 2048/self.n
-        cut_sources = sources[(sources.xPSF>self.corner[0])&(sources.xPSF<self.corner[0]+cut_size)&
-                              (sources.yPSF>self.corner[1])&(sources.yPSF<self.corner[1]+cut_size)]
-        
+
+        # -- Grow the box a ring of cuts at a time until it holds enough fitted sources -- #
+        # (e.g. scattered light can leave a whole cut with no fits, giving NaN offsets)
+        for ring in range(self.n):
+            pad = ring * cut_size
+            cut_sources = sources[(sources.xPSF>self.corner[0]-pad)&(sources.xPSF<self.corner[0]+cut_size+pad)&
+                                  (sources.yPSF>self.corner[1]-pad)&(sources.yPSF<self.corner[1]+cut_size+pad)]
+            if len(cut_sources) >= min_sources:
+                break
+
+        if ring > 0:
+            print(f'--CutWCS: only found enough fitted sources for cut {self.cut} by including {ring} '
+                  f'ring(s) of neighbouring cuts ({len(cut_sources)} sources)')
+
         xFinal,yFinal = self.wcs.all_world2pix(cut_sources.ra,cut_sources.dec,0)
 
         self.dx = np.nanmedian(cut_sources.xPSF-xFinal)
         self.dy = np.nanmedian(cut_sources.yPSF-yFinal)
+
+        if not (np.isfinite(self.dx) & np.isfinite(self.dy)):
+            print(f'--CutWCS: no usable fitted sources for cut {self.cut}, using zero offset')
+            self.dx = self.dy = 0
 
         del(sources)
         del(cut_sources)
